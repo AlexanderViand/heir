@@ -11,7 +11,9 @@ cc_library(
     ],
     deps = [
         "@heir//include/Transforms/ElementwiseToAffine:pass_inc_gen",
+        "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LinalgDialect",  #FIXME: Remove me!
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:Transforms",

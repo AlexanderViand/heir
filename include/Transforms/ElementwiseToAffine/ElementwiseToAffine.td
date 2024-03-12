@@ -9,7 +9,7 @@ def ElementwiseToAffine : Pass<"convert-elementwise-to-affine"> {
   let description = [{
   }];
   let dependentDialects = [
-
+    "mlir::linalg::LinalgDialect" //FIXME: Remove me!
   ];
 }
 
