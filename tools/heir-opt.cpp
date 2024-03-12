@@ -24,6 +24,7 @@
 #include "include/Dialect/TensorExt/Transforms/Passes.h"
 #include "include/Dialect/TfheRust/IR/TfheRustDialect.h"
 #include "include/Dialect/TfheRustBool/IR/TfheRustBoolDialect.h"
+#include "include/Transforms/ElementwiseToAffine/ElementwiseToAffine.h"
 #include "include/Transforms/ForwardStoreToLoad/ForwardStoreToLoad.h"
 #include "include/Transforms/FullLoopUnroll/FullLoopUnroll.h"
 #include "include/Transforms/Secretize/Passes.h"
@@ -294,6 +295,7 @@ int main(int argc, char **argv) {
   lwe::registerLWEPasses();
   secret::registerSecretPasses();
   tensor_ext::registerTensorExtPasses();
+  registerElementwiseToAffinePasses();
   registerSecretizePasses();
   registerFullLoopUnrollPasses();
   registerForwardStoreToLoadPasses();
