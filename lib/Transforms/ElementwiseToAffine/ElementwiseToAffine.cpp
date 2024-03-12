@@ -1,5 +1,6 @@
 #include "include/Transforms/ElementwiseToAffine/ElementwiseToAffine.h"
 
+#include "mlir/include/mlir/Dialect/Affine/IR/AffineOps.h"  // from @llvm - project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
 #include "mlir/include/mlir/Dialect/Linalg/IR/Linalg.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
@@ -95,11 +96,19 @@ struct ConvertAnyElementwiseMappableOpOnRankedTensors : public RewritePattern {
               llvm::map_range(op->getResultTypes(), [](Type type) {
                 return cast<TensorType>(type).getElementType();
               }));
+          // FIXME: Generate a `tensor.extract` for each operand
+
+          // FIXME: Replace the operands here with the extract operands
           auto *scalarOp =
               builder.create(loc, op->getName().getIdentifier(),
                              regionArgs.take_front(op->getNumOperands()),
                              resultTypes, op->getAttrs());
+
+          // FIXME: insert scalarOp into the tensor at the right index
+
+          // FIXME: replace lingalg.yield scalarOp with affine.yield insertedOp
           builder.create<linalg::YieldOp>(loc, scalarOp->getResults());
+          // builder.create<affine::AffineYieldOp>(loc, scalarOp->getResults());
         });
     return success();
   }
