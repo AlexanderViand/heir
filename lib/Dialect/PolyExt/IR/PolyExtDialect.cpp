@@ -50,10 +50,11 @@ LogicalResult CModSwitchOp::verify() {
               "the relevant builder on Ring_Attr";
   }
 
-  if (xRingCmod.ule(outRingCmod)) {
-    return emitOpError()
-           << "input ring cmod must be larger than output ring cmod";
-  }
+  // TODO: Can we use modswitch to represent modulus extension, too?
+  // if (xRingCmod.ule(outRingCmod)) {
+  //  return emitOpError()
+  //         << "input ring cmod must be larger than output ring cmod";
+  //}
 
   APInt congMod = getCongruenceModulus().getValue();
   if (congMod.ule(APInt::getZero(congMod.getBitWidth()))) {

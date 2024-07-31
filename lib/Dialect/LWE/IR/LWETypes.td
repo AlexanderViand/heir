@@ -47,12 +47,12 @@ def RLWECiphertext : LWE_Type<"RLWECiphertext", "rlwe_ciphertext"> {
 }
 
 def RLWESecretKey : LWE_Type<"RLWESecretKey", "rlwe_secret_key"> {
-  let summary = "A secret key for RLWE";
+  let summary = "A secret decryption key for RLWE";
   let parameters = (ins "RLWEParamsAttr":$rlwe_params);
 }
 
 def RLWEPublicKey : LWE_Type<"RLWEPublicKey", "rlwe_public_key"> {
-  let summary = "A public key for RLWE";
+  let summary = "A public encryption key for RLWE";
   let parameters = (ins "RLWEParamsAttr":$rlwe_params);
 }
 

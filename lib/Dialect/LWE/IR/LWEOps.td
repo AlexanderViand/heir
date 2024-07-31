@@ -4,6 +4,7 @@
 include "lib/Dialect/LWE/IR/LWEDialect.td"
 include "lib/Dialect/LWE/IR/LWETypes.td"
 include "mlir/Dialect/Polynomial/IR/PolynomialAttributes.td"
+include "mlir/Dialect/Polynomial/IR/PolynomialTypes.td"
 
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -189,6 +190,21 @@ def LWE_RLWEDecryptOp : LWE_Op<"rlwe_decrypt", [Pure,
   let results = (outs RLWEPlaintext:$output);
 }
 
+def LWE_FastBasisConversionOP : LWE_Op<"fast_basis_conversion", [Pure]> {
+  let summary = "Perform a fast basis conversion on an RLWE ciphertext";
+  let description = [{
+    Perform a fast basis conversion on an RLWE ciphertext.
+  }];
+
+  let arguments = (ins
+    RLWECiphertext:$input,
+    Polynomial_RingAttr:$input_ring,
+    Polynomial_RingAttr:$output_ring
+  );
+  let results = (outs RLWECiphertext:$output);
+  // TODO: Define a proper verifier and/or type inference
+}
+
 def ReinterpretUnderlyingTypeOp : LWE_Op<"reinterpret_underlying_type", [Pure]> {
   let summary = "A placeholder cast from one ciphertext type to another";
   let description = [{
@@ -204,6 +220,32 @@ def ReinterpretUnderlyingTypeOp : LWE_Op<"reinterpret_underlying_type", [Pure]> 
   }];
 
   let hasVerifier = 1;
+}
+
+// TODO: Should probably output out a LWE_KeySwitchKey or similar
+//TODO: Should already be inserted when we create bgv.relinearize or similar ops? (How to lower to "poly" level, though?)
+def LWE_KeySwitchingKeys : LWE_Op<"key_switching_key", [Pure]> {
+  let summary = "Represents a required key switching key (to be realized by further lowerings)";
+  let description = [{
+    Essentially a "placeholder" that is inserted whenever a key switching key is required
+    //TODO: Implement a pass that lifts all ksk's in a given function to function parameters for targets without a global "context"
+    //TODO: Add support for (selective) ksk generation to OpenFHE target
+  }];
+
+  let arguments = (ins
+    //TODO: Instead of being hardcoded to simple relin keys, introduce new attributes that can contain whatever ksk info we need
+    DenseI32ArrayAttr:$from_basis,
+    DenseI32ArrayAttr:$to_basis
+    //TODO: Add an optional parameter that tells us which key (for MK/threshold FHE)? Alternatively, can we add this to the encoding somehow?
+  );
+  let results = (outs PolynomialLike:$output);
+
+  let assemblyFormat = [{
+    $from_basis `to` $to_basis  attr-dict `:` qualified(type($output))
+  }];
+
+  //TODO: Implement type inference by looking at the encoding
+  //TODO: What, if any, verification makes sense here?
 }
 
 #endif  // HEIR_LIB_DIALECT_LWE_IR_LWEOPS_TD_
