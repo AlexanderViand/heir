@@ -1,7 +1,7 @@
 <!-- mdformat off(yaml frontmatter) -->
 ---
 title: IDE Configuration
-weight: 3
+weight: 70
 ---
 <!-- mdformat on -->
 
