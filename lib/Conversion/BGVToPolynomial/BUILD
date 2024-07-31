@@ -16,6 +16,7 @@ cc_library(
         "@heir//lib/Conversion:Utils",
         "@heir//lib/Dialect/BGV/IR:Dialect",
         "@heir//lib/Dialect/LWE/IR:Dialect",
+        "@heir//lib/Dialect/PolyExt/IR:Dialect",
         "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",

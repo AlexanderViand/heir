@@ -13,12 +13,12 @@
 #params1 = #lwe.rlwe_params<dimension=3, ring=#ring1>
 #params2 = #lwe.rlwe_params<dimension=2, ring=#ring2>
 
-!pt = !lwe.rlwe_plaintext<encoding=#encoding, ring=#ring1, underlying_type=i3>
-!ct = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params, underlying_type=i3>
+!pt = !lwe.rlwe_plaintext<encoding=#encoding, ring=#ring1, underlying_type=i32>
+!ct = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params, underlying_type=i32>
 !ct_tensor = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params, underlying_type=tensor<32xi16>>
 !ct_scalar = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params, underlying_type=i16>
-!ct1 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params1, underlying_type=i3>
-!ct2 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params2, underlying_type=i3>
+!ct1 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params1, underlying_type=i32>
+!ct2 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params2, underlying_type=i32>
 
 // CHECK: module
 module {

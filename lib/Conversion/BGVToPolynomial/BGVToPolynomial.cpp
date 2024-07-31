@@ -4,9 +4,10 @@
 #include <optional>
 
 #include "lib/Conversion/Utils.h"
-#include "lib/Dialect/BGV/IR/BGVDialect.h"
 #include "lib/Dialect/BGV/IR/BGVOps.h"
+#include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
+#include "lib/Dialect/PolyExt/IR/PolyExtOps.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Polynomial/IR/Polynomial.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Polynomial/IR/PolynomialAttributes.h"  // from @llvm-project
@@ -148,6 +149,62 @@ struct ConvertMul : public OpConversionPattern<MulOp> {
     auto z = b.create<tensor::FromElementsOp>(ArrayRef<Value>({z0, z1, z2}));
 
     rewriter.replaceOp(op, z);
+    return success();
+  }
+};
+
+struct ConvertRelinearize : public OpConversionPattern<RelinearizeOp> {
+  ConvertRelinearize(mlir::MLIRContext *context)
+      : OpConversionPattern<RelinearizeOp>(context) {}
+
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      RelinearizeOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+    auto x = adaptor.getInput();
+    auto xT = cast<RankedTensorType>(x.getType());
+
+    auto inDim = op.getInput().getType().getRlweParams().getDimension();
+    auto outDim = op.getOutput().getType().getRlweParams().getDimension();
+
+    // TODO (999999): Implement general relinearization for degree > 2
+    if (inDim != 3 || outDim != 2) {
+      op.emitError() << "`bgv.relinearize` expects ciphertext with dimension 3 "
+                        "as input and dimension 2 for output, got "
+                     << inDim << " and " << outDim << " instead";
+      return failure();
+    }
+
+    // get ciphertext elements
+    auto i0 = b.create<arith::ConstantIndexOp>(0);
+    auto i1 = b.create<arith::ConstantIndexOp>(1);
+    auto i2 = b.create<arith::ConstantIndexOp>(2);
+    auto x0 = b.create<tensor::ExtractOp>(x, ValueRange{i0});
+    auto x1 = b.create<tensor::ExtractOp>(x, ValueRange{i1});
+    auto x2 = b.create<tensor::ExtractOp>(x, ValueRange{i2});
+
+    // get (or "request") the key switching key (ksk) and its elements
+    auto ksk = b.create<lwe::KeySwitchingKeys>(
+        RankedTensorType::get({2}, xT.getElementType()),
+        b.getDenseI32ArrayAttr({0, 1, 2}), b.getDenseI32ArrayAttr({0, 1}));
+    auto ksk0 = b.create<tensor::ExtractOp>(ksk, ValueRange{i0});
+    auto ksk1 = b.create<tensor::ExtractOp>(ksk, ValueRange{i1});
+
+    // compute noise-optimized product between x2 and ksk
+    auto t0 = b.create<poly_ext::GadgetProduct>(x2.getType(), x2, ksk0);
+    auto t1 = b.create<poly_ext::GadgetProduct>(x2.getType(), x2, ksk1);
+
+    // compute out ctxt elements
+    auto r0 = b.create<polynomial::AddOp>(x0, t0);
+    auto r1 = b.create<polynomial::AddOp>(x1, t1);
+
+    // combine back into a tensor
+    auto r = b.create<tensor::FromElementsOp>(ArrayRef<Value>({r0, r1}));
+
+    rewriter.replaceOp(op, r);
     return success();
   }
 };

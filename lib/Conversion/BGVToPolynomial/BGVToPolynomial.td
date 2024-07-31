@@ -12,6 +12,7 @@ def BGVToPolynomial : Pass<"bgv-to-polynomial"> {
 
   let dependentDialects = [
     "mlir::heir::bgv::BGVDialect",
+    "mlir::heir::poly_ext::PolyExtDialect",
     "mlir::polynomial::PolynomialDialect",
     "mlir::tensor::TensorDialect",
   ];
