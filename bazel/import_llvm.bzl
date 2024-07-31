@@ -1,15 +1,8 @@
 """Provides the repository macro to import LLVM."""
 
-load(
-    "@bazel_tools//tools/build_defs/repo:git.bzl",
-    "new_git_repository",
-)
-
 def import_llvm(name):
     """Imports LLVM."""
-    LLVM_COMMIT = "42d641ef5cc4bd82f98ef9959a593ca6db66d75d"
-
-    new_git_repository(
+    native.new_local_repository(
         name = name,
         # this BUILD file is intentionally empty, because the LLVM project
         # internally contains a set of bazel BUILD files overlaying the project.
