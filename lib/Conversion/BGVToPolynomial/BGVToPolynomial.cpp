@@ -114,6 +114,7 @@ struct ConvertMul : public OpConversionPattern<MulOp> {
     auto y = adaptor.getRhs();
     auto yT = cast<RankedTensorType>(y.getType());
 
+    // TODO (#999999): Implement general multiplication for degree > 2
     if (xT.getNumElements() != 2 || yT.getNumElements() != 2) {
       op.emitError() << "`bgv.mul` expects ciphertext as two polynomials, got "
                      << xT.getNumElements() << " and " << yT.getNumElements();
@@ -170,7 +171,7 @@ struct ConvertRelinearize : public OpConversionPattern<RelinearizeOp> {
     auto inDim = op.getInput().getType().getRlweParams().getDimension();
     auto outDim = op.getOutput().getType().getRlweParams().getDimension();
 
-    // TODO (999999): Implement general relinearization for degree > 2
+    // TODO (#999999): Implement general relinearization for degree > 2
     if (inDim != 3 || outDim != 2) {
       op.emitError() << "`bgv.relinearize` expects ciphertext with dimension 3 "
                         "as input and dimension 2 for output, got "
