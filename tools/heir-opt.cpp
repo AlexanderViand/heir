@@ -10,6 +10,7 @@
 #include "lib/Conversion/CombToCGGI/CombToCGGI.h"
 #include "lib/Conversion/LWEToPolynomial/LWEToPolynomial.h"
 #include "lib/Conversion/MemrefToArith/MemrefToArith.h"
+#include "lib/Conversion/PolyExtToPolynomial/PolyExtToPolynomial.h"
 #include "lib/Conversion/PolynomialToStandard/PolynomialToStandard.h"
 #include "lib/Conversion/SecretToBGV/SecretToBGV.h"
 #include "lib/Dialect/ArithExt/IR/ArithExtDialect.h"
@@ -517,6 +518,7 @@ int main(int argc, char **argv) {
   secret::registerSecretPasses();
   tensor_ext::registerTensorExtPasses();
   openfhe::registerOpenfhePasses();
+  registerPolyExtToPolynomialPasses();
   registerElementwiseToAffinePasses();
   registerSecretizePasses();
   registerFullLoopUnrollPasses();
