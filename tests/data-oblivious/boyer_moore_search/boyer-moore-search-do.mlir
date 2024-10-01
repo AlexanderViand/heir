@@ -4,7 +4,7 @@ func.func @bad_char_heuristic(%str: tensor<256xi8> {secret.secret}, %size: index
         %tempBadChar = tensor.insert %neg1 into %temp[%i] : tensor<256xi32>
         affine.yield %tempBadChar : tensor<256xi32>
     }
-    
+
     %badChar = affine.for %i = 0 to %size iter_args(%iBadChar = %initBadChar) -> (tensor<256xi32>){
         %strI = tensor.extract %str[%i] : tensor<256xi8>
         %badCharIndex = index.casts %strI: i8 to index
@@ -19,8 +19,8 @@ func.func @bad_char_heuristic(%str: tensor<256xi8> {secret.secret}, %size: index
         }
 
         affine.yield %tempBadChar : tensor<256xi32>
-       
+
     }
 
-    return %badChar : tensor<256xi32>    
+    return %badChar : tensor<256xi32>
 }

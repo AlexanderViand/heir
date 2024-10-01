@@ -1,0 +1,22 @@
+Loading:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //tools:heir-opt (0 packages loaded, 0 targets configured)
+INFO: Analyzed target //tools:heir-opt (0 packages loaded, 0 targets configured).
+INFO: Found 1 target...
+[0 / 1] [Prepa] BazelWorkspaceStatusAction stable-status.txt
+Target //tools:heir-opt up-to-date:
+  bazel-bin/tools/heir-opt
+INFO: Elapsed time: 2.285s, Critical Path: 0.01s
+INFO: 1 process: 1 internal.
+INFO: Build completed successfully, 1 total action
+INFO: Running command line: bazel-bin/tools/heir-opt '--mlir-to-openfhe-bgv=entry-function=simple_if ciphertext-degree=8' /home/mdemissi/heir/tests/data-oblivious/simple_if/simple_if.mlir
+/home/mdemissi/heir/tests/data-oblivious/simple_if/simple_if.mlir:2:1: error: failed to legalize operation 'secret.generic' that was explicitly marked illegal
+func.func @simple_if(%cond: i1, %input: i16) -> (i16){
+^
+/home/mdemissi/heir/tests/data-oblivious/simple_if/simple_if.mlir:2:1: note: see current operation:
+%5 = "secret.generic"(<<UNKNOWN SSA VALUE>>, %1, %4) ({
+^bb0(%arg2: i1, %arg3: i16, %arg4: i16):
+  %6 = "arith.select"(%arg2, %arg3, %arg4) : (i1, i16, i16) -> i16
+  "secret.yield"(%6) : (i16) -> ()
+}) : (!secret.secret<i1>, !secret.secret<i16>, !secret.secret<i16>) -> !secret.secret<i16>

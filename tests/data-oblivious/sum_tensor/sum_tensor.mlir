@@ -1,4 +1,3 @@
-// func.func @sumTensorInRange(%input: tensor<16xi16>, %lower: index, %upper:index) -> i16{
  func.func @sum_tensor(%arg0: tensor<32xi16>) -> i16{
   %c0 = arith.constant 0 : index
   %c0_si16 = arith.constant 0 : i16

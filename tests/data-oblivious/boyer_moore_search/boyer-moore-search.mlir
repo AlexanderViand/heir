@@ -77,28 +77,28 @@
 //         txt_idx = VIP_CMOV(j == s + idx, txt[j], txt_idx);
 
 //       /* Comment from Reviewer: [MZD]
-//       * 
-//       * For the for-loops above, to improve performance I would do the following: 
+//       *
+//       * For the for-loops above, to improve performance I would do the following:
 //       * Identify if n or m is greater: let's call it x. Description [x: (n > m) ? n : m]
-//       *  
+//       *
 //       * VIP_ENCCHAR pat_idx = pat[0];
 //       * VIP_ENCCHAR txt_idx = txt[0];
-//       * 
+//       *
 //       * for(int j = 0; j < x; j++){
 //       *     pat_idx = VIP_CMOV(j == idx , pat[j%m], pat_idx);
 //       *     txt_idx = VIP_CMOV(j == s + idx, txt[j%n], txt_idx);
 //       *  }
-//       * 
+//       *
 //       */
 
 //       /**** IISWC DO Transformation: <IF> <B.M.T> ****/
 //       idx = idx - VIP_CMOV(idx >= 0 && pat_idx == txt_idx, (VIP_ENCINT)1, (VIP_ENCINT)0);
 
-//       /* 
-//       * Comment from Reviewer: [MZD] 
-//       * I wonder for the code above, if this version would be optimal in terms 
+//       /*
+//       * Comment from Reviewer: [MZD]
+//       * I wonder for the code above, if this version would be optimal in terms
 //       * of performance: idx = idx - (idx >= 0 && pat_idx == txt_idx);
-//       * 
+//       *
 //       */
 //     }
 // #endif
@@ -147,27 +147,27 @@
 //     for (int j = 0; j < NO_OF_CHARS; j++)
 //       badchar_txt_sidx = VIP_CMOV(j == txt_sidx, badchar[j], badchar_txt_sidx);
 
-    
+
 //     /* Comment from Reviewer: [MZD]
-//       * 
-//       * For the for-loops above, to improve performance I would do the following: 
-//       *  
+//       *
+//       * For the for-loops above, to improve performance I would do the following:
+//       *
 //       * VIP_ENCINT txt_sm = (VIP_ENCINT)txt[0];
 //       * VIP_ENCINT badchar_txt_sm = badchar[0];
 //       * VIP_ENCINT txt_sidx = (VIP_ENCINT)txt[0];
 //       * VIP_ENCINT badchar_txt_sidx = badchar[0];
-//       * 
+//       *
 //       * for(int j = 0; j < n; j++){
 //       *     ret[j] = VIP_CMOV(cond && j == s, true, ret[j]);
 //       *     txt_sm = VIP_CMOV(j == s + m, txt[j], txt_sm);
 //       *     txt_sidx = VIP_CMOV(j == s + idx, txt[j], txt_sidx);
 //       *  }
-//       * 
+//       *
 //       * for(int j = 0; j< NO_OF_CHARS; j++){
 //       *     badchar_txt_sm = VIP_CMOV(j == txt_sm , badchar[j], badchar_txt_sm);
 //       *     badchar_txt_sidx = VIP_CMOV(j == txt_sidx, badchar[j], badchar_txt_sidx);
 //       * }
-//       * 
+//       *
 //       */
 
 
@@ -191,7 +191,7 @@ func.func @bad_char_heuristic(%str: tensor<3xi8> {secret.secret}, %size: index, 
         %tempBadChar = tensor.insert %neg1 into %temp[%i] : tensor<256xi32>
         affine.yield %tempBadChar : tensor<256xi32>
     }
-    
+
     %badChar = affine.for %i = 0 to %size iter_args(%iBadChar = %initBadChar) -> (tensor<256xi32>){
         %strI = tensor.extract %str[%i] : tensor<3xi8>
         %badCharIndex = index.casts %strI: i8 to index
@@ -201,7 +201,7 @@ func.func @bad_char_heuristic(%str: tensor<3xi8> {secret.secret}, %size: index, 
         affine.yield %tempBadChar : tensor<256xi32>
     }
 
-    return %badChar : tensor<256xi32>    
+    return %badChar : tensor<256xi32>
 }
 
 
@@ -245,8 +245,8 @@ func.func @bad_char_heuristic(%str: tensor<3xi8> {secret.secret}, %size: index, 
                 %tempIdx = arith.subi %while_idx, %c_1 : i32
                 scf.yield %tempIdx : i32
         } // end scf.while
-        
-        
+
+
         %cond = arith.cmpi slt, %resultIdx, %c_0 : i32
         %forRet, %forS = scf.if %cond -> (tensor<256xi1>, i32) {
             %true = arith.constant 1 : i1
@@ -266,7 +266,7 @@ func.func @bad_char_heuristic(%str: tensor<3xi8> {secret.secret}, %size: index, 
             } // end scf.if %ifCond1
 
             // [Left off here] Trying to figure out how to return 2 things from scf.if
-            scf.yield %ifRet, %s_if : (i1) -> (tensor<256xi1>, i32) 
+            scf.yield %ifRet, %s_if : (i1) -> (tensor<256xi1>, i32)
         } else{
             %txt_s_idx= tensor.extract %txt[%s_idx] : tensor<256xi8>
             %txt_s_idxIndex = index.casts %txt_s_idx : i8 to index
@@ -280,7 +280,7 @@ func.func @bad_char_heuristic(%str: tensor<3xi8> {secret.secret}, %size: index, 
             } // end scf.if %cond1
             scf.yield %whileRet, %s_else : (tensor<256xi1>,i32)
         } // end scf.if %cond
-        
+
         %s_add = arith.addi %whileS, %forS : i32
         affine.yield %forRet, %forS : tensor<256xi1>, i32
     }
