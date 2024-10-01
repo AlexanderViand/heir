@@ -5,13 +5,14 @@
 //     VIP_ENCBOOL match = false;
 //     for (unsigned j=0; j < setB.size(); j++)
 //     {
-//       if (setA[i] == setB[j])
-//         match = true;
-//         break; (Note: break not currently supported in HEIR)
+//       /**** IISWC DO Transformation: <IF> Using CMOV in place of if-statement ****/
+//       match = VIP_CMOV(setA[i] == setB[j], (VIP_ENCBOOL)true, match);
 //     }
 //     setA_match[i] = match;
 //   }
 // }
+
+
 
 func.func @set_intersect(%setA: tensor<16xi16>, %setB: tensor<16xi16>) -> tensor<16xi1>{
     %temp = tensor.empty() : tensor<16xi1>
@@ -21,15 +22,9 @@ func.func @set_intersect(%setA: tensor<16xi16>, %setB: tensor<16xi16>) -> tensor
             %setA_i = tensor.extract %setA[%i] : tensor<16xi16>
             %setB_j = tensor.extract %setB[%j] : tensor<16xi16>
             %cond = arith.cmpi eq, %setA_i, %setB_j : i16
-            // [DO-TRANSFORM] If-Transformation
-            %found = scf.if %cond -> (i1){
-                %one = arith.constant 1 : i1
-                scf.yield %one : i1
-            }
-            else{
-                scf.yield %arg_j : i1
-            }
-            affine.yield %found : i1
+            %found = arith.constant 1 : i1
+            %match = arith.select %cond, %found, %arg_j : i1
+            affine.yield %match : i1
         }
         %inserted = tensor.insert %match into %arg_i[%i] : tensor<16xi1>
         affine.yield %inserted : tensor<16xi1>
