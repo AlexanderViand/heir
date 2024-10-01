@@ -18,7 +18,7 @@ bazel run //tools:heir-opt -- --heir-basic-mlir-to-llvm  $PWD/tests/data-oblivio
 # Build mlir-cpu-runner
 bazel build @llvm-project//mlir:mlir-cpu-runner
 
-# Run mlir-cpu-runner
-bazel-bin/external/llvm-project/mlir/mlir-cpu-runner -e main -entry-point-result=struct $PWD/tests/data-oblivious/set_intersect/output/set_intersect_llvm.mlir
+# Run mlir-cpu-runner and measure execution time
+time $PWD/bazel-bin/external/llvm-project/mlir/mlir-cpu-runner -e main -entry-point-result=void --shared-libs="bazel-bin/external/llvm-project/mlir/libmlir_c_runner_utils.so,bazel-bin/external/llvm-project/mlir/libmlir_runner_utils.so" $PWD/tests/data-oblivious/set_intersect/output/set_intersect_llvm.mlir
 
-# TODO: Add mlir-translate to emit LLVM IR from MLIR
+# TODO: Use mlir-translate to emit LLVM IR from MLIR

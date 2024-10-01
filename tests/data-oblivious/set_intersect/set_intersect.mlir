@@ -1,3 +1,4 @@
+// **** Original Set Intersection Code from VIP-Bench ****
 // void set_intersect(vector<VIP_ENCINT>& setA, vector<VIP_ENCINT>& setB, vector<VIP_ENCBOOL>& setA_match)
 // {
 //   for (unsigned i=0; i < setA.size(); i++)
@@ -7,45 +8,72 @@
 //     {
 //       if (setA[i] == setB[j])
 //         match = true;
-//         break; (Note: break not currently supported in HEIR)
+//         break; // not currently supported in HEIR, see issue #922
 //     }
 //     setA_match[i] = match;
 //   }
 // }
 
+func.func private @printMemrefI32(memref<*xi32>) attributes { llvm.emit_c_interface }
+
+func.func private @printTensor16(%tensor: tensor<16xi1>) attributes {llvm.emit_c_interface} {
+  %1 = arith.extui %tensor : tensor<16xi1> to tensor<16xi32>
+  %memRef = bufferization.to_memref %1 : memref<16xi32>
+  %cast = memref.cast %memRef : memref<16xi32> to memref<*xi32>
+  call @printMemrefI32(%cast) : (memref<*xi32>) -> ()
+  return
+}
+
 func.func @set_intersect(%setA: tensor<16xi16>, %setB: tensor<16xi16>) -> tensor<16xi1>{
     %temp = tensor.empty() : tensor<16xi1>
-    %result = affine.for %i = 0 to 16 iter_args(%arg_i = %temp) -> (tensor<16xi1>){
-        %initial = arith.constant 0 : i1
-        %match = affine.for %j = 0 to 16 iter_args(%arg_j = %initial) -> (i1){
-            %setA_i = tensor.extract %setA[%i] : tensor<16xi16>
-            %setB_j = tensor.extract %setB[%j] : tensor<16xi16>
-            %cond = arith.cmpi eq, %setA_i, %setB_j : i16
+    %notFound = arith.constant 0 : i1
+    %found = arith.constant 1 : i1
+    %result = affine.for %i = 0 to 16 iter_args(%tensor = %temp) -> (tensor<16xi1>){
+        %result = affine.for %j = 0 to 16 iter_args(%val = %notFound) -> (i1){
+            %A = tensor.extract %setA[%i] : tensor<16xi16>
+            %B = tensor.extract %setB[%j] : tensor<16xi16>
+            %cond = arith.cmpi eq, %A, %B : i16
             // [DO-TRANSFORM] If-Transformation
-            %found = scf.if %cond -> (i1){
-                %one = arith.constant 1 : i1
-                scf.yield %one : i1
+            %match = scf.if %cond -> (i1){
+                scf.yield %found : i1
             }
             else{
-                scf.yield %arg_j : i1
+                scf.yield %val : i1
             }
-            affine.yield %found : i1
+            affine.yield %match : i1
         }
-        %inserted = tensor.insert %match into %arg_i[%i] : tensor<16xi1>
+        %inserted = tensor.insert %result into %tensor[%i] : tensor<16xi1>
         affine.yield %inserted : tensor<16xi1>
-
     }
     return %result : tensor<16xi1>
 
 }
 
-func.func @main() -> (tensor<16xi1>){
-    %size = arith.constant 16 : index
+func.func @main() {
+    %c2 = arith.constant 2 : i16
+    %c3 = arith.constant 3 : i16
+    %c4 = arith.constant 4 : i16
+
     %setA = tensor.generate{
         ^bb1(%i : index):
-            %two = arith.constant 2 : i16
-            tensor.yield %two : i16
+            tensor.yield %c2 : i16
     } : tensor<16xi16>
-    %result = call @set_intersect(%setA, %setA) : (tensor<16xi16>, tensor<16xi16>) -> tensor<16xi1>
-    return %result : tensor<16xi1>
+    %setB = tensor.generate{
+        ^bb1(%i : index):
+            tensor.yield %c3 : i16
+    } : tensor<16xi16>
+
+    %setC = tensor.from_elements %c2, %c3, %c2, %c3, %c2, %c3, %c2, %c3, %c2, %c3, %c2, %c3, %c2, %c3, %c2, %c3 : tensor<16xi16>
+    %setD = tensor.from_elements %c2, %c4, %c2, %c4, %c2, %c4, %c2, %c4, %c2, %c4, %c2, %c4, %c2, %c4, %c2, %c4 : tensor<16xi16>
+
+    %same = func.call @set_intersect(%setA, %setA) : (tensor<16xi16>, tensor<16xi16>) -> tensor<16xi1>
+    %different = func.call @set_intersect(%setA, %setB) : (tensor<16xi16>, tensor<16xi16>) -> tensor<16xi1>
+    %random = func.call @set_intersect(%setC, %setD) : (tensor<16xi16>, tensor<16xi16>) -> tensor<16xi1>
+
+    func.call @printTensor16(%same) : (tensor<16xi1>) -> ()
+    func.call @printTensor16(%different) : (tensor<16xi1>) -> ()
+    func.call @printTensor16(%random) : (tensor<16xi1>) -> ()
+
+
+    return
 }
