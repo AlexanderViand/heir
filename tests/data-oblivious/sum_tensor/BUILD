@@ -1,6 +1,6 @@
 # See README.md for setup required to run these tests
 
-load("@heir//tests/data-oblivious/end-to-end:test.bzl", "openfhe_end_to_end_test")
+load("@heir//tests/data-oblivious/sum_tensor:test.bzl", "openfhe_end_to_end_test")
 
 package(default_applicable_licenses = ["@heir//:license"])
 
