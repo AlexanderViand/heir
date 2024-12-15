@@ -48,8 +48,7 @@ using ConvertMulPlainOp =
     ConvertRlweCiphertextPlaintextOp<MulPlainOp, openfhe::MulPlainOp>;
 using ConvertRotateOp = ConvertRlweRotateOp<RotateOp>;
 using ConvertRelinOp = ConvertRlweRelinOp<RelinearizeOp>;
-using ConvertExtractOp =
-    lwe::ConvertRlweExtractOp<ExtractOp, MulPlainOp, RotateOp>;
+using ConvertExtractOp = lwe::ConvertExtract<ExtractOp, MulPlainOp, RotateOp>;
 
 struct CKKSToOpenfhe : public impl::CKKSToOpenfheBase<CKKSToOpenfhe> {
   void runOnOperation() override {

@@ -18,20 +18,16 @@ namespace mlir::heir::lwe {
 
 // RLWE scheme pattern to rewrite extract ops as a multiplication by a one-hot
 // plaintext, followed by a rotate.
-template <typename RlweExtractOp, typename RlweMulPlainOp,
-          typename RlweRotateOp>
-struct ConvertRlweExtractOp : public OpConversionPattern<RlweExtractOp> {
-  ConvertRlweExtractOp(mlir::MLIRContext *context)
-      : OpConversionPattern<RlweExtractOp>(context) {}
+template <typename ExtractOp, typename MulPlainOp, typename RotateOp>
+struct ConvertExtract : public OpConversionPattern<ExtractOp> {
+  ConvertExtract(mlir::MLIRContext *context)
+      : OpConversionPattern<ExtractOp>(context) {}
 
-  using OpConversionPattern<RlweExtractOp>::OpConversionPattern;
+  using OpConversionPattern<ExtractOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      RlweExtractOp op, typename RlweExtractOp::Adaptor adaptor,
+      ExtractOp op, typename ExtractOp::Adaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    FailureOr<Value> result = getContextualCryptoContext(op.getOperation());
-    if (failed(result)) return result;
-
     // Not-directly-constant offsets could be supported by using -sccp or
     // including a constant propagation analysis in this pass. A truly
     // non-constant extract op seems unlikely, given that most programs should
@@ -90,11 +86,10 @@ struct ConvertRlweExtractOp : public OpConversionPattern<RlweExtractOp> {
                                     ctTy.getEncoding(), ring)
             .getResult();
     auto plainMul =
-        b.create<RlweMulPlainOp>(adaptor.getInput(), oneHotPlaintext)
-            .getResult();
-    auto rotated = b.create<RlweRotateOp>(plainMul, offsetAttr);
+        b.create<MulPlainOp>(adaptor.getInput(), oneHotPlaintext).getResult();
+    auto rotated = b.create<RotateOp>(plainMul, offsetAttr);
     // It might make sense to move this op to the add-client-interface pass,
-    // but it also seems like an implementation detail of OpenFHE, and not part
+    // but it also seems like a backend implementation detail, and not part
     // of RLWE schemes generally.
     auto recast = b.create<lwe::ReinterpretUnderlyingTypeOp>(
                        op.getOutput().getType(), rotated.getResult())

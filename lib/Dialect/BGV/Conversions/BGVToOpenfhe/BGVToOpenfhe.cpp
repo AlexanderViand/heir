@@ -40,8 +40,7 @@ using ConvertMulPlainOp =
     ConvertRlweCiphertextPlaintextOp<MulPlainOp, openfhe::MulPlainOp>;
 using ConvertRotateOp = ConvertRlweRotateOp<RotateOp>;
 using ConvertRelinOp = ConvertRlweRelinOp<RelinearizeOp>;
-using ConvertExtractOp =
-    lwe::ConvertRlweExtractOp<ExtractOp, MulPlainOp, RotateOp>;
+using ConvertExtractOp = lwe::ConvertExtract<ExtractOp, MulPlainOp, RotateOp>;
 
 struct ConvertModulusSwitchOp : public OpConversionPattern<ModulusSwitchOp> {
   ConvertModulusSwitchOp(mlir::MLIRContext *context)
