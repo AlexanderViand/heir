@@ -29,7 +29,7 @@ struct AddCryptoContextArg : public OpConversionPattern<func::FuncOp> {
   LogicalResult matchAndRewrite(
       func::FuncOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
-    if (!containsLweOrDialect<Dialect>(op)) {
+    if (!containsDialects<lwe::LWEDialect, Dialect>(op)) {
       return failure();
     }
 

@@ -72,7 +72,7 @@ struct CKKSToOpenfhe : public impl::CKKSToOpenfheBase<CKKSToOpenfhe> {
                                      *op.getFunctionType().getInputs().begin());
       return typeConverter.isSignatureLegal(op.getFunctionType()) &&
              typeConverter.isLegal(&op.getBody()) &&
-             (!containsLweOrDialect<ckks::CKKSDialect>(op) ||
+             (!containsDialects<lwe::LWEDialect, ckks::CKKSDialect>(op) ||
               hasCryptoContextArg);
     });
 

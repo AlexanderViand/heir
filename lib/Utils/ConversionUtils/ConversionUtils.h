@@ -1,7 +1,6 @@
 #ifndef LIB_UTILS_CONVERSIONUTILS_CONVERSIONUTILS_H_
 #define LIB_UTILS_CONVERSIONUTILS_CONVERSIONUTILS_H_
 
-#include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
@@ -401,10 +400,10 @@ FailureOr<Value> getContextualArgFromFunc(Operation *op) {
 }
 
 // Returns true if the func contains ops from the given dialects.
-template <typename Dialect>
-bool containsLweOrDialect(func::FuncOp func) {
+template <typename... Dialects>
+bool containsDialects(func::FuncOp func) {
   auto walkResult = func.walk([&](Operation *op) {
-    if (llvm::isa<Dialect, lwe::LWEDialect>(op->getDialect()))
+    if (llvm::isa<Dialects...>(op->getDialect()))
       return WalkResult::interrupt();
     return WalkResult::advance();
   });

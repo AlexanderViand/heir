@@ -84,7 +84,7 @@ struct BGVToOpenfhe : public impl::BGVToOpenfheBase<BGVToOpenfhe> {
                                      *op.getFunctionType().getInputs().begin());
       return typeConverter.isSignatureLegal(op.getFunctionType()) &&
              typeConverter.isLegal(&op.getBody()) &&
-             (!containsLweOrDialect<bgv::BGVDialect>(op) ||
+             (!containsDialects<lwe::LWEDialect, bgv::BGVDialect>(op) ||
               hasCryptoContextArg);
     });
 
