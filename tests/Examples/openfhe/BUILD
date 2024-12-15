@@ -68,6 +68,7 @@ openfhe_end_to_end_test(
     # We manually specify the passes since the test file is already expressed at the CKKS dialect level.
     heir_opt_flags = [
         "--full-loop-unroll",
+        "--ckks-to-lwe",
         "--ckks-to-openfhe",
         "--canonicalize",
         "--cse",

@@ -1,4 +1,4 @@
-// RUN: heir-opt --ckks-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
+// RUN: heir-opt --ckks-to-lwe --ckks-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
 
 #encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start=30, cleartext_bitwidth=3>
 
@@ -15,11 +15,11 @@
 !ct1 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params1, underlying_type=i3>
 !ct2 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params2, underlying_type=i3>
 
-func.func @test_relin_to_basis_error(%x: !ct1) {
+func.func @test_relin_to_basis_error(%x: !ct1) -> !ct {
   // expected-error@+2 {{toBasis must be [0, 1], got [0, 2]}}
   // expected-error@+1 {{failed to legalize operation 'ckks.relinearize'}}
   %relin_error = ckks.relinearize %x  { from_basis = array<i32: 0, 1, 2, 3>, to_basis = array<i32: 0, 2> }: !ct1 -> !ct
-  return
+  return %relin_error : !ct
 }
 
 // -----
@@ -36,8 +36,8 @@ func.func @test_relin_to_basis_error(%x: !ct1) {
 !ct1 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params1, underlying_type=i3>
 !ct2 = !lwe.rlwe_ciphertext<encoding=#encoding, rlwe_params=#params2, underlying_type=i3>
 
-func.func @test_modswitch_level_error(%x: !ct2) {
+func.func @test_modswitch_level_error(%x: !ct2) -> !ct1 {
   // expected-error@+1 {{output ring should match to_ring}}
   %relin_error = bgv.modulus_switch %x  {to_ring=#ring2}: !ct2 -> !ct1
-  return
+  return %relin_error : !ct1
 }

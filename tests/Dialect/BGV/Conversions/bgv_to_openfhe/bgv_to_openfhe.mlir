@@ -1,4 +1,4 @@
-// RUN: heir-opt --mlir-print-local-scope --bgv-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --mlir-print-local-scope --bgv-to-lwe --bgv-to-openfhe %s | FileCheck %s
 
 #encoding = #lwe.polynomial_evaluation_encoding<cleartext_start=30, cleartext_bitwidth=3>
 
@@ -28,7 +28,7 @@ module {
 
   // CHECK-LABEL: @test_ops
   // CHECK-SAME: ([[C:%.+]]: [[S:.*crypto_context]], [[X:%.+]]: [[T:.*161729713.*]], [[Y:%.+]]: [[T]])
-  func.func @test_ops(%x : !ct, %y : !ct) {
+  func.func @test_ops(%x : !ct, %y : !ct) -> (!ct, !ct, !ct, !ct_level3, !ct) {
     // CHECK: %[[v1:.*]] = openfhe.negate [[C]], %[[x1:.*]] : ([[S]], [[T]]) -> [[T]]
     %negate = bgv.negate %x  : !ct
     // CHECK: %[[v2:.*]] = openfhe.add [[C]], %[[x2:.*]], %[[y2:.*]]: ([[S]], [[T]], [[T]]) -> [[T]]
@@ -40,17 +40,17 @@ module {
     // CHECK: %[[v5:.*]] = openfhe.rot [[C]], %[[x5:.*]] {index = 4 : i64}
     // CHECK-SAME: ([[S]], [[T]]) -> [[T]]
     %rot = bgv.rotate %x { offset = 4 } : !ct
-    return
+    return %negate, %add, %sub, %mul, %rot : !ct, !ct, !ct, !ct_level3, !ct
   }
 
   // CHECK-LABEL: @test_relin
   // CHECK-SAME: ([[C:.*]]: [[S:.*crypto_context]], [[X:%.+]]: [[T:.*dimension = 4.*]])
-  func.func @test_relin(%x : !ct_dim) {
+  func.func @test_relin(%x : !ct_dim) -> !ct {
     // CHECK: %[[v6:.*]] = openfhe.relin [[C]], %[[x6:.*]]: ([[S]], [[T]]) -> [[T2:.*]]
     %relin = bgv.relinearize %x  {
       from_basis = array<i32: 0, 1, 2, 3>, to_basis = array<i32: 0, 1>
     }: !ct_dim -> !ct
-    return
+    return %relin : !ct
   }
 
   // CHECK-LABEL: @test_modswitch

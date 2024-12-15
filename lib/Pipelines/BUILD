@@ -87,6 +87,7 @@ cc_library(
         ":PipelineRegistration",
         "@heir//lib/Dialect/BGV/Conversions/BGVToLWE",
         "@heir//lib/Dialect/BGV/Conversions/BGVToOpenfhe",
+        "@heir//lib/Dialect/CKKS/Conversions/CKKSToLWE",
         "@heir//lib/Dialect/CKKS/Conversions/CKKSToOpenfhe",
         "@heir//lib/Dialect/LWE/Conversions/LWEToPolynomial",
         "@heir//lib/Dialect/LWE/Transforms:AddClientInterface",

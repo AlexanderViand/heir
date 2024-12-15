@@ -38,10 +38,10 @@ namespace mlir::heir::ckks {
 #define GEN_PASS_DEF_CKKSTOOPENFHE
 #include "lib/Dialect/CKKS/Conversions/CKKSToOpenfhe/CKKSToOpenfhe.h.inc"
 
-using ConvertNegateOp = ConvertRlweUnaryOp<NegateOp, openfhe::NegateOp>;
-using ConvertAddOp = ConvertRlweBinOp<AddOp, openfhe::AddOp>;
-using ConvertSubOp = ConvertRlweBinOp<SubOp, openfhe::SubOp>;
-using ConvertMulOp = ConvertRlweBinOp<MulOp, openfhe::MulNoRelinOp>;
+using ConvertNegateOp = ConvertRlweUnaryOp<lwe::RNegateOp, openfhe::NegateOp>;
+using ConvertAddOp = ConvertRlweBinOp<lwe::RAddOp, openfhe::AddOp>;
+using ConvertSubOp = ConvertRlweBinOp<lwe::RSubOp, openfhe::SubOp>;
+using ConvertMulOp = ConvertRlweBinOp<lwe::RMulOp, openfhe::MulNoRelinOp>;
 using ConvertAddPlainOp =
     ConvertRlweCiphertextPlaintextOp<AddPlainOp, openfhe::AddPlainOp>;
 using ConvertMulPlainOp =
@@ -59,8 +59,9 @@ struct CKKSToOpenfhe : public impl::CKKSToOpenfheBase<CKKSToOpenfhe> {
     ConversionTarget target(*context);
     target.addLegalDialect<openfhe::OpenfheDialect>();
     target.addIllegalDialect<ckks::CKKSDialect>();
-    target.addIllegalOp<lwe::RLWEEncryptOp, lwe::RLWEDecryptOp,
-                        lwe::RLWEEncodeOp>();
+    target.addIllegalDialect<lwe::LWEDialect>();
+    // We can keep/ignore the following ops, which the emitter can handle??
+    target.addLegalOp<lwe::ReinterpretUnderlyingTypeOp, lwe::RLWEDecodeOp>();
 
     RewritePatternSet patterns(context);
     addStructuralConversionPatterns(typeConverter, patterns, target);

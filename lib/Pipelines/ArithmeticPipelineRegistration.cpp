@@ -3,7 +3,9 @@
 #include <cstdlib>
 #include <string>
 
+#include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/BGV/Conversions/BGVToOpenfhe/BGVToOpenfhe.h"
+#include "lib/Dialect/CKKS/Conversions/CKKSToLWE/CKKSToLWE.h"
 #include "lib/Dialect/CKKS/Conversions/CKKSToOpenfhe/CKKSToOpenfhe.h"
 #include "lib/Dialect/LWE/Transforms/AddClientInterface.h"
 #include "lib/Dialect/LinAlg/Conversions/LinalgToTensorExt/LinalgToTensorExt.h"
@@ -202,10 +204,14 @@ RLWEPipelineBuilder mlirToOpenFheRLWEPipelineBuilder(const RLWEScheme scheme) {
     // Convert to OpenFHE
     switch (scheme) {
       case RLWEScheme::bgvScheme: {
+        // TODO (#1193): Replace `--bgv-to-lwe` with `--bgv-common-to-lwe`
+        pm.addPass(bgv::createBGVToLWE());
         pm.addPass(bgv::createBGVToOpenfhe());
         break;
       }
       case RLWEScheme::ckksScheme: {
+        // TODO (#1193): Replace `--ckks-to-lwe` with `--ckks-common-to-lwe`
+        pm.addPass(ckks::createCKKSToLWE());
         pm.addPass(ckks::createCKKSToOpenfhe());
         break;
       }

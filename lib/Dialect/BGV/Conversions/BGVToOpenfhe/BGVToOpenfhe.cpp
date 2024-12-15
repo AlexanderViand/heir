@@ -30,10 +30,10 @@ namespace mlir::heir::bgv {
 #define GEN_PASS_DEF_BGVTOOPENFHE
 #include "lib/Dialect/BGV/Conversions/BGVToOpenfhe/BGVToOpenfhe.h.inc"
 
-using ConvertNegateOp = ConvertRlweUnaryOp<NegateOp, openfhe::NegateOp>;
-using ConvertAddOp = ConvertRlweBinOp<AddOp, openfhe::AddOp>;
-using ConvertSubOp = ConvertRlweBinOp<SubOp, openfhe::SubOp>;
-using ConvertMulOp = ConvertRlweBinOp<MulOp, openfhe::MulNoRelinOp>;
+using ConvertNegateOp = ConvertRlweUnaryOp<lwe::RNegateOp, openfhe::NegateOp>;
+using ConvertAddOp = ConvertRlweBinOp<lwe::RAddOp, openfhe::AddOp>;
+using ConvertSubOp = ConvertRlweBinOp<lwe::RSubOp, openfhe::SubOp>;
+using ConvertMulOp = ConvertRlweBinOp<lwe::RMulOp, openfhe::MulNoRelinOp>;
 using ConvertAddPlainOp =
     ConvertRlweCiphertextPlaintextOp<AddPlainOp, openfhe::AddPlainOp>;
 using ConvertMulPlainOp =
@@ -71,8 +71,9 @@ struct BGVToOpenfhe : public impl::BGVToOpenfheBase<BGVToOpenfhe> {
     ConversionTarget target(*context);
     target.addLegalDialect<openfhe::OpenfheDialect>();
     target.addIllegalDialect<bgv::BGVDialect>();
-    target.addIllegalOp<lwe::RLWEEncryptOp, lwe::RLWEDecryptOp,
-                        lwe::RLWEEncodeOp>();
+    target.addIllegalDialect<lwe::LWEDialect>();
+    // We can keep/ignore the following ops, which the emitter can handle??
+    target.addLegalOp<lwe::ReinterpretUnderlyingTypeOp, lwe::RLWEDecodeOp>();
 
     RewritePatternSet patterns(context);
     addStructuralConversionPatterns(typeConverter, patterns, target);
