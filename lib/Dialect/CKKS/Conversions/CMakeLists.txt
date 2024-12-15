@@ -1,1 +1,2 @@
 add_subdirectory(CKKSToOpenfhe)
+add_subdirectory(CKKSToLWE)
