@@ -1,4 +1,4 @@
-// RUN: heir-opt --ckks-to-lwe --ckks-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
+// RUN: heir-opt --ckks-to-lwe --lwe-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
 
 #encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start=30, cleartext_bitwidth=3>
 

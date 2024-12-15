@@ -1,4 +1,4 @@
-// RUN: heir-opt --ckks-to-lwe --ckks-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --ckks-to-lwe --lwe-to-openfhe %s | FileCheck %s
 
 #encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start = 16, cleartext_bitwidth = 16>
 #params = #lwe.rlwe_params<ring = <coefficientType=!mod_arith.int<463187969:i32>, polynomialModulus=#polynomial.int_polynomial<1 + x**32>>>

@@ -1,4 +1,4 @@
-// RUN: heir-opt --bgv-to-lwe --bgv-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
+// RUN: heir-opt --bgv-to-lwe --lwe-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
 
 #encoding = #lwe.polynomial_evaluation_encoding<cleartext_start=30, cleartext_bitwidth=3>
 

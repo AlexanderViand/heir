@@ -69,7 +69,7 @@ openfhe_end_to_end_test(
     heir_opt_flags = [
         "--full-loop-unroll",
         "--ckks-to-lwe",
-        "--ckks-to-openfhe",
+        "--lwe-to-openfhe",
         "--canonicalize",
         "--cse",
         "--openfhe-configure-crypto-context",

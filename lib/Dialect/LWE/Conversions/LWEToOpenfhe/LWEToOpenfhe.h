@@ -14,6 +14,12 @@
 
 namespace mlir::heir::lwe {
 
+#define GEN_PASS_DECL
+#include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h.inc"
+
+#define GEN_PASS_REGISTRATION
+#include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h.inc"
+
 class ToOpenfheTypeConverter : public TypeConverter {
  public:
   ToOpenfheTypeConverter(MLIRContext *ctx);
@@ -21,78 +27,8 @@ class ToOpenfheTypeConverter : public TypeConverter {
 
 FailureOr<Value> getContextualCryptoContext(Operation *op);
 
-struct ConvertEncryptOp : public OpConversionPattern<lwe::RLWEEncryptOp> {
-  ConvertEncryptOp(mlir::MLIRContext *context)
-      : OpConversionPattern<lwe::RLWEEncryptOp>(context) {}
-
-  using OpConversionPattern::OpConversionPattern;
-
-  LogicalResult matchAndRewrite(
-      lwe::RLWEEncryptOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override;
-};
-
-struct ConvertDecryptOp : public OpConversionPattern<lwe::RLWEDecryptOp> {
-  ConvertDecryptOp(mlir::MLIRContext *context)
-      : OpConversionPattern<lwe::RLWEDecryptOp>(context) {}
-
-  using OpConversionPattern::OpConversionPattern;
-
-  LogicalResult matchAndRewrite(
-      lwe::RLWEDecryptOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override;
-};
-
-// ConvertEncodeOp takes a boolean parameter indicating whether the
-// MakeCKKSPackedPlaintext should be used over the regular MakePackedPlaintext.
-struct ConvertEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
-  explicit ConvertEncodeOp(const mlir::TypeConverter &typeConverter,
-                           mlir::MLIRContext *context)
-      : mlir::OpConversionPattern<lwe::RLWEEncodeOp>(typeConverter, context) {}
-
-  LogicalResult matchAndRewrite(
-      lwe::RLWEEncodeOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override;
-};
-
-template <typename Dialect>
-struct AddCryptoContextArg : public OpConversionPattern<func::FuncOp> {
-  AddCryptoContextArg(mlir::MLIRContext *context)
-      : OpConversionPattern<func::FuncOp>(context, /* benefit= */ 2) {}
-
-  using OpConversionPattern::OpConversionPattern;
-
-  LogicalResult matchAndRewrite(
-      func::FuncOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
-    if (!containsDialects<lwe::LWEDialect, Dialect>(op)) {
-      return failure();
-    }
-
-    auto cryptoContextType = openfhe::CryptoContextType::get(getContext());
-    FunctionType originalType = op.getFunctionType();
-    llvm::SmallVector<Type, 4> newTypes;
-    newTypes.reserve(originalType.getNumInputs() + 1);
-    newTypes.push_back(cryptoContextType);
-    for (auto t : originalType.getInputs()) {
-      newTypes.push_back(t);
-    }
-    auto newFuncType =
-        FunctionType::get(getContext(), newTypes, originalType.getResults());
-    rewriter.modifyOpInPlace(op, [&] {
-      op.setType(newFuncType);
-
-      Block &block = op.getBody().getBlocks().front();
-      block.insertArgument(&block.getArguments().front(), cryptoContextType,
-                           op.getLoc());
-    });
-
-    return success();
-  }
-};
-
-template <typename UnaryOp, typename OpenfheUnaryOp>
-struct ConvertRlweUnaryOp : public OpConversionPattern<UnaryOp> {
+template <typename UnaryOp, typename OpenfheOp>
+struct ConvertUnaryOp : public OpConversionPattern<UnaryOp> {
   using OpConversionPattern<UnaryOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
@@ -102,14 +38,14 @@ struct ConvertRlweUnaryOp : public OpConversionPattern<UnaryOp> {
     if (failed(result)) return result;
 
     Value cryptoContext = result.value();
-    rewriter.replaceOp(op, rewriter.create<OpenfheUnaryOp>(
+    rewriter.replaceOp(op, rewriter.create<OpenfheOp>(
                                op.getLoc(), cryptoContext, adaptor.getInput()));
     return success();
   }
 };
 
-template <typename BinOp, typename OpenfheBinOp>
-struct ConvertRlweBinOp : public OpConversionPattern<BinOp> {
+template <typename BinOp, typename OpenfheOp>
+struct ConvertBinOp : public OpConversionPattern<BinOp> {
   using OpConversionPattern<BinOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
@@ -119,15 +55,15 @@ struct ConvertRlweBinOp : public OpConversionPattern<BinOp> {
     if (failed(result)) return result;
 
     Value cryptoContext = result.value();
-    rewriter.replaceOpWithNewOp<OpenfheBinOp>(op, op.getOutput().getType(),
-                                              cryptoContext, adaptor.getLhs(),
-                                              adaptor.getRhs());
+    rewriter.replaceOpWithNewOp<OpenfheOp>(op, op.getOutput().getType(),
+                                           cryptoContext, adaptor.getLhs(),
+                                           adaptor.getRhs());
     return success();
   }
 };
 
-template <typename BinOp, typename OpenfheBinOp>
-struct ConvertRlweCiphertextPlaintextOp : public OpConversionPattern<BinOp> {
+template <typename BinOp, typename OpenfheOp>
+struct ConvertCiphertextPlaintextOp : public OpConversionPattern<BinOp> {
   using OpConversionPattern<BinOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
@@ -137,28 +73,28 @@ struct ConvertRlweCiphertextPlaintextOp : public OpConversionPattern<BinOp> {
     if (failed(result)) return result;
 
     Value cryptoContext = result.value();
-    rewriter.replaceOpWithNewOp<OpenfheBinOp>(
+    rewriter.replaceOpWithNewOp<OpenfheOp>(
         op, op.getOutput().getType(), cryptoContext,
         adaptor.getCiphertextInput(), adaptor.getPlaintextInput());
     return success();
   }
 };
 
-template <typename RlweRotateOp>
-struct ConvertRlweRotateOp : public OpConversionPattern<RlweRotateOp> {
-  ConvertRlweRotateOp(mlir::MLIRContext *context)
-      : OpConversionPattern<RlweRotateOp>(context) {}
+template <typename RotateOp, typename OpenfheOp>
+struct ConvertRotateOp : public OpConversionPattern<RotateOp> {
+  ConvertRotateOp(mlir::MLIRContext *context)
+      : OpConversionPattern<RotateOp>(context) {}
 
-  using OpConversionPattern<RlweRotateOp>::OpConversionPattern;
+  using OpConversionPattern<RotateOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      RlweRotateOp op, typename RlweRotateOp::Adaptor adaptor,
+      RotateOp op, typename RotateOp::Adaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     FailureOr<Value> result = getContextualCryptoContext(op.getOperation());
     if (failed(result)) return result;
 
     Value cryptoContext = result.value();
-    rewriter.replaceOp(op, rewriter.create<openfhe::RotOp>(
+    rewriter.replaceOp(op, rewriter.create<OpenfheOp>(
                                op.getLoc(), cryptoContext, adaptor.getInput(),
                                adaptor.getOffset()));
     return success();
@@ -170,15 +106,15 @@ inline bool checkRelinToBasis(llvm::ArrayRef<int> toBasis) {
   return toBasis[0] == 0 && toBasis[1] == 1;
 }
 
-template <typename RlweRelinOp>
-struct ConvertRlweRelinOp : public OpConversionPattern<RlweRelinOp> {
-  ConvertRlweRelinOp(mlir::MLIRContext *context)
-      : OpConversionPattern<RlweRelinOp>(context) {}
+template <typename RelinOp, typename OpenfheOp>
+struct ConvertRelinOp : public OpConversionPattern<RelinOp> {
+  ConvertRelinOp(mlir::MLIRContext *context)
+      : OpConversionPattern<RelinOp>(context) {}
 
-  using OpConversionPattern<RlweRelinOp>::OpConversionPattern;
+  using OpConversionPattern<RelinOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      RlweRelinOp op, typename RlweRelinOp::Adaptor adaptor,
+      RelinOp op, typename RelinOp::Adaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     FailureOr<Value> result = getContextualCryptoContext(op.getOperation());
     if (failed(result)) return result;
@@ -186,16 +122,16 @@ struct ConvertRlweRelinOp : public OpConversionPattern<RlweRelinOp> {
     auto toBasis = adaptor.getToBasis();
 
     // Since the `Relinearize()` function in OpenFHE relinearizes a ciphertext
-    // to the lowest level (for (1,s)), the `to_basis` of `CKKS.RelinOp` must be
-    // [0,1].
+    // to the lowest level (for (1,s)), the `to_basis` of `<scheme>.RelinOp`
+    // must be [0,1].
     if (!checkRelinToBasis(toBasis)) {
       op.emitError() << "toBasis must be [0, 1], got [" << toBasis << "]";
       return failure();
     }
 
     Value cryptoContext = result.value();
-    rewriter.replaceOpWithNewOp<openfhe::RelinOp>(
-        op, op.getOutput().getType(), cryptoContext, adaptor.getInput());
+    rewriter.replaceOpWithNewOp<OpenfheOp>(op, op.getOutput().getType(),
+                                           cryptoContext, adaptor.getInput());
     return success();
   }
 };

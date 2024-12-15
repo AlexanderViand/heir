@@ -1,4 +1,4 @@
-// RUN: heir-opt --mlir-print-local-scope --ckks-to-lwe --ckks-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --mlir-print-local-scope --ckks-to-lwe --lwe-to-openfhe %s | FileCheck %s
 
 #encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start=30, cleartext_bitwidth=3>
 

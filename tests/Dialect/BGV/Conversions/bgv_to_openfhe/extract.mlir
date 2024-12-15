@@ -1,4 +1,4 @@
-// RUN: heir-opt --bgv-to-lwe --bgv-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --bgv-to-lwe --lwe-to-openfhe %s | FileCheck %s
 
 #encoding = #lwe.polynomial_evaluation_encoding<cleartext_start = 16, cleartext_bitwidth = 16>
 #params = #lwe.rlwe_params<ring = <coefficientType=!mod_arith.int<463187969:i32>, polynomialModulus=#polynomial.int_polynomial<1 + x**32>>>
