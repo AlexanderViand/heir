@@ -8,7 +8,6 @@
 #include "lib/Dialect/BGV/IR/BGVDialect.h"
 #include "lib/Dialect/BGV/IR/BGVOps.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
-#include "lib/Dialect/LWE/Conversions/RlweToOpenfhe/RlweToOpenfhe.h"
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWEPatterns.h"
@@ -26,6 +25,9 @@
 #include "mlir/include/mlir/Transforms/DialectConversion.h"  // from @llvm-project
 
 namespace mlir::heir::bgv {
+
+// TMP WORKAROUND
+using namespace mlir::heir::lwe;
 
 #define GEN_PASS_DEF_BGVTOOPENFHE
 #include "lib/Dialect/BGV/Conversions/BGVToOpenfhe/BGVToOpenfhe.h.inc"

@@ -15,7 +15,6 @@ cc_library(
         ":pass_inc_gen",
         "@heir//lib/Dialect/CKKS/IR:Dialect",
         "@heir//lib/Dialect/LWE/Conversions/LWEToOpenfhe",
-        "@heir//lib/Dialect/LWE/Conversions/RlweToOpenfhe",
         "@heir//lib/Dialect/LWE/IR:Dialect",
         "@heir//lib/Dialect/LWE/IR:Patterns",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",

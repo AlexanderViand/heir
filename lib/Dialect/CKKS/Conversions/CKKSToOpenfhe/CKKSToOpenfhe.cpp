@@ -8,7 +8,6 @@
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/IR/CKKSOps.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
-#include "lib/Dialect/LWE/Conversions/RlweToOpenfhe/RlweToOpenfhe.h"
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
@@ -34,6 +33,9 @@
 #include "mlir/include/mlir/Transforms/DialectConversion.h"  // from @llvm-project
 
 namespace mlir::heir::ckks {
+
+// TMP WORKAROUND
+using namespace mlir::heir::lwe;
 
 #define GEN_PASS_DEF_CKKSTOOPENFHE
 #include "lib/Dialect/CKKS/Conversions/CKKSToOpenfhe/CKKSToOpenfhe.h.inc"

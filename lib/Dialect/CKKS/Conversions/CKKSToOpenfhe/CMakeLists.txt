@@ -12,7 +12,6 @@ add_mlir_conversion_library(HEIRCKKSToOpenfhe
     HEIRLWE
     HEIROpenfhe
     HEIRLWEToOpenfhe
-    HEIRRlweToOpenfhe
 
     MLIRIR
     MLIRPass
