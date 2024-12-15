@@ -6,6 +6,7 @@
 #include "lib/Dialect/CKKS/IR/CKKSOps.h"
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
+#include "lib/Dialect/LWE/IR/LWEPatterns.h"
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"            // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
@@ -35,10 +36,10 @@ struct CKKSToLWE : public impl::CKKSToLWEBase<CKKSToLWE> {
     auto *module = getOperation();
 
     RewritePatternSet patterns(context);
-    patterns
-        .add<Convert<AddOp, lwe::RAddOp>, Convert<SubOp, lwe::RSubOp>,
-             Convert<NegateOp, lwe::RNegateOp>, Convert<MulOp, lwe::RMulOp> >(
-            context);
+    patterns.add<Convert<AddOp, lwe::RAddOp>, Convert<SubOp, lwe::RSubOp>,
+                 Convert<NegateOp, lwe::RNegateOp>, Convert<MulOp, lwe::RMulOp>,
+                 lwe::ConvertExtract<ExtractOp, MulPlainOp, RotateOp> >(
+        context);
     if (failed(applyPatternsAndFoldGreedily(module, std::move(patterns)))) {
       return signalPassFailure();
     }

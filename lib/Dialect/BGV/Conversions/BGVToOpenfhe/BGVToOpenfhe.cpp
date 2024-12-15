@@ -40,7 +40,6 @@ using ConvertMulPlainOp =
     ConvertRlweCiphertextPlaintextOp<MulPlainOp, openfhe::MulPlainOp>;
 using ConvertRotateOp = ConvertRlweRotateOp<RotateOp>;
 using ConvertRelinOp = ConvertRlweRelinOp<RelinearizeOp>;
-using ConvertExtractOp = lwe::ConvertExtract<ExtractOp, MulPlainOp, RotateOp>;
 
 struct ConvertModulusSwitchOp : public OpConversionPattern<ModulusSwitchOp> {
   ConvertModulusSwitchOp(mlir::MLIRContext *context)
@@ -88,13 +87,12 @@ struct BGVToOpenfhe : public impl::BGVToOpenfheBase<BGVToOpenfhe> {
               hasCryptoContextArg);
     });
 
-    patterns
-        .add<AddCryptoContextArg<bgv::BGVDialect>, ConvertAddOp, ConvertSubOp,
-             ConvertAddPlainOp, ConvertMulOp, ConvertMulPlainOp,
-             ConvertNegateOp, ConvertRotateOp, ConvertRelinOp,
-             ConvertModulusSwitchOp, ConvertExtractOp, lwe::ConvertEncodeOp,
-             lwe::ConvertEncryptOp, lwe::ConvertDecryptOp>(typeConverter,
-                                                           context);
+    patterns.add<AddCryptoContextArg<bgv::BGVDialect>, ConvertAddOp,
+                 ConvertSubOp, ConvertAddPlainOp, ConvertMulOp,
+                 ConvertMulPlainOp, ConvertNegateOp, ConvertRotateOp,
+                 ConvertRelinOp, ConvertModulusSwitchOp, lwe::ConvertEncodeOp,
+                 lwe::ConvertEncryptOp, lwe::ConvertDecryptOp>(typeConverter,
+                                                               context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       return signalPassFailure();

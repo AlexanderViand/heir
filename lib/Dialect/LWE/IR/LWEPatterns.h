@@ -19,32 +19,28 @@ namespace mlir::heir::lwe {
 // RLWE scheme pattern to rewrite extract ops as a multiplication by a one-hot
 // plaintext, followed by a rotate.
 template <typename ExtractOp, typename MulPlainOp, typename RotateOp>
-struct ConvertExtract : public OpConversionPattern<ExtractOp> {
+struct ConvertExtract : public OpRewritePattern<ExtractOp> {
   ConvertExtract(mlir::MLIRContext *context)
-      : OpConversionPattern<ExtractOp>(context) {}
+      : OpRewritePattern<ExtractOp>(context) {}
 
-  using OpConversionPattern<ExtractOp>::OpConversionPattern;
-
-  LogicalResult matchAndRewrite(
-      ExtractOp op, typename ExtractOp::Adaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult matchAndRewrite(ExtractOp op,
+                                PatternRewriter &rewriter) const override {
     // Not-directly-constant offsets could be supported by using -sccp or
     // including a constant propagation analysis in this pass. A truly
     // non-constant extract op seems unlikely, given that most programs should
     // be using rotate instead of extractions, and that we mainly have extract
     // as a terminating op for IRs that must output a secret<scalar> type.
-    auto offsetOp =
-        adaptor.getOffset().template getDefiningOp<arith::ConstantOp>();
+    auto offsetOp = op.getOffset().template getDefiningOp<arith::ConstantOp>();
     if (!offsetOp) {
       return op.emitError()
              << "Expected extract offset arg to be constant integer, found "
-             << adaptor.getOffset();
+             << op.getOffset();
     }
     auto offsetAttr = llvm::dyn_cast<IntegerAttr>(offsetOp.getValue());
     if (!offsetAttr) {
       return op.emitError()
              << "Expected extract offset arg to be constant integer, found "
-             << adaptor.getOffset();
+             << op.getOffset();
     }
     int64_t offset = offsetAttr.getInt();
 
@@ -86,7 +82,7 @@ struct ConvertExtract : public OpConversionPattern<ExtractOp> {
                                     ctTy.getEncoding(), ring)
             .getResult();
     auto plainMul =
-        b.create<MulPlainOp>(adaptor.getInput(), oneHotPlaintext).getResult();
+        b.create<MulPlainOp>(op.getInput(), oneHotPlaintext).getResult();
     auto rotated = b.create<RotateOp>(plainMul, offsetAttr);
     // It might make sense to move this op to the add-client-interface pass,
     // but it also seems like a backend implementation detail, and not part
