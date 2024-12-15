@@ -1,6 +1,6 @@
 // RUN: heir-opt --ckks-to-openfhe --split-input-file --verify-diagnostics %s 2>&1
 
-#encoding = #lwe.polynomial_evaluation_encoding<cleartext_start=30, cleartext_bitwidth=3>
+#encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start=30, cleartext_bitwidth=3>
 
 #my_poly = #polynomial.int_polynomial<1 + x**1024>
 // cmod is 64153 * 2521
@@ -23,7 +23,7 @@ func.func @test_relin_to_basis_error(%x: !ct1) {
 }
 
 // -----
-#encoding = #lwe.polynomial_evaluation_encoding<cleartext_start=30, cleartext_bitwidth=3>
+#encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start=30, cleartext_bitwidth=3>
 
 #my_poly = #polynomial.int_polynomial<1 + x**1024>
 #ring1 = #polynomial.ring<coefficientType=!mod_arith.int<463187969:i32>, polynomialModulus=#my_poly>

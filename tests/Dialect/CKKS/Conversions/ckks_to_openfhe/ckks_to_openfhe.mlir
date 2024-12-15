@@ -1,6 +1,6 @@
 // RUN: heir-opt --mlir-print-local-scope --ckks-to-openfhe %s | FileCheck %s
 
-#encoding = #lwe.polynomial_evaluation_encoding<cleartext_start=30, cleartext_bitwidth=3>
+#encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start=30, cleartext_bitwidth=3>
 
 #my_poly = #polynomial.int_polynomial<1 + x**1024>
 // cmod is 64153 * 2521

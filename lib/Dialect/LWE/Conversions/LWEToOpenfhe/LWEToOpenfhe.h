@@ -34,16 +34,12 @@ struct ConvertDecryptOp : public OpConversionPattern<lwe::RLWEDecryptOp> {
 // MakeCKKSPackedPlaintext should be used over the regular MakePackedPlaintext.
 struct ConvertEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
   explicit ConvertEncodeOp(const mlir::TypeConverter &typeConverter,
-                           mlir::MLIRContext *context, bool ckks)
-      : mlir::OpConversionPattern<lwe::RLWEEncodeOp>(typeConverter, context),
-        ckks_(ckks) {}
+                           mlir::MLIRContext *context)
+      : mlir::OpConversionPattern<lwe::RLWEEncodeOp>(typeConverter, context) {}
 
   LogicalResult matchAndRewrite(
       lwe::RLWEEncodeOp op, OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override;
-
- private:
-  bool ckks_;
 };
 
 }  // namespace mlir::heir::lwe

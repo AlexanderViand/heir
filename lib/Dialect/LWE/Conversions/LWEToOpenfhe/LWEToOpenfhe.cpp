@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "lib/Dialect/LWE/IR/LWEAttributes.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
@@ -77,15 +78,6 @@ LogicalResult ConvertEncodeOp::matchAndRewrite(
   Value input = adaptor.getInput();
   auto elementTy = getElementTypeOrSelf(input.getType());
 
-  if (!this->ckks_ && !elementTy.isInteger()) {
-    return op.emitOpError() << "input element type must be an integer type for "
-                               "non-CKKS schemes";
-  }
-  if (this->ckks_ && !elementTy.isIntOrFloat()) {
-    return op.emitOpError() << "input element type must be an integer or float "
-                               "type for CKKS scheme";
-  }
-
   auto tensorTy = mlir::dyn_cast<RankedTensorType>(input.getType());
   // Replicate scalar inputs into a splat tensor with shape matching
   // the ring dimension.
@@ -129,15 +121,30 @@ LogicalResult ConvertEncodeOp::matchAndRewrite(
   lwe::RLWEPlaintextType plaintextType =
       lwe::RLWEPlaintextType::get(op.getContext(), op.getEncoding(),
                                   op.getRing(), adaptor.getInput().getType());
-  if (this->ckks_) {
+
+  if (isa<lwe::InverseCanonicalEmbeddingEncodingAttr>(op.getEncoding())) {
     rewriter.replaceOpWithNewOp<openfhe::MakeCKKSPackedPlaintextOp>(
         op, plaintextType, cryptoContext, input);
-  } else {
+    return success();
+  }
+  if (isa<lwe::CoefficientEncodingAttr>(op.getEncoding())) {
+    // TODO (#1192): support coefficient packing in `--lwe-to-openfhe`
+    op.emitError() << "HEIR does not yet support coefficient encoding "
+                      " when targeting OpenFHE";
+    return failure();
+  }
+  if (isa<lwe::PolynomialEvaluationEncodingAttr>(op.getEncoding())) {
     rewriter.replaceOpWithNewOp<openfhe::MakePackedPlaintextOp>(
         op, plaintextType, cryptoContext, input);
-  }
 
-  return success();
+    return success();
+  }
+  // else: encoding isn't support explicitly:
+  op.emitError(
+      "Unexpected encoding while targeting OpenFHE. "
+      "If you expect this type of encoding to be supported "
+      "for the OpenFHE backend, please file a bug report.");
+  return failure();
 }
 
 }  // namespace mlir::heir::lwe

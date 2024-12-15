@@ -76,13 +76,12 @@ struct CKKSToOpenfhe : public impl::CKKSToOpenfheBase<CKKSToOpenfhe> {
               hasCryptoContextArg);
     });
 
-    patterns
-        .add<AddCryptoContextArg<ckks::CKKSDialect>, ConvertAddOp, ConvertSubOp,
-             ConvertMulOp, ConvertAddPlainOp, ConvertMulPlainOp,
-             ConvertNegateOp, ConvertRotateOp, ConvertRelinOp, ConvertExtractOp,
-             lwe::ConvertEncryptOp, lwe::ConvertDecryptOp>(typeConverter,
-                                                           context);
-    patterns.add<lwe::ConvertEncodeOp>(typeConverter, context, /*ckks=*/true);
+    patterns.add<AddCryptoContextArg<ckks::CKKSDialect>, ConvertAddOp,
+                 ConvertSubOp, ConvertMulOp, ConvertAddPlainOp,
+                 ConvertMulPlainOp, ConvertNegateOp, ConvertRotateOp,
+                 ConvertRelinOp, ConvertExtractOp, lwe::ConvertEncodeOp,
+                 lwe::ConvertEncryptOp, lwe::ConvertDecryptOp>(typeConverter,
+                                                               context);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       return signalPassFailure();

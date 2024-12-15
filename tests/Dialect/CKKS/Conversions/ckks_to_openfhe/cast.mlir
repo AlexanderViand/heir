@@ -1,8 +1,8 @@
 // RUN: heir-opt --mlir-print-local-scope --ckks-to-openfhe %s | FileCheck %s
 
-#encoding_i16 = #lwe.polynomial_evaluation_encoding<cleartext_start = 16, cleartext_bitwidth = 16>
-#encoding_i32 = #lwe.polynomial_evaluation_encoding<cleartext_start = 32, cleartext_bitwidth = 32>
-#encoding_i64 = #lwe.polynomial_evaluation_encoding<cleartext_start = 64, cleartext_bitwidth = 64>
+#encoding_i16 = #lwe.inverse_canonical_embedding_encoding<cleartext_start = 16, cleartext_bitwidth = 16>
+#encoding_i32 = #lwe.inverse_canonical_embedding_encoding<cleartext_start = 32, cleartext_bitwidth = 32>
+#encoding_i64 = #lwe.inverse_canonical_embedding_encoding<cleartext_start = 64, cleartext_bitwidth = 64>
 
 #my_poly = #polynomial.int_polynomial<1 + x**32>
 

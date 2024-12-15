@@ -1,6 +1,6 @@
 // RUN: heir-opt --mlir-print-local-scope --ckks-to-openfhe %s | FileCheck %s
 
-#encoding = #lwe.polynomial_evaluation_encoding<cleartext_start = 16, cleartext_bitwidth = 16>
+#encoding = #lwe.inverse_canonical_embedding_encoding<cleartext_start = 16, cleartext_bitwidth = 16>
 #ring = #polynomial.ring<coefficientType=!mod_arith.int<463187969:i32>, polynomialModulus=#polynomial.int_polynomial<1 + x**64>>
 #params2 = #lwe.rlwe_params<dimension = 2, ring=#ring>
 #params3 = #lwe.rlwe_params<dimension = 3, ring=#ring>
