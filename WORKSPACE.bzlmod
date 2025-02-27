@@ -95,7 +95,7 @@ git_repository(
 new_git_repository(
     name = "zlib",
     build_file = "@com_google_protobuf//:third_party/zlib.BUILD",
-    commit = "04f42ceca40f73e2978b50e93806c2a18c1281fc",
+    commit = "04f42ceca40f73e2978b50e93806c2a18c1281fc",  # v26.1
     remote = "https://github.com/madler/zlib.git",
 )
 
@@ -175,4 +175,13 @@ git_repository(
     build_file = "//bazel/pocketfft:pocketfft.BUILD",
     commit = "bb5bdb776c64819f66cb2205f78bef1581448628",
     remote = "https://gitlab.mpcdf.mpg.de/mtr/pocketfft.git",
+)
+
+# HERACLES dependencies (might contain currently private repos)
+git_repository(
+    name = "heracles_data_formats",
+    build_file = "//bazel/heracles:heracles_data_formats.BUILD",
+    commit = "f3bc197530b2ba2c1651f61ca82ba7a614be2884",
+    patches = ["@heir//bazel/heracles:add_heracles_proto.patch"],
+    remote = "https://github.com/IntelLabs/heracles-data-formats.git",
 )
