@@ -178,7 +178,7 @@ LogicalResult HeraclesSDKDataHelperEmitter::printOperation(
   emitAutoAssignPrefix(op->getResult(0));
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->Encrypt(";
   os << commaSeparatedValues(
-      {op.getPublicKey(), op.getPlaintext()},
+      {op.getEncryptionKey(), op.getPlaintext()},
       [&](Value value) { return variableNames->getNameForValue(value); });
   os << ");\n";
   return success();
