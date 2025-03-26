@@ -77,7 +77,8 @@ def run_pipeline(
           Fore.RED
           + Style.BRIGHT
           + f"HEIR Error: Type inference failed for function {func_name} with"
-          f" signature {numba_signature} with {type(e).__name__}: {e}"
+          f" annotations {function.__annotations__} with"
+          f" {type(e).__name__}: {e}"
       )
       raise
 
