@@ -2,24 +2,32 @@
 
 from heir import compile
 from heir.mlir import F32, I16, I64, Secret, Tensor
+from heir.mlir import linalg
 
 # TODO (#1162): Also add the tensorflow-to-tosa-to-HEIR example in example.py, even it doesn't use the main Python frontend?
 
 
-### Simple Example
-@compile()  # defaults to scheme="bgv", OpenFHE backend, and debug=False
-def func(x: Secret[I16], y: Secret[I16]):
-  sum = x + y
-  diff = x - y
-  mul = x * y
-  expression = sum * diff + mul
-  deadcode = expression * mul
-  return expression
+@compile()
+def foo(
+    a: Secret[Tensor[32, 32, F32]], b: Secret[Tensor[32, 32, F32]]
+) -> Secret[Tensor[32, 32, F32]]:
+  return linalg.matmul(a, b)
 
 
-print(
-    f"Expected result for `func`: {func.original(7,8)}, FHE result: {func(7,8)}"
-)
+# ### Simple Example
+# @compile()  # defaults to scheme="bgv", OpenFHE backend, and debug=False
+# def func(x: Secret[I16], y: Secret[I16]):
+#   sum = x + y
+#   diff = x - y
+#   mul = x * y
+#   expression = sum * diff + mul
+#   deadcode = expression * mul
+#   return expression
+
+
+# print(
+#     f"Expected result for `func`: {func.original(7,8)}, FHE result: {func(7,8)}"
+# )
 
 
 # ### Manual setup/enc/dec example

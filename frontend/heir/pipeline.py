@@ -91,6 +91,7 @@ def run_pipeline(
         )
 
     # Emit Textual IR
+    print(f"HEIR Debug: Numba IR is:\n{ssa_ir.dump_to_string()}")
     mlir_raw_textual = TextualMlirEmitter(
         ssa_ir, secret_args, typemap, restype
     ).emit()

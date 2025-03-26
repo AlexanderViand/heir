@@ -370,7 +370,9 @@ class TextualMlirEmitter:
           self.forward_name(from_var=assign.target, to_var=assign.value.args[0])
           return ""
         else:
-          raise NotImplementedError("Unknown global " + func.name)
+          raise NotImplementedError(
+              "Unknown function " + self.globals_map[func.name]
+          )
       case ir.Expr(op="cast"):
         # not sure what to do here. maybe will be needed for type conversions
         # when interfacing with C

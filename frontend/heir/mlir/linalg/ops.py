@@ -1,6 +1,9 @@
-from heir.mlir import Secret, Tensor
+from heir import compile
+from heir.mlir import Secret, Tensor, F32
 from numpy.typing import NDArray
 import numpy as np
+
+from numba.extending import overload
 
 
 # FIXME: Currently a no-op
@@ -22,13 +25,11 @@ def matmul(
   return np.matmul(lhs, rhs)  # type: ignore
 
 
-# We want to have the function body above (numpy matmul) called in func.original
-# and we want to emit `linalg.matmul` when running foo()/foo.eval()!
-# Ideally, we'd also like to have uses of matmul outside of @compile() still
-# correctly forward to np.matmul...
+# Register matmul with Numba's type inference
+@overload(matmul)
+def matmul_overload(lhs, rhs):
+  # Define the type inference rule
+  def typer(lhs, rhs):
+    return lhs  # Assuming the output type matches the type of lhs
 
-# @compile()
-# def foo(
-#     a: Secret[Tensor[32, 32, F32]], b: Secret[Tensor[32, 32, F32]]
-# ) -> Secret[Tensor[32, 32, F32]]:
-#   return matmul(a, b)
+  return typer
