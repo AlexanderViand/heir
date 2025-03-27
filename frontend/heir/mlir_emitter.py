@@ -383,11 +383,11 @@ class TextualMlirEmitter:
           # slight abuse of the arithSuffix utility to check whether we need a float dot
           zero = "0." if arithSuffix(result_numba_type) == "f" else "0"
           return (
-              f"{out_name} = arith.constant dense<{zero}> : {result_type}\n"
-              f"{name} = linalg.matmul ins({self.get_name(lhs)},"
-              f" {self.get_name(rhs)} : {lhs_type}, {rhs_type})"
-              f" outs({out_name} :"
-              f" {result_type}) -> {result_type} {mlirLoc(assign.loc)}"
+              f"{out_name} = arith.constant dense<{zero}> :"
+              f" {result_type} {mlirLoc(assign.loc)}\n{name} = linalg.matmul"
+              f" ins({self.get_name(lhs)}, {self.get_name(rhs)} : {lhs_type},"
+              f" {rhs_type}) outs({out_name} : {result_type}) ->"
+              f" {result_type} {mlirLoc(assign.loc)}"
           )
         else:
           raise NotImplementedError(
@@ -402,18 +402,14 @@ class TextualMlirEmitter:
         print(f"getattr(): {assign.value.value} and {assign.value.attr}")
         # look up the value:
         if str(assign.value.value) in self.globals_map:
-          print(
-              f"Found {assign.value.value} in globals_map:"
-              f" {self.globals_map[str(assign.value.value)]}"
-          )
           obj = self.globals_map[str(assign.value.value)]
           attr = assign.value.attr
           self.globals_map[assign.target.name] = f"{obj}.{attr}"
-          print(f"Globals map is: {self.globals_map}")
           return ""
         else:
-          print(f"Could not find {assign.value.value} in globals_map")
-          return ""
+          raise ValueError(
+              f"Could not find {assign.value.value} in globals_map"
+          )
       case ir.Const():
         name = self.get_or_create_name(assign.target)
         return (
@@ -422,9 +418,7 @@ class TextualMlirEmitter:
             f" {mlirLoc(assign.loc)}"
         )
       case ir.Global():
-        print(f"Storing global {assign.value.name} as {assign.target.name}")
         self.globals_map[assign.target.name] = assign.value.name
-        print(f"Globals map is: {self.globals_map}")
         return ""
       case ir.Var():
         self.forward_name(from_var=assign.target, to_var=assign.value)

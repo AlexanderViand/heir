@@ -1,7 +1,7 @@
 """Example of HEIR Python usage."""
 
 from heir import compile
-from heir.mlir import F32, I16, I64, Secret, Tensor
+from heir.mlir import I32, I16, I64, Secret, Tensor
 from heir.mlir import linalg
 
 # TODO (#1162): Also add the tensorflow-to-tosa-to-HEIR example in example.py, even it doesn't use the main Python frontend?
@@ -9,8 +9,8 @@ from heir.mlir import linalg
 
 @compile()
 def foo(
-    a: Secret[Tensor[32, 32, F32]], b: Secret[Tensor[32, 32, F32]]
-) -> Secret[Tensor[32, 32, F32]]:
+    a: Secret[Tensor[32, 32, I32]], b: Secret[Tensor[32, 32, I32]]
+) -> Secret[Tensor[32, 32, I32]]:
   return linalg.matmul(a, b)
 
 
