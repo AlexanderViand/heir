@@ -341,7 +341,7 @@ class TextualMlirEmitter:
   def forward_name_to_id(self, from_var, to_str):
     self.numba_names_to_ssa_var_names[from_var.name] = to_str
 
-  def emit_assign(self, assign):
+  def emit_assign(self, assign: ir.Assign):
     match assign.value:
       case ir.Arg():
         if assign.target.name != assign.value.name:
@@ -369,6 +369,17 @@ class TextualMlirEmitter:
           # nothing to do, forward the name to the arg of bool()
           self.forward_name(from_var=assign.target, to_var=assign.value.args[0])
           return ""
+        # FIXME: hook into some kind of registry of mlir_op's that have been registered
+        if self.globals_map[func.name] == "linalg.matmul":
+          lhs = self.get_name(assign.value.args[0])
+          rhs = self.get_name(assign.value.args[1])
+          name = self.get_or_create_name(assign.target)
+          # FIXME: correct tensor sizes!
+          return (
+              f"{name} = linalg.matmul {lhs}, {rhs} :"
+              " tensor<?x?xf32> tensor<?x?xf32> -> tensor<?x?xf32>"
+              f" {mlirLoc(assign.loc)}"
+          )
         else:
           raise NotImplementedError(
               "Unknown function " + self.globals_map[func.name]
@@ -378,6 +389,22 @@ class TextualMlirEmitter:
         # when interfacing with C
         self.forward_name(from_var=assign.target, to_var=assign.value.value)
         return ""
+      case ir.Expr(op="getattr"):
+        print(f"getattr(): {assign.value.value} and {assign.value.attr}")
+        # look up the value:
+        if str(assign.value.value) in self.globals_map:
+          print(
+              f"Found {assign.value.value} in globals_map:"
+              f" {self.globals_map[str(assign.value.value)]}"
+          )
+          obj = self.globals_map[str(assign.value.value)]
+          attr = assign.value.attr
+          self.globals_map[assign.target.name] = f"{obj}.{attr}"
+          print(f"Globals map is: {self.globals_map}")
+          return ""
+        else:
+          print(f"Could not find {assign.value.value} in globals_map")
+          return ""
       case ir.Const():
         name = self.get_or_create_name(assign.target)
         return (
@@ -386,12 +413,17 @@ class TextualMlirEmitter:
             f" {mlirLoc(assign.loc)}"
         )
       case ir.Global():
+        print(f"Storing global {assign.value.name} as {assign.target.name}")
         self.globals_map[assign.target.name] = assign.value.name
+        print(f"Globals map is: {self.globals_map}")
         return ""
       case ir.Var():
         self.forward_name(from_var=assign.target, to_var=assign.value)
         return ""
-    raise NotImplementedError(f"Unsupported IR Element: {assign}")
+    raise NotImplementedError(
+        f"Unsupported assignment RHS: {assign.value} of type"
+        f" {type(assign.value).__name__}"
+    )
 
   def emit_ext_if_needed(self, lhs, rhs):
     lhs_type = self.typemap.get(str(lhs))
