@@ -30,6 +30,7 @@ def mlirType(numba_type: NumbaType) -> str:
     shape = None
     if hasattr(numba_type, "shape"):
       shape = "x".join(str(s) for s in numba_type.shape)  # type: ignore
+      return f"tensor<{shape}x{mlirType(numba_type.dtype)}>"
     return "tensor<" + "?x" * numba_type.ndim + mlirType(numba_type.dtype) + ">"
   raise NotImplementedError("Unsupported type: " + str(numba_type))
 
@@ -369,16 +370,24 @@ class TextualMlirEmitter:
           # nothing to do, forward the name to the arg of bool()
           self.forward_name(from_var=assign.target, to_var=assign.value.args[0])
           return ""
-        # FIXME: hook into some kind of registry of mlir_op's that have been registered
+        # FIXME: hook into some kind of registry of mlir_op's that have been registered instead of matching on names here
         if self.globals_map[func.name] == "linalg.matmul":
-          lhs = self.get_name(assign.value.args[0])
-          rhs = self.get_name(assign.value.args[1])
+          out_name = self.get_next_name()
+          lhs = assign.value.args[0]
+          rhs = assign.value.args[1]
+          lhs_type = mlirType(self.typemap.get(str(lhs)))
+          rhs_type = mlirType(self.typemap.get(str(rhs)))
+          result_numba_type = self.typemap.get(assign.target.name)
+          result_type = mlirType(result_numba_type)
           name = self.get_or_create_name(assign.target)
-          # FIXME: correct tensor sizes!
+          # slight abuse of the arithSuffix utility to check whether we need a float dot
+          zero = "0." if arithSuffix(result_numba_type) == "f" else "0"
           return (
-              f"{name} = linalg.matmul {lhs}, {rhs} :"
-              " tensor<?x?xf32> tensor<?x?xf32> -> tensor<?x?xf32>"
-              f" {mlirLoc(assign.loc)}"
+              f"{out_name} = arith.constant dense<{zero}> : {result_type}\n"
+              f"{name} = linalg.matmul ins({self.get_name(lhs)},"
+              f" {self.get_name(rhs)} : {lhs_type}, {rhs_type})"
+              f" outs({out_name} :"
+              f" {result_type}) -> {result_type} {mlirLoc(assign.loc)}"
           )
         else:
           raise NotImplementedError(
