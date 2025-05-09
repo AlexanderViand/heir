@@ -10,6 +10,7 @@ from numba.core import compiler
 from numba.core import sigutils
 from numba.core.registry import cpu_target
 from numba.core.typed_passes import type_inference_stage
+from numba.core.types.misc import NoneType
 
 from heir.backends.cleartext import CleartextBackend
 from heir.backends.openfhe import OpenFHEBackend, config as openfhe_config
@@ -20,7 +21,8 @@ from heir.mlir.types import parse_annotations
 from heir.mlir_emitter import TextualMlirEmitter
 
 
-# TODO (#1162): Allow for multiple functions in the same compilation. This requires switching from a decorator to a context thingy (`with heir.compile(...):`)
+# TODO (#1312): Allow for multiple functions in the same compilation. This requires switching from a decorator to a context thingy (`with heir.compile(...):`)
+
 
 Path = pathlib.Path
 HEIRConfig = heir_cli_config.HEIRConfig
@@ -30,8 +32,10 @@ def run_pipeline(
     function,
     heir_opt_options: list[str],
     backend: BackendInterface,
-    heir_config: Optional[HEIRConfig] = None,
-    debug: bool = False,
+    heir_config: Optional[HEIRConfig],
+    debug: bool,
+    # Note: in order to avoid confusion about default behavior,
+    # only @compile and other user-facing functions should have default values.
 ) -> ClientInterface:
   """Run the pipeline."""
   if not heir_config:
@@ -77,10 +81,22 @@ def run_pipeline(
       print(
           Fore.RED
           + Style.BRIGHT
-          + f"HEIR Error: Type inference failed for function {func_name} with"
-          f" signature {numba_signature} with {type(e).__name__}: {e}"
+          + f"HEIR Error: Type inference failed for function {func_name} "
+          f"with {type(e).__name__}: {e}"
       )
       raise
+
+    # Check if we found a return type:
+    if restype is None or isinstance(restype, NoneType):
+      print(
+          Fore.RED
+          + Style.BRIGHT
+          + f"HEIR Error: Type inference failed for function {func_name}: "
+          "no return type could be determined."
+      )
+      raise TypeError(
+          f"No return type could be determined for function {func_name}."
+      )
 
     # If a result type was annotated, compare with numba
     if rettype is not None and debug:
@@ -160,6 +176,13 @@ def run_pipeline(
       print(f"HEIR Debug: Writing output graph to \t \t {graphpath}")
       with open(graphpath, "w") as f:
         f.write(graph)
+
+    # Add a reminder if someone forgets to pass a backend *instance*
+    if isinstance(backend, type):
+      raise TypeError(
+          "Encountered backend class instead of backend instance. "
+          "Did you mean to instantiate it (e.g., CleartextBackend())?"
+      )
 
     # Run backend (which will call heir_translate and other tools, e.g., clang, as needed)
     result = backend.run_backend(
