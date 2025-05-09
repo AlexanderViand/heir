@@ -12,6 +12,8 @@ from numba.core import bytecode
 from numba.core import controlflow
 from numba.core.types import Type as NumbaType
 
+from heir.mlir.types import MLIR_TYPES
+
 
 def mlirType(numba_type: NumbaType) -> str:
   if isinstance(numba_type, types.Integer):
@@ -414,12 +416,15 @@ class TextualMlirEmitter:
         func = assign.value.func
         # if assert fails, variable was undefined
         assert func.name in self.globals_map
-        if self.globals_map[func.name] == "bool":
+        name, value = self.globals_map[func.name]
+        if name == "bool":
           # nothing to do, forward the name to the arg of bool()
           self.forward_name(from_var=assign.target, to_var=assign.value.args[0])
           return ""
+        if value in MLIR_TYPES:
+          raise NotImplementedError("MLIR type casts not yet supported")
         else:
-          raise NotImplementedError("Unknown global " + func.name)
+          raise NotImplementedError("Call to unknown function " + name)
       case ir.Expr(op="cast"):
         # not sure what to do here. maybe will be needed for type conversions
         # when interfacing with C
@@ -441,7 +446,10 @@ class TextualMlirEmitter:
           self.forward_name_to_id(assign.target, name.strip("%"))
         return const_str
       case ir.Global():
-        self.globals_map[assign.target.name] = assign.value.name
+        self.globals_map[assign.target.name] = (
+            assign.value.name,
+            assign.value.value,
+        )
         return ""
       case ir.Var():
         # Sometimes we need this to be assigned?

@@ -4,17 +4,30 @@ from abc import ABC, abstractmethod
 from typing import Generic, Self, TypeVar, TypeVarTuple, get_args, get_origin
 from numba.core.types import Type as NumbaType
 from numba.core.types import boolean, int8, int16, int32, int64, float32, float64
+from numba.extending import typeof_impl, type_callable
 
 T = TypeVar("T")
 Ts = TypeVarTuple("Ts")
 
+# List of all MLIR types we define here, for use in other parts of the compiler
+MLIR_TYPES = []  # populated via MLIRTypeAnnotation's __init_subclass__
 
-operator_error_message = (
-    "MLIRTypeAnnotation should only be used for annotations."
-)
+
+def check_for_value(a: "MLIRTypeAnnotation"):
+  if not hasattr(a, "value"):
+    raise RuntimeError(
+        "Trying to use an operator on an MLIRTypeAnnotation without a value."
+    )
 
 
 class MLIRTypeAnnotation(ABC):
+
+  def __init__(self, value: int):
+    self.value = value
+
+  def __init_subclass__(cls, **kwargs):
+    super().__init_subclass__(**kwargs)
+    MLIR_TYPES.append(cls)
 
   @staticmethod
   @abstractmethod
@@ -23,14 +36,29 @@ class MLIRTypeAnnotation(ABC):
         "No numba type exists for a generic MLIRTypeAnnotation"
     )
 
-  def __add__(self, other) -> Self:
-    raise RuntimeError(operator_error_message)
+  def __add__(self, other):
+    check_for_value(self)
+    return self.value + other
 
-  def __sub__(self, other) -> Self:
-    raise RuntimeError(operator_error_message)
+  def __radd__(self, other):
+    check_for_value(self)
+    return other + self.value
 
-  def __mul__(self, other) -> Self:
-    raise RuntimeError(operator_error_message)
+  def __sub__(self, other):
+    check_for_value(self)
+    return self.value - other
+
+  def __rsub__(self, other):
+    check_for_value(self)
+    return other - self.value
+
+  def __mul__(self, other):
+    check_for_value(self)
+    return self.value * other
+
+  def __rmul__(self, other):
+    check_for_value(self)
+    return other * self.value
 
 
 class Secret(Generic[T], MLIRTypeAnnotation):
@@ -94,6 +122,14 @@ class I64(MLIRTypeAnnotation):
   @staticmethod
   def numba_type() -> NumbaType:
     return int64
+
+
+# Register the types defined above with Numba
+for typ in [I8, I16, I32, I64, I1, F32, F64]:
+
+  @type_callable(typ)
+  def build_typer_function(context):
+    return lambda value: typ.numba_type()
 
 
 # Helper functions
