@@ -10,10 +10,11 @@ T = TypeVar("T")
 Ts = TypeVarTuple("Ts")
 
 # List of all MLIR types we define here, for use in other parts of the compiler
-MLIR_TYPES = []  # populated via MLIRType's __init_subclass__
+MLIR_TYPES: list["MLIRType"] = []  # populated via MLIRType's __init_subclass__
 
 
 def check_for_value(a: "MLIRType"):
+  """Helper function for MLIRType's operator overloads to check if there is a value attribute."""
   if not hasattr(a, "value"):
     raise RuntimeError(
         "Trying to use an operator on an MLIRType without a value."
@@ -22,7 +23,7 @@ def check_for_value(a: "MLIRType"):
 
 class MLIRType(ABC):
 
-  def __init__(self, value: int):
+  def __init__(self, value):
     self.value = value
 
   def __init_subclass__(cls, **kwargs):
