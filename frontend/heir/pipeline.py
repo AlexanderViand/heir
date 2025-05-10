@@ -116,9 +116,9 @@ def run_pipeline(
     )
 
     # Run Shape Inference
-    mlir_textual, graph = heir_opt.run_binary_stderr(
+    mlir_textual = heir_opt.run_binary(
         input=mlir_raw_textual,
-        options=["--shape-inference", "--view-op-graph"],
+        options=["--shape-inference", "--mlir-print-debuginfo"],
     )
     if debug:
       mlir_in_filepath = Path(workspace_dir) / f"{func_name}.in.mlir"
@@ -145,6 +145,9 @@ def run_pipeline(
         f.write(graph)
 
     # Run heir_opt
+    heir_opt_options.append(
+        "--mlir-print-debuginfo"
+    )  # to preserve location info
     if debug:
       heir_opt_options.append("--view-op-graph")
       DebugMessage(f"Running heir-opt {' '.join(heir_opt_options)}")
