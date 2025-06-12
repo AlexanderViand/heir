@@ -4,8 +4,12 @@ add_mlir_library(HEIRSimFHEEmitter
     LINK_LIBS PUBLIC
     HEIRSelectVariableNames
     HEIRCKKS
+    HEIRLWE
+    HEIRModArith
+    HEIRRNS
     HEIRTargetUtils
     MLIRFuncDialect
+    MLIRPolynomialDialect
     MLIRIR
     MLIRSupport
     MLIRTranslateLib

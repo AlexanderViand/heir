@@ -2,6 +2,11 @@
 
 #include "lib/Analysis/SelectVariableNames/SelectVariableNames.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
+#include "lib/Dialect/LWE/IR/LWEDialect.h"
+#include "lib/Dialect/ModArith/IR/ModArithDialect.h"
+#include "lib/Dialect/Polynomial/IR/PolynomialDialect.h"
+#include "lib/Dialect/RNS/IR/RNSDialect.h"
+#include "lib/Dialect/RNS/IR/RNSTypeInterfaces.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"          // from @llvm-project
 #include "llvm/include/llvm/Support/FormatVariadic.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/DialectRegistry.h"      // from @llvm-project
@@ -18,7 +23,10 @@ void registerToSimFHETranslation() {
         return translateToSimFHE(op, output);
       },
       [](DialectRegistry &registry) {
-        registry.insert<func::FuncDialect, ckks::CKKSDialect>();
+        registry.insert<func::FuncDialect, ckks::CKKSDialect, lwe::LWEDialect,
+                        polynomial::PolynomialDialect,
+                        mod_arith::ModArithDialect, rns::RNSDialect>();
+        rns::registerExternalRNSTypeInterfaces(registry);
       });
 }
 
