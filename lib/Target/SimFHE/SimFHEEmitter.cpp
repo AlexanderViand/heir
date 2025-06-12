@@ -2,8 +2,9 @@
 
 #include "lib/Analysis/SelectVariableNames/SelectVariableNames.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
-#include "llvm/include/llvm/ADT/TypeSwitch.h"      // from @llvm-project
-#include "mlir/include/mlir/IR/DialectRegistry.h"  // from @llvm-project
+#include "llvm/include/llvm/ADT/TypeSwitch.h"          // from @llvm-project
+#include "llvm/include/llvm/Support/FormatVariadic.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/DialectRegistry.h"      // from @llvm-project
 #include "mlir/include/mlir/Tools/mlir-translate/Translation.h"  // from @llvm-project
 
 namespace mlir {
@@ -85,27 +86,35 @@ LogicalResult SimFHEEmitter::printOperation(func::ReturnOp op) {
   return success();
 }
 
-#define SIMPLE_EMIT(OPTYPE, FUNCNAME)                               \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {          \
-    os << "evaluator." FUNCNAME "(" << getName(op.getOperands()[0]) \
-       << ", arch_params)\n";                                       \
-    return success();                                               \
+#define UNARY_EMIT(OPTYPE, FUNCNAME)                                   \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {             \
+    os << "stats += evaluator." FUNCNAME "(" << getName(op.getInput()) \
+       << ", arch_params)\n";                                          \
+    return success();                                                  \
   }
 
-SIMPLE_EMIT(ckks::AddOp, "add");
-SIMPLE_EMIT(ckks::AddPlainOp, "add_plain");
-SIMPLE_EMIT(ckks::SubOp, "add");
-SIMPLE_EMIT(ckks::SubPlainOp, "add_plain");
-SIMPLE_EMIT(ckks::MulOp, "multiply");
-SIMPLE_EMIT(ckks::MulPlainOp, "multiply_plain");
-SIMPLE_EMIT(ckks::NegateOp, "negate");
-SIMPLE_EMIT(ckks::RotateOp, "rotate");
-SIMPLE_EMIT(ckks::RelinearizeOp, "key_switch");
-SIMPLE_EMIT(ckks::RescaleOp, "mod_reduce_rescale");
-SIMPLE_EMIT(ckks::LevelReduceOp, "mod_down_reduce");
-SIMPLE_EMIT(ckks::BootstrapOp, "bootstrap");
+#define BINARY_EMIT(OPTYPE, FUNCNAME)                                \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {           \
+    os << "stats += evaluator." FUNCNAME "(" << getName(op.getLhs()) \
+       << ", arch_params)\n";                                        \
+    return success();                                                \
+  }
 
-#undef SIMPLE_EMIT
+BINARY_EMIT(ckks::AddOp, "add");
+BINARY_EMIT(ckks::AddPlainOp, "add_plain");
+BINARY_EMIT(ckks::SubOp, "add");
+BINARY_EMIT(ckks::SubPlainOp, "add_plain");
+BINARY_EMIT(ckks::MulOp, "multiply");
+BINARY_EMIT(ckks::MulPlainOp, "multiply_plain");
+UNARY_EMIT(ckks::NegateOp, "negate");
+UNARY_EMIT(ckks::RotateOp, "rotate");
+UNARY_EMIT(ckks::RelinearizeOp, "key_switch");
+UNARY_EMIT(ckks::RescaleOp, "mod_reduce_rescale");
+UNARY_EMIT(ckks::LevelReduceOp, "mod_down_reduce");
+UNARY_EMIT(ckks::BootstrapOp, "bootstrap");
+
+#undef UNARY_EMIT
+#undef BINARY_EMIT
 
 }  // namespace simfhe
 }  // namespace heir

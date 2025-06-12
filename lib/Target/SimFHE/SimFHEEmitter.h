@@ -6,6 +6,7 @@
 #include "lib/Analysis/SelectVariableNames/SelectVariableNames.h"
 #include "lib/Dialect/CKKS/IR/CKKSOps.h"
 #include "lib/Target/SimFHE/SimFHETemplates.h"
+#include "lib/Utils/TargetUtils.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"      // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinOps.h"            // from @llvm-project
