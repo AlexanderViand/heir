@@ -63,8 +63,8 @@ LogicalResult SimFHEEmitter::printOperation(ModuleOp moduleOp) {
 
 LogicalResult SimFHEEmitter::printOperation(func::FuncOp funcOp) {
   os << "def " << funcOp.getName() << "(";
-  os << commaSeparatedValues(funcOp.getArguments(),
-                             [&](Value value) { return getName(value); });
+  os << heir::commaSeparatedValues(funcOp.getArguments(),
+                                   [&](Value value) { return getName(value); });
   os << "):\n";
   os.indent();
   os << "stats = PerfCounter()\n";
@@ -93,17 +93,17 @@ LogicalResult SimFHEEmitter::printOperation(func::ReturnOp op) {
     return success();                                                  \
   }
 
-#define BINARY_EMIT(OPTYPE, FUNCNAME)                                \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {           \
-    os << "stats += evaluator." FUNCNAME "(" << getName(op.getLhs()) \
-       << ", arch_params)\n";                                        \
-    return success();                                                \
+#define BINARY_EMIT(OPTYPE, FUNCNAME)                                        \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {                   \
+    os << "stats += evaluator." FUNCNAME "(" << getName(op.getLhs()) << ", " \
+       << getName(op.getRhs()) << ", arch_params)\n";                        \
+    return success();                                                        \
   }
 
 BINARY_EMIT(ckks::AddOp, "add");
 BINARY_EMIT(ckks::AddPlainOp, "add_plain");
-BINARY_EMIT(ckks::SubOp, "add");
-BINARY_EMIT(ckks::SubPlainOp, "add_plain");
+BINARY_EMIT(ckks::SubOp, "subtract");
+BINARY_EMIT(ckks::SubPlainOp, "subtract_plain");
 BINARY_EMIT(ckks::MulOp, "multiply");
 BINARY_EMIT(ckks::MulPlainOp, "multiply_plain");
 UNARY_EMIT(ckks::NegateOp, "negate");
