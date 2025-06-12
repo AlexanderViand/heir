@@ -2,7 +2,8 @@
 // %S/../../CKKS/Conversions/ckks_to_openfhe/ckks_to_openfhe.mlir --emit-simfhe
 // | FileCheck %s
 
-// CHECK: import evaluator
+// CHECK: import params
+// CHECK-NEXT: import evaluator
 // CHECK-NEXT: from perf_counter import PerfCounter
 
 // CHECK: def test_ops(

@@ -8,6 +8,7 @@ namespace heir {
 namespace simfhe {
 
 constexpr std::string_view kModulePrelude = R"python(
+import params
 import evaluator
 from perf_counter import PerfCounter
 )python";

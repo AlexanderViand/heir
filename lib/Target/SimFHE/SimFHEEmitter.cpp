@@ -94,18 +94,18 @@ LogicalResult SimFHEEmitter::printOperation(func::ReturnOp op) {
   return success();
 }
 
-#define UNARY_EMIT(OPTYPE, FUNCNAME)                                   \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {             \
-    os << "stats += evaluator." FUNCNAME "(" << getName(op.getInput()) \
-       << ", arch_params)\n";                                          \
-    return success();                                                  \
+#define UNARY_EMIT(OPTYPE, FUNCNAME)                               \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {         \
+    os << "stats += evaluator." FUNCNAME "("                       \
+       << getName(op.getOperands().front()) << ", arch_params)\n"; \
+    return success();                                              \
   }
 
-#define BINARY_EMIT(OPTYPE, FUNCNAME)                                        \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {                   \
-    os << "stats += evaluator." FUNCNAME "(" << getName(op.getLhs()) << ", " \
-       << getName(op.getRhs()) << ", arch_params)\n";                        \
-    return success();                                                        \
+#define BINARY_EMIT(OPTYPE, FUNCNAME)                              \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {         \
+    os << "stats += evaluator." FUNCNAME "("                       \
+       << getName(op.getOperands().front()) << ", arch_params)\n"; \
+    return success();                                              \
   }
 
 BINARY_EMIT(ckks::AddOp, "add");
