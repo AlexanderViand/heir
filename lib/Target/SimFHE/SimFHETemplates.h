@@ -19,9 +19,8 @@ def run_workload(fn):
     headers = ["params", "total_ops", "mult", "dram_total"]
     rows = []
     for sp in schemes:
-        global arch_params
-        arch_params = sp.arch_param
-        args = [sp.fresh_ctxt] * fn.__code__.co_argcount
+        args = [sp.fresh_ctxt] * (fn.__code__.co_argcount - 1)
+        args.append(sp)
         stats = fn(*args)
         rows.append(
             [
