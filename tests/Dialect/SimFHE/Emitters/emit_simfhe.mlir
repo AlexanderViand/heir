@@ -10,28 +10,28 @@
 
 // CHECK: def test_ops(
 // CHECK: stats = PerfCounter()
-// CHECK: stats += evaluator.negate(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.add(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.subtract(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.multiply(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.rotate(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.add_plain(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.subtract_plain(
-// CHECK-NEXT: v
-// CHECK: stats += evaluator.multiply_plain(
-// CHECK-NEXT: v
+// CHECK: stats += evaluator.negate([[ARG0:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES0:[A-Za-z0-9_]+]] = [[ARG0]]
+// CHECK: stats += evaluator.add([[ARG1:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES1:[A-Za-z0-9_]+]] = [[ARG1]]
+// CHECK: stats += evaluator.subtract([[ARG2:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES2:[A-Za-z0-9_]+]] = [[ARG2]]
+// CHECK: stats += evaluator.multiply([[ARG3:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES3:[A-Za-z0-9_]+]] = [[ARG3]]
+// CHECK: stats += evaluator.rotate([[ARG4:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES4:[A-Za-z0-9_]+]] = [[ARG4]]
+// CHECK: stats += evaluator.add_plain([[ARG5:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES5:[A-Za-z0-9_]+]] = [[ARG5]]
+// CHECK: stats += evaluator.subtract_plain([[ARG6:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES6:[A-Za-z0-9_]+]] = [[ARG6]]
+// CHECK: stats += evaluator.multiply_plain([[ARG7:[A-Za-z0-9_]+]], arch_params)
+// CHECK-NEXT: [[RES7:[A-Za-z0-9_]+]] = [[ARG7]]
 // CHECK: return stats
 
 // CHECK: def test_relin(
 // CHECK: stats = PerfCounter()
-// CHECK: stats += evaluator.key_switch({{.*}}, {{.*}}, arch_params)
-// CHECK-NEXT: v
+// CHECK: stats += evaluator.key_switch([[ARG:[A-Za-z0-9_]+]], [[ARG]], arch_params)
+// CHECK-NEXT: [[RES:[A-Za-z0-9_]+]] = [[ARG]]
 // CHECK: return stats
 
 // CHECK: if __name__ == "__main__":
