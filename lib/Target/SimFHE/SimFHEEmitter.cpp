@@ -94,32 +94,32 @@ LogicalResult SimFHEEmitter::printOperation(func::ReturnOp op) {
   return success();
 }
 
-#define UNARY_EMIT(OPTYPE, FUNCNAME)                               \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {         \
-    os << "stats += evaluator." FUNCNAME "("                       \
-       << getName(op.getOperands().front()) << ", arch_params)\n"; \
-    return success();                                              \
+#define UNARY_EMIT(OPTYPE, GETTER, FUNCNAME)                         \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {           \
+    os << "stats += evaluator." FUNCNAME "(" << getName(op.GETTER()) \
+       << ", arch_params)\n";                                        \
+    return success();                                                \
   }
 
-#define BINARY_EMIT(OPTYPE, FUNCNAME)                              \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {         \
-    os << "stats += evaluator." FUNCNAME "("                       \
-       << getName(op.getOperands().front()) << ", arch_params)\n"; \
-    return success();                                              \
+#define BINARY_EMIT(OPTYPE, GETTER, FUNCNAME)                        \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {           \
+    os << "stats += evaluator." FUNCNAME "(" << getName(op.GETTER()) \
+       << ", arch_params)\n";                                        \
+    return success();                                                \
   }
 
-BINARY_EMIT(ckks::AddOp, "add");
-BINARY_EMIT(ckks::AddPlainOp, "add_plain");
-BINARY_EMIT(ckks::SubOp, "subtract");
-BINARY_EMIT(ckks::SubPlainOp, "subtract_plain");
-BINARY_EMIT(ckks::MulOp, "multiply");
-BINARY_EMIT(ckks::MulPlainOp, "multiply_plain");
-UNARY_EMIT(ckks::NegateOp, "negate");
-UNARY_EMIT(ckks::RotateOp, "rotate");
-UNARY_EMIT(ckks::RelinearizeOp, "key_switch");
-UNARY_EMIT(ckks::RescaleOp, "mod_reduce_rescale");
-UNARY_EMIT(ckks::LevelReduceOp, "mod_down_reduce");
-UNARY_EMIT(ckks::BootstrapOp, "bootstrap");
+BINARY_EMIT(ckks::AddOp, getLhs, "add");
+BINARY_EMIT(ckks::AddPlainOp, getLhs, "add_plain");
+BINARY_EMIT(ckks::SubOp, getLhs, "subtract");
+BINARY_EMIT(ckks::SubPlainOp, getLhs, "subtract_plain");
+BINARY_EMIT(ckks::MulOp, getLhs, "multiply");
+BINARY_EMIT(ckks::MulPlainOp, getLhs, "multiply_plain");
+UNARY_EMIT(ckks::NegateOp, getInput, "negate");
+UNARY_EMIT(ckks::RotateOp, getInput, "rotate");
+UNARY_EMIT(ckks::RelinearizeOp, getInput, "key_switch");
+UNARY_EMIT(ckks::RescaleOp, getInput, "mod_reduce_rescale");
+UNARY_EMIT(ckks::LevelReduceOp, getInput, "mod_down_reduce");
+UNARY_EMIT(ckks::BootstrapOp, getInput, "bootstrap");
 
 #undef UNARY_EMIT
 #undef BINARY_EMIT
