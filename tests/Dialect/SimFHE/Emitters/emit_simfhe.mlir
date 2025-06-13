@@ -22,7 +22,7 @@
 
 // CHECK: def test_relin(
 // CHECK: stats = PerfCounter()
-// CHECK: stats += evaluator.key_switch(
+// CHECK: stats += evaluator.key_switch({{.*}}, {{.*}}, arch_params)
 // CHECK: return stats
 
 // CHECK: if __name__ == "__main__":

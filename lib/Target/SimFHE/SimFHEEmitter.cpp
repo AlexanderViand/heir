@@ -131,7 +131,12 @@ BINARY_EMIT(ckks::MulOp, getLhs, "multiply");
 BINARY_EMIT(ckks::MulPlainOp, getLhs, "multiply_plain");
 UNARY_EMIT(ckks::NegateOp, getInput, "negate");
 UNARY_EMIT(ckks::RotateOp, getInput, "rotate");
-UNARY_EMIT(ckks::RelinearizeOp, getInput, "key_switch");
+LogicalResult SimFHEEmitter::printOperation(ckks::RelinearizeOp op) {
+  std::string name = getName(op.getInput());
+  os << "stats += evaluator.key_switch(" << name << ", " << name
+     << ", arch_params)\n";
+  return success();
+}
 UNARY_EMIT(ckks::RescaleOp, getInput, "mod_reduce_rescale");
 UNARY_EMIT(ckks::LevelReduceOp, getInput, "mod_down_reduce");
 UNARY_EMIT(ckks::BootstrapOp, getInput, "bootstrap");
