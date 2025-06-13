@@ -11,6 +11,27 @@ constexpr std::string_view kModulePrelude = R"python(
 import params
 import evaluator
 from perf_counter import PerfCounter
+import tabulate
+
+
+def run_workload(fn):
+    schemes = params.get_alg_params()
+    headers = ["params", "total_ops", "mult", "dram_total"]
+    rows = []
+    for sp in schemes:
+        global arch_params
+        arch_params = sp.arch_param
+        args = [sp.fresh_ctxt] * fn.__code__.co_argcount
+        stats = fn(*args)
+        rows.append(
+            [
+                sp,
+                stats.sw.total_ops,
+                stats.sw.mult,
+                stats.arch.dram_total_rdwr_small,
+            ]
+        )
+    print(tabulate.tabulate(rows, headers=headers))
 )python";
 
 }  // namespace simfhe

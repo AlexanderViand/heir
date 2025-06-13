@@ -7,6 +7,8 @@
 #include "lib/Dialect/Polynomial/IR/PolynomialDialect.h"
 #include "lib/Dialect/RNS/IR/RNSDialect.h"
 #include "lib/Dialect/RNS/IR/RNSTypeInterfaces.h"
+#include "llvm/include/llvm/ADT/SmallVector.h"         // from @llvm-project
+#include "llvm/include/llvm/ADT/StringRef.h"           // from @llvm-project
 #include "llvm/include/llvm/ADT/TypeSwitch.h"          // from @llvm-project
 #include "llvm/include/llvm/Support/FormatVariadic.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/DialectRegistry.h"      // from @llvm-project
@@ -61,11 +63,24 @@ LogicalResult SimFHEEmitter::translate(Operation &op) {
 
 LogicalResult SimFHEEmitter::printOperation(ModuleOp moduleOp) {
   os << kModulePrelude << "\n";
+  SmallVector<StringRef> funcNames;
+  for (Operation &op : moduleOp) {
+    if (auto func = dyn_cast<func::FuncOp>(op)) {
+      funcNames.push_back(func.getName());
+    }
+  }
   for (Operation &op : moduleOp) {
     if (failed(translate(op))) {
       return failure();
     }
   }
+  os << "if __name__ == \"__main__\":\n";
+  os.indent();
+  for (auto name : funcNames) {
+    os << "run_workload(" << name << ")\n";
+  }
+  os.unindent();
+  os << "\n";
   return success();
 }
 

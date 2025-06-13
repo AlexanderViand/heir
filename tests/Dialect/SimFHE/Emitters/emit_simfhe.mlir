@@ -5,6 +5,8 @@
 // CHECK: import params
 // CHECK-NEXT: import evaluator
 // CHECK-NEXT: from perf_counter import PerfCounter
+// CHECK-NEXT: import tabulate
+// CHECK: def run_workload(
 
 // CHECK: def test_ops(
 // CHECK: stats = PerfCounter()
@@ -22,3 +24,7 @@
 // CHECK: stats = PerfCounter()
 // CHECK: stats += evaluator.key_switch(
 // CHECK: return stats
+
+// CHECK: if __name__ == "__main__":
+// CHECK: run_workload(test_ops)
+// CHECK: run_workload(test_relin)
