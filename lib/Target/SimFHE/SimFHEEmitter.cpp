@@ -109,18 +109,28 @@ LogicalResult SimFHEEmitter::printOperation(func::ReturnOp op) {
   return success();
 }
 
-#define UNARY_EMIT(OPTYPE, GETTER, FUNCNAME)                         \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {           \
-    os << "stats += evaluator." FUNCNAME "(" << getName(op.GETTER()) \
-       << ", arch_params)\n";                                        \
-    return success();                                                \
+#define UNARY_EMIT(OPTYPE, GETTER, FUNCNAME)                                 \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {                   \
+    std::string input = getName(op.GETTER());                                \
+    os << "stats += evaluator." FUNCNAME "(" << input << ", arch_params)\n"; \
+    os << getName(op.getResult()) << " = " << input << "\n";                 \
+    return success();                                                        \
   }
 
-#define BINARY_EMIT(OPTYPE, GETTER, FUNCNAME)                        \
-  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {           \
-    os << "stats += evaluator." FUNCNAME "(" << getName(op.GETTER()) \
-       << ", arch_params)\n";                                        \
-    return success();                                                \
+#define UNARY_EMIT_DROP(OPTYPE, GETTER, FUNCNAME)                            \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {                   \
+    std::string input = getName(op.GETTER());                                \
+    os << "stats += evaluator." FUNCNAME "(" << input << ", arch_params)\n"; \
+    os << getName(op.getResult()) << " = " << input << ".drop()\n";          \
+    return success();                                                        \
+  }
+
+#define BINARY_EMIT(OPTYPE, GETTER, FUNCNAME)                                \
+  LogicalResult SimFHEEmitter::printOperation(OPTYPE op) {                   \
+    std::string input = getName(op.GETTER());                                \
+    os << "stats += evaluator." FUNCNAME "(" << input << ", arch_params)\n"; \
+    os << getName(op.getResult()) << " = " << input << "\n";                 \
+    return success();                                                        \
   }
 
 BINARY_EMIT(ckks::AddOp, getLhs, "add");
@@ -135,10 +145,11 @@ LogicalResult SimFHEEmitter::printOperation(ckks::RelinearizeOp op) {
   std::string name = getName(op.getInput());
   os << "stats += evaluator.key_switch(" << name << ", " << name
      << ", arch_params)\n";
+  os << getName(op.getResult()) << " = " << name << "\n";
   return success();
 }
-UNARY_EMIT(ckks::RescaleOp, getInput, "mod_reduce_rescale");
-UNARY_EMIT(ckks::LevelReduceOp, getInput, "mod_down_reduce");
+UNARY_EMIT_DROP(ckks::RescaleOp, getInput, "mod_reduce_rescale");
+UNARY_EMIT_DROP(ckks::LevelReduceOp, getInput, "mod_down_reduce");
 UNARY_EMIT(ckks::BootstrapOp, getInput, "bootstrap");
 
 #undef UNARY_EMIT
