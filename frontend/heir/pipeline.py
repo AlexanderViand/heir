@@ -5,6 +5,7 @@ import pathlib
 import shutil
 import tempfile
 from typing import Any, Optional
+import re
 
 
 from numba.core import compiler
@@ -32,99 +33,130 @@ Path = pathlib.Path
 HEIRConfig = heir_cli_config.HEIRConfig
 
 
-def run_pipeline(
+def parse_mlir_signature(mlir: str) -> tuple[str, list[str], list[int]]:
+  """Parse the MLIR string to extract function name, arg names and secrets."""
+  sig_match = re.search(r"func\.func\s+@(\w+)\((.*)\)\s*->", mlir, re.S)
+  if not sig_match:
+    raise ValueError("Could not find function signature in MLIR")
+  func_name = sig_match.group(1)
+  args_str = sig_match.group(2)
+  arg_pattern = r"%([\w\.]+)([^%]*?)(?=,\s*%|$)"
+  arg_names: list[str] = []
+  secret_args: list[int] = []
+  for i, m in enumerate(re.finditer(arg_pattern, args_str, re.S)):
+    arg_names.append(m.group(1))
+    if "secret.secret" in m.group(0):
+      secret_args.append(i)
+  return func_name, arg_names, secret_args
+
+
+
+def python_to_mlir(
     function,
+    heir_config: Optional[HEIRConfig],
+    workspace_dir: str,
+    debug: bool,
+):
+  """Lower a python function to MLIR and return metadata."""
+  if not heir_config:
+    heir_config = heir_cli_config.from_os_env()
+
+  ssa_ir = compiler.run_frontend(function)
+  if not isinstance(ssa_ir, FunctionIR):
+    raise InternalCompilerError(
+        f"Expected FunctionIR from numba frontend but got {type(ssa_ir)}"
+    )
+  func_name = ssa_ir.func_id.func_name
+  arg_names = ssa_ir.func_id.arg_names
+
+  fn_args: list[NumbaType] = []
+  secret_args: list[int] = []
+  try:
+    fn_args, secret_args, rettype = parse_annotations(function.__annotations__)
+  except Exception as e:
+    raise CompilerError(
+        f"Signature parsing failed for function {func_name} with"
+        f" {type(e).__name__}: {e}",
+        ssa_ir.loc,
+    )
+
+  typingctx = cpu_target.typing_context
+  targetctx = cpu_target.target_context
+  typingctx.refresh()
+  targetctx.refresh()
+  try:
+    typemap, restype, _, _ = type_inference_stage(
+        typingctx, targetctx, ssa_ir, fn_args, None
+    )
+  except Exception as e:
+    raise CompilerError(
+        f"Type inference failed for function {func_name} "
+        f"with {type(e).__name__}: {e}",
+        ssa_ir.loc,
+    )
+
+  if restype is None or isinstance(restype, NoneType):
+    raise CompilerError(
+        f"Type inference failed for function {func_name}: "
+        "no return type could be determined.",
+        ssa_ir.loc,
+    )
+
+  if rettype is not None and debug:
+    if rettype != restype:
+      DebugMessage(
+          " Warning: user provided return type does not match"
+          f" numba inference, expected {restype}, got {rettype}",
+          ssa_ir.loc,
+      )
+
+  mlir_raw_textual = TextualMlirEmitter(
+      ssa_ir, secret_args, typemap, restype
+  ).emit()
+  if debug:
+    mlir_raw_filepath = Path(workspace_dir) / f"{func_name}.raw.mlir"
+    DebugMessage(f"Writing raw input MLIR to {mlir_raw_filepath}")
+    with open(mlir_raw_filepath, "w") as f:
+      f.write(mlir_raw_textual)
+
+  return mlir_raw_textual, func_name, arg_names, secret_args, ssa_ir.loc
+
+
+def mlir_pipeline(
+    mlir_raw_textual: str,
+    func_name: str,
+    arg_names: list[str],
+    secret_args: list[int],
     heir_opt_options: list[str],
     backend: BackendInterface,
     heir_config: Optional[HEIRConfig],
     debug: bool,
+    location: Optional[str] = None,
+    *,
+    workspace_dir: Optional[str] = None,
+    cleanup: bool = True,
 ) -> ClientInterface:
-  """Run the pipeline."""
+  """Run the MLIR-based portion of the compilation pipeline."""
   if not heir_config:
     heir_config = heir_cli_config.from_os_env()
 
-  # Set environment variables from HEIR config
+  if workspace_dir is None:
+    workspace_dir = tempfile.mkdtemp()
+    own_dir = True
+  else:
+    own_dir = False
+
   os.environ["HEIR_ABC_BINARY"] = os.path.abspath(str(heir_config.abc_path))
   os.environ["HEIR_YOSYS_SCRIPTS_DIR"] = os.path.abspath(
       str(heir_config.techmap_dir_path)
   )
 
-  # The temporary workspace dir is so that heir-opt and the backend
-  # can have places to write their output files. It is cleaned up once
-  # the function returns, at which point the compiled python module has been
-  # loaded into memory and the raw files are not needed.
-  workspace_dir = tempfile.mkdtemp()
   try:
-    ssa_ir = compiler.run_frontend(function)
-    if not isinstance(ssa_ir, FunctionIR):
-      raise InternalCompilerError(
-          f"Expected FunctionIR from numba frontend but got {type(ssa_ir)}"
-      )
-    func_name = ssa_ir.func_id.func_name
-    arg_names = ssa_ir.func_id.arg_names
-
-    # (Numba) Type Inference
-    fn_args: list[NumbaType] = []
-    secret_args: list[int] = []
-    try:
-      fn_args, secret_args, rettype = parse_annotations(
-          function.__annotations__
-      )
-    except Exception as e:
-      raise CompilerError(
-          f"Signature parsing failed for function {func_name} with"
-          f" {type(e).__name__}: {e}",
-          ssa_ir.loc,
-      )
-    typingctx = cpu_target.typing_context
-    targetctx = cpu_target.target_context
-    typingctx.refresh()
-    targetctx.refresh()
-    try:
-      typemap, restype, _, _ = type_inference_stage(
-          typingctx, targetctx, ssa_ir, fn_args, None
-      )
-    except Exception as e:
-      raise CompilerError(
-          f"Type inference failed for function {func_name} "
-          f"with {type(e).__name__}: {e}",
-          ssa_ir.loc,
-      )
-
-    # Check if we found a return type:
-    if restype is None or isinstance(restype, NoneType):
-      raise CompilerError(
-          f"Type inference failed for function {func_name}: "
-          "no return type could be determined.",
-          ssa_ir.loc,
-      )
-
-    # If a result type was annotated, compare with numba
-    if rettype is not None and debug:
-      if rettype != restype:
-        DebugMessage(
-            " Warning: user provided return type does not match"
-            f" numba inference, expected {restype}, got {rettype}",
-            ssa_ir.loc,
-        )
-
-    # Emit Textual IR
-    mlir_raw_textual = TextualMlirEmitter(
-        ssa_ir, secret_args, typemap, restype
-    ).emit()
-    if debug:
-      mlir_raw_filepath = Path(workspace_dir) / f"{func_name}.raw.mlir"
-      DebugMessage(f"Writing raw input MLIR to {mlir_raw_filepath}")
-      with open(mlir_raw_filepath, "w") as f:
-        f.write(mlir_raw_textual)
-
-    # Try to find heir_opt and heir_translate
     heir_opt = heir_cli.HeirOptBackend(heir_config.heir_opt_path)
     heir_translate = heir_cli.HeirTranslateBackend(
         binary_path=heir_config.heir_translate_path
     )
 
-    # Run Shape Inference
     mlir_textual = heir_opt.run_binary(
         input=mlir_raw_textual,
         options=["--shape-inference", "--mlir-print-debuginfo"],
@@ -137,7 +169,6 @@ def run_pipeline(
       with open(mlir_in_filepath, "w") as f:
         f.write(mlir_textual)
 
-    # Print type annotated version of the input
     if debug:
       mlirpath = Path(workspace_dir) / f"{func_name}.annotated.mlir"
       graphpath = Path(workspace_dir) / f"{func_name}.annotated.dot"
@@ -153,10 +184,7 @@ def run_pipeline(
       with open(graphpath, "w") as f:
         f.write(graph)
 
-    # Run heir_opt
-    heir_opt_options.append(
-        "--mlir-print-debuginfo"
-    )  # to preserve location info
+    heir_opt_options.append("--mlir-print-debuginfo")
     if debug:
       heir_opt_options.append("--view-op-graph")
       DebugMessage(f"Running heir-opt {' '.join(heir_opt_options)}")
@@ -170,11 +198,10 @@ def run_pipeline(
           "running `heir-opt "
           f"{' '.join([str(x) for x in e.options])}` produced these errors:\n"
           f"{e.stderr}\n",
-          ssa_ir.loc,
+          location or "<unknown>",
       )
 
     if debug:
-      # Print output after heir_opt:
       mlirpath = Path(workspace_dir) / f"{func_name}.out.mlir"
       graphpath = Path(workspace_dir) / f"{func_name}.out.dot"
       DebugMessage(f"Writing output MLIR to {mlirpath}")
@@ -183,13 +210,13 @@ def run_pipeline(
       DebugMessage(f"Writing output graph to {graphpath}")
       with open(graphpath, "w") as f:
         f.write(graph)
+
     if not isinstance(backend, BackendInterface):
       raise TypeError(
           f"Expected BackendInterface instance but found: {type(backend)}If"
           " {type(backend)} is callable, maybe you forgot to instantiate it?"
       )
 
-    # Run backend (which will call heir_translate and other tools, e.g., clang, as needed)
     if "--mlir-to-cggi" in heir_opt_options and not isinstance(
         backend, CleartextBackend
     ):
@@ -209,7 +236,46 @@ def run_pipeline(
         debug,
     )
 
-    # Attach the original python func
+    return result
+
+  finally:
+    if cleanup:
+      if debug:
+        DebugMessage(
+            f"Leaving workspace_dir {workspace_dir} for manual inspection.\n"
+        )
+      else:
+        shutil.rmtree(workspace_dir)
+
+
+def run_pipeline(
+    function,
+    heir_opt_options: list[str],
+    backend: BackendInterface,
+    heir_config: Optional[HEIRConfig],
+    debug: bool,
+) -> ClientInterface:
+  """Run the pipeline on a Python function."""
+  workspace_dir = tempfile.mkdtemp()
+  try:
+    mlir_raw_textual, func_name, arg_names, secret_args, loc = python_to_mlir(
+        function, heir_config, workspace_dir, debug
+    )
+
+    result = mlir_pipeline(
+        mlir_raw_textual,
+        func_name,
+        list(arg_names),
+        list(secret_args),
+        heir_opt_options,
+        backend,
+        heir_config,
+        debug,
+        location=loc,
+        workspace_dir=workspace_dir,
+        cleanup=False,
+    )
+
     result.func = function  # type: ignore
 
     return result
@@ -285,3 +351,42 @@ def compile(
       raise SystemExit(1)
 
   return decorator
+
+
+def compile_mlir(
+    mlir: str,
+    *,
+    scheme: str = "bgv",
+    backend: BackendInterface | None = None,
+    config: HEIRConfig | None = None,
+    debug: bool = False,
+    heir_opt_options: list[str] | None = None,
+) -> ClientInterface:
+  """Compile an MLIR string directly."""
+  if not config:
+    if is_pip_installed():
+      config = heir_cli_config.from_pip_installation()
+    else:
+      config = heir_cli_config.from_os_env()
+
+  if not backend:
+    if is_pip_installed():
+      backend = OpenFHEBackend(openfhe_config.from_pip_installation())
+    else:
+      backend = OpenFHEBackend(openfhe_config.from_os_env())
+
+  if heir_opt_options is None:
+    heir_opt_options = ["--canonicalize", f"--mlir-to-{scheme}"]
+
+  func_name, arg_names, secret_args = parse_mlir_signature(mlir)
+
+  return mlir_pipeline(
+      mlir,
+      func_name,
+      arg_names,
+      secret_args,
+      heir_opt_options,
+      backend,
+      config,
+      debug,
+  )
