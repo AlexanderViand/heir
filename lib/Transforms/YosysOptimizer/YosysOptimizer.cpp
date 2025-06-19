@@ -457,7 +457,7 @@ LogicalResult YosysOptimizer::runOnGenericOp(secret::GenericOp op) {
   func::FuncOp func = importer->importModule(
       design->top_module(), topologicalOrder,
       llvm::to_vector(llvm::map_range(op.getResultTypes(), [](Type ty) {
-        return cast<secret::SecretType>(ty).getValueType();
+        return secret::getTypeOrValueType(ty);
       })));
   Yosys::run_pass("delete;");
 

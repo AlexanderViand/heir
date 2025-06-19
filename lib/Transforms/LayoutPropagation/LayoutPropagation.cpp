@@ -899,10 +899,7 @@ FailureOr<LayoutAttr> LayoutPropagation::defaultLayoutForScalarType(
 }
 
 FailureOr<LayoutAttr> LayoutPropagation::defaultLayoutForType(Type type) {
-  Type ty = type;
-  if (SecretType secretType = dyn_cast<SecretType>(type)) {
-    ty = secretType.getValueType();
-  }
+  Type ty = secret::getTypeOrValueType(type);
 
   RankedTensorType tensorType = dyn_cast<RankedTensorType>(ty);
   if (!tensorType) {

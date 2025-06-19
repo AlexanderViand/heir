@@ -282,8 +282,7 @@ void ConcealOp::build(OpBuilder &builder, OperationState &result,
 
 void RevealOp::build(OpBuilder &builder, OperationState &result,
                      Value secretValue) {
-  Type resultType =
-      llvm::dyn_cast<SecretType>(secretValue.getType()).getValueType();
+  Type resultType = secret::getTypeOrValueType(secretValue.getType());
   build(builder, result, resultType, secretValue);
 }
 
@@ -298,8 +297,7 @@ void GenericOp::build(OpBuilder &builder, OperationState &result,
   bodyRegion->push_back(new Block);
   Block &bodyBlock = bodyRegion->front();
   for (Value val : inputs) {
-    SecretType secretType = dyn_cast<SecretType>(val.getType());
-    Type blockType = secretType ? secretType.getValueType() : val.getType();
+    Type blockType = secret::getTypeOrValueType(val.getType());
     bodyBlock.addArgument(blockType, val.getLoc());
   }
 

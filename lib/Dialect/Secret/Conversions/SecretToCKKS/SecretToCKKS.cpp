@@ -314,9 +314,8 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
     // pipeline
     LogicalResult validationResult =
         walkAndValidateValues(module, [&](Value value) {
-          if (auto secretTy = dyn_cast<secret::SecretType>(value.getType())) {
-            auto tensorTy = dyn_cast<RankedTensorType>(secretTy.getValueType());
-            if (tensorTy) {
+          if (auto tensorTy = dyn_cast<RankedTensorType>(
+                  secret::getTypeOrValueType(value.getType()))) {
               // TODO(#913): Multidimensional tensors with a single non-unit
               // dimension are assumed to be packed in the order of that
               // dimensions.
