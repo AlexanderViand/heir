@@ -1013,7 +1013,7 @@ LogicalResult VerilogEmitter::printOperation(
   }
   llvm::SmallVector<Type, 4> resultTypes;
   for (auto ty : op.getResultTypes())
-    resultTypes.push_back(secret::getTypeOrValueType(ty));
+    resultTypes.push_back(secret::getValueTypeOrSelf(ty));
   auto *blocks = &op.getRegion().getBlocks();
   return printFunctionLikeOp(op.getOperation(), name,
                              op.getRegion().getBlocks().front().getArguments(),
@@ -1065,7 +1065,7 @@ void VerilogEmitter::emitAssignPrefix(Value result) {
 }
 
 LogicalResult VerilogEmitter::emitWireDeclaration(OpResult result) {
-  Type ty = secret::getTypeOrValueType(result.getType());
+  Type ty = secret::getValueTypeOrSelf(result.getType());
   if (failed(emitType(ty))) {
     return failure();
   }

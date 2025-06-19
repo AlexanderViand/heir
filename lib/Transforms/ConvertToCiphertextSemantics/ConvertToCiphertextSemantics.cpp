@@ -148,7 +148,7 @@ void setMaterializedAttr(ArrayRef<Operation *> ops) {
 }
 
 Type maybeExtractSecretType(Type type) {
-  return secret::getTypeOrValueType(type);
+  return secret::getValueTypeOrSelf(type);
 }
 
 struct ConvertFunc : public ContextAwareFuncConversion {

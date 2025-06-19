@@ -200,7 +200,7 @@ struct SecretToBGV : public impl::SecretToBGVBase<SecretToBGV> {
       }
       for (auto value : valuesToCheck) {
         if (auto tensorTy = dyn_cast<RankedTensorType>(
-                secret::getTypeOrValueType(value.getType()))) {
+                secret::getValueTypeOrSelf(value.getType()))) {
           if (tensorTy && tensorTy.getShape() !=
                               ArrayRef<int64_t>{rlweRing.value()
                                                     .getPolynomialModulus()

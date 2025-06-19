@@ -12,7 +12,7 @@ namespace mlir {
 namespace heir {
 namespace secret {
 
-inline Type getTypeOrValueType(Type ty) {
+inline Type getValueTypeOrSelf(Type ty) {
   if (auto secretTy = dyn_cast<secret::SecretType>(ty))
     return secretTy.getValueType();
   return ty;

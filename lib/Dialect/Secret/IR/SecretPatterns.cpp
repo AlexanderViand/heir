@@ -708,7 +708,7 @@ void genericAbsorbDealloc(secret::GenericOp genericOp,
   // is a dealloc, then move the dealloc inside the generic body.
   for (auto result : genericOp.getResults()) {
     if (auto memrefTy =
-            dyn_cast<MemRefType>(secret::getTypeOrValueType(result.getType()))) {
+            dyn_cast<MemRefType>(secret::getValueTypeOrSelf(result.getType()))) {
       if (!result.hasOneUse()) {
         continue;
       }

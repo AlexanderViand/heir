@@ -560,7 +560,7 @@ struct SplitGeneric : public OpRewritePattern<GenericOp> {
     SmallVector<Location, 1> newLocs(newResults.size(), sourceGeneric.getLoc());
     auto clearTypes = llvm::to_vector<6>(llvm::map_range(
         newResults.getTypes(),
-        [](Type t) -> Type { return secret::getTypeOrValueType(t); }));
+        [](Type t) -> Type { return secret::getValueTypeOrSelf(t); }));
     SmallVector<BlockArgument> newBlockArgs = llvm::to_vector<6>(
         sourceGeneric.getBody()->addArguments(clearTypes, newLocs));
 

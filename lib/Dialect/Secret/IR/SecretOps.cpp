@@ -282,7 +282,7 @@ void ConcealOp::build(OpBuilder &builder, OperationState &result,
 
 void RevealOp::build(OpBuilder &builder, OperationState &result,
                      Value secretValue) {
-  Type resultType = secret::getTypeOrValueType(secretValue.getType());
+  Type resultType = secret::getValueTypeOrSelf(secretValue.getType());
   build(builder, result, resultType, secretValue);
 }
 
@@ -297,7 +297,7 @@ void GenericOp::build(OpBuilder &builder, OperationState &result,
   bodyRegion->push_back(new Block);
   Block &bodyBlock = bodyRegion->front();
   for (Value val : inputs) {
-    Type blockType = secret::getTypeOrValueType(val.getType());
+    Type blockType = secret::getValueTypeOrSelf(val.getType());
     bodyBlock.addArgument(blockType, val.getLoc());
   }
 
