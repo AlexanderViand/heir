@@ -148,10 +148,7 @@ void setMaterializedAttr(ArrayRef<Operation *> ops) {
 }
 
 Type maybeExtractSecretType(Type type) {
-  if (auto secretType = dyn_cast<secret::SecretType>(type)) {
-    return secretType.getValueType();
-  }
-  return type;
+  return secret::getValueTypeOrSelf(type);
 }
 
 struct ConvertFunc : public ContextAwareFuncConversion {
