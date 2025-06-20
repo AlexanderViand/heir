@@ -3,15 +3,14 @@
 
 #include "mlir/include/mlir/Pass/Pass.h"  // from @llvm-project
 
-namespace mlir {
-namespace heir {
-namespace openfhe {
+namespace mlir::heir::openfhe {
 
-#define GEN_PASS_DECL_OPENFHETOSCHEME
+#define GEN_PASS_DECL
 #include "lib/Dialect/Openfhe/Conversions/OpenfheToScheme/OpenfheToScheme.h.inc"
 
-}  // namespace openfhe
-}  // namespace heir
-}  // namespace mlir
+#define GEN_PASS_REGISTRATION
+#include "lib/Dialect/Openfhe/Conversions/OpenfheToScheme/OpenfheToScheme.h.inc"
+
+}  // namespace mlir::heir::openfhe
 
 #endif  // LIB_DIALECT_OPENFHE_CONVERSIONS_OPENFHETOSCHEME_OPENFHETOSCHEME_H_
