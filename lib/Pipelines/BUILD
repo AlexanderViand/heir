@@ -96,6 +96,7 @@ cc_library(
         "@heir//lib/Dialect/CKKS/Conversions/CKKSToLWE",
         "@heir//lib/Dialect/LWE/Conversions/LWEToLattigo",
         "@heir//lib/Dialect/LWE/Conversions/LWEToOpenfhe",
+        "@heir//lib/Dialect/Openfhe/Conversions/OpenfheToScheme:OpenfheToScheme",
         "@heir//lib/Dialect/LWE/Conversions/LWEToPolynomial",
         "@heir//lib/Dialect/LWE/Transforms:AddDebugPort",
         "@heir//lib/Dialect/Lattigo/Transforms:AllocToInplace",
