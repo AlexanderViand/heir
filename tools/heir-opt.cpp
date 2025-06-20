@@ -420,6 +420,11 @@ int main(int argc, char **argv) {
       "Convert code expressed at FHE scheme level to OpenFHE C++ code.",
       toOpenFhePipelineBuilder());
 
+  PassPipelineRegistration<>(
+      "openfhe-to-scheme",
+      "Lift OpenFHE dialect operations back to the target scheme dialect.",
+      openfheToSchemePipelineBuilder());
+
   PassPipelineRegistration<mlir::heir::BackendOptions>(
       "scheme-to-lattigo",
       "Convert code expressed at FHE scheme level to Lattigo Go code.",

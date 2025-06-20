@@ -142,6 +142,8 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(RLWEScheme scheme);
 
 BackendPipelineBuilder toOpenFhePipelineBuilder();
 
+BackendPipelineBuilder openfheToSchemePipelineBuilder();
+
 BackendPipelineBuilder toLattigoPipelineBuilder();
 
 }  // namespace mlir::heir
