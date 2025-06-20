@@ -60,7 +60,7 @@ struct ConvertMakePackedPlaintextOp
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(openfhe::MakePackedPlaintextOp op,
                                 PatternRewriter &rewriter) const override {
-    auto type = op.getPlaintext().getType().cast<lwe::NewLWEPlaintextType>();
+    auto type = op.getPlaintext().getType();
     rewriter.replaceOpWithNewOp<lwe::RLWEEncodeOp>(
         op, op.getValue(), type.getEncoding(), type.getRing());
     return success();
@@ -72,7 +72,7 @@ struct ConvertMakeCKKSPackedPlaintextOp
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(openfhe::MakeCKKSPackedPlaintextOp op,
                                 PatternRewriter &rewriter) const override {
-    auto type = op.getPlaintext().getType().cast<lwe::NewLWEPlaintextType>();
+    auto type = op.getPlaintext().getType();
     rewriter.replaceOpWithNewOp<lwe::RLWEEncodeOp>(
         op, op.getValue(), type.getEncoding(), type.getRing());
     return success();
@@ -96,8 +96,7 @@ struct ConvertRelinOp : public OpRewritePattern<openfhe::RelinOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(openfhe::RelinOp op,
                                 PatternRewriter &rewriter) const override {
-    auto ctType =
-        op.getCiphertext().getType().cast<lwe::NewLWECiphertextType>();
+    auto ctType = op.getCiphertext().getType();
     int dim = ctType.getCiphertextSpace().getSize();
     SmallVector<int32_t> fromBasis;
     for (int i = 0; i < dim; ++i) fromBasis.push_back(i);
@@ -115,11 +114,7 @@ struct ConvertModReduceOp : public OpRewritePattern<openfhe::ModReduceOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(openfhe::ModReduceOp op,
                                 PatternRewriter &rewriter) const override {
-    auto toRing = op.getOutput()
-                      .getType()
-                      .cast<lwe::NewLWECiphertextType>()
-                      .getCiphertextSpace()
-                      .getRing();
+    auto toRing = op.getOutput().getType().getCiphertextSpace().getRing();
     rewriter.replaceOpWithNewOp<DstOp>(op, op.getType(), op.getCiphertext(),
                                        toRing);
     return success();
