@@ -62,7 +62,7 @@ struct ConvertMakePackedPlaintextOp
                                 PatternRewriter &rewriter) const override {
     auto type = op.getPlaintext().getType();
     rewriter.replaceOpWithNewOp<lwe::RLWEEncodeOp>(
-        op, op.getValue(), type.getPlaintextSpace().getEncoding(),
+        op, type, op.getValue(), type.getPlaintextSpace().getEncoding(),
         type.getPlaintextSpace().getRing());
     return success();
   }
@@ -75,7 +75,7 @@ struct ConvertMakeCKKSPackedPlaintextOp
                                 PatternRewriter &rewriter) const override {
     auto type = op.getPlaintext().getType();
     rewriter.replaceOpWithNewOp<lwe::RLWEEncodeOp>(
-        op, op.getValue(), type.getPlaintextSpace().getEncoding(),
+        op, type, op.getValue(), type.getPlaintextSpace().getEncoding(),
         type.getPlaintextSpace().getRing());
     return success();
   }
@@ -150,51 +150,52 @@ struct OpenfheToScheme : public impl::OpenfheToSchemeBase<OpenfheToScheme> {
   using OpenfheToSchemeBase::OpenfheToSchemeBase;
 
   void runOnOperation() override {
-  MLIRContext *context = &getContext();
-  auto module = getOperation();
+    MLIRContext *context = &getContext();
+    auto module = getOperation();
 
-  std::string schemeName = scheme;
-  if (schemeName.empty()) {
-    if (moduleIsCKKS(module))
-      schemeName = "ckks";
-    else if (moduleIsBGV(module) || moduleIsBFV(module))
-      schemeName = "bgv";
-  }
+    std::string schemeName = scheme;
+    if (schemeName.empty()) {
+      if (moduleIsCKKS(module))
+        schemeName = "ckks";
+      else if (moduleIsBGV(module) || moduleIsBFV(module))
+        schemeName = "bgv";
+    }
 
-  RewritePatternSet patterns(context);
+    RewritePatternSet patterns(context);
 
-  // Operations common to all schemes
-  patterns.add<ConvertEncryptOp, ConvertDecryptOp, ConvertMakePackedPlaintextOp,
-               ConvertMakeCKKSPackedPlaintextOp>(context);
-
-  if (schemeName == "ckks") {
+    // Operations common to all schemes
     patterns
-        .add<ConvertSimpleOp<openfhe::AddOp, ckks::AddOp>,
-             ConvertSimpleOp<openfhe::SubOp, ckks::SubOp>,
-             ConvertSimpleOp<openfhe::MulNoRelinOp, ckks::MulOp>,
-             ConvertSimpleOp<openfhe::NegateOp, ckks::NegateOp>,
-             ConvertSimpleOp<openfhe::AddPlainOp, ckks::AddPlainOp>,
-             ConvertSimpleOp<openfhe::SubPlainOp, ckks::SubPlainOp>,
-             ConvertSimpleOp<openfhe::MulPlainOp, ckks::MulPlainOp>,
-             ConvertRotOp<ckks::RotateOp>, ConvertRelinOp<ckks::RelinearizeOp>,
-             ConvertModReduceOp<ckks::RescaleOp>,
-             ConvertLevelReduceOp<ckks::LevelReduceOp>, ConvertBootstrapOp>(
-            context);
-  } else {
-    patterns.add<ConvertSimpleOp<openfhe::AddOp, bgv::AddOp>,
-                 ConvertSimpleOp<openfhe::SubOp, bgv::SubOp>,
-                 ConvertSimpleOp<openfhe::MulNoRelinOp, bgv::MulOp>,
-                 ConvertSimpleOp<openfhe::NegateOp, bgv::NegateOp>,
-                 ConvertSimpleOp<openfhe::AddPlainOp, bgv::AddPlainOp>,
-                 ConvertSimpleOp<openfhe::SubPlainOp, bgv::SubPlainOp>,
-                 ConvertSimpleOp<openfhe::MulPlainOp, bgv::MulPlainOp>,
-                 ConvertRotOp<bgv::RotateColumnsOp>,
-                 ConvertRelinOp<bgv::RelinearizeOp>,
-                 ConvertModReduceOp<bgv::ModulusSwitchOp>,
-                 ConvertLevelReduceOp<bgv::LevelReduceOp>>(context);
-  }
+        .add<ConvertEncryptOp, ConvertDecryptOp, ConvertMakePackedPlaintextOp,
+             ConvertMakeCKKSPackedPlaintextOp>(context);
 
-  walkAndApplyPatterns(module, std::move(patterns));
+    if (schemeName == "ckks") {
+      patterns.add<
+          ConvertSimpleOp<openfhe::AddOp, ckks::AddOp>,
+          ConvertSimpleOp<openfhe::SubOp, ckks::SubOp>,
+          ConvertSimpleOp<openfhe::MulNoRelinOp, ckks::MulOp>,
+          ConvertSimpleOp<openfhe::NegateOp, ckks::NegateOp>,
+          ConvertSimpleOp<openfhe::AddPlainOp, ckks::AddPlainOp>,
+          ConvertSimpleOp<openfhe::SubPlainOp, ckks::SubPlainOp>,
+          ConvertSimpleOp<openfhe::MulPlainOp, ckks::MulPlainOp>,
+          ConvertRotOp<ckks::RotateOp>, ConvertRelinOp<ckks::RelinearizeOp>,
+          ConvertModReduceOp<ckks::RescaleOp>,
+          ConvertLevelReduceOp<ckks::LevelReduceOp>, ConvertBootstrapOp>(
+          context);
+    } else {
+      patterns.add<ConvertSimpleOp<openfhe::AddOp, bgv::AddOp>,
+                   ConvertSimpleOp<openfhe::SubOp, bgv::SubOp>,
+                   ConvertSimpleOp<openfhe::MulNoRelinOp, bgv::MulOp>,
+                   ConvertSimpleOp<openfhe::NegateOp, bgv::NegateOp>,
+                   ConvertSimpleOp<openfhe::AddPlainOp, bgv::AddPlainOp>,
+                   ConvertSimpleOp<openfhe::SubPlainOp, bgv::SubPlainOp>,
+                   ConvertSimpleOp<openfhe::MulPlainOp, bgv::MulPlainOp>,
+                   ConvertRotOp<bgv::RotateColumnsOp>,
+                   ConvertRelinOp<bgv::RelinearizeOp>,
+                   ConvertModReduceOp<bgv::ModulusSwitchOp>,
+                   ConvertLevelReduceOp<bgv::LevelReduceOp>>(context);
+    }
+
+    walkAndApplyPatterns(module, std::move(patterns));
   }
 };
 
