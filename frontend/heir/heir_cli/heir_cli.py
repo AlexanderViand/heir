@@ -52,12 +52,18 @@ class CLIBackend:
     Returns:
         The stdout of the executed process.
     """
+    env = os.environ | {
+        "CLICOLOR_FORCE": "1",
+        "FORCE_COLOR": "1",
+        "PY_COLORS": "1",
+    }
     completed_process = subprocess.run(
         [os.path.abspath(self.binary_path)] + options,
         input=input,
         text=True,
         capture_output=True,
         check=False,
+        env=env,
     )
     if completed_process.returncode != 0:
       raise CLIError(
@@ -80,12 +86,18 @@ class CLIBackend:
     Returns:
         The stdout and stderr of the executed process.
     """
+    env = os.environ | {
+        "CLICOLOR_FORCE": "1",
+        "FORCE_COLOR": "1",
+        "PY_COLORS": "1",
+    }
     completed_process = subprocess.run(
         [os.path.abspath(self.binary_path)] + options,
         input=input,
         text=True,
         capture_output=True,
         check=False,
+        env=env,
     )
     if completed_process.returncode != 0:
       raise CLIError(
