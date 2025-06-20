@@ -62,7 +62,8 @@ struct ConvertMakePackedPlaintextOp
                                 PatternRewriter &rewriter) const override {
     auto type = op.getPlaintext().getType();
     rewriter.replaceOpWithNewOp<lwe::RLWEEncodeOp>(
-        op, op.getValue(), type.getEncoding(), type.getRing());
+        op, op.getValue(), type.getPlaintextSpace().getEncoding(),
+        type.getPlaintextSpace().getRing());
     return success();
   }
 };
@@ -74,7 +75,8 @@ struct ConvertMakeCKKSPackedPlaintextOp
                                 PatternRewriter &rewriter) const override {
     auto type = op.getPlaintext().getType();
     rewriter.replaceOpWithNewOp<lwe::RLWEEncodeOp>(
-        op, op.getValue(), type.getEncoding(), type.getRing());
+        op, op.getValue(), type.getPlaintextSpace().getEncoding(),
+        type.getPlaintextSpace().getRing());
     return success();
   }
 };
@@ -144,7 +146,10 @@ struct ConvertBootstrapOp : public OpRewritePattern<openfhe::BootstrapOp> {
 
 }  // namespace
 
-void OpenfheToScheme::runOnOperation() {
+struct OpenfheToScheme : public impl::OpenfheToSchemeBase<OpenfheToScheme> {
+  using OpenfheToSchemeBase::OpenfheToSchemeBase;
+
+  void runOnOperation() override {
   MLIRContext *context = &getContext();
   auto module = getOperation();
 
@@ -190,6 +195,7 @@ void OpenfheToScheme::runOnOperation() {
   }
 
   walkAndApplyPatterns(module, std::move(patterns));
-}
+  }
+};
 
 }  // namespace mlir::heir::openfhe
