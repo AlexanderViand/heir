@@ -10,6 +10,7 @@
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
 #include "lib/Dialect/Lattigo/Transforms/AllocToInplace.h"
 #include "lib/Dialect/Lattigo/Transforms/ConfigureCryptoContext.h"
+#include "lib/Dialect/Openfhe/Conversions/OpenfheToScheme/OpenfheToScheme.h"
 #include "lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Openfhe/Transforms/CountAddAndKeySwitch.h"
 #include "lib/Dialect/Secret/Conversions/SecretToBGV/SecretToBGV.h"
@@ -386,6 +387,12 @@ BackendPipelineBuilder toOpenFhePipelineBuilder() {
     configureCryptoContextOptions.entryFunction = options.entryFunction;
     pm.addPass(
         openfhe::createConfigureCryptoContext(configureCryptoContextOptions));
+  };
+}
+
+BackendPipelineBuilder openfheToSchemePipelineBuilder() {
+  return [=](OpPassManager &pm, const BackendOptions &options) {
+    pm.addPass(openfhe::createOpenfheToScheme());
   };
 }
 
