@@ -15,6 +15,19 @@
 namespace mlir {
 namespace heir {
 
+// Returns the unique non-unit dimension of a tensor and its rank.
+// Returns failure if the tensor has more than one non-unit dimension.
+static FailureOr<std::pair<unsigned, int64_t>> getNonUnitDimension(
+    RankedTensorType tensorTy) {
+  auto shape = tensorTy.getShape();
+  if (llvm::count_if(shape, [](auto dim) { return dim != 1; }) != 1) {
+    return failure();
+  }
+  unsigned nonUnitIndex = std::distance(
+      shape.begin(), llvm::find_if(shape, [&](auto dim) { return dim != 1; }));
+  return std::make_pair(nonUnitIndex, shape[nonUnitIndex]);
+}
+
 Value insertKeyArgument(func::FuncOp parentFunc, Type encryptionKeyType,
                         ContextAwareConversionPatternRewriter &rewriter) {
   // The new key type is inserted as the last argument of the parent function.
@@ -65,6 +78,23 @@ LogicalResult ConvertClientConceal::matchAndRewrite(
           .getDegree() == 1) {
     return op->emitError() << "Only RLWE ciphertexts are supported, "
                               "but detected a (scalar) LWE ciphertext";
+  }
+
+  // Ensure the secret output tensor size matches the ring parameter.
+  int64_t polyModDegree = resultCtTy.getCiphertextSpace()
+                              .getRing()
+                              .getPolynomialModulus()
+                              .getPolynomial()
+                              .getDegree();
+  auto secretTy = cast<secret::SecretType>(op.getResult().getType());
+  if (auto tensorTy = dyn_cast<RankedTensorType>(secretTy.getValueType())) {
+    auto nonUnitDim = getNonUnitDimension(tensorTy);
+    if (failed(nonUnitDim) || nonUnitDim.value().second != polyModDegree) {
+      return op->emitError()
+             << "secret.conceal result tensor dimension must match ring "
+                "parameter ("
+             << polyModDegree << ")";
+    }
   }
 
   auto *ctx = op->getContext();
@@ -122,6 +152,23 @@ LogicalResult ConvertClientReveal::matchAndRewrite(
           .getDegree() == 1) {
     return op->emitError() << "Only RLWE ciphertexts are supported, "
                               "but detected a (scalar) LWE ciphertext";
+  }
+
+  // Ensure the secret input tensor size matches the ring parameter.
+  int64_t polyModDegree = argCtTy.getCiphertextSpace()
+                              .getRing()
+                              .getPolynomialModulus()
+                              .getPolynomial()
+                              .getDegree();
+  auto secretTy = cast<secret::SecretType>(op.getInput().getType());
+  if (auto tensorTy = dyn_cast<RankedTensorType>(secretTy.getValueType())) {
+    auto nonUnitDim = getNonUnitDimension(tensorTy);
+    if (failed(nonUnitDim) || nonUnitDim.value().second != polyModDegree) {
+      return op->emitError()
+             << "secret.reveal input tensor dimension must match ring "
+                "parameter ("
+             << polyModDegree << ")";
+    }
   }
 
   auto *ctx = op->getContext();

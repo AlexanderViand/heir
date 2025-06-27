@@ -308,12 +308,10 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
     bool usePublicKey =
         schemeParamAttr.getEncryptionType() == ckks::CKKSEncryptionType::pk;
 
-    // Ensure that all secret types are uniform and have at most one non-unit
-    // dimension that does not exceed the ring parameter. If the non-unit
-    // dimension differs from the ring parameter, the pass still packs tensors
-    // into ciphertext slots, but a warning is emitted to alert the user that
-    // some slots will remain unused.
-    bool hasMismatchedTensorSize = false;
+    // Ensure that all secret types are uniform and matching the ring
+    // parameter size in order to pack tensors into ciphertext SIMD slots.
+    // TODO(#1174): decide this earlier, remove polyModDegree param to earlier
+    // pipeline
     LogicalResult validationResult =
         walkAndValidateValues(module, [&](Value value) {
           if (auto secretTy = dyn_cast<secret::SecretType>(value.getType())) {
@@ -321,14 +319,11 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
             if (tensorTy) {
               // TODO(#913): Multidimensional tensors with a single non-unit
               // dimension are assumed to be packed in the order of that
-              // dimension.
+              // dimensions.
               auto nonUnitDim = getNonUnitDimension(tensorTy);
               if (failed(nonUnitDim) ||
-                  nonUnitDim.value().second > polyModDegree) {
+                  nonUnitDim.value().second != polyModDegree) {
                 return failure();
-              }
-              if (nonUnitDim.value().second != polyModDegree) {
-                hasMismatchedTensorSize = true;
               }
             }
           }
@@ -336,16 +331,11 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
         });
     if (failed(validationResult)) {
       emitWarning(module->getLoc(),
-                  "expected secret types to have a single dimension no larger "
-                  "than the ring parameter; pass will not pack tensors into "
-                  "ciphertext SIMD slots");
+                  "expected secret types to be tensors with dimension matching "
+                  "ring parameter, pass will not pack tensors into ciphertext "
+                  "SIMD slots");
     }
     bool packTensorInSlots = succeeded(validationResult);
-    if (succeeded(validationResult) && hasMismatchedTensorSize) {
-      emitWarning(module->getLoc(),
-                  "secret type size does not match ring parameter; remaining "
-                  "SIMD slots will be left unused");
-    }
 
     // Invariant: for every SecretType, there is a
     // corresponding MgmtAttr attached to it,
