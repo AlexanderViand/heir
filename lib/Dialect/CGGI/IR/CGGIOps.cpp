@@ -36,15 +36,19 @@ LogicalResult LutLinCombOp::verify() {
   if (getInputs().size() != getCoefficients().size())
     return emitOpError("number of coefficients must match number of inputs");
 
-  lwe::LWECiphertextType type = dyn_cast<lwe::LWECiphertextType>(
-      getElementTypeOrSelf(getOutput().getType()));
-  // Tablegen allows AnyType due to error using Variadic on TypeOrContainer
-  // types.
-  if (!type) return emitOpError("expected LWE ciphertext element type");
-  auto encoding = dyn_cast<lwe::BitFieldEncodingAttr>(type.getEncoding());
+  Type outTy = getElementTypeOrSelf(getOutput().getType());
+  Attribute encoding = llvm::TypeSwitch<Type, Attribute>(outTy)
+                           .Case<lwe::LWECiphertextType>(
+                               [](auto ty) { return ty.getEncoding(); })
+                           .Case<lwe::NewLWECiphertextType>([](auto ty) {
+                             return ty.getPlaintextSpace().getEncoding();
+                           })
+                           .Default([](Type) { return Attribute(); });
 
-  if (encoding) {
-    int64_t maxCoeff = (1 << encoding.getCleartextBitwidth()) - 1;
+  if (!encoding) return emitOpError("expected LWE ciphertext element type");
+
+  int64_t maxCoeff = (1 << widthFromEncodingAttr(encoding)) - 1;
+  if (auto bitEnc = dyn_cast<lwe::BitFieldEncodingAttr>(encoding)) {
     for (auto c : getCoefficients()) {
       if (c > maxCoeff) {
         InFlightDiagnostic diag =
@@ -54,37 +58,42 @@ LogicalResult LutLinCombOp::verify() {
         return diag;
       }
     }
+  }
 
-    if (getLookupTable().getValue().getActiveBits() > maxCoeff + 1) {
-      InFlightDiagnostic diag =
-          emitOpError("LUT is larger than available cleartext bit width");
-      diag.attachNote() << "LUT has "
-                        << getLookupTable().getValue().getActiveBits()
-                        << " active bits";
-      diag.attachNote() << "max LUT size is " << maxCoeff + 1 << " bits";
-      return diag;
-    }
+  if (getLookupTable().getValue().getActiveBits() > maxCoeff + 1) {
+    InFlightDiagnostic diag =
+        emitOpError("LUT is larger than available cleartext bit width");
+    diag.attachNote() << "LUT has "
+                      << getLookupTable().getValue().getActiveBits()
+                      << " active bits";
+    diag.attachNote() << "max LUT size is " << maxCoeff + 1 << " bits";
+    return diag;
   }
 
   return success();
 }
 
 LogicalResult ProgrammableBootstrapOp::verify() {
-  lwe::LWECiphertextType type =
-      cast<lwe::LWECiphertextType>(getElementTypeOrSelf(getOutput().getType()));
-  auto encoding = dyn_cast<lwe::BitFieldEncodingAttr>(type.getEncoding());
+  Type outTy = getElementTypeOrSelf(getOutput().getType());
+  Attribute encoding = llvm::TypeSwitch<Type, Attribute>(outTy)
+                           .Case<lwe::LWECiphertextType>(
+                               [](auto ty) { return ty.getEncoding(); })
+                           .Case<lwe::NewLWECiphertextType>([](auto ty) {
+                             return ty.getPlaintextSpace().getEncoding();
+                           })
+                           .Default([](Type) { return Attribute(); });
 
-  if (encoding) {
-    int64_t maxCoeff = (1 << encoding.getCleartextBitwidth()) - 1;
-    if (getLookupTable().getValue().getActiveBits() > maxCoeff + 1) {
-      InFlightDiagnostic diag =
-          emitOpError("LUT is larger than available cleartext bit width");
-      diag.attachNote() << "LUT has "
-                        << getLookupTable().getValue().getActiveBits()
-                        << " active bits";
-      diag.attachNote() << "max LUT size is " << maxCoeff + 1 << " bits";
-      return diag;
-    }
+  if (!encoding) return emitOpError("expected LWE ciphertext element type");
+
+  int64_t maxCoeff = (1 << widthFromEncodingAttr(encoding)) - 1;
+  if (getLookupTable().getValue().getActiveBits() > maxCoeff + 1) {
+    InFlightDiagnostic diag =
+        emitOpError("LUT is larger than available cleartext bit width");
+    diag.attachNote() << "LUT has "
+                      << getLookupTable().getValue().getActiveBits()
+                      << " active bits";
+    diag.attachNote() << "max LUT size is " << maxCoeff + 1 << " bits";
+    return diag;
   }
 
   return success();
@@ -96,12 +105,19 @@ LogicalResult MultiLutLinCombOp::verify() {
   if (getOutputs().size() != getLookupTables().size())
     return emitOpError("number of outputs must match number of LUTs");
 
-  lwe::LWECiphertextType type =
-      cast<lwe::LWECiphertextType>(getOutputs().front().getType());
-  auto encoding = dyn_cast<lwe::BitFieldEncodingAttr>(type.getEncoding());
+  Type outTy = getOutputs().front().getType();
+  Attribute encoding = llvm::TypeSwitch<Type, Attribute>(outTy)
+                           .Case<lwe::LWECiphertextType>(
+                               [](auto ty) { return ty.getEncoding(); })
+                           .Case<lwe::NewLWECiphertextType>([](auto ty) {
+                             return ty.getPlaintextSpace().getEncoding();
+                           })
+                           .Default([](Type) { return Attribute(); });
 
-  if (encoding) {
-    int64_t maxCoeff = (1 << encoding.getCleartextBitwidth()) - 1;
+  if (!encoding) return emitOpError("expected LWE ciphertext element type");
+
+  int64_t maxCoeff = (1 << widthFromEncodingAttr(encoding)) - 1;
+  if (auto bitEnc = dyn_cast<lwe::BitFieldEncodingAttr>(encoding)) {
     for (auto c : getCoefficients()) {
       if (c > maxCoeff) {
         InFlightDiagnostic diag =
