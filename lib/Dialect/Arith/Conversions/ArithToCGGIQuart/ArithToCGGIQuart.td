@@ -3,6 +3,39 @@
 
 include "mlir/Pass/PassBase.td"
 
+/// **Developer Documentation: ArithToCGGIQuart Pass**
+///
+/// This pass implements precision decomposition for arithmetic operations,
+/// converting high-precision (32-bit) arithmetic to lower-precision (8-bit)
+/// CGGI operations for more efficient boolean circuit evaluation.
+///
+/// **Implementation Details:**
+/// - Decomposes 32-bit operations into four 8-bit components
+/// - Uses tensor operations to manage decomposed arithmetic values
+/// - Stores 8-bit components in 16-bit integers to preserve carry information
+/// - Implements carry propagation for multi-precision arithmetic
+///
+/// **Precision Strategy:**
+/// - 32-bit → 4×8-bit decomposition for manageable circuit complexity
+/// - LSB-first ordering in tensor representation
+/// - 16-bit storage prevents carry bit loss
+/// - Tensor dialect integration for multi-component operations
+///
+/// **Neural Network Applications:**
+/// - Essential for TOSA neural network model compilation
+/// - Enables efficient FHE inference through precision decomposition
+/// - Works with multiply-accumulate optimization patterns
+/// - Reduces circuit complexity compared to full-precision operations
+///
+/// **Based on MLIR Infrastructure:**
+/// - Inspired by arith-emulate-wide-int pass from MLIR
+/// - Uses established patterns for wide integer emulation
+/// - Integrates with standard MLIR optimization infrastructure
+///
+/// **Extension Points:**
+/// - Support for different decomposition strategies (16-bit, 4-bit)
+/// - Alternative tensor representations for different backend targets
+/// - Integration with specialized neural network optimization passes
 def ArithToCGGIQuart : Pass<"arith-to-cggi-quart"> {
   let summary = "Lower `arith` to `cggi` dialect and divide each operation into smaller parts.";
     let description = [{

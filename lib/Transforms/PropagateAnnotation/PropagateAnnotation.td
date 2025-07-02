@@ -3,6 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
+// Pass for dataflow propagation of attributes throughout the IR.
+// This implements configurable attribute propagation to maintain metadata,
+// analysis results, or optimization hints as they flow through computations.
+//
+// IMPLEMENTATION DETAILS:
+// - Configurable attribute name selection for targeted propagation
+// - Bidirectional propagation support (forward and reverse)
+// - Non-overwriting policy to preserve existing attribute values
+// - Operation-level attribute attachment and propagation
+//
+// REUSABILITY PATTERNS:
+// - Attribute name parameterization allows reuse for different metadata types
+// - Direction control enables different propagation strategies
+// - Can be extended to support more sophisticated propagation rules
+// - Framework can be adapted for conditional or filtered propagation
+//
+// DESIGN CONSIDERATIONS:
+// - Preserves existing attributes to avoid unintended overwrites
+// - Supports both forward and backward dataflow propagation
+// - Designed for maintaining analysis results across transformations
+// - Enables attribute-driven optimization passes
 def PropagateAnnotation : Pass<"propagate-annotation"> {
   let summary = "Propagate annotation from operation to subsequent operations";
   let description = [{

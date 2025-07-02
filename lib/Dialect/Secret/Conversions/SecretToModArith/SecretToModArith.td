@@ -3,6 +3,44 @@
 
 include "mlir/Pass/PassBase.td"
 
+/// **Developer Documentation: SecretToModArith Pass**
+///
+/// This pass implements the lowering from the high-level `secret` dialect to the
+/// `mod_arith` dialect, enabling plaintext evaluation of FHE algorithms for
+/// testing, debugging, and prototyping purposes.
+///
+/// **Implementation Details:**
+/// - Converts `secret.generic` operations to modular arithmetic operations
+/// - Removes encryption/decryption overhead for faster plaintext execution
+/// - Supports custom modulus selection for different arithmetic rings
+/// - Handles floating-point encoding through scaling parameters
+///
+/// **Use Cases:**
+/// - Algorithm prototyping before applying encryption
+/// - Debugging FHE pipelines on plaintext data
+/// - Performance comparison between encrypted and plaintext execution
+/// - Testing correctness of secret computations
+///
+/// **Reusability Patterns:**
+/// - Shares conversion infrastructure with other Secret-to-* passes
+/// - Uses common pattern-based conversion framework
+/// - Extensible for additional arithmetic operations
+///
+/// **Extension Points:**
+/// - Add support for new modular arithmetic operations
+/// - Implement custom encoding schemes for different data types
+/// - Extend floating-point support with different scaling strategies
+/// - Add support for multi-modulus arithmetic (RNS-style)
+///
+/// **Configuration Options:**
+/// - Automatic modulus selection based on integer types when not specified
+/// - Custom modulus for specific arithmetic requirements
+/// - Log-scale parameter for floating-point to fixed-point conversion
+///
+/// **Dependencies:**
+/// - Requires Arith and ModArith dialects
+/// - Uses standard MLIR arithmetic operations as input
+/// - Compatible with standard MLIR optimization passes
 def SecretToModArith : Pass<"secret-to-mod-arith"> {
   let summary = "Lower `secret` to `mod-arith` dialect.";
 
@@ -10,13 +48,19 @@ def SecretToModArith : Pass<"secret-to-mod-arith"> {
     This pass lowers an IR with `secret.generic` blocks containing arithmetic
     operations to operations on plaintexts using the `mod_arith` dialect.
     This is primarily used in the plaintext lowering pipeline, where operations
-    are performed directly against plaintexts.
+    are performed directly against plaintexts for development and testing.
 
     The pass assumes that the `secret.generic` regions have been distributed
     through arithmetic operations so that only one ciphertext operation appears
     per generic block. It also requires that `canonicalize` was run so that
     non-secret values used are removed from the `secret.generic`'s block
     arguments.
+
+    **Technical Notes:**
+    - Enables rapid prototyping and debugging of FHE algorithms
+    - Supports automatic modulus selection based on integer types
+    - Provides floating-point encoding through configurable scaling
+    - Compatible with existing arithmetic optimization passes
   }];
 
   let dependentDialects = [

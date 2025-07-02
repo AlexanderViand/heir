@@ -9,8 +9,47 @@ def SecretForgetSecrets : Pass<"secret-forget-secrets"> {
     Drop the `secret<...>` type from the IR, replacing it with the contained
     type and the corresponding cleartext computation.
 
+    This pass effectively reverses secretization by removing all Secret dialect constructs
+    and converting encrypted computation back to cleartext computation. It's primarily used
+    for testing, validation, and creating reference implementations.
+
     `secret.cast` ops are replaced with freshly alloc'ed memrefs that extract
     individual bits of the input type or reshape them if possible.
+
+    Implementation details:
+    - Removes `!secret.secret<T>` type wrappers, converting them back to `T`
+    - Unwraps `secret.generic` operations, inlining their body operations into parent region
+    - Removes `secret.conceal` and `secret.reveal` operations (identity transformations)
+    - Updates function signatures to use cleartext types via type conversion
+    - Converts `secret.yield` operations to appropriate terminator operations
+    - Handles function calls by updating call signatures and return types
+    - Uses TypeConverter framework for systematic type transformation
+    - Handles complex nested structures and maintains operation ordering
+
+    Developer implementation patterns:
+    1. Type conversion framework: Uses ConversionTarget and TypeConverter for systematic lowering
+    2. Operation inlining: Shows how to inline region operations while maintaining dominance
+    3. Terminator handling: Demonstrates conversion of dialect-specific terminators
+    4. Function signature updates: Pattern for converting function types during lowering
+    5. Cascading conversions: Shows how type changes propagate through the IR
+    6. Pattern-based rewriting: Uses ConversionPattern for structured transformation
+
+    Reusable components:
+    - SecretTypeConverter: Can be adapted for other secret-like type unwrapping
+    - Generic operation inlining: Pattern reusable for other dialect region inlining
+    - Function signature conversion: Framework applicable to other dialect lowerings
+
+    Extension opportunities:
+    - Could be enhanced to handle more complex secret operations
+    - Pattern can be extended for partial lowering (some ops remain secret)
+    - Could be augmented with verification of cleartext/secret equivalence
+    - Framework can support custom unwrapping strategies per operation type
+
+    Use cases:
+    - Testing: Generate cleartext reference implementations
+    - Validation: Verify correctness of secret computation logic
+    - Debugging: Isolate issues in secret dialect vs. underlying computation
+    - Benchmarking: Compare cleartext vs. encrypted performance
   }];
   let dependentDialects = [
     "mlir::heir::secret::SecretDialect",
@@ -38,6 +77,42 @@ def SecretDistributeGeneric : Pass<"secret-distribute-generic"> {
     list of op names (e.g., `distribute-thorugh="affine.for,scf.if"`), which
     limits the distribution to only pass through those ops. If unset, all ops
     are distributed through when possible.
+
+    Implementation details:
+    - Iterates through `secret.generic` operations in the IR using OpRewritePattern
+    - For each operation in the generic body, creates a new individual `secret.generic`
+    - Chains the results between consecutive generics maintaining SSA form
+    - Handles control flow by distributing through regions (affine.for, scf.if, etc.)
+    - Removes generic wrapper if all operands become cleartext (via CollapseSecretlessGeneric)
+    - Constants are hoisted outside generic operations for efficiency
+    - Uses IRMapping to track value correspondence during transformation
+    - Handles complex dependency chains and maintains operation ordering
+
+    Developer implementation patterns:
+    1. Operation distribution: Shows systematic breaking of compound operations
+    2. Region traversal: Demonstrates recursive processing of nested regions
+    3. Dependency tracking: Pattern for maintaining SSA dependencies during splitting
+    4. Conditional transformation: Shows operation-specific distribution decisions
+    5. Generic operation creation: Framework for creating new generic wrappers
+    6. Pattern matching: Uses operation name filtering for selective distribution
+
+    Reusable components:
+    - Generic distribution logic: Adaptable for other compound operation breaking
+    - Region recursion framework: Pattern for nested region transformations
+    - Operation filtering: Mechanism reusable for selective transformations
+    - Value chain management: Framework for maintaining complex value dependencies
+
+    Extension opportunities:
+    - Could be enhanced with cost models for distribution decisions
+    - Pattern can support custom distribution strategies per operation type
+    - Could be extended with analysis to determine optimal distribution points
+    - Framework can support partial distribution based on usage patterns
+
+    Benefits:
+    - Enables fine-grained analysis and optimization of individual operations
+    - Prepares IR for backend-specific transformations
+    - Simplifies subsequent passes by working on smaller units
+    - Allows for better parallelization opportunities
   }];
   let dependentDialects = ["mlir::heir::secret::SecretDialect"];
 
@@ -53,6 +128,29 @@ def SecretCaptureGenericAmbientScope : Pass<"secret-capture-generic-ambient-scop
     For each value used in the body of a `secret.generic` op, which is defined
     in the ambient scope outside the `generic`, add it to the argument list of
     the `generic`.
+
+    This pass makes implicit dependencies explicit by ensuring that all values used
+    within a `secret.generic` operation are passed as arguments rather than captured
+    from the surrounding scope. This is essential for proper IR structure and enables
+    subsequent transformations that rely on explicit argument passing.
+
+    Implementation details:
+    - Walks through all `secret.generic` operations in the IR
+    - Analyzes the generic body to find uses of values defined outside the generic
+    - For each external value used:
+      * Adds it as a new argument to the generic operation
+      * Creates a corresponding block argument in the generic's entry block
+      * Updates all uses within the generic to reference the new block argument
+    - Handles nested regions correctly to avoid infinite loops
+    - Maintains correct ordering of arguments and block arguments
+    - Reusable pattern: This demonstrates scope analysis and argument lifting,
+      which can be adapted for other transformations that need to make captures explicit
+
+    Benefits:
+    - Enables function extraction from generic bodies
+    - Simplifies analysis by making all dependencies explicit
+    - Prepares IR for transformations that require well-formed argument lists
+    - Improves IR quality by eliminating implicit captures
   }];
   let dependentDialects = ["mlir::heir::secret::SecretDialect"];
 }

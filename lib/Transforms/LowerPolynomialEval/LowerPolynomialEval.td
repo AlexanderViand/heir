@@ -26,6 +26,16 @@ def LowerPolynomialEval : Pass<"lower-polynomial-eval"> {
   // TODO(#1565): Add support for Chebyshev-basis methods
   //  - `"clenshaw"`: Clenshaw's method (Chebyshev basis)
   //  - `"bsgs"`: Baby Step Giant Step (Chebyshev basis)
+
+  Developer Notes:
+  - Critical for FHE applications where polynomial evaluation is performance-sensitive
+  - Interface-based design enables dialect-specific optimizations for polynomial operations
+  - Method selection affects both performance and numerical stability
+  - Horner's method: O(n) operations, good for low-degree polynomials
+  - Paterson-Stockmeyer: O(sqrt(n)) depth, better for high-degree polynomials in parallel settings
+  - Automatic selection uses heuristics based on polynomial degree and target dialect
+  - Extensible design: New evaluation methods can be added via the interface
+  - Pipeline placement: After polynomial approximation but before final arithmetic lowering
   }];
   let dependentDialects = [
     "::mlir::heir::polynomial::PolynomialDialect",

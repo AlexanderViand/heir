@@ -3,6 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
+// Pass implementing HECO-style SIMD vectorization for FHE operations.
+// This implements automatic SIMD batching by converting extract-operate patterns
+// into rotation-based vectorized operations optimized for ciphertext computation.
+//
+// IMPLEMENTATION DETAILS:
+// - Pattern matching for extract-operate sequences
+// - Target slot analysis for optimal rotation alignment
+// - Heuristic-based rotation insertion to minimize total cost
+// - Integration with tensor_ext dialect for rotation operations
+//
+// REUSABILITY PATTERNS:
+// - Modular pattern system allows extension to new operation types
+// - Target slot analysis can be customized for different FHE schemes
+// - Rotation optimization heuristics can be refined or replaced
+// - Can be adapted for different ciphertext slot arrangements
+//
+// DESIGN CONSIDERATIONS:
+// - Focuses on plaintext IR before scheme dialect lowering
+// - Relies on subsequent passes for cleanup and optimization
+// - Designed for unrolled affine loops and straight-line code
+// - Balances vectorization benefits against rotation overhead
 def InsertRotate : Pass<"insert-rotate"> {
   let summary = "Vectorize arithmetic FHE operations using HECO-style heuristics";
   let description = [{
@@ -30,6 +51,27 @@ def InsertRotate : Pass<"insert-rotate"> {
 }
 
 // TODO(#512): Investigate replacing this pattern with a tensor_ext.combine op
+// Pass for optimizing insertion chain patterns into efficient rotations.
+// This cleanup pass converts chains of extract/insert operations into single
+// rotation operations when the pattern represents a consistent data movement.
+//
+// IMPLEMENTATION DETAILS:
+// - Pattern recognition for complete insertion chains
+// - Shift calculation and validation for consistent data movement
+// - Chain traversal following tensor value semantics
+// - Replacement with equivalent tensor_ext.rotate operations
+//
+// REUSABILITY PATTERNS:
+// - Algorithm can be extended to multi-dimensional tensors
+// - Pattern matching framework can handle more complex chain types
+// - Validation logic can be adapted for different rotation semantics
+// - Can be generalized to other extract/insert optimization patterns
+//
+// DESIGN CONSIDERATIONS:
+// - Requires complete chain coverage for correctness
+// - Assumes constant indices (may need prior canonicalization)
+// - Limited to 1D tensors for implementation simplicity
+// - Designed as cleanup pass for insert-rotate transformations
 def CollapseInsertionChains : Pass<"collapse-insertion-chains"> {
   let summary = "Collapse chains of extract/insert ops into rotate ops when possible";
   let description = [{
@@ -60,6 +102,27 @@ def CollapseInsertionChains : Pass<"collapse-insertion-chains"> {
   let dependentDialects = ["mlir::heir::tensor_ext::TensorExtDialect"];
 }
 
+// Pass implementing logarithmic tensor reduction using rotation operations.
+// This transforms linear reduction chains into tree-structured reductions that
+// leverage SIMD operations for improved efficiency in FHE computations.
+//
+// IMPLEMENTATION DETAILS:
+// - Pattern matching for complete tensor reductions with associative operations
+// - Tree construction using powers-of-2 rotation distances
+// - Validation of commutative and associative binary operation requirements
+// - Integration with tensor_ext dialect for rotation-based optimizations
+//
+// REUSABILITY PATTERNS:
+// - Algorithm can be extended to different associative operations
+// - Tree construction logic can be adapted for various tensor sizes
+// - Pattern matching framework can handle more complex reduction patterns
+// - Can be generalized to multi-dimensional tensor reductions
+//
+// DESIGN CONSIDERATIONS:
+// - Requires unrolled tensor extractions (typically from loop unrolling)
+// - Optimized for power-of-2 tensor sizes for balanced trees
+// - Assumes rotation operations are more efficient than individual extractions
+// - Designed for FHE schemes with native SIMD rotation support
 def RotateAndReduce : Pass<"rotate-and-reduce"> {
   let summary = "Use a logarithmic number of rotations to reduce a tensor.";
   let description = [{
@@ -102,6 +165,27 @@ def RotateAndReduce : Pass<"rotate-and-reduce"> {
   let dependentDialects = ["mlir::heir::tensor_ext::TensorExtDialect"];
 }
 
+// Pass implementing the Vos-Vos-Erkin algorithm for efficient permutation networks.
+// This converts tensor permutations into optimized shift networks using graph
+// coloring to minimize latency in FHE schemes with rotation capabilities.
+//
+// IMPLEMENTATION DETAILS:
+// - Graph coloring algorithm for permutation decomposition
+// - Mask generation for element selection in SIMD operations
+// - Rotation distance calculation for efficient data movement
+// - Integration with tensor_ext dialect for FHE-specific operations
+//
+// REUSABILITY PATTERNS:
+// - Graph coloring approach can be extended to other permutation problems
+// - Mask generation logic can be adapted for different SIMD schemes
+// - Algorithm can be parameterized for different ciphertext sizes
+// - Can be extended to support non-power-of-2 tensor sizes
+//
+// DESIGN CONSIDERATIONS:
+// - Based on published research with theoretical guarantees
+// - Optimized for cyclic permutations common in SIMD packing
+// - Balances parallel groups against rotation complexity
+// - Designed for FHE schemes where rotation cost dominates
 def ImplementShiftNetwork : Pass<"implement-shift-network"> {
   let summary = "Implement tensor_ext.convert_layout ops as shift newtorks";
 
@@ -213,6 +297,27 @@ def ImplementShiftNetwork : Pass<"implement-shift-network"> {
   ];
 }
 
+// Pass optimizing layout assignment by eliminating unnecessary conversions.
+// This merges convert_layout operations into assign_layout operations to
+// directly encode cleartexts into the target layout without intermediate steps.
+//
+// IMPLEMENTATION DETAILS:
+// - Pattern matching for assign_layout followed by convert_layout
+// - Single and multiple consumer handling with different strategies
+// - Direct layout assignment replacement for optimization
+// - Integration with tensor_ext dialect layout management system
+//
+// REUSABILITY PATTERNS:
+// - Pattern-based optimization framework can be extended to other layout ops
+// - Multiple consumer handling logic can be adapted for other merge scenarios
+// - Can be generalized to other immediate producer-consumer optimizations
+// - Direct encoding strategy can be applied to other conversion elimination passes
+//
+// DESIGN CONSIDERATIONS:
+// - Focuses on eliminating redundant layout transformations
+// - Optimizes the common pattern of encode-then-convert
+// - Handles both single and multiple consumer scenarios efficiently
+// - Designed as a cleanup pass for layout propagation artifacts
 def FoldConvertLayoutIntoAssignLayout : Pass<"fold-convert-layout-into-assign-layout"> {
   let summary = "Merges tensor_ext.convert_layout ops into preceding tensor_ext.assign_layout ops";
   let description = [{

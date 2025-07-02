@@ -13,6 +13,15 @@ def ApplyFolders : Pass<"apply-folders"> {
 
   This is used to prepare an IR for `insert-rotate` after fully unrolling
   loops.
+
+  Developer Notes:
+  - The pass specifically focuses on tensor::populateFoldConstantExtractSlicePatterns
+  - Uses greedy pattern rewrite driver for efficient application
+  - Lightweight alternative to full canonicalization when only folding is needed
+  - Commonly used in tensor-heavy FHE computations where constant folding provides
+    significant IR simplification without canonicalization overhead
+  - Reusable component: Can be integrated into custom pass pipelines where
+    selective folding is preferred over full canonicalization
   }];
 }
 

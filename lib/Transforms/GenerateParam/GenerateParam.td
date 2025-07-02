@@ -6,6 +6,19 @@ include "mlir/Pass/PassBase.td"
 def GenerateParamBGV : Pass<"generate-param-bgv"> {
   let summary = "Generate BGV Scheme Parameter using a given noise model";
   let description = [{
+    // DEVELOPER NOTE: This pass implements automatic parameter generation for BGV FHE scheme
+    // based on noise analysis of the computation circuit. The implementation analyzes the
+    // circuit depth, operation types, and noise accumulation to determine secure parameters.
+    //
+    // Implementation details:
+    // - Traverses the IR to identify all operations with mgmt.mgmt attributes
+    // - Builds a noise analysis graph tracking ciphertext levels and noise growth
+    // - Applies the selected noise model to compute required security parameters
+    // - Generates modulus chain Q and auxiliary modulus P based on circuit requirements
+    //
+    // Reusability: This pass can be extended to support additional noise models by
+    // implementing the NoiseModel interface and registering new model types.
+    // The parameter generation logic is modular and can be reused for other FHE schemes.
     The pass generates the BGV scheme parameter using a given noise model.
 
     There are four noise models available:
@@ -88,6 +101,24 @@ def GenerateParamBGV : Pass<"generate-param-bgv"> {
 def GenerateParamBFV : Pass<"generate-param-bfv"> {
   let summary = "Generate BFV Scheme Parameter";
   let description = [{
+    // DEVELOPER NOTE: This pass implements automatic parameter generation for BFV FHE scheme
+    // with focus on integer arithmetic optimization. The implementation shares core noise analysis
+    // infrastructure with BGV but uses BFV-specific noise models and parameter constraints.
+    //
+    // Implementation details:
+    // - Reuses BGV parameter generation infrastructure (note: bgv::SchemeParamAttr is shared)
+    // - Implements BFV-specific noise models including BMCM23 variance tracking
+    // - Generates moduli chain with configurable bit sizes (default 60, can use 57 for smaller words)
+    // - Optimizes for integer plaintext operations without rescaling requirements
+    //
+    // Key differences from BGV:
+    // - No rescaling operations, simpler noise growth model
+    // - Different modulus selection strategy optimized for BFV multiplication
+    // - Variance-based models are more accurate for independent ciphertext inputs
+    //
+    // Reusability: The modulus generation and noise analysis components can be reused
+    // for other RLWE-based schemes. The variance tracking model is particularly useful
+    // for schemes with independent noise sources.
     The pass generates the BFV scheme parameter using a given noise model.
 
     There are four noise models available:
@@ -178,6 +209,25 @@ def GenerateParamBFV : Pass<"generate-param-bfv"> {
 def GenerateParamCKKS : Pass<"generate-param-ckks"> {
   let summary = "Generate CKKS Scheme Parameter";
   let description = [{
+    // DEVELOPER NOTE: This pass implements automatic parameter generation for CKKS FHE scheme
+    // which supports approximate arithmetic on real/complex numbers. Unlike BGV/BFV, CKKS
+    // focuses on scaling factors and precision management rather than exact arithmetic.
+    //
+    // Implementation details:
+    // - Uses different parameter generation strategy compared to BGV/BFV
+    // - Focuses on modulus chain design for rescaling operations (key to CKKS efficiency)
+    // - Generates ckks::SchemeParamAttr instead of bgv::SchemeParamAttr
+    // - Considers floating-point precision requirements in parameter selection
+    //
+    // Key CKKS-specific considerations:
+    // - First modulus bits determine initial precision and security
+    // - Scaling modulus bits control precision loss during multiplication/rescaling
+    // - No noise model selection (CKKS noise analysis is more straightforward)
+    // - Default scale parameter critical for encoding/decoding real numbers
+    //
+    // Reusability: The modulus chain generation logic can be adapted for other
+    // approximate FHE schemes. The scaling parameter management is CKKS-specific
+    // but the general framework can be extended.
     The pass generates the CKKS scheme parameter.
 
     The pass asks the user to provide the number of bits for the first modulus

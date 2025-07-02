@@ -4,6 +4,27 @@
 include "mlir/Pass/PassBase.td"
 
 
+// Pass for converting small static tensors to explicit scalar operations.
+// This transformation eliminates tensor overhead for small tensors by unrolling
+// them into individual scalar values and converting tensor operations accordingly.
+//
+// IMPLEMENTATION DETAILS:
+// - Size-limited tensor unrolling based on configurable threshold
+// - Pattern-based conversion of tensor management operations
+// - ValueRange representation for unrolled tensor elements
+// - Greedy folder application for constant folding optimizations
+//
+// REUSABILITY PATTERNS:
+// - Size threshold can be adjusted for different optimization strategies
+// - Pattern framework can be extended to support additional tensor operations
+// - Scalar conversion logic can be adapted for different element types
+// - Can be specialized for specific domains (e.g., crypto, signal processing)
+//
+// DESIGN CONSIDERATIONS:
+// - Limited to small tensors to avoid code explosion
+// - Requires prior elementwise-to-scalar conversion for best results
+// - Balances scalar optimization benefits against compilation overhead
+// - Designed for scenarios where tensor abstraction becomes counterproductive
 def TensorToScalars : Pass<"convert-tensor-to-scalars"> {
 
   let summary = "Effectively 'unrolls' tensors of static shape to scalars.";

@@ -11,6 +11,42 @@ def OperationBalancer : Pass<"operation-balancer"> {
   ];
 
   let description = [{
+  // DEVELOPER NOTE: This pass implements arithmetic expression tree balancing to optimize
+  // FHE circuit depth and expose parallelization opportunities. The implementation uses
+  // graph analysis to identify and restructure associative operation chains.
+  //
+  // Implementation details:
+  // - Walks through secret.generic operations containing arithmetic expressions
+  // - Builds dependency graphs for addition and multiplication chains
+  // - Applies depth-first search to identify balancing opportunities
+  // - Reconstructs expression trees with minimal depth while preserving semantics
+  //
+  // Key algorithmic insights:
+  // - Focuses on associative operations (addition, multiplication) that can be reordered
+  // - Handles intermediate values used multiple times as separate subtrees (conservative but correct)
+  // - Minimizes local tree depth rather than global optimization (tractable and effective)
+  // - Preserves operation dependencies and semantic equivalence
+  //
+  // Balancing strategy:
+  // - Unbalanced: ((a + b) + c) + d has depth 3, sequential execution
+  // - Balanced: (a + b) + (c + d) has depth 2, parallel execution possible
+  // - Critical for FHE where depth determines parameter requirements and performance
+  //
+  // Reusability considerations:
+  // - Graph analysis framework can be extended to other algebraic structures
+  // - Tree balancing algorithms applicable to any associative operations
+  // - Secret.generic restriction can be relaxed or adapted for other encrypted computation models
+  // - Conservative handling of shared intermediate values ensures correctness across different optimization contexts
+  //
+  // FHE-specific benefits:
+  // - Reduced multiplication depth enables smaller FHE parameters (exponential savings)
+  // - Parallel structure maps well to SIMD-capable FHE backends
+  // - Better cache locality from structured computation patterns
+  // - Enables more effective relinearization placement in subsequent passes
+  //
+  // Research foundation:
+  // Based on expression tree balancing techniques from compiler optimization literature,
+  // specifically adapted for FHE constraints as described in EVA compiler research.
   This pass examines a tree or graph of add and multiplication operations and
   balances them to minimize the depth of the tree. This exposes better parallelization
   and reducing the multiplication depth can decrease the parameters used in FHE,

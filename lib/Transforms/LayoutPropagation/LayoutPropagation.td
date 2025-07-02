@@ -3,6 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
+// Pass for establishing initial layout assignments in FHE compilation pipelines.
+// This implements forward dataflow analysis to determine how plaintext data
+// should be packed into ciphertexts for optimal SIMD operations.
+//
+// IMPLEMENTATION DETAILS:
+// - Forward propagation starting from row-major assumptions
+// - Insertion of assign_layout ops for plaintext-to-ciphertext transitions
+// - Insertion of convert_layout ops for incompatible layout resolution
+// - Annotation strategy using tensor_ext.layout attributes
+//
+// REUSABILITY PATTERNS:
+// - Dataflow analysis framework can be extended for other layout strategies
+// - Pluggable layout selection heuristics for different FHE schemes
+// - Separation of analysis and transformation phases enables reuse
+// - Cost-agnostic assignment allows downstream optimization passes
+//
+// DESIGN CONSIDERATIONS:
+// - Assumes row-major default layout for function arguments
+// - Arbitrarily chooses first input layout for conflict resolution
+// - Late insertion of assign_layout ops minimizes unnecessary conversions
+// - Designed to be reusable as pure dataflow analysis
 def LayoutPropagation : Pass<"layout-propagation"> {
   let summary = "Propagate ciphertext layouts through the IR";
   let description = [{

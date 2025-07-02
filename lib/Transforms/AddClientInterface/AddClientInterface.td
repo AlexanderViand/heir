@@ -15,6 +15,16 @@ def AddClientInterface : Pass<"add-client-interface"> {
   This pass occurs at the secret level, which is necessary because some
   backends like the plaintext backend don't actually encrypt, but still require
   the ciphertext layout/packing logic to convert cleartexts to plaintexts.
+
+  Developer Notes:
+  - Critical for FHE client-server separation and secure computation workflows
+  - Generates encode/decode functions that handle data layout transformations
+  - Preserves original function interface while accommodating ciphertext packing requirements
+  - Backend-agnostic design: Works with both encryption and plaintext backends
+  - Interface preservation: Maintains type signatures for client-side usage
+  - Layout management: Handles conversion between scalar and packed tensor representations
+  - Security consideration: Ensures proper data encoding for encrypted computation
+  - Pipeline placement: Late in compilation after most optimizations but before backend lowering
   }];
   let dependentDialects = ["mlir::heir::secret::SecretDialect", "mlir::heir::tensor_ext::TensorExtDialect"];
 

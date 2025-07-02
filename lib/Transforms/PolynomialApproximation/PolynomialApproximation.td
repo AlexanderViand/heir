@@ -3,6 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
+// Pass for converting FHE-incompatible operations to polynomial approximations.
+// This enables FHE computation of transcendental and complex mathematical functions
+// by replacing them with polynomials that use only addition and multiplication.
+//
+// IMPLEMENTATION DETAILS:
+// - Comprehensive coverage of math and arith dialect operations
+// - Polynomial coefficient generation for various mathematical functions
+// - Integration with polynomial dialect for evaluation operations
+// - Configurable approximation parameters (degree, domain) via operation attributes
+//
+// REUSABILITY PATTERNS:
+// - Function approximation framework can be extended to new operations
+// - Polynomial generation can be adapted for different accuracy requirements
+// - Domain specification system can be customized for application needs
+// - Can be generalized to other computational models with limited operation sets
+//
+// DESIGN CONSIDERATIONS:
+// - Balances approximation accuracy against computational complexity
+// - Designed for FHE schemes that only support arithmetic operations
+// - Handles both unary and binary operations with appropriate constraints
+// - Enables complex mathematical computations in privacy-preserving contexts
 def PolynomialApproximation : Pass<"polynomial-approximation"> {
   let summary = "Approximate ops by polynomials";
   let description = [{

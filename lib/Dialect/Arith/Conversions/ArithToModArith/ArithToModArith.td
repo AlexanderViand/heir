@@ -6,6 +6,40 @@ include "lib/Dialect/ModArith/IR/ModArithOps.td"
 include "mlir/Dialect/Arith/IR/ArithOps.td"
 include "mlir/Pass/PassBase.td"
 
+/// **Developer Documentation: ArithToModArith Pass**
+///
+/// This pass implements the conversion from standard arithmetic operations to
+/// modular arithmetic, enabling neural network compilation and preparing for
+/// multiply-accumulate optimization in FHE pipelines.
+///
+/// **Implementation Details:**
+/// - Converts standard arithmetic operations to modular equivalents
+/// - Configurable modulus for different arithmetic requirements
+/// - Essential preprocessing for neural network model compilation
+/// - Enables efficient pattern detection for MAC operations
+///
+/// **Neural Network Focus:**
+/// - Critical component in TOSA neural network compilation pipeline
+/// - Prepares operations for multiply-accumulate pattern detection
+/// - Enables precision decomposition for efficient FHE evaluation
+/// - Supports large-to-small precision operation lowering
+///
+/// **Modulus Management:**
+/// - Automatic modulus selection based on integer types
+/// - Custom modulus support for specific requirements
+/// - Well-defined overflow behavior through modular arithmetic
+/// - Precision control for downstream optimization
+///
+/// **Pipeline Integration:**
+/// - First step in neural network to FHE compilation
+/// - Enables find-mac pass for MAC pattern detection
+/// - Prepares for precision decomposition passes
+/// - Compatible with TOSA dialect input operations
+///
+/// **Extension Points:**
+/// - Support for different modulus selection strategies
+/// - Integration with additional neural network optimization patterns
+/// - Custom precision handling for specialized applications
 def ArithToModArith : Pass<"arith-to-mod-arith", "ModuleOp"> {
   let summary = "Lower standard `arith` to `mod-arith`.";
 

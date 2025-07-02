@@ -15,6 +15,15 @@ def AnnotateSecretness : Pass<"annotate-secretness"> {
   In `verbose` mode, all results are annotated, including public ones with `{secret.public}`,
   and values for which the secretness analysis is missing are annotated with `{secret.missing}`,
   while values where the secretness analysis is inconclusive are annotated with `{secret.unknown}`.
+
+  Developer Notes:
+  - Uses MLIR's DataFlow framework with SecretnessAnalysis
+  - Handles multi-result operations with per-result secretness annotations using
+    `secretness = [{secret.state1}, {secret.state2}]` format
+  - Integrates with secret dialect operations and generic secret computations
+  - Primarily for development/debugging - not intended for production pipelines
+  - Reusable pattern: The annotation logic can be extended for other analysis results
+  - Analysis failure triggers pass failure with appropriate error reporting
   }];
 
   let options = [

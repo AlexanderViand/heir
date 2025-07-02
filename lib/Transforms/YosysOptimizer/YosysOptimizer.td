@@ -17,6 +17,18 @@ def YosysOptimizer : Pass<"yosys-optimizer"> {
     The optimizer will be applied to each `secret.generic` op containing
     arithmetic ops that can be optimized.
 
+    Developer Notes:
+    - Integrates external Yosys tool for advanced boolean circuit optimization
+    - Critical for generating efficient circuits for boolean FHE schemes (CGGI/TFHE)
+    - Type transformation: Multi-bit integers → tensor<N xi1> for bit-level operations
+    - Performance trade-offs: abc-fast vs optimal circuit size vs compile time
+    - Modularity support: Submodule extraction for large circuit organization
+    - Loop handling: Optional unrolling for exposing optimization opportunities
+    - Backend targeting: Supports both boolean gates and LUT-based implementations
+    - Statistics collection: Provides circuit size metrics for optimization analysis
+    - External dependency: Requires Yosys installation and proper PATH configuration
+    - Reusable integration: Template for incorporating other EDA tools into MLIR passes
+
     Optional parameters:
 
     - `abc-fast`: Run the abc optimizer in "fast" mode, getting faster compile
