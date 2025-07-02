@@ -36,6 +36,37 @@ def SecretInsertMgmtBGV : Pass<"secret-insert-mgmt-bgv", "ModuleOp"> {
     is subsequently used by the secret-to-bgv pass to properly lower to corresponding
     RNS Type.
 
+    Implementation details:
+    - Walks through secret.generic operations and their bodies
+    - Analyzes operation types to determine management operation placement
+    - Tracks ciphertext level and dimension throughout computation flow
+    - Uses MgmtOpInterface to identify operations requiring management
+    - Inserts mgmt.relinearize after dimension-increasing operations (multiplications)
+    - Inserts mgmt.modreduce based on policy options and level requirements
+    - Annotates operations with mgmt.mgmt attributes containing metadata
+    - Handles level matching for binary operations by inserting required modreduce ops
+    - Maintains a level propagation analysis throughout the transformation
+
+    Developer implementation patterns:
+    1. Dataflow analysis: Shows tracking of ciphertext properties through computation
+    2. Operation classification: Demonstrates categorizing operations by their cryptographic effects
+    3. Attribute annotation: Pattern for adding metadata to operations for later passes
+    4. Policy-driven insertion: Framework for configurable transformation strategies
+    5. Level management: Shows systematic tracking of cryptographic parameter consumption
+    6. Binary operation handling: Pattern for ensuring operand compatibility in FHE
+
+    Reusable components:
+    - Level tracking framework: Can be adapted for other leveled FHE schemes
+    - Management operation insertion: Pattern applicable to other FHE ciphertext management
+    - Attribute propagation: Framework for carrying metadata through transformations
+    - Policy configuration: Mechanism for making passes configurable via options
+
+    Extension opportunities:
+    - Could be enhanced with cost models for optimization decisions
+    - Pattern can support more sophisticated noise/level analysis
+    - Could be extended to handle bootstrapping in leveled schemes
+    - Framework can support cross-function level analysis
+
     Example of multiplication+addition:
     ```mlir
     func.func @func(%arg0: !secret.secret<i16>, %arg1: !secret.secret<i16>) -> !secret.secret<i16> {

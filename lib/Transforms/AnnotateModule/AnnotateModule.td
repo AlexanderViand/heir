@@ -28,6 +28,15 @@ def AnnotateModule : Pass<"annotate-module"> {
       ...
     }
     ```
+
+    Developer Notes:
+    - Uses ModuleAttributes.h helper functions for consistent attribute naming
+    - Scheme and backend selections are independent - can specify one or both
+    - Enables conditional lowering and backend-specific optimizations in subsequent passes
+    - Module attributes guide target-specific code generation and optimization decisions
+    - Reusable pattern: Easy to extend with new schemes/backends by adding cases
+      and corresponding moduleSet* functions
+    - No validation of scheme/backend compatibility - handled by later passes
   }];
 
   let options = [

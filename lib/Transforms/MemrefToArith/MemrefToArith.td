@@ -17,6 +17,36 @@ def MemrefGlobalReplacePass : Pass<"memref-global-replace", "mlir::ModuleOp"> {
      model (for example, TensorFlow models contain global memory holding model
      weights) to support FHE transpilation.
 
+    Implementation details:
+    - Walks through all affine.load operations in the module
+    - Tracks the source of each load back to memref.get_global operations
+    - Verifies that global memrefs are constant-initialized with DenseElementsAttr
+    - Evaluates affine access patterns using AffineValueMap for index resolution
+    - Replaces loads with direct arith.constant operations containing the accessed values
+    - Removes unused memref.get_global and memref.global operations
+    - Uses affine expression analysis to handle complex indexing patterns
+    - Maintains type consistency between loaded values and generated constants
+
+    Developer implementation patterns:
+    1. Global analysis: Shows module-level analysis for tracking global constants
+    2. Affine expression evaluation: Demonstrates static evaluation of affine access patterns
+    3. Constant extraction: Pattern for extracting values from DenseElementsAttr
+    4. Dead code elimination: Framework for removing unused global operations
+    5. Type preservation: Shows maintaining type consistency during transformation
+    6. Symbol table usage: Demonstrates proper symbol resolution for global references
+
+    Reusable components:
+    - Affine index evaluator: Can be used for other constant folding transformations
+    - Global constant tracker: Framework applicable to other global memory optimizations
+    - Dense attribute accessor: Pattern for extracting typed values from dense attributes
+    - Dead operation removal: Systematic approach to cleaning up unused globals
+
+    Extension opportunities:
+    - Could be extended to handle non-dense constant initializers
+    - Pattern can support partial constant folding (some indices remain dynamic)
+    - Could be enhanced to handle more complex affine maps
+    - Framework can support global variable dependency analysis
+
      Input
 
      ```
@@ -128,6 +158,46 @@ def UnrollAndForwardPass : Pass<"unroll-and-forward", "func::FuncOp"> {
   let summary = "Loop unrolls and forwards stores to loads.";
 
   let description = [{
+    // DEVELOPER NOTE: This pass implements aggressive memory elimination for FHE compilation
+    // by combining loop unrolling with sophisticated store-to-load forwarding. The goal is
+    // to eliminate all memory operations in favor of register-based computation.
+    //
+    // Implementation details:
+    // - Iterative processing: unroll loops one at a time, then forward within unrolled code
+    // - Sophisticated alias analysis to track memref values through subviews and renames
+    // - Static index analysis to enable precise store-load matching
+    // - Conservative handling of function arguments to preserve interface semantics
+    // - Integration with global memref handling (delegates to memref-global-replace)
+    //
+    // Key algorithmic components:
+    // - Dataflow analysis to track store-load relationships
+    // - Alias tracking through memref operations (subview, cast, etc.)
+    // - Index analysis for static affine expressions
+    // - Value forwarding with dependency preservation
+    //
+    // Store-load forwarding algorithm:
+    // 1. For each load with static index, find the defining memref allocation
+    // 2. Collect all stores to the same memref at the same index
+    // 3. Identify the last store that dominates the load
+    // 4. Replace load with the stored value, preserving all dependencies
+    // 5. Handle function arguments specially (forward through renames only)
+    //
+    // Reusability considerations:
+    // - Unrolling infrastructure can be reused for other loop-based optimizations
+    // - Store-load forwarding framework applicable to other memory elimination scenarios
+    // - Alias analysis components useful for other memref transformations
+    // - Index analysis reusable for other static analysis passes
+    //
+    // FHE-specific benefits:
+    // - Eliminates memory allocation (cannot encrypt arbitrary memory layouts)
+    // - Creates register-only computation suitable for encrypted domains
+    // - Enables better analysis and optimization of arithmetic operations
+    // - Reduces complexity for subsequent FHE-specific transformations
+    //
+    // Limitations and design choices:
+    // - Requires static loop bounds and array access patterns (common in ML workloads)
+    // - Processes functions individually (modular approach for large programs)
+    // - Excludes global memrefs (handled by specialized pass for different analysis requirements)
     This pass processes the first function in a given module, and, starting from
     the first loop, iteratively does the following:
 
@@ -164,6 +234,47 @@ def ExtractLoopBodyPass : Pass<"extract-loop-body", "mlir::ModuleOp"> {
   let summary = "Extracts logic of a loop bodies into functions.";
 
   let description = [{
+    // DEVELOPER NOTE: This pass implements function extraction from loop bodies to create
+    // modular, reusable computational kernels. The transformation separates iteration logic
+    // from computation, enabling better optimization and analysis of individual components.
+    //
+    // Implementation details:
+    // - Analyzes loop structure to identify extraction candidates based on size thresholds
+    // - Extracts computational logic while preserving load-compute-store patterns
+    // - Generates function signatures based on loaded values (inputs) and stored values (outputs)
+    // - Maintains semantic equivalence by replacing loop body with function call
+    // - Uses systematic naming convention for generated functions
+    //
+    // Extraction criteria:
+    // - Loop iteration count meets minimum threshold (avoids overhead for small loops)
+    // - Loop body operation count meets minimum threshold (ensures meaningful extraction)
+    // - Loop body follows expected pattern: loads → computation → single store
+    // - No complex control flow within loop body (maintains simplicity)
+    //
+    // Function generation strategy:
+    // - Function parameters: Values loaded within the loop body
+    // - Function return: Value that would be stored by the loop body
+    // - Function body: All computational operations between loads and store
+    // - Constants: Moved into extracted function to maintain self-containment
+    //
+    // Reusability considerations:
+    // - Framework can be extended to other loop extraction patterns
+    // - Threshold parameters allow tuning for different optimization goals
+    // - Generated functions are amenable to independent optimization
+    // - Modular structure enables potential function reuse across different contexts
+    //
+    // Benefits for analysis and optimization:
+    // - Function-level optimization: Each kernel can be optimized independently
+    // - Simplified loop analysis: Loops become simple iteration with function calls
+    // - Better testing: Individual computational kernels can be unit tested
+    // - Profiling granularity: Performance analysis at the kernel level
+    // - Vectorization opportunities: Extracted functions may be good vectorization candidates
+    //
+    // Use cases:
+    // - Neural network layer implementations with repeated element-wise operations
+    // - Image processing with per-pixel or per-block computations
+    // - Mathematical kernels with regular computation patterns
+    // - Any scenario where loop body complexity warrants modularization
     This pass extracts logic in the inner body of for loops into functions.
 
     This pass requires that tensors are lowered to memref. It expects that a

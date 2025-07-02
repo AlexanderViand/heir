@@ -3,6 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
+// Pass for shape inference using dataflow analysis with type interfaces.
+// This resolves dynamic shapes to static shapes by propagating shape information
+// from annotated function arguments through operations implementing InferTypeOpInterface.
+//
+// IMPLEMENTATION DETAILS:
+// - Forward dataflow analysis starting from shape.shape annotations
+// - InferTypeOpInterface integration for automatic shape propagation
+// - Type updating for shaped types with resolved dimensions
+// - Function argument annotation processing
+//
+// REUSABILITY PATTERNS:
+// - Interface-based design allows extension to custom operations
+// - Annotation-driven approach can be adapted for other type inference problems
+// - Dataflow framework can be reused for other type analysis passes
+// - Can be extended to support more sophisticated shape relationships
+//
+// DESIGN CONSIDERATIONS:
+// - Designed for Python frontend integration where ranks are known
+// - Relies on MLIR's standard type inference interfaces
+// - Focused on static shape resolution for optimization enablement
+// - Assumes shape annotations provide accurate dimension information
 def ShapeInference : Pass<"shape-inference"> {
   let summary = "Infer shapes for shaped types";
 

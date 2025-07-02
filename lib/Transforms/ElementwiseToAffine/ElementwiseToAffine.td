@@ -9,6 +9,16 @@ def ElementwiseToAffine : Pass<"convert-elementwise-to-affine"> {
     This pass lowers ElementwiseMappable operations over tensors
     to affine loop nests that instead apply the operation to the underlying scalar values.
 
+    Developer Notes:
+    - Converts high-level tensor operations to explicit loop-based implementations
+    - Essential bridge between tensor abstractions and low-level FHE operations
+    - Selective conversion via convert-ops and convert-dialects options for fine-grained control
+    - Creates affine.for loops that preserve parallelization opportunities
+    - Critical for FHE pipelines where tensor operations must be lowered to scalar operations
+    - Performance consideration: May increase IR size but enables better optimization of scalar operations
+    - Reusable pattern: ElementwiseMappable interface can be extended to other operations
+    - Pipeline placement: After high-level optimizations but before scalar-level passes
+
     Usage:
     '--convert-elementwise-to-affine=convert-ops=arith.mulf '
       restrict conversion to mulf op from arith dialect.

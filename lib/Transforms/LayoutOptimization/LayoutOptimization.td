@@ -3,6 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
+// Pass for optimizing layout conversions in FHE compilation pipelines.
+// This implements a greedy algorithm to minimize ciphertext data movement costs
+// by strategically hoisting and consolidating layout conversion operations.
+//
+// IMPLEMENTATION DETAILS:
+// - Uses reverse-order traversal to identify conversion hoisting opportunities
+// - Implements cost modeling for layout conversions and operations
+// - Integrates with the tensor_ext dialect's layout system
+// - Designed for reusability across different FHE scheme backends
+//
+// REUSABILITY PATTERNS:
+// - Cost model can be extended for scheme-specific operations
+// - Layout analysis infrastructure is dialect-agnostic
+// - Pass can be composed with other layout optimization strategies
+// - Interface supports pluggable cost estimation functions
+//
+// DESIGN CONSIDERATIONS:
+// - Greedy algorithm trades optimality for compilation speed
+// - Assumes cost model accurately reflects runtime performance
+// - Requires initial layout assignment from layout-propagation pass
+// - May benefit from iterative application with canonicalization
 def LayoutOptimization : Pass<"layout-optimization"> {
   let summary = "Optimize layout conversions in the IR";
   let description = [{

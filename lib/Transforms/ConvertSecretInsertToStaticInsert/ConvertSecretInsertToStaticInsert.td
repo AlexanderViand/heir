@@ -10,6 +10,17 @@ def ConvertSecretInsertToStaticInsert : Pass<"convert-secret-insert-to-static-in
 
   Note: Running this pass alone does not result in a data-oblivious program; we have to run the `--convert-if-to-select` pass to the resulting program to convert the secret-dependent If-operation to a Select-operation.
 
+  Developer Notes:
+  - Companion to convert-secret-extract-to-static-extract for complete data-oblivious memory operations
+  - Transforms secret-indexed writes into constant-time operations with conditional selection
+  - Security critical: Prevents information leakage through memory write patterns
+  - Performance impact: O(n) insertions replace O(1) secret-indexed insertion
+  - Maintains tensor immutability semantics through conditional tensor selection
+  - Must be followed by convert-if-to-select for complete data-oblivious transformation
+  - Implementation uses affine.for for predictable bounds and scf.if for conditional selection
+  - Reusable pattern: Logic applicable to other secret-indexed write operations
+  - Memory consideration: Creates multiple intermediate tensors during transformation
+
   Example input:
     ```mlir
     func.func @main(%secretTensor: !secret.secret<tensor<32xi16>>, %secretIndex: !secret.secret<index>)) -> !secret.secret<i16> {

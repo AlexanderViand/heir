@@ -11,6 +11,15 @@ def ConvertSecretForToStaticFor : Pass<"convert-secret-for-to-static-for"> {
   It replaces data-dependent bounds with an If-operation to check the bounds, and conditionally execute and yield values from the For-operation's body.
   Note: Running this pass alone does not result in a data-oblivious program; we have to run the `--convert-if-to-select` pass to the resulting program to convert the secret-dependent If-operation to a Select-operation.
 
+  Developer Notes:
+  - Essential for data-oblivious computation and FHE circuit generation
+  - Requires "lower" and "upper" annotations on scf.for operations to determine constant bounds
+  - Transformation pattern: secret-dependent bounds → constant bounds + conditional execution
+  - Security consideration: Must execute all iterations to maintain constant-time execution
+  - Must be followed by convert-if-to-select for complete data-oblivious transformation
+  - Preserves loop semantics through iter_args and conditional value propagation
+  - Reusable approach: Pattern can be extended to other secret-dependent iteration constructs
+
   Example input:
     ```mlir
       func.func @main(%secretTensor: !secret.secret<tensor<16xi32>>, %secretLower: !secret.secret<index>, %secretUpper: !secret.secret<index>) -> !secret.secret<i32> {

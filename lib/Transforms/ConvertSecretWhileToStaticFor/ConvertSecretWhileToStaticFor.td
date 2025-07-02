@@ -63,6 +63,15 @@ def ConvertSecretWhileToStaticFor : Pass<"convert-secret-while-to-static-for"> {
       return %0 : !secret.secret<i16>
     }
     ```
+
+    Developer Notes:
+    - Critical for data-oblivious compilation and FHE circuit generation
+    - Requires max_iter attribute on scf.while operations for bounded transformation
+    - Pattern: secret-dependent condition → fixed-bound loop + conditional execution
+    - Must be paired with convert-if-to-select for complete data-oblivious transformation
+    - Security vs performance tradeoff: max_iter bounds affect both correctness and efficiency
+    - Reusable transformation: logic applicable to other secret-dependent control flow patterns
+    - Preserves loop semantics through iter_args and conditional execution
   }];
   let dependentDialects = [
     "mlir::scf::SCFDialect",

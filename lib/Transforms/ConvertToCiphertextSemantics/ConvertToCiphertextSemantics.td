@@ -44,6 +44,15 @@ def ConvertToCiphertextSemantics : Pass<"convert-to-ciphertext-semantics"> {
   not well-defined on ciphertext-semantic tensors, while their implementation
   as SIMD/rotation ops are not well-defined on tensor-semantic tensors.
 
+  Developer Notes:
+  - Dual-role transformation: both type conversion and operation implementation
+  - Uses TypeConversion and AssignLayout components for systematic transformation
+  - Preserves original tensor types in secret.original_type attributes for encoding/decoding
+  - Integrates with layout analysis to determine optimal ciphertext packing
+  - Reusable components: TypeConversion logic can be adapted for other semantic transformations
+  - Critical for FHE pipeline: enables transition from high-level to FHE-specific operations
+  - Performance considerations: ciphertext-size affects both memory usage and computation efficiency
+
   TODO(#1541): provide example docs
   }];
   let dependentDialects = [

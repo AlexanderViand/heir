@@ -9,6 +9,16 @@ def ConvertSecretExtractToStaticExtract : Pass<"convert-secret-extract-to-static
 
   Note: Running this pass alone does not result in a data-oblivious program; we have to run the `--convert-if-to-select` pass to the resulting program to convert the secret-dependent If-operation to a Select-operation.
 
+  Developer Notes:
+  - Critical for data-oblivious memory access patterns in FHE and secure computation
+  - Transforms data-dependent memory access into constant-time access with conditional selection
+  - Security consideration: Prevents information leakage through memory access patterns
+  - Performance impact: O(n) extractions replace O(1) secret-indexed extraction
+  - Requires tensor dimension analysis to determine iteration bounds
+  - Must be followed by convert-if-to-select for complete data-oblivious transformation
+  - Reusable pattern: Logic extends to other secret-indexed operations (insert, etc.)
+  - Implementation uses affine.for for predictable iteration bounds and scf.if for conditional selection
+
   Example input:
     ```mlir
     func.func @main(%secretTensor: !secret.secret<tensor<32xi16>>, %secretIndex: !secret.secret<index>)) -> !secret.secret<i16> {

@@ -3,6 +3,39 @@
 
 include "mlir/Pass/PassBase.td"
 
+/// **Developer Documentation: SecretToCKKS Pass**
+///
+/// This pass implements the lowering from the high-level `secret` dialect to the
+/// CKKS (Cheon-Kim-Kim-Song) FHE scheme dialect, enabling approximate arithmetic
+/// on encrypted floating-point data.
+///
+/// **Implementation Details:**
+/// - Converts `secret.generic` operations to CKKS ciphertext operations
+/// - Handles floating-point arithmetic with controlled precision loss
+/// - Manages scale factors for fixed-point encoding of real numbers
+/// - Supports SIMD operations through complex number packing
+///
+/// **Key Differences from BGV:**
+/// - Approximate arithmetic instead of exact computation
+/// - Built-in support for complex numbers and real arithmetic
+/// - Scale management for controlling precision vs. noise trade-offs
+/// - Rescaling operations to manage ciphertext modulus growth
+///
+/// **Reusability Patterns:**
+/// - Shares conversion infrastructure with SecretToBGV pass
+/// - Uses common type conversion utilities for secret-to-ciphertext mappings
+/// - Pattern-based approach allows easy extension for new CKKS operations
+///
+/// **Extension Points:**
+/// - Add support for additional floating-point operations
+/// - Implement custom scale management strategies
+/// - Extend polynomial parameter configurations
+/// - Add support for complex number operations
+///
+/// **Dependencies:**
+/// - Requires Polynomial, ModArith, RNS, CKKS, LWE, and Tensor dialects
+/// - Uses shared conversion utilities from Utils/ContextAwareConversion*
+/// - Depends on proper secret operation distribution
 def SecretToCKKS : Pass<"secret-to-ckks"> {
   let summary = "Lower `secret` to `ckks` dialect.";
 
@@ -17,7 +50,13 @@ def SecretToCKKS : Pass<"secret-to-ckks"> {
     arguments.
 
     The pass requires that all types are tensors of a uniform shape matching the
-    dimension of the ciphertext space specified my `poly-mod-degree`.
+    dimension of the ciphertext space specified by `poly-mod-degree`.
+
+    **Technical Notes:**
+    - Enables approximate homomorphic computation on real numbers
+    - Automatically manages scale factors for precision control
+    - Supports SIMD-packed operations for vectorized computation
+    - Compatible with machine learning inference workloads
   }];
 
   let dependentDialects = [
