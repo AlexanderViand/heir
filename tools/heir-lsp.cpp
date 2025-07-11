@@ -20,6 +20,7 @@
 #include "mlir/include/mlir/Dialect/Affine/IR/AffineOps.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/IR/Bufferization.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/EmitC/IR/EmitC.h"      // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"     // from @llvm-project
 #include "mlir/include/mlir/Dialect/LLVMIR/LLVMDialect.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Linalg/IR/Linalg.h"    // from @llvm-project
@@ -71,6 +72,7 @@ int main(int argc, char **argv) {
   registry.insert<memref::MemRefDialect>();
   registry.insert<scf::SCFDialect>();
   registry.insert<tensor::TensorDialect>();
+  registry.insert<emitc::EmitCDialect>();
 
   return mlir::failed(mlir::MlirLspServerMain(argc, argv, registry));
 }
