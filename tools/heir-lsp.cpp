@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
   registry.insert<tensor_ext::TensorExtDialect>();
   registry.insert<tfhe_rust::TfheRustDialect>();
   registry.insert<tfhe_rust_bool::TfheRustBoolDialect>();
+  registry.insert<polynomial::PolynomialDialect>();
 
   rns::registerExternalRNSTypeInterfaces(registry);
 
@@ -68,7 +69,6 @@ int main(int argc, char **argv) {
   registry.insert<func::FuncDialect>();
   registry.insert<math::MathDialect>();
   registry.insert<memref::MemRefDialect>();
-  registry.insert<::mlir::heir::polynomial::PolynomialDialect>();
   registry.insert<scf::SCFDialect>();
   registry.insert<tensor::TensorDialect>();
 
