@@ -3,6 +3,7 @@
 from heir import compile
 from heir.mlir import F32, I16, I64, Secret
 from heir.backends.cleartext import CleartextBackend
+from heir.backends.lattigo import LattigoBackend, from_os_env
 
 # TODO (#1162): Also add the tensorflow-to-tosa-to-HEIR example in example.py, even it doesn't use the main Python frontend?
 
@@ -137,6 +138,19 @@ def mlir_example():
       # Note that there's no 'myfunc.original' since
       # there's no original Python function to call
       f"Expected result for `myfunc`: {7 + 8}, FHE result: {myfunc(7,8)}"
+  )
+
+
+def lattigo_example():
+  print("Running Lattigo example")
+
+  @compile(backend=LattigoBackend(from_os_env()), debug=True)
+  def lattigo_func(x: Secret[I16], y: Secret[I16]):
+    return (x + y) * (x - y) + (x * y)
+
+  print(
+      f"Expected result for `lattigo_func`: {lattigo_func.original(7,8)}, "
+      f"FHE result: {lattigo_func(7,8)}"
   )
 
 
