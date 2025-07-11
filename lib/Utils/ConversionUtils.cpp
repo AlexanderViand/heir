@@ -19,6 +19,7 @@
 #include "mlir/include/mlir/IR/OperationSupport.h"       // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Region.h"                 // from @llvm-project
+#include "mlir/include/mlir/IR/TypeUtilities.h"          // from @llvm-project
 #include "mlir/include/mlir/IR/Value.h"                  // from @llvm-project
 #include "mlir/include/mlir/IR/Verifier.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/Visitors.h"               // from @llvm-project
@@ -285,6 +286,15 @@ int widthFromEncodingAttr(Attribute encoding) {
   return llvm::TypeSwitch<Attribute, int>(encoding)
       .Case<lwe::BitFieldEncodingAttr, lwe::UnspecifiedBitFieldEncodingAttr>(
           [](auto attr) -> int { return attr.getCleartextBitwidth(); })
+      .Case<lwe::PlaintextSpaceAttr>([](auto attr) -> int {
+        return widthFromEncodingAttr(attr.getEncoding());
+      })
+      .Case<lwe::ApplicationDataAttr>([](auto attr) -> int {
+        Type msgTy = attr.getMessageType();
+        Type elemTy = getElementTypeOrSelf(msgTy);
+        if (auto intTy = dyn_cast<IntegerType>(elemTy)) return intTy.getWidth();
+        return elemTy.getIntOrFloatBitWidth();
+      })
       .Default([](Attribute attr) -> int {
         llvm_unreachable("Unsupported encoding attribute");
         return 0;
