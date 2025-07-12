@@ -23,6 +23,7 @@ cc_library(
         "@heir//lib/Transforms/ConvertSecretInsertToStaticInsert",
         "@heir//lib/Transforms/ConvertSecretWhileToStaticFor",
         "@heir//lib/Transforms/ElementwiseToAffine",
+        "@heir//lib/Transforms/LowerPolynomialEval",
         "@heir//lib/Transforms/MemrefToArith:ExpandCopy",
         "@heir//lib/Transforms/MemrefToArith:MemrefToArithRegistration",
         "@heir//lib/Transforms/PolynomialApproximation",

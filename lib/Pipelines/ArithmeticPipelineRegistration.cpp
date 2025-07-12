@@ -35,6 +35,7 @@
 #include "lib/Transforms/LayoutOptimization/LayoutOptimization.h"
 #include "lib/Transforms/LayoutPropagation/LayoutPropagation.h"
 #include "lib/Transforms/LinalgCanonicalizations/LinalgCanonicalizations.h"
+#include "lib/Transforms/LowerPolynomialEval/LowerPolynomialEval.h"
 #include "lib/Transforms/OperationBalancer/OperationBalancer.h"
 #include "lib/Transforms/OptimizeRelinearization/OptimizeRelinearization.h"
 #include "lib/Transforms/PolynomialApproximation/PolynomialApproximation.h"
@@ -127,6 +128,7 @@ void mlirToSecretArithmeticPipelineBuilder(
   pm.addPass(createSelectRewrite());
   pm.addPass(createCompareToSignRewrite());
   pm.addPass(createPolynomialApproximation());
+  pm.addPass(createLowerPolynomialEval());
   pm.addPass(createCanonicalizerPass());
   pm.addPass(createCSEPass());
 
