@@ -11,6 +11,7 @@ cc_library(
     hdrs = ["PolynomialApproximation.h"],
     deps = [
         ":pass_inc_gen",
+        "@heir//lib/Dialect/MathExt/IR:Dialect",
         "@heir//lib/Dialect/Polynomial/IR:Dialect",
         "@heir//lib/Utils/Approximation:CaratheodoryFejer",
         "@heir//lib/Utils/Polynomial",

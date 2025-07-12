@@ -37,6 +37,7 @@
 #include "lib/Transforms/LinalgCanonicalizations/LinalgCanonicalizations.h"
 #include "lib/Transforms/OperationBalancer/OperationBalancer.h"
 #include "lib/Transforms/OptimizeRelinearization/OptimizeRelinearization.h"
+#include "lib/Transforms/PolynomialApproximation/PolynomialApproximation.h"
 #include "lib/Transforms/PopulateScale/PopulateScale.h"
 #include "lib/Transforms/PropagateAnnotation/PropagateAnnotation.h"
 #include "lib/Transforms/SecretInsertMgmt/Passes.h"
@@ -123,8 +124,9 @@ void mlirToSecretArithmeticPipelineBuilder(
     OpPassManager &pm, const MlirToRLWEPipelineOptions &options) {
   pm.addPass(createWrapGeneric());
   convertToDataObliviousPipelineBuilder(pm);
-  pm.addPass(createCompareToSignRewrite());
   pm.addPass(createSelectRewrite());
+  pm.addPass(createCompareToSignRewrite());
+  pm.addPass(createPolynomialApproximation());
   pm.addPass(createCanonicalizerPass());
   pm.addPass(createCSEPass());
 

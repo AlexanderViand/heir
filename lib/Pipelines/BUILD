@@ -25,6 +25,7 @@ cc_library(
         "@heir//lib/Transforms/ElementwiseToAffine",
         "@heir//lib/Transforms/MemrefToArith:ExpandCopy",
         "@heir//lib/Transforms/MemrefToArith:MemrefToArithRegistration",
+        "@heir//lib/Transforms/PolynomialApproximation",
         "@llvm-project//mlir:AffineToStandard",
         "@llvm-project//mlir:AffineTransforms",
         "@llvm-project//mlir:ArithTransforms",
