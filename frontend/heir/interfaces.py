@@ -127,7 +127,9 @@ class CompilerError(Exception):
     return (
         Fore.RED
         + Style.BRIGHT
-        + f"HEIR Error at {self.location}: {self.message}"
+        + f"HEIR Error at {self.location}:\n"
+        + Style.RESET_ALL
+        + self.message
         + Style.RESET_ALL
     )
 

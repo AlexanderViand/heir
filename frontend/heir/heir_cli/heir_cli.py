@@ -53,7 +53,7 @@ class CLIBackend:
         The stdout of the executed process.
     """
     completed_process = subprocess.run(
-        [os.path.abspath(self.binary_path)] + options,
+        [os.path.abspath(self.binary_path)] + options + ["--color"],
         input=input,
         text=True,
         capture_output=True,
@@ -81,7 +81,7 @@ class CLIBackend:
         The stdout and stderr of the executed process.
     """
     completed_process = subprocess.run(
-        [os.path.abspath(self.binary_path)] + options,
+        [os.path.abspath(self.binary_path)] + options + ["--color"],
         input=input,
         text=True,
         capture_output=True,
