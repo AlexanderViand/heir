@@ -123,6 +123,7 @@ def lit_to_bazel(
     lit_test_file: str,
     git_root: str = "",
     run: bool = False,
+    dump_pass_pipeline: bool = True,
     debug_dir: str = "/tmp/mlir",
 ):
   """A helper CLI that converts MLIR test files to bazel run commands.
@@ -152,6 +153,8 @@ def lit_to_bazel(
     command += (
         f" --mlir-print-ir-after-all --mlir-print-ir-tree-dir={debug_dir}"
     )
+    if dump_pass_pipeline:
+      command += " --dump-pass-pipeline"
     print(command)
 
     # run the command
