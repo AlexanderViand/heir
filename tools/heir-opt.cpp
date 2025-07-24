@@ -56,6 +56,7 @@
 #include "lib/Pipelines/BooleanPipelineRegistration.h"
 #include "lib/Pipelines/PipelineRegistration.h"
 #include "lib/Transforms/AddClientInterface/AddClientInterface.h"
+#include "lib/Transforms/AddMemrefAlignment/AddMemrefAlignment.h"
 #include "lib/Transforms/AnnotateModule/AnnotateModule.h"
 #include "lib/Transforms/AnnotateSecretness/AnnotateSecretness.h"
 #include "lib/Transforms/ApplyFolders/ApplyFolders.h"

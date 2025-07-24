@@ -2,6 +2,7 @@
 
 #include "lib/Dialect/ModArith/Conversions/ModArithToArith/ModArithToArith.h"
 #include "lib/Dialect/Polynomial/Conversions/PolynomialToModArith/PolynomialToModArith.h"
+#include "lib/Transforms/AddMemrefAlignment/AddMemrefAlignment.h"
 #include "lib/Transforms/ConvertIfToSelect/ConvertIfToSelect.h"
 #include "lib/Transforms/ConvertSecretExtractToStaticExtract/ConvertSecretExtractToStaticExtract.h"
 #include "lib/Transforms/ConvertSecretForToStaticFor/ConvertSecretForToStaticFor.h"
@@ -131,6 +132,8 @@ void polynomialToLLVMPipelineBuilder(OpPassManager &manager) {
   manager.addNestedPass<FuncOp>(affine::createAffineExpandIndexOpsPass());
   manager.addNestedPass<FuncOp>(affine::createSimplifyAffineStructuresPass());
   manager.addPass(createLowerAffinePass());
+  // Add alignment attributes to memref.alloc before lowering to LLVM
+  manager.addPass(createAddMemrefAlignmentPass());
   manager.addPass(createConvertToLLVMPass());
 
   // Cleanup
