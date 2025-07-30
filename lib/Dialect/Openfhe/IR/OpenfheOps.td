@@ -3,6 +3,7 @@
 
 include "OpenfheDialect.td"
 include "OpenfheTypes.td"
+include "OpenfheEnums.td"
 
 include "lib/Dialect/LWE/IR/LWETypes.td"
 include "lib/Dialect/LWE/IR/LWETraits.td"
@@ -102,7 +103,7 @@ def GenParamsOp : Openfhe_Op<"gen_params"> {
     DefaultValuedAttr<BoolAttr, "false">:$insecure,
     DefaultValuedAttr<BoolAttr, "false">:$encryptionTechniqueExtended,
     DefaultValuedAttr<BoolAttr, "false">:$keySwitchingTechniqueBV,
-    DefaultValuedAttr<BoolAttr, "false">:$scalingTechniqueFixedManual
+    DefaultValuedAttr<Openfhe_ScalingTechniqueEnumAttr, "::mlir::heir::openfhe::ScalingTechniqueEnum::FLEXIBLEAUTO">:$scalingTechnique
   );
   let results = (outs Openfhe_CCParams:$params);
 }

@@ -14,6 +14,7 @@
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/ModArith/IR/ModArithTypes.h"
 #include "lib/Dialect/ModuleAttributes.h"
+#include "lib/Dialect/Openfhe/IR/OpenfheEnums.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
 #include "lib/Dialect/RNS/IR/RNSTypes.h"
@@ -63,7 +64,7 @@ struct Config {
   int maxRelinSkDeg;
   bool insecure;
   bool keySwitchingTechniqueBV;
-  bool scalingTechniqueFixedManual;
+  ::mlir::heir::openfhe::ScalingTechniqueEnum scalingTechnique;
   // for bootstrapping
   int64_t levelBudgetEncode;
   int64_t levelBudgetDecode;
@@ -150,7 +151,7 @@ struct ConfigureCryptoContext
         /*insecure*/ config.insecure,
         /*encryptionTechniqueExtended*/ config.encryptionTechniqueExtended,
         /*keySwitchingTechniqueBV*/ config.keySwitchingTechniqueBV,
-        /*scalingTechniqueFixedManual*/ config.scalingTechniqueFixedManual);
+        /*scalingTechnique*/ config.scalingTechnique);
     Value cryptoContext = openfhe::GenContextOp::create(
         builder, openfheContextType, ccParams,
         BoolAttr::get(builder.getContext(), config.hasBootstrapOp));
@@ -333,7 +334,14 @@ struct ConfigureCryptoContext
     config.maxRelinSkDeg = maxRelinSkDeg;
     config.insecure = insecure;
     config.keySwitchingTechniqueBV = keySwitchingTechniqueBV;
-    config.scalingTechniqueFixedManual = scalingTechniqueFixedManual;
+    if (auto scalingTechniqueEnum =
+            symbolizeScalingTechniqueEnum(scalingTechnique)) {
+      config.scalingTechnique = scalingTechniqueEnum.value();
+    } else {
+      module->emitError("Invalid scaling technique: " + scalingTechnique);
+      signalPassFailure();
+      return failure();
+    }
     config.levelBudgetDecode = levelBudgetDecode;
     config.levelBudgetEncode = levelBudgetEncode;
 

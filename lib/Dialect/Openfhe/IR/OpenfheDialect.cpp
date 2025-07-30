@@ -2,6 +2,8 @@
 
 #include <optional>
 
+#include "lib/Dialect/Openfhe/IR/OpenfheAttributes.h"
+#include "lib/Dialect/Openfhe/IR/OpenfheEnums.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
 
@@ -10,6 +12,9 @@
 // IWYU pragma: end_keep
 
 #include "lib/Dialect/Openfhe/IR/OpenfheDialect.cpp.inc"
+#include "lib/Dialect/Openfhe/IR/OpenfheEnums.cpp.inc"
+#define GET_ATTRDEF_CLASSES
+#include "lib/Dialect/Openfhe/IR/OpenfheAttributes.cpp.inc"
 #define GET_TYPEDEF_CLASSES
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.cpp.inc"
 #define GET_OP_CLASSES
@@ -20,6 +25,10 @@ namespace heir {
 namespace openfhe {
 
 void OpenfheDialect::initialize() {
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "lib/Dialect/Openfhe/IR/OpenfheAttributes.cpp.inc"
+      >();
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.cpp.inc"

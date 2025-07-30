@@ -256,7 +256,7 @@ module attributes {scheme.ckks} {
 
 // -----
 
-module attributes {scheme.bgv} {
+module attributes {scheme.ckks} {
   // CHECK: test_gen_params_op
   func.func @test_gen_params_op() -> !openfhe.cc_params {
     // CHECK: CCParamsT [[PARAMS:.*]];
@@ -275,7 +275,7 @@ module attributes {scheme.bgv} {
     // CHECK: [[PARAMS]].SetEncryptionTechnique(EXTENDED);
     // CHECK: [[PARAMS]].SetKeySwitchTechnique(BV);
     // CHECK: [[PARAMS]].SetScalingTechnique(FIXEDMANUAL);
-    %0 = openfhe.gen_params  {mulDepth = 2 : i64, plainMod = 17 : i64, ringDim = 16384, batchSize = 8, firstModSize = 59, scalingModSize = 59, evalAddCount = 2 : i64, keySwitchCount = 1 : i64, digitSize = 16, numLargeDigits = 2, maxRelinSkDeg = 3, insecure = true, encryptionTechniqueExtended = true, keySwitchingTechniqueBV = true, scalingTechniqueFixedManual = true} : () -> !openfhe.cc_params
+    %0 = openfhe.gen_params  {mulDepth = 2 : i64, plainMod = 17 : i64, ringDim = 16384, batchSize = 8, firstModSize = 59, scalingModSize = 59, evalAddCount = 2 : i64, keySwitchCount = 1 : i64, digitSize = 16, numLargeDigits = 2, maxRelinSkDeg = 3, insecure = true, encryptionTechniqueExtended = true, keySwitchingTechniqueBV = true, scalingTechnique = #openfhe<ScalingTechnique FIXEDMANUAL>} : () -> !openfhe.cc_params
     return %0 : !openfhe.cc_params
   }
 }

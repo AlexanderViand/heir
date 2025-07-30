@@ -21,6 +21,7 @@
 #include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/ModuleAttributes.h"
+#include "lib/Dialect/Openfhe/IR/OpenfheEnums.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Target/OpenFhePke/OpenFheUtils.h"
 #include "lib/Utils/TargetUtils.h"
@@ -1431,8 +1432,10 @@ LogicalResult OpenFhePkeEmitter::printOperation(GenParamsOp op) {
   } else {
     os << paramsName << ".SetKeySwitchTechnique(BV);\n";
   }
-  if (op.getScalingTechniqueFixedManual()) {
-    os << paramsName << ".SetScalingTechnique(FIXEDMANUAL);\n";
+  // SetScalingTechnique is only available for CKKS scheme
+  if (moduleIsCKKS(op->getParentOfType<ModuleOp>())) {
+    os << paramsName << ".SetScalingTechnique("
+       << stringifyScalingTechniqueEnum(op.getScalingTechnique()) << ");\n";
   }
   return success();
 }

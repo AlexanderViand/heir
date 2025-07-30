@@ -45,8 +45,8 @@ def ConfigureCryptoContext : Pass<"openfhe-configure-crypto-context"> {
            /*default=*/"false", "Whether to use insecure parameter (defaults to false)">,
     Option<"keySwitchingTechniqueBV", "key-switching-technique-bv", "bool",
            /*default=*/"false", "Whether to use BV key switching technique (defaults to false)">,
-    Option<"scalingTechniqueFixedManual", "scaling-technique-fixed-manual", "bool",
-           /*default=*/"false", "Whether to use fixed manual scaling technique (defaults to false)">,
+    Option<"scalingTechnique", "scaling-technique", "std::string",
+           /*default=*/"\"FLEXIBLEAUTOEXT\"", "OpenFHE scaling technique (FIXEDMANUAL, FIXEDAUTO, FLEXIBLEAUTO, FLEXIBLEAUTOEXT, NORESCALE)">,
     // For bootstrapping
     Option<"levelBudgetEncode", "level-budget-encode", "int",
            /*default=*/"3", "Level budget for CKKS bootstrap encode (s2c) phase">,
