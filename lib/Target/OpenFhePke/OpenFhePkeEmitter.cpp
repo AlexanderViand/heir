@@ -1437,6 +1437,12 @@ LogicalResult OpenFhePkeEmitter::printOperation(GenParamsOp op) {
     os << paramsName << ".SetScalingTechnique("
        << stringifyScalingTechniqueEnum(op.getScalingTechnique()) << ");\n";
   }
+  // Register word size parameter (only if using composite scaling)
+  if (op.getScalingTechnique() == ScalingTechniqueEnum::COMPOSITESCALINGAUTO &&
+      op.getRegisterWordSize() != 0) {
+    os << paramsName << ".SetRegisterWordSize(" << op.getRegisterWordSize()
+       << ");\n";
+  }
   return success();
 }
 

@@ -52,6 +52,8 @@ def ConfigureCryptoContext : Pass<"openfhe-configure-crypto-context"> {
            /*default=*/"3", "Level budget for CKKS bootstrap encode (s2c) phase">,
     Option<"levelBudgetDecode", "level-budget-decode", "int",
            /*default=*/"3", "Level budget for CKKS bootstrap decode (c2s) phase">,
+    Option<"registerWordSize", "register-word-size", "int",
+           /*default=*/"0", "Manually specify the register word size">,
   ];
 }
 

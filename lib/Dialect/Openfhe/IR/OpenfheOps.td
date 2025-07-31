@@ -103,7 +103,8 @@ def GenParamsOp : Openfhe_Op<"gen_params"> {
     DefaultValuedAttr<BoolAttr, "false">:$insecure,
     DefaultValuedAttr<BoolAttr, "false">:$encryptionTechniqueExtended,
     DefaultValuedAttr<BoolAttr, "false">:$keySwitchingTechniqueBV,
-    DefaultValuedAttr<Openfhe_ScalingTechniqueEnumAttr, "::mlir::heir::openfhe::ScalingTechniqueEnum::FLEXIBLEAUTO">:$scalingTechnique
+    DefaultValuedAttr<Openfhe_ScalingTechniqueEnumAttr, "::mlir::heir::openfhe::ScalingTechniqueEnum::FLEXIBLEAUTO">:$scalingTechnique,
+    DefaultValuedAttr<I64Attr, "0">:$registerWordSize
   );
   let results = (outs Openfhe_CCParams:$params);
 }

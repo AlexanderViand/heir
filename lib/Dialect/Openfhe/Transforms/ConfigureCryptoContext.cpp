@@ -68,6 +68,8 @@ struct Config {
   // for bootstrapping
   int64_t levelBudgetEncode;
   int64_t levelBudgetDecode;
+  // register word size
+  int registerWordSize;
 };
 
 #define GEN_PASS_DEF_CONFIGURECRYPTOCONTEXT
@@ -151,7 +153,8 @@ struct ConfigureCryptoContext
         /*insecure*/ config.insecure,
         /*encryptionTechniqueExtended*/ config.encryptionTechniqueExtended,
         /*keySwitchingTechniqueBV*/ config.keySwitchingTechniqueBV,
-        /*scalingTechnique*/ config.scalingTechnique);
+        /*scalingTechnique*/ config.scalingTechnique,
+        /*registerWordSize*/ config.registerWordSize);
     Value cryptoContext = openfhe::GenContextOp::create(
         builder, openfheContextType, ccParams,
         BoolAttr::get(builder.getContext(), config.hasBootstrapOp));
@@ -344,6 +347,7 @@ struct ConfigureCryptoContext
     }
     config.levelBudgetDecode = levelBudgetDecode;
     config.levelBudgetEncode = levelBudgetEncode;
+    config.registerWordSize = this->registerWordSize;
 
     // for BFV, keep only one of MulDepth/EvalAddCount/KeySwitchCount
     // If MulDepth != 0, clean EvalAddCount/KeySwitchCount
