@@ -142,6 +142,8 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(RLWEScheme scheme);
 
 BackendPipelineBuilder toOpenFhePipelineBuilder();
 
+BackendPipelineBuilder openfheToSchemePipelineBuilder();
+
 BackendPipelineBuilder toLattigoPipelineBuilder();
 
 // A subpipeline that preprocesses linalg ops to make them more suitable for
