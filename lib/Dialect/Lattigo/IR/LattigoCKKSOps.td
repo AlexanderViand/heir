@@ -252,9 +252,11 @@ def Lattigo_CKKSRotateNewOp : Lattigo_CKKSOp<"rotate_new"> {
   let arguments = (ins
     Lattigo_CKKSEvaluator:$evaluator,
     Lattigo_RLWECiphertext:$input,
-    Builtin_IntegerAttr:$offset
+    Optional<AnySignlessIntegerOrIndex>:$dynamic_shift,
+    OptionalAttr<Builtin_IntegerAttr>:$static_shift
   );
   let results = (outs Lattigo_RLWECiphertext:$output);
+  let hasVerifier = 1;
 }
 
 class Lattigo_CKKSUnaryInPlaceOp<string mnemonic> :
@@ -309,9 +311,11 @@ def Lattigo_CKKSRotateOp : Lattigo_CKKSUnaryInPlaceOp<"rotate"> {
     Lattigo_RLWECiphertext:$input,
     // see BinaryInPlaceOp above
     Lattigo_RLWECiphertext:$inplace,
-    Builtin_IntegerAttr:$offset
+    Optional<AnySignlessIntegerOrIndex>:$dynamic_shift,
+    OptionalAttr<Builtin_IntegerAttr>:$static_shift
   );
   let results = (outs Lattigo_RLWECiphertext:$output);
+  let hasVerifier = 1;
 }
 
 def Lattigo_CKKSBootstrapOp : Lattigo_CKKSUnaryOp<"bootstrap"> {

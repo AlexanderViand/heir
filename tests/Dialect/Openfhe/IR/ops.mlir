@@ -97,7 +97,7 @@ module {
   // CHECK: func @test_rot
   func.func @test_rot(%cc : !cc, %pt : !pt, %pk: !pk) {
     %ct = openfhe.encrypt %cc, %pt, %pk : (!cc, !pt, !pk) -> !ct
-    %out = openfhe.rot %cc, %ct { index = 2 }: (!cc, !ct) -> !ct
+    %out = openfhe.rot %cc, %ct { static_shift = 2 }: (!cc, !ct) -> !ct
     return
   }
 

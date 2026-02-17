@@ -212,6 +212,8 @@ class OpenFhePkeEmitter {
   LogicalResult emitTypedAssignPrefix(::mlir::Value result,
                                       ::mlir::Location loc,
                                       bool constant = false);
+
+  std::string getConstantOrValue(Value value);
 };
 
 }  // namespace openfhe

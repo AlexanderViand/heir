@@ -273,5 +273,26 @@ FailureOr<func::FuncOp> getCalledFunction(func::CallOp callOp) {
   return maybeFuncOp;
 }
 
+LogicalResult containsExactlyOneOrEmitError(
+    Operation* op, Value dynamicValue, std::optional<Attribute> staticAttr) {
+  if (dynamicValue != Value() && staticAttr.has_value()) {
+    return op->emitOpError()
+           << "contains both static and dynamic operand; expected just one.";
+  }
+
+  if (dynamicValue == Value() && !staticAttr.has_value()) {
+    return op->emitOpError()
+           << "contains neither static nor dynamic operand; expected one.";
+  }
+
+  return success();
+}
+
+LogicalResult containsExactlyOneOrEmitError(Operation* op, Value dynamicValue,
+                                            Attribute staticAttr) {
+  return containsExactlyOneOrEmitError(op, dynamicValue,
+                                       std::optional<Attribute>{staticAttr});
+}
+
 }  // namespace heir
 }  // namespace mlir

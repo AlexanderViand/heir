@@ -217,9 +217,11 @@ def Lattigo_BGVRotateColumnsNewOp : Lattigo_BGVOp<"rotate_columns_new"> {
   let arguments = (ins
     Lattigo_BGVEvaluator:$evaluator,
     Lattigo_RLWECiphertext:$input,
-    Builtin_IntegerAttr:$offset
+    Optional<AnySignlessIntegerOrIndex>:$dynamic_shift,
+    OptionalAttr<Builtin_IntegerAttr>:$static_shift
   );
   let results = (outs Lattigo_RLWECiphertext:$output);
+  let hasVerifier = 1;
 }
 
 def Lattigo_BGVRotateRowsNewOp : Lattigo_BGVUnaryOp<"rotate_rows_new"> {
@@ -280,9 +282,11 @@ def Lattigo_BGVRotateColumnsOp : Lattigo_BGVUnaryInPlaceOp<"rotate_columns"> {
     Lattigo_BGVEvaluator:$evaluator,
     Lattigo_RLWECiphertext:$input,
     Lattigo_RLWECiphertext:$inplace,
-    Builtin_IntegerAttr:$offset
+    Optional<AnySignlessIntegerOrIndex>:$dynamic_shift,
+    OptionalAttr<Builtin_IntegerAttr>:$static_shift
   );
   let results = (outs Lattigo_RLWECiphertext:$output);
+  let hasVerifier = 1;
 }
 
 def Lattigo_BGVRotateRowsOp : Lattigo_BGVUnaryInPlaceOp<"rotate_rows"> {

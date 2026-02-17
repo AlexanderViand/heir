@@ -7,6 +7,7 @@
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/ModArith/IR/ModArithTypes.h"
 #include "lib/Dialect/RNS/IR/RNSTypes.h"
+#include "lib/Utils/Utils.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"        // from @llvm-project
 #include "mlir/include/mlir/IR/Diagnostics.h"         // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"         // from @llvm-project
@@ -103,7 +104,9 @@ LogicalResult verifyRotateOp(Op* op) {
   if (out.getCiphertextSpace().getSize() != 2) {
     return op->emitOpError() << "output.dim == 2 does not hold";
   }
-  return success();
+
+  return containsExactlyOneOrEmitError(
+      op->getOperation(), op->getDynamicShift(), op->getStaticShift());
 }
 
 template <typename Op>

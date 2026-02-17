@@ -214,6 +214,12 @@ bool allTypesMatch(ArrayRef<Value> values);
 /// returns the new list of values.
 SmallVector<Value> extendToCommonWidth(OpBuilder& b, ArrayRef<Value> values);
 
+/// Ensures only one of a Value or Attribute are present
+LogicalResult containsExactlyOneOrEmitError(Operation* op, Value dynamicValue,
+                                            Attribute staticAttr);
+LogicalResult containsExactlyOneOrEmitError(
+    Operation* op, Value dynamicValue, std::optional<Attribute> staticAttr);
+
 }  // namespace heir
 }  // namespace mlir
 

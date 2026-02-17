@@ -211,6 +211,11 @@ FailureOr<std::string> getWeightType(Type type) {
 
 }  // namespace
 
+std::string OpenFhePkeEmitter::getConstantOrValue(Value value) {
+  return getStringForConstant(value).value_or(
+      variableNames->getNameForValue(value));
+}
+
 LogicalResult translateToOpenFhePke(Operation* op, llvm::raw_ostream& os,
                                     const OpenfheImportType& importType,
                                     const std::string& weightsFile,
@@ -604,11 +609,6 @@ LogicalResult OpenFhePkeEmitter::printOperation(scf::ForOp op) {
     os << ";\n";
   }
 
-  auto getConstantOrValue = [&](Value value) -> std::string {
-    return getStringForConstant(value).value_or(
-        variableNames->getNameForValue(value));
-  };
-
   os << llvm::formatv("for (auto {0} = {1}; {0} < {2}; ++{0}) {{\n",
                       variableNames->getNameForValue(op.getInductionVar()),
                       getConstantOrValue(op.getLowerBound()),
@@ -828,8 +828,17 @@ LogicalResult OpenFhePkeEmitter::printOperation(RotOp op) {
 
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->"
      << "EvalRotate" << "("
-     << variableNames->getNameForValue(op.getCiphertext()) << ", "
-     << op.getIndex().getValue() << ");\n";
+     << variableNames->getNameForValue(op.getCiphertext()) << ", ";
+
+  if (op.getStaticShiftAttr()) {
+    os << op.getStaticShift()->getValue();
+  } else if (op.getDynamicShift()) {
+    os << getConstantOrValue(op.getDynamicShift());
+  } else {
+    return op.emitError("RotOp must have either static_shift or dynamic_shift");
+  }
+
+  os << ");\n";
   return success();
 }
 
@@ -843,11 +852,6 @@ LogicalResult OpenFhePkeEmitter::printOperation(FastRotationPrecomputeOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(FastRotationOp op) {
-  auto getConstantOrValue = [&](Value value) -> std::string {
-    return getStringForConstant(value).value_or(
-        variableNames->getNameForValue(value));
-  };
-
   emitAutoAssignPrefix(op.getResult());
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->"
      << "EvalFastRotation(" << variableNames->getNameForValue(op.getInput())
@@ -859,11 +863,6 @@ LogicalResult OpenFhePkeEmitter::printOperation(FastRotationOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(FastRotationExtOp op) {
-  auto getConstantOrValue = [&](Value value) -> std::string {
-    return getStringForConstant(value).value_or(
-        variableNames->getNameForValue(value));
-  };
-
   emitAutoAssignPrefix(op.getResult());
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->"
      << "EvalFastRotationExt(" << variableNames->getNameForValue(op.getInput())
