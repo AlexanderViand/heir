@@ -134,6 +134,20 @@ bool containsBootstrap(Operation* op) {
   return result.wasInterrupted();
 }
 
+bool containsEncode(Operation* op) {
+  auto funcOp = dyn_cast<func::FuncOp>(op);
+  if (!funcOp) {
+    return false;
+  }
+  auto result = walkFuncAndCallees(funcOp, [&](Operation* op) {
+    if (isa<lwe::RLWEEncodeOp>(op)) {
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  return result.wasInterrupted();
+}
+
 struct AddEvaluatorArg : public OpConversionPattern<func::FuncOp> {
   AddEvaluatorArg(mlir::MLIRContext* context,
                   const std::vector<std::pair<Type, OpPredicate>>& evaluators)
@@ -218,13 +232,28 @@ struct ConvertFuncCallOp : public OpConversionPattern<func::CallOp> {
   LogicalResult matchAndRewrite(
       func::CallOp op, typename func::CallOp::Adaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
+    auto funcOp = getCalledFunction(op);
+    if (failed(funcOp)) {
+      return rewriter.notifyMatchFailure(op, "could not find callee function");
+    }
     SmallVector<Value> selectedevaluatorsValues;
     for (const auto& evaluator : evaluators) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Checking if evaluator should be added of type: "
+                 << evaluator.first << "\n");
       auto result = getContextualEvaluator(op.getOperation(), evaluator.first);
       // filter out non-existent evaluators
       if (failed(result)) {
         continue;
       }
+      // filter for only the required evaluators
+      if (!llvm::any_of(funcOp.value().getArgumentTypes(), [&](Type argType) {
+            return evaluator.first == argType;
+          })) {
+        continue;
+      }
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Adding evaluator of type: " << evaluator.first << "\n");
       selectedevaluatorsValues.push_back(result.value());
     }
 
@@ -789,37 +818,36 @@ struct LWEToLattigo : public impl::LWEToLattigoBase<LWEToLattigo> {
               lattigo::BGVEvaluatorType, lattigo::BGVEncoderType,
               lattigo::CKKSEvaluatorType, lattigo::CKKSEncoderType,
               lattigo::RLWEEncryptorType, lattigo::RLWEDecryptorType>(op);
+      bool hasCryptoArg =
+          containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect,
+                                    ckks::CKKSDialect, lattigo::LattigoDialect>(
+              op);
+      bool hasEncodeOp = containsEncode(op);
 
       return typeConverter.isSignatureLegal(op.getFunctionType()) &&
              typeConverter.isLegal(&op.getBody()) &&
-             (!containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect,
-                                         ckks::CKKSDialect,
-                                         lattigo::LattigoDialect>(op) ||
-              hasCryptoContextArg);
+             (!(hasCryptoArg || hasEncodeOp) || hasCryptoContextArg);
     });
 
     // Ensures that callee function signature is consistent
     target.addDynamicallyLegalOp<func::CallOp>([&](func::CallOp op) {
       auto operandTypes = op.getCalleeType().getInputs();
       auto containsCryptoArg = llvm::any_of(operandTypes, [&](Type argType) {
-        return DialectEqual<lwe::LWEDialect, bgv::BGVDialect, ckks::CKKSDialect,
-                            lattigo::LattigoDialect>()(&argType.getDialect());
+        return DialectEqual<lwe::LWEDialect, bgv::BGVDialect,
+                            ckks::CKKSDialect>()(&argType.getDialect());
       });
       auto hasCryptoContextArg =
           !operandTypes.empty() &&
           mlir::isa<lattigo::BGVEvaluatorType, lattigo::CKKSEvaluatorType>(
               *operandTypes.begin());
-      // crypto context may need to be added for any function call whose callee
-      // has crypto ops.
-      auto containsCryptoOps = false;
+      // validate that the callee signature is consistent with the call site
+      bool signatureConsistent = false;
       FailureOr<func::FuncOp> callee = getCalledFunction(op);
       if (succeeded(callee)) {
-        containsCryptoOps =
-            containsDialects<lwe::LWEDialect, bgv::BGVDialect,
-                             ckks::CKKSDialect, lattigo::LattigoDialect>(
-                callee.value());
+        signatureConsistent =
+            callee.value().getFunctionType() == op.getCalleeType();
       }
-      return (!(containsCryptoArg || containsCryptoOps) || hasCryptoContextArg);
+      return (!containsCryptoArg || hasCryptoContextArg) && signatureConsistent;
     });
 
     // All other operations are legal if they have no LWE typed operands or
@@ -889,11 +917,17 @@ struct LWEToLattigo : public impl::LWEToLattigoBase<LWEToLattigo> {
          gateByBGVModuleAttr(
              containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect>)},
         {lattigo::BGVParameterType::get(context),
-         gateByBGVModuleAttr(
-             containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect>)},
+         gateByBGVModuleAttr([&](Operation* op) {
+           return containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect>(
+                      op) ||
+                  containsEncode(op);
+         })},
         {lattigo::BGVEncoderType::get(context),
-         gateByBGVModuleAttr(
-             containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect>)},
+         gateByBGVModuleAttr([&](Operation* op) {
+           return containsArgumentOfDialect<lwe::LWEDialect, bgv::BGVDialect>(
+                      op) ||
+                  containsEncode(op);
+         })},
         // Add a CKKS bootstrapping evaluator - this contains a pointer to a
         // CKKS evaluator, and for simplicity, the function signature can
         // contain both. Callers will create only a bootstrapper evaluator and
@@ -908,11 +942,17 @@ struct LWEToLattigo : public impl::LWEToLattigoBase<LWEToLattigo> {
          gateByCKKSModuleAttr(
              containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>)},
         {lattigo::CKKSParameterType::get(context),
-         gateByCKKSModuleAttr(
-             containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>)},
+         gateByCKKSModuleAttr([&](Operation* op) {
+           return containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>(
+                      op) ||
+                  containsEncode(op);
+         })},
         {lattigo::CKKSEncoderType::get(context),
-         gateByCKKSModuleAttr(
-             containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>)},
+         gateByCKKSModuleAttr([&](Operation* op) {
+           return containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>(
+                      op) ||
+                  containsEncode(op);
+         })},
         {lattigo::RLWEEncryptorType::get(context, /*publicKey*/ true),
          containsArgumentOfType<lwe::LWEPublicKeyType>},
         // for LWESecretKey, if its uses are encrypt, then convert it to an
