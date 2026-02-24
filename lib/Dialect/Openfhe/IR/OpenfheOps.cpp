@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
+#include "lib/Utils/Utils.h"
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"        // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Builders.h"               // from @llvm-project
@@ -162,6 +163,11 @@ FailureOr<Operation*> FastRotationExtOp::buildBatchedOperation(
     SmallVector<Operation*> batchedOperations) {
   return buildBatchedRotationOperation(*this, context, builder,
                                        batchedOperations);
+}
+
+LogicalResult RotOp::verify() {
+  return containsExactlyOneOrEmitError(getOperation(), getDynamicShift(),
+                                       getStaticShift());
 }
 
 }  // namespace openfhe

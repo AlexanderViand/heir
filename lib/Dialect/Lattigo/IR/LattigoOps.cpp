@@ -1,6 +1,7 @@
 #include "lib/Dialect/Lattigo/IR/LattigoOps.h"
 
 #include "lib/Dialect/Lattigo/IR/LattigoTypes.h"
+#include "lib/Utils/Utils.h"
 #include "mlir/include/mlir/IR/TypeUtilities.h"  // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"      // from @llvm-project
 
@@ -40,6 +41,23 @@ LogicalResult RLWENewEncryptorOp::verify() {
         "encryption key and encryptor must have the same public/secret type");
   }
   return success();
+}
+
+LogicalResult BGVRotateColumnsNewOp::verify() {
+  return containsExactlyOneOrEmitError(getOperation(), getDynamicShift(),
+                                       getStaticShift());
+}
+LogicalResult BGVRotateColumnsOp::verify() {
+  return containsExactlyOneOrEmitError(getOperation(), getDynamicShift(),
+                                       getStaticShift());
+}
+LogicalResult CKKSRotateNewOp::verify() {
+  return containsExactlyOneOrEmitError(getOperation(), getDynamicShift(),
+                                       getStaticShift());
+}
+LogicalResult CKKSRotateOp::verify() {
+  return containsExactlyOneOrEmitError(getOperation(), getDynamicShift(),
+                                       getStaticShift());
 }
 
 }  // namespace lattigo
