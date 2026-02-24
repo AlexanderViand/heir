@@ -200,7 +200,7 @@ static FailureOr<Value> implementAssignLayoutPermutation(
     ImplicitLocOpBuilder& builder,
     const std::function<void(Operation*)>& createdOpCallback) {
   auto elementType = getElementTypeOrSelf(input.getType());
-
+  auto tensorType = dyn_cast<RankedTensorType>(input.getType());
   // TODO(#2666): This logic assumes ctxt = 0, this can be extended to handle a
   // more general case. permutation is <N x 4 x i64>: each row is [src_ct,
   // src_slot, dst_ct, dst_slot]. src_ct and dst_ct are always 0 (single
@@ -224,10 +224,29 @@ static FailureOr<Value> implementAssignLayoutPermutation(
     ++it;
     int64_t dstSlot = (*it++).getSExtValue();
 
+    if (tensorType.getRank() > 2)
+      return builder.emitError() << "Arbitrary permutation layout only "
+                                    "supports up to 2D tensors for now";
+
+    // TODO(#2666): Update this to check the dimensions of src ctxt and dst ctxt
+    // when we support more general layouts. we want to check srcSlot against
+    // the last dimension of the tensor
+    if (srcSlot >= tensorType.getDimSize(tensorType.getRank() - 1) ||
+        dstSlot >= ciphertextSize) {
+      return builder.emitError()
+             << "Permutation index out of bounds: src_slot=" << srcSlot
+             << ", dst_slot=" << dstSlot;
+    }
+    // TODO(#2666): This logic assumes src_ct and dst_ct are always 0
+    // we can have input tensors of type <1xNxType> or just <NxType>
+    // We need to handle both cases when extracting the elements
+    SmallVector<Value> extractIndices;
+    if (tensorType.getRank() == 2) extractIndices.push_back(ctIdx);
+
     auto srcSlotIdx = arith::ConstantIndexOp::create(builder, srcSlot);
     createdOpCallback(srcSlotIdx);
-    auto extracted = tensor::ExtractOp::create(builder, input,
-                                               ValueRange{ctIdx, srcSlotIdx});
+    extractIndices.push_back(srcSlotIdx);
+    auto extracted = tensor::ExtractOp::create(builder, input, extractIndices);
     createdOpCallback(extracted);
     auto dstSlotIdx = arith::ConstantIndexOp::create(builder, dstSlot);
     createdOpCallback(dstSlotIdx);
