@@ -1726,9 +1726,13 @@ LogicalResult OpenFhePkeEmitter::printOperation(
   std::string& inputVarFilledName = filledPrefix;
   std::string inputVarFilledLengthName = filledPrefix + "_n";
 
-  os << "auto " << inputVarFilledLengthName << " = " << cc
-     << "->GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
-        "2;\n";
+  os << "auto " << inputVarFilledLengthName << " = " << cc << "->";
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    os << "GetRingDimension() / 2;\n";
+  } else {
+    os << "GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
+          "2;\n";
+  }
   os << "auto " << inputVarFilledName << " = " << inputVarName << ";\n";
   os << inputVarFilledName << ".clear();\n";
   os << inputVarFilledName << ".reserve(" << inputVarFilledLengthName << ");\n";
@@ -1780,9 +1784,13 @@ LogicalResult OpenFhePkeEmitter::printOperation(
       variableNames->getNameForValue(op.getResult()) + "_filled";
   std::string inputVarFilledName = filledPrefix;
   std::string inputVarFilledLengthName = filledPrefix + "_n";
-  os << "auto " << inputVarFilledLengthName << " = " << cc
-     << "->GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
-        "2;\n";
+  os << "auto " << inputVarFilledLengthName << " = " << cc << "->";
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    os << "GetRingDimension() / 2;\n";
+  } else {
+    os << "GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
+          "2;\n";
+  }
   os << "auto " << inputVarFilledName << " = " << inputVarName << ";\n";
   os << inputVarFilledName << ".clear();\n";
   os << inputVarFilledName << ".reserve(" << inputVarFilledLengthName << ");\n";
@@ -1900,10 +1908,23 @@ LogicalResult OpenFhePkeEmitter::printOperation(DecryptOp op) {
   os << "PlaintextT " << variableNames->getNameForValue(op.getResult())
      << ";\n";
 
+  std::string ciphertextVar = variableNames->getNameForValue(op.getCiphertext());
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    // FIDESlib Decrypt overloads currently take a non-const ciphertext ref.
+    ciphertextVar += "_mutable";
+    os << "auto " << ciphertextVar << " = "
+       << variableNames->getNameForValue(op.getCiphertext()) << ";\n";
+  }
+
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->Decrypt(";
-  os << commaSeparatedValues(
-      {op.getPrivateKey(), op.getCiphertext()},
-      [&](Value value) { return variableNames->getNameForValue(value); });
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    os << variableNames->getNameForValue(op.getPrivateKey()) << ", "
+       << ciphertextVar;
+  } else {
+    os << commaSeparatedValues(
+        {op.getPrivateKey(), op.getCiphertext()},
+        [&](Value value) { return variableNames->getNameForValue(value); });
+  }
   os << ", &" << variableNames->getNameForValue(op.getResult()) << ");\n";
   return success();
 }
