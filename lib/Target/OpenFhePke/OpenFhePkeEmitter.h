@@ -45,6 +45,12 @@ namespace openfhe {
                                             const std::string& weightsFile,
                                             bool skipVectorResizing);
 
+/// Translates the given operation to C++ code against FIDESlib.
+::mlir::LogicalResult translateToFideslibPke(::mlir::Operation* op,
+                                             llvm::raw_ostream& os,
+                                             const std::string& weightsFile,
+                                             bool skipVectorResizing);
+
 // A map from the SSA value name of a 1-D dense element constants to its value.
 // Note that multidimensional shapes are handled as flattened 1-D vectors.
 struct Weights {
@@ -67,7 +73,8 @@ class OpenFhePkeEmitter {
   OpenFhePkeEmitter(raw_ostream& os, SelectVariableNames* variableNames,
                     ConstQualifierAnalysis* constQualifierAnalysis,
                     const OpenfheImportType& importType,
-                    const std::string& weightsFile, bool skipVectorResizing);
+                    const std::string& weightsFile, bool skipVectorResizing,
+                    OpenfheBackend backend = OpenfheBackend::OPENFHE);
 
   LogicalResult translate(::mlir::Operation& operation);
 
@@ -95,6 +102,9 @@ class OpenFhePkeEmitter {
 
   // Whether to skip resizing vectors to ring dimension / 2
   bool skipVectorResizing_;
+
+  // Target backend API flavor.
+  OpenfheBackend backend_;
 
   // Functions for printing individual ops
   LogicalResult printOperation(::mlir::ModuleOp op);
@@ -191,6 +201,7 @@ class OpenFhePkeEmitter {
                                        ::mlir::Value cryptoContext,
                                        ::mlir::ValueRange nonEvalOperands,
                                        std::string_view op);
+  LogicalResult emitFideslibUnsupportedOpError(::mlir::Operation *op);
   LogicalResult printBinaryOp(Operation* op, ::mlir::Value lhs,
                               ::mlir::Value rhs, std::string_view opName);
   LogicalResult decodeCore(::mlir::Location loc, ::mlir::Value input,

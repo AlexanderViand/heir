@@ -42,6 +42,10 @@ bazel_dep(name = "openfhe", version = "1.4.2.bcr.1")
 bazel_dep(name = "abc", version = "0.0.0-20250903-yosyshq.bcr.1")
 bazel_dep(name = "yosys", version = "0.57.bcr.2")
 
+# FIDESlib is not on the BCR, so we use a module extension.
+fideslib_extensions = use_extension("//bazel:extensions.bzl", "fideslib_deps")
+use_repo(fideslib_extensions, "fideslib")
+
 # LLVM dependency uses module extensions because none of these are in the BCR
 llvm_extensions = use_extension("//bazel:extensions.bzl", "llvm_deps")
 use_repo(

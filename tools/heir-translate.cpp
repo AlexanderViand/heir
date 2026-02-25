@@ -34,7 +34,9 @@ int main(int argc, char** argv) {
   // OpenFHE
   mlir::heir::openfhe::registerTranslateOptions();
   mlir::heir::openfhe::registerToOpenFhePkeTranslation();
+  mlir::heir::openfhe::registerToFideslibPkeTranslation();
   mlir::heir::openfhe::registerToOpenFhePkeHeaderTranslation();
+  mlir::heir::openfhe::registerToFideslibPkeHeaderTranslation();
   mlir::heir::openfhe::registerToOpenFhePkePybindTranslation();
   mlir::heir::openfhe::registerToOpenFhePkeDebugHeaderTranslation();
   mlir::heir::openfhe::registerToOpenFhePkeDebugTranslation();

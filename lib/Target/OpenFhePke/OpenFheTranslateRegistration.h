@@ -9,8 +9,10 @@ namespace openfhe {
 void registerTranslateOptions();
 
 void registerToOpenFhePkeTranslation();
+void registerToFideslibPkeTranslation();
 
 void registerToOpenFhePkeHeaderTranslation();
+void registerToFideslibPkeHeaderTranslation();
 
 void registerToOpenFhePkePybindTranslation();
 

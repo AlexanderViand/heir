@@ -1,0 +1,138 @@
+diff --git a/src/CKKS/Bootstrap.cuh b/src/CKKS/Bootstrap.cuh
+--- a/src/CKKS/Bootstrap.cuh
++++ b/src/CKKS/Bootstrap.cuh
+@@ -12,7 +12,6 @@ namespace FIDESlib::CKKS {
+ void BootstrapCPUraise(
+     Ciphertext& ctxt, const int slots,
+-    std::shared_ptr<
+-        lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<expdtype>>>>>& CPUcc,
++    std::shared_ptr<lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>>& CPUcc,
+     lbcrypto::KeyPair<lbcrypto::DCRTPoly> keys, const bool prescaled);
+ // void Bootstrap(Ciphertext& ctxt, const int slots, const bool prescaled = false);
+ void Bootstrap(Ciphertext& ctxt, const int slots, const bool prescaled = false);
+diff --git a/src/CKKS/Bootstrap.cu b/src/CKKS/Bootstrap.cu
+--- a/src/CKKS/Bootstrap.cu
++++ b/src/CKKS/Bootstrap.cu
+@@ -24,7 +24,6 @@ constexpr bool PRINT = false;
+ void FIDESlib::CKKS::BootstrapCPUraise(
+     Ciphertext& ctxt, const int slots,
+-    std::shared_ptr<
+-        lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<expdtype>>>>>& CPUcc,
++    std::shared_ptr<lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>>& CPUcc,
+     lbcrypto::KeyPair<lbcrypto::DCRTPoly> keys, const bool prescaled) {
+     CudaNvtxRange r(std::string{sc::current().function_name()});
+ 
+diff --git a/src/CKKS/Context.cu b/src/CKKS/Context.cu
+--- a/src/CKKS/Context.cu
++++ b/src/CKKS/Context.cu
+@@ -758 +758 @@ ContextData::ContextData(const Parameters& param_, const std::vector<int>& devs
+-            cudaMalloc((void**)&top_limb_buffer[i], sizeof(uint63_t) * N);
++            cudaMalloc((void**)&top_limb_buffer[i], sizeof(uint64_t) * N);
+
+diff --git a/api/CryptoContext.cpp b/api/CryptoContext.cpp
+--- a/api/CryptoContext.cpp
++++ b/api/CryptoContext.cpp
+@@ -117,8 +117,8 @@ static std::unordered_map<PKESchemeFeature, lbcrypto::PKESchemeFeature> PKESche
+ };
+ 
+ CryptoContextImpl<DCRTPoly>::~CryptoContextImpl() {
+-	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::ClearEvalMultKeys();
+-	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::ClearEvalAutomorphismKeys();
++	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::ClearEvalMultKeys();
++	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::ClearEvalAutomorphismKeys();
+ }
+ 
+ // ---- Enable features ----
+@@ -394,11 +394,11 @@ bool CryptoContextImpl<DCRTPoly>::SerializeEvalMultKey(std::ostream& ser, const
+ 	bool res;
+ 	switch (sertype) {
+ 	case fideslib::SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::BINARY, keyTag);
+ 		break;
+ 	case fideslib::SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::JSON, keyTag);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -411,11 +411,11 @@ bool CryptoContextImpl<DCRTPoly>::SerializeEvalAutomorphismKey(std::ostream& se
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::BINARY, keyTag);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::JSON, keyTag);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -435,11 +435,11 @@ bool CryptoContextImpl<DCRTPoly>::DeserializeEvalMultKey(std::istream& ser, con
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::BINARY);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::JSON);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -457,11 +457,11 @@ bool CryptoContextImpl<DCRTPoly>::DeserializeEvalAutomorphismKey(std::istream& 
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::BINARY);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::JSON);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -1382,7 +1382,7 @@ CryptoContextImpl<DCRTPoly>::EvalFastRotation(const Ciphertext<DCRTPoly>& ct, c
+ 
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(precomp);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(precomp);
+ 		Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(this->self_reference.lock());
+ 		result->cpu					= std::make_any<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>>(context->EvalFastRotation(ctImpl, index, m, casted));
+ 		return result;
+@@ -1407,7 +1407,7 @@ Ciphertext<DCRTPoly> CryptoContextImpl<DCRTPoly>::EvalFastRotationExt(const Cip
+ 
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(digits);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(digits);
+ 		Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(this->self_reference.lock());
+ 		result->cpu					= std::make_any<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>>(context->EvalFastRotationExt(ctImpl, index, casted, addFirst));
+ 		return result;
+@@ -1434,7 +1434,7 @@ CryptoContextImpl<DCRTPoly>::EvalFastRotation(const Ciphertext<DCRTPoly>& ct, c
+ 	if (this->devices.empty()) {
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(precomp);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(precomp);
+ 
+ 		for (const auto& index : indices) {
+ 			Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(*ct);
+@@ -1476,7 +1476,7 @@ CryptoContextImpl<DCRTPoly>::EvalFastRotationExt(const Ciphertext<DCRTPoly>& ct
+ 	if (this->devices.empty()) {
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(digits);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(digits);
+ 
+ 		for (const auto& index : indices) {
+ 			Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(*ct);
+ 
