@@ -2,6 +2,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def _llvm_deps_impl(_):
@@ -52,4 +53,17 @@ def _llvm_deps_impl(_):
 
 llvm_deps = module_extension(
     implementation = _llvm_deps_impl,
+)
+
+def _fideslib_deps_impl(_):
+    """Implementation of the fideslib_deps module extension."""
+
+    maybe(
+        local_repository,
+        name = "fideslib",
+        path = "../FIDESlib",
+    )
+
+fideslib_deps = module_extension(
+    implementation = _fideslib_deps_impl,
 )

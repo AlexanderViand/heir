@@ -1,0 +1,332 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.25.2)
++cmake_minimum_required(VERSION 3.23.2)
+ cmake_policy(VERSION 3.21.3...3.30)
+ 
+ ############### Project configuration ###################
+@@ -49,26 +49,23 @@
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_CXX_EXTENSIONS ON)
+-set(CMAKE_C_COMPILER "clang")
+-set(CMAKE_CXX_COMPILER "clang++")
+-
+ ############### CUDA Configuration ###################
+ 
+-# Set CUDA_PATH if not defined previously.
+-if (NOT DEFINED CUDA_PATH)
+-	set (CUDA_PATH "/usr/local/cuda")
++# If provided, use CUDA_PATH as a CUDAToolkit hint. This avoids hardcoding a
++# single install location and plays better with Bazel-managed environments.
++if (DEFINED CUDA_PATH AND NOT DEFINED CUDAToolkit_ROOT)
++	set (CUDAToolkit_ROOT "${CUDA_PATH}")
+ endif ()
+ 
+-# Check if CUDA is installed.
+-if (NOT EXISTS "${CUDA_PATH}")
+-	message (FATAL_ERROR "CUDA not found at ${CUDA_PATH}. Please install CUDA.")
+-endif()
+-
+ # Global language config.
+ set (CMAKE_CUDA_ARCHITECTURES "${FIDESLIB_ARCH}")
+-set (CMAKE_CUDA_STANDARD 20)
++set(FIDESLIB_CUDA_STANDARD "20" CACHE STRING "CUDA language standard used to compile FIDESlib")
++set (CMAKE_CUDA_STANDARD ${FIDESLIB_CUDA_STANDARD})
+ set (CMAKE_CUDA_STANDARD_REQUIRED ON)
+ set (CMAKE_CUDA_EXTENSIONS ON)
++if (NOT DEFINED CMAKE_CUDA_HOST_COMPILER)
++	set (CMAKE_CUDA_HOST_COMPILER "${CMAKE_CXX_COMPILER}")
++endif ()
+ set (CMAKE_CUDA_HOST_COMPILER "${CMAKE_CXX_COMPILER}")
+ 
+ ################ Project Definition ###################
+@@ -119,25 +116,38 @@
+ ############### OpenFHE Configuration ###################
+ 
+ # Default runs will not update nor install OpenFHE. Specify manually to install.
+-if (FIDESLIB_INSTALL_OPENFHE)
+-	execute_process(COMMAND ./build.sh ${OPENFHE_INSTALL_PREFIX}
+-					WORKING_DIRECTORY "../deps" 
+-					COMMAND_ERROR_IS_FATAL ANY)
+-endif()
+-
+-find_package(OpenFHE 1.4.2 CONFIG EXACT REQUIRED PATHS "${OPENFHE_INSTALL_PREFIX}")
++option(FIDESLIB_USE_BAZEL_OPENFHE "Use OpenFHE staged by rules_foreign_cc in EXT_BUILD_DEPS." OFF)
++set(OPENFHE_BAZEL_PREFIX "" CACHE PATH "Path to Bazel-staged OpenFHE artifacts (typically $$EXT_BUILD_DEPS).")
+ 
+ option(BUILD_STATIC "Set to ON to include static versions of the library" ON)
+ 
+-if (OpenFHE_FOUND)
+-    message(STATUS "FOUND PACKAGE OpenFHE")
+-    message(STATUS "OpenFHE Version: ${BASE_OPENFHE_VERSION}")
+-    message(STATUS "OpenFHE installed as shared libraries: ${OpenFHE_SHARED}")
+-    message(STATUS "OpenFHE include files location: ${OpenFHE_INCLUDE}")
+-    message(STATUS "OpenFHE lib files location: ${OpenFHE_LIBDIR}")
+-    message(STATUS "OpenFHE Native Backend size: ${OpenFHE_NATIVE_SIZE}")
++if (FIDESLIB_USE_BAZEL_OPENFHE)
++	if (OPENFHE_BAZEL_PREFIX STREQUAL "")
++		message(FATAL_ERROR "FIDESLIB_USE_BAZEL_OPENFHE=ON requires OPENFHE_BAZEL_PREFIX")
++	endif()
++	set(OpenFHE_INCLUDE "${OPENFHE_BAZEL_PREFIX}/include")
++	set(OpenFHE_LIBDIR "${OPENFHE_BAZEL_PREFIX}/lib")
++	set(BASE_OPENFHE_VERSION "1.4.2")
++	message(STATUS "Using Bazel-provided OpenFHE from: ${OPENFHE_BAZEL_PREFIX}")
+ else ()
+-    message(FATAL_ERROR "PACKAGE OpenFHE NOT FOUND")
++	if (FIDESLIB_INSTALL_OPENFHE)
++		execute_process(COMMAND ./build.sh ${OPENFHE_INSTALL_PREFIX}
++						WORKING_DIRECTORY "../deps" 
++						COMMAND_ERROR_IS_FATAL ANY)
++	endif()
++
++	find_package(OpenFHE 1.4.2 CONFIG EXACT REQUIRED PATHS "${OPENFHE_INSTALL_PREFIX}")
++
++	if (OpenFHE_FOUND)
++	    message(STATUS "FOUND PACKAGE OpenFHE")
++	    message(STATUS "OpenFHE Version: ${BASE_OPENFHE_VERSION}")
++	    message(STATUS "OpenFHE installed as shared libraries: ${OpenFHE_SHARED}")
++	    message(STATUS "OpenFHE include files location: ${OpenFHE_INCLUDE}")
++	    message(STATUS "OpenFHE lib files location: ${OpenFHE_LIBDIR}")
++	    message(STATUS "OpenFHE Native Backend size: ${OpenFHE_NATIVE_SIZE}")
++	else ()
++	    message(FATAL_ERROR "PACKAGE OpenFHE NOT FOUND")
++	endif ()
+ endif ()
+ 
+ include_directories(${OpenFHE_INCLUDE})
+@@ -146,10 +156,15 @@
+ include_directories(${OpenFHE_INCLUDE}/pke)
+ include_directories(${OpenFHE_INCLUDE}/binfhe)
+ 
+-# Use Clang's OpenMP implementation.
+-set (FIX_OMP_FLAGS "-fopenmp=libomp")
+-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FIX_OMP_FLAGS}")
+-set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler ${FIX_OMP_FLAGS}")
++# OpenMP flags differ for C++ host vs CUDA host compiler paths.
++if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
++	set (CXX_OMP_FLAGS "-fopenmp=libomp")
++else ()
++	set (CXX_OMP_FLAGS "-fopenmp")
++endif ()
++set (CUDA_OMP_FLAGS "-fopenmp")
++set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_OMP_FLAGS}")
++set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler ${CUDA_OMP_FLAGS}")
+ 
+ ############### Optimization Flags ###################
+ 
+@@ -207,11 +222,29 @@
+ 	FILES ${HEADER_FILES_PUBLIC}
+ )
+ 
+-target_link_libraries(fideslib
+-	PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEpke_static.a"
+-	PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEbinfhe_static.a"
+-	PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEcore_static.a"
+-)
++if (FIDESLIB_USE_BAZEL_OPENFHE)
++	find_library(OPENFHE_PKE_LIB
++		NAMES pke OPENFHEpke_static
++		PATHS "${OpenFHE_LIBDIR}"
++		NO_DEFAULT_PATH
++		REQUIRED
++	)
++	find_library(OPENFHE_BINFHE_LIB
++		NAMES binfhe OPENFHEbinfhe_static
++		PATHS "${OpenFHE_LIBDIR}"
++		NO_DEFAULT_PATH
++		REQUIRED
++	)
++	find_library(OPENFHE_CORE_LIB
++		NAMES core OPENFHEcore_static
++		PATHS "${OpenFHE_LIBDIR}"
++		NO_DEFAULT_PATH
++		REQUIRED
++	)
++	target_link_libraries(fideslib PRIVATE "${OPENFHE_PKE_LIB}" "${OPENFHE_BINFHE_LIB}" "${OPENFHE_CORE_LIB}")
++else ()
++	target_link_libraries(fideslib PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEpke_static.a" "${OpenFHE_LIBDIR}/libOPENFHEbinfhe_static.a" "${OpenFHE_LIBDIR}/libOPENFHEcore_static.a")
++endif()
+ 
+ if (TBB_FOUND)
+ 	message(STATUS "FIDESlib linked against TBB")
+--- a/src/CKKS/Bootstrap.cuh
++++ b/src/CKKS/Bootstrap.cuh
+@@ -6,13 +6,12 @@
+ #define GPUCKKS_BOOTSTRAP_CUH
+ 
+ #include "forwardDefs.cuh"
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib::CKKS {
+ void BootstrapCPUraise(
+     Ciphertext& ctxt, const int slots,
+-    std::shared_ptr<
+-        lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<expdtype>>>>>& CPUcc,
++    std::shared_ptr<lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>>& CPUcc,
+     lbcrypto::KeyPair<lbcrypto::DCRTPoly> keys, const bool prescaled);
+ // void Bootstrap(Ciphertext& ctxt, const int slots, const bool prescaled = false);
+ void Bootstrap(Ciphertext& ctxt, const int slots, const bool prescaled = false);
+--- a/src/CKKS/Bootstrap.cu
++++ b/src/CKKS/Bootstrap.cu
+@@ -23,8 +23,7 @@
+ 
+ void FIDESlib::CKKS::BootstrapCPUraise(
+     Ciphertext& ctxt, const int slots,
+-    std::shared_ptr<
+-        lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<expdtype>>>>>& CPUcc,
++    std::shared_ptr<lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>>& CPUcc,
+     lbcrypto::KeyPair<lbcrypto::DCRTPoly> keys, const bool prescaled) {
+     CudaNvtxRange r(std::string{sc::current().function_name()});
+ 
+--- a/src/CKKS/Context.cu
++++ b/src/CKKS/Context.cu
+@@ -755,7 +755,7 @@
+             NCCLCHECK(
+                 ncclCommRegister(GPUrank[g], top_limb_buffer2[i], sizeof(uint64_t) * N, &top_limb_buffer2_handle[i]));
+ #else
+-            cudaMalloc((void**)&top_limb_buffer[i], sizeof(uint63_t) * N);
++            cudaMalloc((void**)&top_limb_buffer[i], sizeof(uint64_t) * N);
+             cudaMalloc((void**)&top_limb_buffer2[i], sizeof(uint64_t) * N);
+ #endif
+         } else {
+--- a/src/CKKS/openfhe-interface/ParameterSwitch.cuh
++++ b/src/CKKS/openfhe-interface/ParameterSwitch.cuh
+@@ -5,7 +5,7 @@
+ #ifndef PARAMETERSWITCH_CUH
+ #define PARAMETERSWITCH_CUH
+ 
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib {
+ namespace CKKS {
+--- a/src/CKKS/openfhe-interface/RawCiphertext.cuh
++++ b/src/CKKS/openfhe-interface/RawCiphertext.cuh
+@@ -6,7 +6,7 @@
+ #include <vector>
+ #include "CKKS/forwardDefs.cuh"
+ //#include "CKKS/BootstrapPrecomputation.cuh"
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib::CKKS {
+ 
+--- a/src/PolyApprox.cuh
++++ b/src/PolyApprox.cuh
+@@ -10,7 +10,7 @@
+ #include "CKKS/ApproxModEval.cuh"
+ #include "CKKS/Ciphertext.cuh"
+ #include "CKKS/Context.cuh"
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib::CKKS {
+ std::vector<double> get_chebyshev_coefficients(const std::function<double(double)>& func, double a, double b, uint32_t degree);
+--- a/api/CryptoContext.cpp
++++ b/api/CryptoContext.cpp
+@@ -117,8 +117,8 @@
+ };
+ 
+ CryptoContextImpl<DCRTPoly>::~CryptoContextImpl() {
+-	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::ClearEvalMultKeys();
+-	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::ClearEvalAutomorphismKeys();
++	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::ClearEvalMultKeys();
++	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::ClearEvalAutomorphismKeys();
+ }
+ 
+ // ---- Enable features ----
+@@ -394,11 +394,11 @@
+ 	bool res;
+ 	switch (sertype) {
+ 	case fideslib::SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::BINARY, keyTag);
+ 		break;
+ 	case fideslib::SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::JSON, keyTag);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -411,11 +411,11 @@
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::BINARY, keyTag);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::JSON, keyTag);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -435,11 +435,11 @@
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::BINARY);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::JSON);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -457,11 +457,11 @@
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::BINARY);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::JSON);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -1382,7 +1382,7 @@
+ 
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(precomp);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(precomp);
+ 		Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(this->self_reference.lock());
+ 		result->cpu					= std::make_any<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>>(context->EvalFastRotation(ctImpl, index, m, casted));
+ 		return result;
+@@ -1407,7 +1407,7 @@
+ 
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(digits);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(digits);
+ 		Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(this->self_reference.lock());
+ 		result->cpu					= std::make_any<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>>(context->EvalFastRotationExt(ctImpl, index, casted, addFirst));
+ 		return result;
+@@ -1434,7 +1434,7 @@
+ 	if (this->devices.empty()) {
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(precomp);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(precomp);
+ 
+ 		for (const auto& index : indices) {
+ 			Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(*ct);
+@@ -1476,7 +1476,7 @@
+ 	if (this->devices.empty()) {
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(digits);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(digits);
+ 
+ 		for (const auto& index : indices) {
+ 			Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(*ct);

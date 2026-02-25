@@ -2,6 +2,11 @@ load("@heir//tests/Examples/openfhe:test.bzl", "openfhe_end_to_end_test", "openf
 
 package(default_applicable_licenses = ["@heir//:license"])
 
+exports_files(
+    ["parallelization.mlir"],
+    visibility = ["//visibility:public"],
+)
+
 openfhe_end_to_end_test(
     name = "parallelization_test",
     generated_lib_header = "parallelization_lib.h",
