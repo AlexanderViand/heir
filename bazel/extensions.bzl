@@ -53,3 +53,26 @@ def _llvm_deps_impl(_):
 llvm_deps = module_extension(
     implementation = _llvm_deps_impl,
 )
+
+def _fideslib_deps_impl(_):
+    """Implementation of the fideslib_deps module extension."""
+
+    maybe(
+        http_archive,
+        name = "fideslib",
+        # TODO: Replace main-branch pin with a fixed commit.
+        integrity = "sha256-oFaPo/kQwAVDYbUVKUa7Wc/u1hocO2pk/7PZ+AjdNfg=",
+        patch_args = ["-p1"],
+        patches = [
+            "@heir//patches:fideslib_openfhe_bazel.patch",
+        ],
+        strip_prefix = "FIDESlib-main",
+        urls = [
+            "https://github.com/CAPS-UMU/FIDESlib/archive/refs/heads/main.tar.gz",
+        ],
+        build_file = "//bazel/fideslib:fideslib.BUILD",
+    )
+
+fideslib_deps = module_extension(
+    implementation = _fideslib_deps_impl,
+)
