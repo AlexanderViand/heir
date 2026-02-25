@@ -68,7 +68,12 @@ std::vector<std::vector<int>> manuallyApplyMapping(
   auto expected = manuallyApplyMapping(mapping, input, ciphertextSize);
   auto dag =
       implementShiftNetwork(inputLeaves, mapping, scheme, ciphertextSize);
-  std::vector<LiteralValue> actual = multiEvalKernel(dag);
+  auto evalResults = multiEvalKernel(dag);
+  std::vector<LiteralValue> actual;
+  actual.reserve(evalResults.size());
+  for (const auto& result : evalResults) {
+    actual.push_back(result[0]);
+  }
 
   std::vector<std::vector<int>> combinedActual;
   combinedActual.reserve(numCiphertexts);

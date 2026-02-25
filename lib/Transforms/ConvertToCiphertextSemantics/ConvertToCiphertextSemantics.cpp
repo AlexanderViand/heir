@@ -668,7 +668,7 @@ struct ConvertLinalgMatvecLayout
     IRMaterializingVisitor visitor(
         b, input.getType(),
         [&](Operation* createdOp) { setMaterializedAttr(createdOp); });
-    Value finalOutput = implementedKernel->visit(visitor);
+    Value finalOutput = implementedKernel->visit(visitor)[0];
 
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
     auto* finalOutputOp = finalOutput.getDefiningOp();
@@ -797,7 +797,7 @@ struct ConvertLinalgConv2D
     IRMaterializingVisitor visitor(
         b, data.getType(),
         [&](Operation* createdOp) { setMaterializedAttr(createdOp); });
-    Value finalOutput = implementedKernel->visit(visitor);
+    Value finalOutput = implementedKernel->visit(visitor)[0];
 
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
     auto finalOutputOp = finalOutput.getDefiningOp();
@@ -1966,7 +1966,7 @@ struct ConvertLinalgMatmul
     IRMaterializingVisitor visitor(b, lhs.getType(), [&](Operation* createdOp) {
       setMaterializedAttr(op);
     });
-    Value finalOutput = implementedKernel->visit(visitor);
+    Value finalOutput = implementedKernel->visit(visitor)[0];
 
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
     auto* finalOutputOp = finalOutput.getDefiningOp();

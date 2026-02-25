@@ -22,7 +22,7 @@ double evalHornerPolynomial(double x,
   auto result_node = hornerMonomialPolynomialEvaluation(x_node, coefficients);
 
   test::EvalVisitor visitor;
-  return result_node->visit(visitor);
+  return result_node->visit(visitor)[0];
 }
 
 TEST(HornerEvaluationTest, ConstantPolynomial) {

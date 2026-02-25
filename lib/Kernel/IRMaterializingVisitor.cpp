@@ -23,11 +23,13 @@ namespace mlir {
 namespace heir {
 namespace kernel {
 
-Value IRMaterializingVisitor::operator()(const LeafNode<SSAValue>& node) {
-  return node.value.getValue();
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const LeafNode<SSAValue>& node) {
+  return {node.value.getValue()};
 }
 
-Value IRMaterializingVisitor::operator()(const ConstantScalarNode& node) {
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const ConstantScalarNode& node) {
   // A "ConstantScalarNode" can still have a shaped type, and in that case the
   // value is treated as a splat. This is preferred in some cases to support
   // DAGs that can be evaluated elementwise for ElementwiseMappable ops like
@@ -47,10 +49,11 @@ Value IRMaterializingVisitor::operator()(const ConstantScalarNode& node) {
 
   auto constantOp = arith::ConstantOp::create(builder, evaluatedType, attr);
   createdOpCallback(constantOp);
-  return constantOp;
+  return {constantOp};
 }
 
-Value IRMaterializingVisitor::operator()(const ConstantTensorNode& node) {
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const ConstantTensorNode& node) {
   RankedTensorType tensorTy = cast<RankedTensorType>(evaluatedType);
   TypedAttr attr;
   if (auto floatTy = dyn_cast<FloatType>(tensorTy.getElementType())) {
@@ -75,32 +78,37 @@ Value IRMaterializingVisitor::operator()(const ConstantTensorNode& node) {
 
   auto constantOp = arith::ConstantOp::create(builder, evaluatedType, attr);
   createdOpCallback(constantOp);
-  return constantOp;
+  return {constantOp};
 }
 
-Value IRMaterializingVisitor::operator()(const AddNode<SSAValue>& node) {
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const AddNode<SSAValue>& node) {
   return binop<AddNode<SSAValue>, arith::AddFOp, arith::AddIOp>(node);
 }
 
-Value IRMaterializingVisitor::operator()(const SubtractNode<SSAValue>& node) {
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const SubtractNode<SSAValue>& node) {
   return binop<SubtractNode<SSAValue>, arith::SubFOp, arith::SubIOp>(node);
 }
 
-Value IRMaterializingVisitor::operator()(const MultiplyNode<SSAValue>& node) {
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const MultiplyNode<SSAValue>& node) {
   return binop<MultiplyNode<SSAValue>, arith::MulFOp, arith::MulIOp>(node);
 }
 
-Value IRMaterializingVisitor::operator()(const LeftRotateNode<SSAValue>& node) {
-  Value operand = this->process(node.operand);
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const LeftRotateNode<SSAValue>& node) {
+  Value operand = this->process(node.operand)[0];
   Value shift = arith::ConstantIndexOp::create(builder, node.shift);
   auto rotateOp =
       tensor_ext::RotateOp::create(builder, evaluatedType, operand, shift);
   createdOpCallback(rotateOp);
-  return rotateOp;
+  return {rotateOp};
 }
 
-Value IRMaterializingVisitor::operator()(const ExtractNode<SSAValue>& node) {
-  Value operand = this->process(node.operand);
+std::vector<Value> IRMaterializingVisitor::operator()(
+    const ExtractNode<SSAValue>& node) {
+  Value operand = this->process(node.operand)[0];
   Value index = arith::ConstantIndexOp::create(builder, node.index);
 
   RankedTensorType tensorType = cast<RankedTensorType>(operand.getType());
@@ -125,7 +133,7 @@ Value IRMaterializingVisitor::operator()(const ExtractNode<SSAValue>& node) {
     auto extractOp = tensor::ExtractSliceOp::create(builder, tensorTy, operand,
                                                     offsets, sizes, strides);
     createdOpCallback(extractOp);
-    return extractOp;
+    return {extractOp};
   }
 
   // Otherwise let the type be inferred, though this will likely result in an
@@ -133,7 +141,7 @@ Value IRMaterializingVisitor::operator()(const ExtractNode<SSAValue>& node) {
   auto extractOp =
       tensor::ExtractSliceOp::create(builder, operand, offsets, sizes, strides);
   createdOpCallback(extractOp);
-  return extractOp;
+  return {extractOp};
 }
 
 }  // namespace kernel
