@@ -228,6 +228,18 @@ LogicalResult translateToOpenFhePke(Operation* op, llvm::raw_ostream& os,
   return result;
 }
 
+LogicalResult translateToFideslibPke(Operation* op, llvm::raw_ostream& os,
+                                     const std::string& weightsFile,
+                                     bool skipVectorResizing) {
+  SelectVariableNames variableNames(op);
+  ConstQualifierAnalysis constAnalysis(op);
+  OpenFhePkeEmitter emitter(os, &variableNames, &constAnalysis,
+                            /*importType=*/OpenfheImportType::INSTALL_RELATIVE,
+                            weightsFile, skipVectorResizing,
+                            OpenfheBackend::FIDESLIB);
+  return emitter.translate(*op);
+}
+
 LogicalResult OpenFhePkeEmitter::translate(Operation& op) {
   LogicalResult status =
       llvm::TypeSwitch<Operation&, LogicalResult>(op)
@@ -295,7 +307,12 @@ LogicalResult OpenFhePkeEmitter::printOperation(ModuleOp moduleOp) {
     return emitError(moduleOp.getLoc(), "Missing scheme attribute on module");
   }
 
-  os << getModulePrelude(scheme, importType_) << "\n";
+  if (backend_ == OpenfheBackend::FIDESLIB && scheme != OpenfheScheme::CKKS) {
+    return emitError(moduleOp.getLoc(),
+                     "FIDESlib backend currently supports CKKS modules only");
+  }
+
+  os << getModulePrelude(scheme, importType_, backend_) << "\n";
 
   if (!weightsFile_.empty()) {
     os << getWeightsPrelude() << "\n";
@@ -326,7 +343,8 @@ LogicalResult OpenFhePkeEmitter::printOperation(func::FuncOp funcOp) {
       [&](Type type, Location loc) { return emitType(type, loc); },
       [&](Location loc, const std::string& message) {
         return emitError(loc, message);
-      });
+      },
+      backend_);
   if (failed(res)) {
     return res;
   }
@@ -742,6 +760,13 @@ LogicalResult OpenFhePkeEmitter::printEvalInPlaceMethod(
   return success();
 }
 
+LogicalResult OpenFhePkeEmitter::emitFideslibUnsupportedOpError(
+    ::mlir::Operation* op) {
+  return emitError(op->getLoc(),
+                   llvm::formatv("{0} is not supported by the FIDESlib backend",
+                                 op->getName().getStringRef()));
+}
+
 LogicalResult OpenFhePkeEmitter::printOperation(AddOp op) {
   return printEvalMethod(op.getResult(), op.getCryptoContext(),
                          {op.getLhs(), op.getRhs()}, "EvalAdd");
@@ -767,6 +792,11 @@ LogicalResult OpenFhePkeEmitter::printOperation(SubPlainOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(MulNoRelinOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    // FIDESlib does not expose EvalMultNoRelin in the public API.
+    return printEvalMethod(op.getResult(), op.getCryptoContext(),
+                           {op.getLhs(), op.getRhs()}, "EvalMult");
+  }
   return printEvalMethod(op.getResult(), op.getCryptoContext(),
                          {op.getLhs(), op.getRhs()}, "EvalMultNoRelin");
 }
@@ -801,16 +831,25 @@ LogicalResult OpenFhePkeEmitter::printOperation(SquareOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(RelinOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   return printEvalMethod(op.getResult(), op.getCryptoContext(),
                          {op.getCiphertext()}, "Relinearize");
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(ModReduceOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   return printEvalMethod(op.getResult(), op.getCryptoContext(),
                          {op.getCiphertext()}, "ModReduce");
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(LevelReduceOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   emitAutoAssignPrefix(op.getResult());
 
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->"
@@ -873,6 +912,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(FastRotationExtOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(KeySwitchDownOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   emitAutoAssignPrefix(op.getResult());
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->"
      << "KeySwitchDown(" << variableNames->getNameForValue(op.getCiphertext())
@@ -881,6 +923,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(KeySwitchDownOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(AutomorphOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   // EvalAutomorphism has a bit of a strange function signature in OpenFHE:
   //
   //     EvalAutomorphism(
@@ -911,6 +956,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(AutomorphOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(KeySwitchOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   return printEvalMethod(op.getResult(), op.getCryptoContext(),
                          {op.getCiphertext(), op.getEvalKey()}, "KeySwitch");
 }
@@ -936,6 +984,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(AddPlainInPlaceOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(KeySwitchInPlaceOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   (void)printEvalInPlaceMethod(op.getResult(), op.getCryptoContext(),
                                {op.getCiphertext(), op.getEvalKey()},
                                "KeySwitchInPlace");
@@ -944,6 +995,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(KeySwitchInPlaceOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(LevelReduceInPlaceOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   os << variableNames->getNameForValue(op.getCryptoContext()) << "->"
      << "LevelReduceInPlace" << "(";
   os << commaSeparatedValues({op.getCiphertext()}, [&](Value value) {
@@ -956,6 +1010,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(LevelReduceInPlaceOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(ModReduceInPlaceOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   (void)printEvalInPlaceMethod(op.getResult(), op.getCryptoContext(),
                                {op.getCiphertext()}, "ModReduceInPlace");
   variableNames->mapValueNameToValue(op.getResult(), op.getCiphertext());
@@ -980,6 +1037,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(NegateInPlaceOp op) {
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(RelinInPlaceOp op) {
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    return emitFideslibUnsupportedOpError(op.getOperation());
+  }
   (void)printEvalInPlaceMethod(op.getResult(), op.getCryptoContext(),
                                {op.getCiphertext()}, "RelinearizeInPlace");
   variableNames->mapValueNameToValue(op.getResult(), op.getCiphertext());
@@ -1638,12 +1698,26 @@ LogicalResult OpenFhePkeEmitter::printOperation(
   FailureOr<Value> resultCC = getContextualCryptoContext(op.getOperation());
   if (failed(resultCC)) return resultCC;
   std::string cc = variableNames->getNameForValue(resultCC.value());
+  std::string methodName = "MakePackedPlaintext";
+
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    methodName = "MakeCKKSPackedPlaintext";
+    if (getElementTypeOrSelf(op.getValue().getType()).isInteger()) {
+      os << "std::vector<double> " << inputVarName << "_d;\n";
+      os << inputVarName << "_d.reserve(" << inputVarName << ".size());\n";
+      os << "for (auto i = 0; i < " << inputVarName << ".size(); ++i) {\n";
+      os << "  " << inputVarName << "_d.push_back(" << inputVarName
+         << "[i]);\n";
+      os << "}\n";
+      inputVarName += "_d";
+    }
+  }
 
   if (skipVectorResizing_) {
     // Cannot use const auto& here:
     // https://github.com/openfheorg/openfhe-development/issues/1046
     os << "auto " << variableNames->getNameForValue(op.getResult()) << " = ";
-    os << cc << "->MakePackedPlaintext(" << inputVarName << ");\n";
+    os << cc << "->" << methodName << "(" << inputVarName << ");\n";
     return success();
   }
   // cyclic repetition to mitigate openfhe zero-padding (#645)
@@ -1667,7 +1741,7 @@ LogicalResult OpenFhePkeEmitter::printOperation(
   // Cannot use const auto& here:
   // https://github.com/openfheorg/openfhe-development/issues/1046
   os << "auto " << variableNames->getNameForValue(op.getResult()) << " = ";
-  os << cc << "->MakePackedPlaintext(" << inputVarFilledName << ");\n";
+  os << cc << "->" << methodName << "(" << inputVarFilledName << ");\n";
 
   return success();
 }
@@ -1766,6 +1840,8 @@ LogicalResult OpenFhePkeEmitter::decodeCore(Location loc, Value input,
     os << "const auto& " << tmpVar << " = ";
     if (isCKKS) {
       os << inputVarName << "->GetCKKSPackedValue();\n";
+    } else if (backend_ == OpenfheBackend::FIDESLIB) {
+      os << inputVarName << "->GetRealPackedValue();\n";
     } else {
       os << inputVarName << "->GetPackedValue();\n";
     }
@@ -1796,6 +1872,8 @@ LogicalResult OpenFhePkeEmitter::decodeCore(Location loc, Value input,
   os << variableNames->getNameForValue(input);
   if (isCKKS) {
     os << "->GetCKKSPackedValue()[0].real();\n";
+  } else if (backend_ == OpenfheBackend::FIDESLIB) {
+    os << "->GetRealPackedValue()[0];\n";
   } else {
     os << "->GetPackedValue()[0];\n";
   }
@@ -1836,6 +1914,57 @@ LogicalResult OpenFhePkeEmitter::printOperation(GenParamsOp op) {
   int64_t plainMod = op.getPlainModAttr().getValue().getSExtValue();
   int64_t evalAddCount = op.getEvalAddCountAttr().getValue().getSExtValue();
   int64_t keySwitchCount = op.getKeySwitchCountAttr().getValue().getSExtValue();
+
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    if (plainMod != 0) {
+      return emitError(
+          op.getLoc(),
+          "FIDESlib backend does not support plaintext modulus in gen_params");
+    }
+    if (evalAddCount != 0 || keySwitchCount != 0 || op.getMaxRelinSkDeg() != 0 ||
+        op.getEncryptionTechniqueExtended()) {
+      return emitError(op.getLoc(),
+                       "FIDESlib backend does not support one or more "
+                       "OpenFHE-specific gen_params attributes");
+    }
+    if (op.getKeySwitchingTechniqueBV()) {
+      return emitError(
+          op.getLoc(),
+          "FIDESlib backend currently supports HYBRID key switching only");
+    }
+
+    os << "CCParamsT " << paramsName << ";\n";
+    os << paramsName << ".SetMultiplicativeDepth(" << mulDepth << ");\n";
+    if (op.getRingDim() != 0) {
+      os << paramsName << ".SetRingDim(" << op.getRingDim() << ");\n";
+    }
+    if (op.getBatchSize() != 0) {
+      os << paramsName << ".SetBatchSize(" << op.getBatchSize() << ");\n";
+    }
+    if (op.getFirstModSize() != 0) {
+      os << paramsName << ".SetFirstModSize(" << op.getFirstModSize() << ");\n";
+    }
+    if (op.getScalingModSize() != 0) {
+      os << paramsName << ".SetScalingModSize(" << op.getScalingModSize()
+         << ");\n";
+    }
+    if (op.getDigitSize() != 0) {
+      os << paramsName << ".SetDigitSize(" << op.getDigitSize() << ");\n";
+    }
+    if (op.getNumLargeDigits() != 0) {
+      os << paramsName << ".SetNumLargeDigits(" << op.getNumLargeDigits()
+         << ");\n";
+    }
+    if (op.getInsecure()) {
+      os << paramsName
+         << ".SetSecurityLevel(fideslib::HEStd_NotSet);\n";
+    }
+    os << paramsName << ".SetKeySwitchTechnique(fideslib::HYBRID);\n";
+    if (op.getScalingTechniqueFixedManual()) {
+      os << paramsName << ".SetScalingTechnique(fideslib::FIXEDMANUAL);\n";
+    }
+    return success();
+  }
 
   os << "CCParamsT " << paramsName << ";\n";
   // Essential parameters
@@ -1951,13 +2080,17 @@ LogicalResult OpenFhePkeEmitter::printOperation(SetupBootstrapOp op) {
   os << contextName << "->EvalBootstrapSetup({";
   os << op.getLevelBudgetEncode().getValue() << ", ";
   os << op.getLevelBudgetDecode().getValue();
-  os << "});\n";
+  if (backend_ == OpenfheBackend::FIDESLIB) {
+    os << "}, {}, 0, 0);\n";
+  } else {
+    os << "});\n";
+  }
   return success();
 }
 
 LogicalResult OpenFhePkeEmitter::emitType(Type type, Location loc,
                                           bool constant) {
-  auto result = convertType(type, loc, constant);
+  auto result = convertType(type, loc, constant, backend_);
   if (failed(result)) {
     return failure();
   }
@@ -1969,13 +2102,14 @@ OpenFhePkeEmitter::OpenFhePkeEmitter(
     raw_ostream& os, SelectVariableNames* variableNames,
     ConstQualifierAnalysis* constQualifierAnalysis,
     const OpenfheImportType& importType, const std::string& weightsFile,
-    bool skipVectorResizing)
+    bool skipVectorResizing, OpenfheBackend backend)
     : importType_(importType),
       os(os),
       variableNames(variableNames),
       constQualifierAnalysis(constQualifierAnalysis),
       weightsFile_(weightsFile),
-      skipVectorResizing_(skipVectorResizing) {}
+      skipVectorResizing_(skipVectorResizing),
+      backend_(backend) {}
 }  // namespace openfhe
 }  // namespace heir
 }  // namespace mlir

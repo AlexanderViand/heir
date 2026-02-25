@@ -306,6 +306,16 @@ bzl_library(
 )
 
 bzl_library(
+    name = "heir_fideslib_bzl",
+    srcs = ["heir-fideslib.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":heir_opt_bzl",
+        ":heir_translate_bzl",
+    ],
+)
+
+bzl_library(
     name = "heir_tfhe_rs",
     srcs = ["heir-tfhe-rs.bzl"],
     visibility = ["//visibility:public"],

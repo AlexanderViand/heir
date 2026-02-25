@@ -30,6 +30,17 @@ LogicalResult translateToOpenFhePkeHeader(Operation* op, llvm::raw_ostream& os,
   return emitter.translate(*op);
 }
 
+LogicalResult translateToFideslibPkeHeader(Operation* op,
+                                           llvm::raw_ostream& os,
+                                           const std::string& debugImportPath) {
+  SelectVariableNames variableNames(op);
+  OpenFhePkeHeaderEmitter emitter(os, &variableNames,
+                                  OpenfheImportType::INSTALL_RELATIVE,
+                                  debugImportPath,
+                                  OpenfheBackend::FIDESLIB);
+  return emitter.translate(*op);
+}
+
 LogicalResult OpenFhePkeHeaderEmitter::translate(Operation& op) {
   LogicalResult status =
       llvm::TypeSwitch<Operation&, LogicalResult>(op)
@@ -58,10 +69,15 @@ LogicalResult OpenFhePkeHeaderEmitter::printOperation(ModuleOp moduleOp) {
     return emitError(moduleOp.getLoc(), "Missing scheme attribute on module");
   }
 
+  if (backend_ == OpenfheBackend::FIDESLIB && scheme != OpenfheScheme::CKKS) {
+    return emitError(moduleOp.getLoc(),
+                     "FIDESlib backend currently supports CKKS modules only");
+  }
+
   if (!debugImportPath.empty()) {
     os << "#include \"" << debugImportPath << "\"\n";
   }
-  os << getModulePrelude(scheme, importType_) << "\n";
+  os << getModulePrelude(scheme, importType_, backend_) << "\n";
 
   for (Operation& op : moduleOp) {
     if (failed(translate(op))) {
@@ -78,7 +94,8 @@ LogicalResult OpenFhePkeHeaderEmitter::printOperation(func::FuncOp funcOp) {
       [&](Type type, Location loc) { return emitType(type, loc); },
       [&](Location loc, const std::string& message) {
         return emitError(loc, message);
-      });
+      },
+      backend_);
   if (failed(res)) {
     return res;
   }
@@ -88,7 +105,7 @@ LogicalResult OpenFhePkeHeaderEmitter::printOperation(func::FuncOp funcOp) {
 }
 
 LogicalResult OpenFhePkeHeaderEmitter::emitType(Type type, Location loc) {
-  auto result = convertType(type, loc, /*constant=*/false);
+  auto result = convertType(type, loc, /*constant=*/false, backend_);
   if (failed(result)) {
     return failure();
   }
@@ -98,8 +115,10 @@ LogicalResult OpenFhePkeHeaderEmitter::emitType(Type type, Location loc) {
 
 OpenFhePkeHeaderEmitter::OpenFhePkeHeaderEmitter(
     raw_ostream& os, SelectVariableNames* variableNames,
-    OpenfheImportType importType, const std::string& debugImportPath)
+    OpenfheImportType importType, const std::string& debugImportPath,
+    OpenfheBackend backend)
     : importType_(importType),
+      backend_(backend),
       os(os),
       variableNames(variableNames),
       debugImportPath(debugImportPath) {}
