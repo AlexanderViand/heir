@@ -109,3 +109,50 @@ module {
     return
   }
 }
+
+// -----
+
+// CHECK: func.func private @_assign_layout_{{[0-9]+}}
+// CHECK-SAME:    (%arg0: tensor<16xi16>) -> tensor<1x32xi16>
+// CHECK-DAG: %[[C0:.*]] = arith.constant 0 : index
+// CHECK-DAG: %[[C1:.*]] = arith.constant 1 : index
+// CHECK-DAG: %[[C2:.*]] = arith.constant 2 : index
+// CHECK-DAG: %[[C3:.*]] = arith.constant 3 : index
+// CHECK-DAG: %[[C4:.*]] = arith.constant 4 : index
+// CHECK-DAG: %[[C5:.*]] = arith.constant 5 : index
+// CHECK-DAG: %[[C6:.*]] = arith.constant 6 : index
+// CHECK-DAG: %[[C7:.*]] = arith.constant 7 : index
+// CHECK-DAG: %[[C9:.*]] = arith.constant 9 : index
+// CHECK-DAG: %[[ZERO:.*]] = arith.constant dense<0> : tensor<1x32xi16>
+// CHECK-DAG: %[[E0:.*]] = tensor.extract %arg0[%[[C0]]] : tensor<16xi16>
+// CHECK-DAG: %[[I0:.*]] = tensor.insert %[[E0]] into %[[ZERO]][%[[C0]], %[[C7]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E1:.*]] = tensor.extract %arg0[%[[C1]]] : tensor<16xi16>
+// CHECK-DAG: %[[I1:.*]] = tensor.insert %[[E1]] into %[[I0]][%[[C0]], %[[C9]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E2:.*]] = tensor.extract %arg0[%[[C2]]] : tensor<16xi16>
+// CHECK-DAG: %[[I2:.*]] = tensor.insert %[[E2]] into %[[I1]][%[[C0]], %[[C5]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E3:.*]] = tensor.extract %arg0[%[[C3]]] : tensor<16xi16>
+// CHECK-DAG: %[[I3:.*]] = tensor.insert %[[E3]] into %[[I2]][%[[C0]], %[[C4]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E4:.*]] = tensor.extract %arg0[%[[C4]]] : tensor<16xi16>
+// CHECK-DAG: %[[I4:.*]] = tensor.insert %[[E4]] into %[[I3]][%[[C0]], %[[C3]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E5:.*]] = tensor.extract %arg0[%[[C5]]] : tensor<16xi16>
+// CHECK-DAG: %[[I5:.*]] = tensor.insert %[[E5]] into %[[I4]][%[[C0]], %[[C2]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E6:.*]] = tensor.extract %arg0[%[[C6]]] : tensor<16xi16>
+// CHECK-DAG: %[[I6:.*]] = tensor.insert %[[E6]] into %[[I5]][%[[C0]], %[[C1]]] : tensor<1x32xi16>
+// CHECK-DAG: %[[E7:.*]] = tensor.extract %arg0[%[[C7]]] : tensor<16xi16>
+// CHECK-DAG: %[[I7:.*]] = tensor.insert %[[E7]] into %[[I6]][%[[C0]], %[[C0]]] : tensor<1x32xi16>
+// CHECK-DAG: return %[[I7]] : tensor<1x32xi16>
+
+// CHECK: @permutate_vector_other
+#layout2 = dense<[[0, 0, 0, 7], [0, 1, 0, 9], [0, 2, 0, 5], [0, 3, 0, 4], [0, 4, 0, 3], [0, 5, 0, 2], [0, 6, 0, 1], [0, 7, 0, 0]]> : tensor<8x4xi64>
+module {
+  func.func @permutate_vector_other() {
+    %cst = arith.constant dense<1> : tensor<16xi16>
+    // CHECK: %[[cst:.*]] = arith.constant dense<1> : tensor<16xi16>
+    // CHECK: func.call @_assign_layout_{{[0-9]+}}(%[[cst]])
+    %0 = secret.generic() {
+      %1 = tensor_ext.assign_layout %cst {layout = #layout2, tensor_ext.layout = #layout2} : tensor<16xi16>
+      secret.yield %1 : tensor<16xi16>
+    } -> (!secret.secret<tensor<16xi16>> {tensor_ext.layout = #layout2})
+    return
+  }
+}
