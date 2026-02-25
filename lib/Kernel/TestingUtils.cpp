@@ -28,7 +28,7 @@ void printVec(const std::vector<int>& vec) {
   std::cout << "]";
 }
 
-LiteralValue EvalVisitor::operator()(const LeafNode<LiteralValue>& node) {
+EvalResults EvalVisitor::operator()(const LeafNode<LiteralValue>& node) {
   const auto& nodeVal = node.value.getTensor();
   const auto* vecVal = std::get_if<std::vector<int>>(&nodeVal);
   const auto* matVal = std::get_if<std::vector<std::vector<int>>>(&nodeVal);
@@ -45,14 +45,14 @@ LiteralValue EvalVisitor::operator()(const LeafNode<LiteralValue>& node) {
   // }
   // std::cout << "\n";
 
-  return node.value.getTensor();
+  return {node.value.getTensor()};
 }
 
-LiteralValue EvalVisitor::operator()(const AddNode<LiteralValue>& node) {
+EvalResults EvalVisitor::operator()(const AddNode<LiteralValue>& node) {
   // Recursive calls use the public `process` method from the base class
   // to ensure caching is applied at every step.
-  auto left = this->process(node.left);
-  auto right = this->process(node.right);
+  auto left = this->process(node.left)[0];
+  auto right = this->process(node.right)[0];
   auto dim = left.getShape()[0];
   const auto& lVal = left.getTensor();
   const auto& rVal = right.getTensor();
@@ -73,12 +73,12 @@ LiteralValue EvalVisitor::operator()(const AddNode<LiteralValue>& node) {
   // printVec(result);
   // std::cout << "\n";
 
-  return result;
+  return {result};
 }
 
-LiteralValue EvalVisitor::operator()(const SubtractNode<LiteralValue>& node) {
-  auto left = this->process(node.left);
-  auto right = this->process(node.right);
+EvalResults EvalVisitor::operator()(const SubtractNode<LiteralValue>& node) {
+  auto left = this->process(node.left)[0];
+  auto right = this->process(node.right)[0];
   auto dim = left.getShape()[0];
   const auto& lVal = left.getTensor();
   const auto& rVal = right.getTensor();
@@ -98,12 +98,12 @@ LiteralValue EvalVisitor::operator()(const SubtractNode<LiteralValue>& node) {
   // std::cout << " result=";
   // printVec(result);
   // std::cout << "\n";
-  return result;
+  return {result};
 }
 
-LiteralValue EvalVisitor::operator()(const MultiplyNode<LiteralValue>& node) {
-  auto left = this->process(node.left);
-  auto right = this->process(node.right);
+EvalResults EvalVisitor::operator()(const MultiplyNode<LiteralValue>& node) {
+  auto left = this->process(node.left)[0];
+  auto right = this->process(node.right)[0];
   auto dim = left.getShape()[0];
   const auto& lVal = left.getTensor();
   const auto& rVal = right.getTensor();
@@ -122,12 +122,12 @@ LiteralValue EvalVisitor::operator()(const MultiplyNode<LiteralValue>& node) {
   // std::cout << " result=";
   // printVec(result);
   // std::cout << "\n";
-  return result;
+  return {result};
 }
 
 // Cyclic left-rotation by a given index
-LiteralValue EvalVisitor::operator()(const LeftRotateNode<LiteralValue>& node) {
-  auto operand = this->process(node.operand);
+EvalResults EvalVisitor::operator()(const LeftRotateNode<LiteralValue>& node) {
+  auto operand = this->process(node.operand)[0];
   auto dim = operand.getShape()[0];
   int amount = node.shift;
   // Normalize amount to be in [0, dim)
@@ -147,13 +147,13 @@ LiteralValue EvalVisitor::operator()(const LeftRotateNode<LiteralValue>& node) {
   // std::cout << " result=";
   // printVec(result);
   // std::cout << "\n";
-  return result;
+  return {result};
 }
 
-LiteralValue EvalVisitor::operator()(const ExtractNode<LiteralValue>& node) {
-  auto tensor = this->process(node.operand);
+EvalResults EvalVisitor::operator()(const ExtractNode<LiteralValue>& node) {
+  auto tensor = this->process(node.operand)[0];
   unsigned index = node.index;
-  return std::visit(
+  return {std::visit(
       [&](auto&& t) -> LiteralValue {
         // We can only extract from a 2D vector.
         if constexpr (std::is_same_v<std::decay_t<decltype(t)>,
@@ -163,10 +163,10 @@ LiteralValue EvalVisitor::operator()(const ExtractNode<LiteralValue>& node) {
         assert(false && "Unsupported type for extraction");
         return LiteralValue(std::vector<int>({}));
       },
-      tensor.getTensor());
+      tensor.getTensor())};
 }
 
-LiteralValue EvalVisitor::operator()(const ConstantTensorNode& node) {
+EvalResults EvalVisitor::operator()(const ConstantTensorNode& node) {
   // A bit of a hack, only support ints in testing
   std::vector<int> vec;
   vec.reserve(node.value.size());
@@ -176,16 +176,16 @@ LiteralValue EvalVisitor::operator()(const ConstantTensorNode& node) {
   // std::cout << "Const vec=";
   // printVec(vec);
   // std::cout << "\n";
-  return LiteralValue(vec);
+  return {LiteralValue(vec)};
 }
 
-LiteralValue evalKernel(
+EvalResults evalKernel(
     const std::shared_ptr<ArithmeticDagNode<LiteralValue>>& dag) {
   EvalVisitor visitor;
   return visitor.process(dag);
 }
 
-std::vector<LiteralValue> multiEvalKernel(
+std::vector<EvalResults> multiEvalKernel(
     ArrayRef<std::shared_ptr<ArithmeticDagNode<LiteralValue>>> dags) {
   EvalVisitor visitor;
   return visitor.process(dags);

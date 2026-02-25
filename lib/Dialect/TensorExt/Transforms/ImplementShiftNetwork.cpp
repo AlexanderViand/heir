@@ -264,7 +264,12 @@ LogicalResult convertRemapOp(RemapOp op,
       implementShiftNetwork(ciphertexts, mapping, scheme, ciphertextSize);
 
   kernel::IRMaterializingVisitor visitor(b, singleCiphertextType);
-  std::vector<Value> result = visitor.process(resultNodes);
+  auto resultVectors = visitor.process(resultNodes);
+  std::vector<Value> result;
+  result.reserve(resultVectors.size());
+  for (const auto& vec : resultVectors) {
+    result.push_back(vec[0]);
+  }
 
   // Finally, recombine with an empty tensor + tensor.insert_slice
   Value combinedResult = tensor::EmptyOp::create(

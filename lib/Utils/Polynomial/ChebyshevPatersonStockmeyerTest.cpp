@@ -18,7 +18,7 @@ double evalChebyshevPolynomial(double x,
       patersonStockmeyerChebyshevPolynomialEvaluation(xNode, coefficients);
 
   test::EvalVisitor visitor;
-  return resultNode->visit(visitor);
+  return resultNode->visit(visitor)[0];
 }
 
 int evalMultiplicativeDepth(double x, const std::vector<double>& coefficients) {

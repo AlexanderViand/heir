@@ -23,7 +23,7 @@ double evalPatersonStockmeyerPolynomial(
       patersonStockmeyerMonomialPolynomialEvaluation(x_node, coefficients);
 
   test::EvalVisitor visitor;
-  return result_node->visit(visitor);
+  return result_node->visit(visitor)[0];
 }
 
 // Helper function to compute multiplicative depth

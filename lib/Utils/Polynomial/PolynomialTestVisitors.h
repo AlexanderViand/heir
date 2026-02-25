@@ -29,62 +29,62 @@ using kernel::SubtractNode;
 // Visitor that evaluates an ArithmeticDag by performing actual arithmetic
 // operations. Templated on the leaf node type T.
 template <typename T>
-class EvalVisitorImpl : public CachingVisitor<T, double> {
+class EvalVisitorImpl : public CachingVisitor<T, std::vector<double>> {
  public:
-  using CachingVisitor<T, double>::operator();
+  using CachingVisitor<T, std::vector<double>>::operator();
 
-  EvalVisitorImpl() : CachingVisitor<T, double>() {}
+  EvalVisitorImpl() : CachingVisitor<T, std::vector<double>>() {}
 
-  double operator()(const ConstantScalarNode& node) override {
-    return node.value;
+  std::vector<double> operator()(const ConstantScalarNode& node) override {
+    return {node.value};
   }
 
-  double operator()(const LeafNode<T>& node) override {
+  std::vector<double> operator()(const LeafNode<T>& node) override {
     if constexpr (std::is_same_v<T, double>) {
-      return node.value;
+      return {node.value};
     } else if constexpr (std::is_same_v<T, LiteralDouble>) {
-      return node.value.getValue();
+      return {node.value.getValue()};
     } else {
       assert(false && "Unsupported leaf node type");
-      return 0.0;
+      return {0.0};
     }
   }
 
-  double operator()(const AddNode<T>& node) override {
+  std::vector<double> operator()(const AddNode<T>& node) override {
     // Recursive calls use the public `process` method from the base class
     // to ensure caching is applied at every step.
-    return this->process(node.left) + this->process(node.right);
+    return {this->process(node.left)[0] + this->process(node.right)[0]};
   }
 
-  double operator()(const SubtractNode<T>& node) override {
-    return this->process(node.left) - this->process(node.right);
+  std::vector<double> operator()(const SubtractNode<T>& node) override {
+    return {this->process(node.left)[0] - this->process(node.right)[0]};
   }
 
-  double operator()(const MultiplyNode<T>& node) override {
-    return this->process(node.left) * this->process(node.right);
+  std::vector<double> operator()(const MultiplyNode<T>& node) override {
+    return {this->process(node.left)[0] * this->process(node.right)[0]};
   }
 
-  double operator()(const ConstantTensorNode& node) override {
+  std::vector<double> operator()(const ConstantTensorNode& node) override {
     // Tensor nodes are not expected in scalar polynomial evaluation
     assert(false && "ConstantTensorNode not supported in scalar evaluation");
-    return 0.0;
+    return {0.0};
   }
 
-  double operator()(const PowerNode<T>& node) override {
-    double base = this->process(node.base);
-    return std::pow(base, static_cast<double>(node.exponent));
+  std::vector<double> operator()(const PowerNode<T>& node) override {
+    double base = this->process(node.base)[0];
+    return {std::pow(base, static_cast<double>(node.exponent))};
   }
 
-  double operator()(const LeftRotateNode<T>& node) override {
+  std::vector<double> operator()(const LeftRotateNode<T>& node) override {
     // Rotation is a tensor operation, not expected in scalar evaluation
     assert(false && "LeftRotateNode not supported in scalar evaluation");
-    return 0.0;
+    return {0.0};
   }
 
-  double operator()(const ExtractNode<T>& node) override {
+  std::vector<double> operator()(const ExtractNode<T>& node) override {
     // Extraction is a tensor operation, not expected in scalar evaluation
     assert(false && "ExtractNode not supported in scalar evaluation");
-    return 0.0;
+    return {0.0};
   }
 };
 

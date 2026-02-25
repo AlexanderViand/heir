@@ -28,7 +28,7 @@ double psEvalChebyshevPolynomial(const std::vector<double>& coefficients,
   if (!resultNode) return 0.0;
 
   test::EvalVisitor visitor;
-  return resultNode->visit(visitor);
+  return resultNode->visit(visitor)[0];
 }
 
 void patersonStockmeyerMatchesNaive(const std::vector<double>& coefficients,

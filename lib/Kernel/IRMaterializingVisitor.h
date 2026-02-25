@@ -22,23 +22,24 @@ namespace kernel {
 
 // Walks the arithmetic DAG and generates MLIR for it. Optionally applies
 // createdOpCallback to each created operation.
-class IRMaterializingVisitor : public CachingVisitor<SSAValue, Value> {
+class IRMaterializingVisitor
+    : public CachingVisitor<SSAValue, std::vector<Value>> {
  public:
-  using CachingVisitor<SSAValue, Value>::operator();
+  using CachingVisitor<SSAValue, std::vector<Value>>::operator();
 
   IRMaterializingVisitor(
       ImplicitLocOpBuilder& builder, Type evaluatedType,
       const std::function<void(Operation*)>& createdOpCallback =
           [](Operation* op) {})
-      : CachingVisitor<SSAValue, Value>(),
+      : CachingVisitor<SSAValue, std::vector<Value>>(),
         builder(builder),
         evaluatedType(evaluatedType),
         createdOpCallback(createdOpCallback) {}
 
   template <typename T, typename FloatOp, typename IntOp>
-  Value binop(const T& node) {
-    Value lhs = this->process(node.left);
-    Value rhs = this->process(node.right);
+  std::vector<Value> binop(const T& node) {
+    Value lhs = this->process(node.left)[0];
+    Value rhs = this->process(node.right)[0];
     auto op = TypeSwitch<Type, Operation*>(getElementTypeOrSelf(evaluatedType))
                   .template Case<FloatType>([&](auto ty) {
                     return FloatOp::create(builder, lhs, rhs);
@@ -50,17 +51,17 @@ class IRMaterializingVisitor : public CachingVisitor<SSAValue, Value> {
                     return nullptr;
                   });
     createdOpCallback(op);
-    return op->getResult(0);
+    return {op->getResult(0)};
   }
 
-  Value operator()(const ConstantScalarNode& node) override;
-  Value operator()(const ConstantTensorNode& node) override;
-  Value operator()(const LeafNode<SSAValue>& node) override;
-  Value operator()(const AddNode<SSAValue>& node) override;
-  Value operator()(const SubtractNode<SSAValue>& node) override;
-  Value operator()(const MultiplyNode<SSAValue>& node) override;
-  Value operator()(const LeftRotateNode<SSAValue>& node) override;
-  Value operator()(const ExtractNode<SSAValue>& node) override;
+  std::vector<Value> operator()(const ConstantScalarNode& node) override;
+  std::vector<Value> operator()(const ConstantTensorNode& node) override;
+  std::vector<Value> operator()(const LeafNode<SSAValue>& node) override;
+  std::vector<Value> operator()(const AddNode<SSAValue>& node) override;
+  std::vector<Value> operator()(const SubtractNode<SSAValue>& node) override;
+  std::vector<Value> operator()(const MultiplyNode<SSAValue>& node) override;
+  std::vector<Value> operator()(const LeftRotateNode<SSAValue>& node) override;
+  std::vector<Value> operator()(const ExtractNode<SSAValue>& node) override;
 
  private:
   ImplicitLocOpBuilder& builder;

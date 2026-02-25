@@ -80,45 +80,45 @@ struct FlattenedStringVisitor {
   }
 };
 
-class EvalVisitor : public CachingVisitor<double, double> {
+class EvalVisitor : public CachingVisitor<double, std::vector<double>> {
  public:
   // This is required for this class to see all overloads of the visit function,
   // including virtual ones not implemented by this class.
-  using CachingVisitor<double, double>::operator();
+  using CachingVisitor<double, std::vector<double>>::operator();
 
-  EvalVisitor() : CachingVisitor<double, double>(), callCount(0) {}
+  EvalVisitor() : CachingVisitor<double, std::vector<double>>(), callCount(0) {}
 
   // To test that caching works as expected.
   int callCount;
-  double operator()(const ConstantScalarNode& node) override {
+  std::vector<double> operator()(const ConstantScalarNode& node) override {
     callCount += 1;
-    return node.value;
+    return {node.value};
   }
 
-  double operator()(const LeafNode<double>& node) override {
+  std::vector<double> operator()(const LeafNode<double>& node) override {
     callCount += 1;
-    return node.value;
+    return {node.value};
   }
 
-  double operator()(const AddNode<double>& node) override {
+  std::vector<double> operator()(const AddNode<double>& node) override {
     // Recursive calls use the public `process` method from the base class
     // to ensure caching is applied at every step.
     callCount += 1;
-    return this->process(node.left) + this->process(node.right);
+    return {this->process(node.left)[0] + this->process(node.right)[0]};
   }
 
-  double operator()(const SubtractNode<double>& node) override {
+  std::vector<double> operator()(const SubtractNode<double>& node) override {
     callCount += 1;
-    return this->process(node.left) - this->process(node.right);
+    return {this->process(node.left)[0] - this->process(node.right)[0]};
   }
-  double operator()(const MultiplyNode<double>& node) override {
+  std::vector<double> operator()(const MultiplyNode<double>& node) override {
     callCount += 1;
-    return this->process(node.left) * this->process(node.right);
+    return {this->process(node.left)[0] * this->process(node.right)[0]};
   }
 
-  double operator()(const PowerNode<double>& node) override {
+  std::vector<double> operator()(const PowerNode<double>& node) override {
     callCount += 1;
-    return std::pow(this->process(node.base), node.exponent);
+    return {std::pow(this->process(node.base)[0], node.exponent)};
   }
 };
 
@@ -151,7 +151,7 @@ TEST(ArithmeticDagTest, TestEvaluationVisitor) {
                                    DoubleLeavedDag::constantScalar(3.0));
 
   EvalVisitor visitor;
-  double result = root->visit(visitor);
+  double result = root->visit(visitor)[0];
   EXPECT_EQ(result, 24.0);
   EXPECT_EQ(visitor.callCount, 5);
 }
@@ -162,7 +162,7 @@ TEST(ArithmeticDagTest, TestEvaluationVisitorSubstract) {
   auto root = DoubleLeavedDag::sub(x, y);
 
   EvalVisitor visitor;
-  double result = root->visit(visitor);
+  double result = root->visit(visitor)[0];
   EXPECT_EQ(result, -1);
   EXPECT_EQ(visitor.callCount, 3);
 }

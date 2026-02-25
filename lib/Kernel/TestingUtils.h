@@ -16,25 +16,27 @@ namespace kernel {
 // A visitor that evaluates an arithmetic DAG of ciphertext semantic tensors.
 // The evaluation is done by replacing the leaves with their literal values and
 // then computing the operations.
-class EvalVisitor : public CachingVisitor<LiteralValue, LiteralValue> {
+using EvalResults = std::vector<LiteralValue>;
+
+class EvalVisitor : public CachingVisitor<LiteralValue, EvalResults> {
  public:
-  using CachingVisitor<LiteralValue, LiteralValue>::operator();
+  using CachingVisitor<LiteralValue, EvalResults>::operator();
 
-  EvalVisitor() : CachingVisitor<LiteralValue, LiteralValue>() {}
+  EvalVisitor() : CachingVisitor<LiteralValue, EvalResults>() {}
 
-  LiteralValue operator()(const ConstantTensorNode& node) override;
-  LiteralValue operator()(const LeafNode<LiteralValue>& node) override;
-  LiteralValue operator()(const AddNode<LiteralValue>& node) override;
-  LiteralValue operator()(const SubtractNode<LiteralValue>& node) override;
-  LiteralValue operator()(const MultiplyNode<LiteralValue>& node) override;
-  LiteralValue operator()(const LeftRotateNode<LiteralValue>& node) override;
-  LiteralValue operator()(const ExtractNode<LiteralValue>& node) override;
+  EvalResults operator()(const ConstantTensorNode& node) override;
+  EvalResults operator()(const LeafNode<LiteralValue>& node) override;
+  EvalResults operator()(const AddNode<LiteralValue>& node) override;
+  EvalResults operator()(const SubtractNode<LiteralValue>& node) override;
+  EvalResults operator()(const MultiplyNode<LiteralValue>& node) override;
+  EvalResults operator()(const LeftRotateNode<LiteralValue>& node) override;
+  EvalResults operator()(const ExtractNode<LiteralValue>& node) override;
 };
 
-LiteralValue evalKernel(
+EvalResults evalKernel(
     const std::shared_ptr<ArithmeticDagNode<LiteralValue>>& dag);
 
-std::vector<LiteralValue> multiEvalKernel(
+std::vector<EvalResults> multiEvalKernel(
     ArrayRef<std::shared_ptr<ArithmeticDagNode<LiteralValue>>> dags);
 
 // A visitor that prints the dag in textual form
