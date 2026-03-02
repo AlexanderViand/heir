@@ -29,3 +29,5 @@ sudo apt-get install -y g++-12 libstdc++-12-dev libomp-dev lld libgmp-dev libntl
 Also required:
 
 - CUDA toolkit (tested with CUDA 12.x)
+
+<!-- mdformat global-off -->

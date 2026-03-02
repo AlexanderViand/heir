@@ -1,6 +1,6 @@
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("@heir//bazel:fideslib/config.bzl", "fideslib_deps", "requires_fideslib")
+load("@heir//bazel/fideslib:config.bzl", "fideslib_deps", "requires_fideslib")
 load("@heir//bazel/openfhe:copts.bzl", "OPENMP_COPTS", "OPENMP_LINKOPTS")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_applicable_licenses = ["@heir//:license"])
 

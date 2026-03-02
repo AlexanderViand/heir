@@ -1,6 +1,6 @@
 """A macro providing an end-to-end test for FIDESlib codegen."""
 
-load("@heir//bazel:fideslib/config.bzl", "fideslib_deps", "requires_fideslib")
+load("@heir//bazel/fideslib:config.bzl", "fideslib_deps", "requires_fideslib")
 load("@heir//bazel/openfhe:copts.bzl", "OPENMP_COPTS", "OPENMP_LINKOPTS")
 load("@heir//tools:heir-fideslib.bzl", "fideslib_lib")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
