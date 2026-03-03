@@ -1,0 +1,43 @@
+diff --git a/config_macos.bzl b/config_macos.bzl
+index ff6f225..6ae0cf2 100644
+--- a/config_macos.bzl
++++ b/config_macos.bzl
+@@ -708,7 +708,7 @@ DIRECT_VARIABLES = {
+     "@''HAVE_POSIX_SIGNALBLOCKING''@": "1",
+     "@''HAVE_POSIX_SPAWN''@": "1",
+     "@''HAVE_POSIX_SPAWNATTR_T''@": "1",
+-    "@''HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR''@": "0",
++    "@''HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR''@": "1",
+     "@''HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDFCHDIR''@": "1",
+     "@''HAVE_POSIX_SPAWN_FILE_ACTIONS_T''@": "1",
+     "@''HAVE_POWF''@": "1",
+diff --git a/config_macos.h b/config_macos.h
+index b7ee18f..6eb85f7 100644
+--- a/config_macos.h
++++ b/config_macos.h
+@@ -1094,7 +1094,7 @@
+ 
+ /* Define to 1 if you have the `posix_spawn_file_actions_addchdir' function.
+    */
+-/* #undef HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR */
++#define HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR 1
+ 
+ /* Define to 1 if you have the `posix_spawn_file_actions_addchdir_np'
+    function. */
+diff --git a/lib/spawn_faction_addchdir.c b/lib/spawn_faction_addchdir.c
+index d8eba37..b9be59d 100644
+--- a/lib/spawn_faction_addchdir.c
++++ b/lib/spawn_faction_addchdir.c
+@@ -28,6 +28,7 @@
+ 
+ /* Add an action to FILE-ACTIONS which tells the implementation to call
+    'chdir' to the given directory during the 'spawn' call.  */
++#if !HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCHDIR
+ int
+ posix_spawn_file_actions_addchdir (posix_spawn_file_actions_t *file_actions,
+                                    const char *path)
+@@ -69,3 +70,4 @@ posix_spawn_file_actions_addchdir (posix_spawn_file_actions_t *file_actions,
+   }
+ #endif
+ }
++#endif

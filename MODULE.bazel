@@ -42,6 +42,15 @@ bazel_dep(name = "openfhe", version = "1.4.2.bcr.1")
 bazel_dep(name = "abc", version = "0.0.0-20250903-yosyshq.bcr.1")
 bazel_dep(name = "yosys", version = "0.57.bcr.2")
 
+# bison 3.8.2's macOS config assumes addchdir is unavailable. On newer macOS
+# SDKs it exists and conflicts with gnulib's fallback declaration/definition.
+single_version_override(
+    module_name = "bison",
+    patch_strip = 1,
+    patches = ["//patches:bison_macos_spawn_addchdir.patch"],
+    version = "3.8.2",
+)
+
 # FIDESlib is not on the BCR, so we use a module extension.
 fideslib_extensions = use_extension("//bazel:extensions.bzl", "fideslib_deps")
 use_repo(fideslib_extensions, "fideslib")
