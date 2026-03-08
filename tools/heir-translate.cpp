@@ -13,7 +13,13 @@
 #include "llvm/include/llvm/Support/LogicalResult.h"  // from @llvm-project
 #include "mlir/include/mlir/Tools/mlir-translate/MlirTranslateMain.h"  // from @llvm-project
 
+namespace mlir {
+void registerToLLVMIRTranslation();
+}  // namespace mlir
+
 int main(int argc, char** argv) {
+  mlir::registerToLLVMIRTranslation();
+
   // Verilog output
   mlir::heir::registerToVerilogTranslation();
   mlir::heir::registerMetadataEmitter();

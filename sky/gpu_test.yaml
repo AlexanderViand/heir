@@ -1,0 +1,36 @@
+name: heir-gpu-test
+
+resources:
+  accelerators: L4:1
+  cpus: 8+
+  memory: 16+
+
+workdir: .
+
+setup: |
+  # fail early if something fails
+  set -euxo pipefail
+
+  # Install bazel(isk) if not already installed
+  if ! command -v bazel >/dev/null 2>&1; then
+    curl -fsSL https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
+      -o /tmp/bazel
+    sudo install -m 0755 /tmp/bazel /usr/local/bin/bazel
+  fi
+
+  # Install dependencies
+  sudo apt-get update
+  sudo apt-get install -y \
+    clang \
+    lld \
+    nvidia-cuda-toolkit
+
+  # Build required HEIR tools
+  bazel build //tools:heir-opt //tools:heir-translate
+
+run: |
+  set -euxo pipefail
+  nvidia-smi
+  bazel build //tools:heir-opt //tools:heir-translate
+  ./scripts/build_gpu_kernel.sh --help
+  echo "GPU instance is ready for HEIR/MLIR kernel experiments."
