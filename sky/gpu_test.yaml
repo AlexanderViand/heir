@@ -12,28 +12,24 @@ resources:
 workdir: .
 
 setup: |
-  # Exit on error, undefined variable, or error in pipeline
-  set -euxo pipefail
+  set -euo pipefail
 
-  # Install bazel(isk) if not already installed.
   if ! command -v bazel >/dev/null 2>&1; then
     curl -fsSL https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
       -o /tmp/bazel
     sudo install -m 0755 /tmp/bazel /usr/local/bin/bazel
   fi
 
-  # Install dependencies
   sudo apt-get update
   sudo apt-get install -y git clang lld gcc g++ cmake ninja-build libomp-dev
 
   bazel build //tools:heir-opt //tools:heir-translate @llvm-project//llvm:llc
 
 run: |
-  # Exit on error, undefined variable, or error in pipeline
-  set -euxo pipefail
+  set -euo pipefail
 
+  echo '== Build tools =='
   bazel build //tools:heir-opt //tools:heir-translate @llvm-project//llvm:llc
-  mkdir -p /tmp/heir-ckks-add
-  ./bazel-bin/tools/heir-opt sky/ckks_add.mlir --convert-elementwise-to-affine --canonicalize --cse -o /tmp/heir-ckks-add/ckks_add_affine.mlir
+
+  echo '== Lower and run GPU kernel =='
   ./scripts/build_gpu_kernel.sh
-  ls -R /tmp/heir-ckks-add /tmp/heir-gpu-add
