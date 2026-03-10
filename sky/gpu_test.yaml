@@ -26,13 +26,13 @@ setup: |
   sudo apt-get update
   sudo apt-get install -y git clang lld gcc g++ cmake ninja-build libomp-dev
 
-  bazel build //tools:heir-opt //tools:heir-translate
+  bazel build //tools:heir-opt //tools:heir-translate @llvm-project//llvm:llc
 
 run: |
   # Exit on error, undefined variable, or error in pipeline
   set -euxo pipefail
 
-  bazel build //tools:heir-opt //tools:heir-translate
+  bazel build //tools:heir-opt //tools:heir-translate @llvm-project//llvm:llc
   mkdir -p /tmp/heir-ckks-add
   ./bazel-bin/tools/heir-opt sky/ckks_add.mlir --convert-elementwise-to-affine --canonicalize --cse -o /tmp/heir-ckks-add/ckks_add_affine.mlir
   ./scripts/build_gpu_kernel.sh

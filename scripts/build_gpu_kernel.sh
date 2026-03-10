@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# Exit on error, undefined variable, or error in pipeline
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -7,9 +8,13 @@ INPUT="$ROOT_DIR/sky/elementwise_add_gpu.mlir"
 OUT_DIR="/tmp/heir-gpu-add"
 HEIR_OPT="$ROOT_DIR/bazel-bin/tools/heir-opt"
 HEIR_TRANSLATE="$ROOT_DIR/bazel-bin/tools/heir-translate"
-LLC="llc"
 PTXAS="ptxas"
-GPU_ARCH="sm_89"
+LLC="$(bazel info bazel-bin)/external/+_repo_rules+llvm-project/llvm/llc"
+if command -v nvidia-smi >/dev/null 2>&1; then
+  GPU_ARCH="sm_$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -n1 | tr -d '.')"
+else
+  GPU_ARCH="sm_89"
+fi
 
 for tool in "$HEIR_OPT" "$HEIR_TRANSLATE"; do
   if ! command -v "$tool" >/dev/null 2>&1 && [[ ! -x "$tool" ]]; then
