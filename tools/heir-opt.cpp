@@ -155,6 +155,9 @@
 #include "mlir/include/mlir/Dialect/Tensor/Extensions/AllExtensions.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/TensorInferTypeOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"  // from @llvm-project
+#include "mlir/include/mlir/InitAllDialects.h"             // from @llvm-project
+#include "mlir/include/mlir/InitAllExtensions.h"           // from @llvm-project
+#include "mlir/include/mlir/InitAllPasses.h"               // from @llvm-project
 #include "mlir/include/mlir/Pass/PassManager.h"            // from @llvm-project
 #include "mlir/include/mlir/Pass/PassRegistry.h"           // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"                // from @llvm-project
@@ -212,10 +215,11 @@ int main(int argc, char** argv) {
   registry.insert<scf::SCFDialect>();
   registry.insert<tensor::TensorDialect>();
 
-  // Uncomment if you want everything bound to CLI flags.
-  // registerAllDialects(registry);
-  // registerAllExtensions(registry);
-  // registerAllPasses();
+  // Keep all upstream MLIR CLI surface available for debugging and
+  // GPU/NVVM lowering experiments.
+  registerAllDialects(registry);
+  registerAllExtensions(registry);
+  registerAllPasses();
 
   // Upstream passes used by HEIR
   // Converting to LLVM
