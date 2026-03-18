@@ -28,7 +28,13 @@ namespace heir {
 namespace openfhe {
 
 std::string getModulePrelude(OpenfheScheme scheme,
-                             OpenfheImportType importType) {
+                             OpenfheImportType importType,
+                             OpenfheBackend backend) {
+  if (backend == OpenfheBackend::FIDESLIB) {
+    return std::string(kFideslibImport) +
+           std::string(kFideslibModulePreludeTemplate);
+  }
+
   auto import = importType == OpenfheImportType::SOURCE_RELATIVE
                     ? kSourceRelativeOpenfheImport
                     : (importType == OpenfheImportType::INSTALL_RELATIVE
@@ -44,7 +50,8 @@ std::string getModulePrelude(OpenfheScheme scheme,
 
 std::string getWeightsPrelude() { return std::string(kWeightsPreludeTemplate); }
 
-FailureOr<std::string> convertType(Type type, Location loc, bool constant) {
+FailureOr<std::string> convertType(Type type, Location loc, bool constant,
+                                   OpenfheBackend backend) {
   return llvm::TypeSwitch<Type&, FailureOr<std::string>>(type)
       // For now, these types are defined in the prelude as aliases.
       .Case<CryptoContextType>(
@@ -54,9 +61,14 @@ FailureOr<std::string> convertType(Type type, Location loc, bool constant) {
         return constant ? std::string("ConstCiphertextT")
                         : std::string("CiphertextT");
       })
-      .Case<PlaintextType>([&](auto ty) { return std::string("Plaintext"); })
-      .Case<openfhe::EvalKeyType>(
-          [&](auto ty) { return std::string("EvalKeyT"); })
+      .Case<PlaintextType>([&](auto ty) { return std::string("PlaintextT"); })
+      .Case<openfhe::EvalKeyType>([&](auto ty) -> FailureOr<std::string> {
+        if (backend == OpenfheBackend::FIDESLIB) {
+          emitError(loc, "FIDESlib backend does not support openfhe.eval_key");
+          return failure();
+        }
+        return std::string("EvalKeyT");
+      })
       .Case<openfhe::PrivateKeyType>(
           [&](auto ty) { return std::string("PrivateKeyT"); })
       .Case<openfhe::PublicKeyType>(
@@ -95,7 +107,8 @@ FailureOr<std::string> convertType(Type type, Location loc, bool constant) {
       })
       .Case<RankedTensorType>([&](auto ty) {
         // std::allocator does not support const types
-        auto eltTyResult = convertType(ty.getElementType(), loc, false);
+        auto eltTyResult =
+            convertType(ty.getElementType(), loc, false, backend);
         if (failed(eltTyResult)) {
           return FailureOr<std::string>();
         }
@@ -126,7 +139,8 @@ LogicalResult funcDeclarationHelper(::mlir::func::FuncOp funcOp,
                                     ::mlir::raw_indented_ostream& os,
                                     SelectVariableNames* variableNames,
                                     TypeEmitterFn emitType,
-                                    ErrorEmitterFn emitError) {
+                                    ErrorEmitterFn emitError,
+                                    OpenfheBackend backend) {
   if (funcOp.getNumResults() == 1) {
     Type result = funcOp.getResultTypes()[0];
     if (failed(emitType(result, funcOp->getLoc()))) {
@@ -163,7 +177,7 @@ LogicalResult funcDeclarationHelper(::mlir::func::FuncOp funcOp,
   // the results into a FailureOr, like commaSeparatedTypes in tfhe_rust
   // emitter.
   for (Value arg : funcOp.getArguments()) {
-    if (failed(convertType(arg.getType(), arg.getLoc()))) {
+    if (failed(convertType(arg.getType(), arg.getLoc(), false, backend))) {
       return emitError(funcOp.getLoc(),
                        llvm::formatv("Failed to emit type {0}", arg.getType()));
     }
@@ -172,7 +186,7 @@ LogicalResult funcDeclarationHelper(::mlir::func::FuncOp funcOp,
   if (funcOp.isDeclaration()) {
     // function declaration
     os << commaSeparatedTypes(funcOp.getArgumentTypes(), [&](Type type) {
-      return convertType(type, funcOp->getLoc()).value();
+      return convertType(type, funcOp->getLoc(), false, backend).value();
     });
     // debug attribute map for debug call
     if (isDebugPort(funcOp.getName())) {
@@ -180,8 +194,9 @@ LogicalResult funcDeclarationHelper(::mlir::func::FuncOp funcOp,
     }
   } else {
     os << commaSeparatedValues(funcOp.getArguments(), [&](Value value) {
-      return convertType(value.getType(), funcOp->getLoc()).value() + " " +
-             variableNames->getNameForValue(value);
+      return convertType(value.getType(), funcOp->getLoc(), false, backend)
+                 .value() +
+             " " + variableNames->getNameForValue(value);
     });
   }
   os << ")";
@@ -190,7 +205,8 @@ LogicalResult funcDeclarationHelper(::mlir::func::FuncOp funcOp,
 
 LogicalResult emitDebugHelperSignature(::mlir::func::FuncOp funcOp,
                                        ::mlir::raw_indented_ostream& os,
-                                       ErrorEmitterFn emitError) {
+                                       ErrorEmitterFn emitError,
+                                       OpenfheBackend backend) {
   auto argTypes = funcOp.getArgumentTypes();
 
   if (argTypes.size() != 3) {
@@ -201,19 +217,19 @@ LogicalResult emitDebugHelperSignature(::mlir::func::FuncOp funcOp,
             argTypes.size()));
   }
 
-  auto ccTy = convertType(argTypes[0], funcOp.getLoc());
+  auto ccTy = convertType(argTypes[0], funcOp.getLoc(), false, backend);
   if (failed(ccTy))
     return emitError(
         funcOp.getLoc(),
         llvm::formatv("Failed to emit type for arg0: {0}", argTypes[0]));
 
-  auto skTy = convertType(argTypes[1], funcOp.getLoc());
+  auto skTy = convertType(argTypes[1], funcOp.getLoc(), false, backend);
   if (failed(skTy))
     return emitError(
         funcOp.getLoc(),
         llvm::formatv("Failed to emit type for arg1: {0}", argTypes[1]));
 
-  auto ctTy = convertType(argTypes[2], funcOp.getLoc());
+  auto ctTy = convertType(argTypes[2], funcOp.getLoc(), false, backend);
   if (failed(ctTy))
     return emitError(
         funcOp.getLoc(),

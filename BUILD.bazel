@@ -70,6 +70,32 @@ config_setting(
     },
 )
 
+# Optional dependency on FIDESlib, which requires GPU/CUDA
+# enable by passing `--//:enable_fideslib=1`
+# to `bazel build` or `bazel test`
+
+# FIDESlib
+string_flag(
+    name = "enable_fideslib",
+    build_setting_default = "0",
+)
+
+config_setting(
+    name = "config_enable_fideslib",
+    flag_values = {
+        ":enable_fideslib": "1",
+    },
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "config_disable_fideslib",
+    flag_values = {
+        ":enable_fideslib": "0",
+    },
+    visibility = ["//visibility:public"],
+)
+
 # OpenFHE interpreter
 string_flag(
     name = "openfhe_enable_timing",
