@@ -65,6 +65,22 @@ LogicalResult OpenFhePkePybindEmitter::printOperation(func::FuncOp funcOp) {
   os << llvm::formatv(kPybindFunctionTemplate.data(),
                       canonicalizeDebugPort(funcOp.getName()))
      << "\n";
+  bool hasPrecomputeableOps = false;
+  funcOp.walk([&](Operation* op) {
+    auto name = op->getName().getStringRef();
+    if (name == "openfhe.linear_transform" ||
+        name == "openfhe.make_ckks_packed_plaintext") {
+      hasPrecomputeableOps = true;
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  if (hasPrecomputeableOps) {
+    os << llvm::formatv(kPybindFunctionTemplate.data(),
+                        canonicalizeDebugPort(funcOp.getName()) +
+                            "__precompute")
+       << "\n";
+  }
   return success();
 }
 

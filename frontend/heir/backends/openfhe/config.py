@@ -43,42 +43,34 @@ DEFAULT_INSTALLED_OPENFHE_CONFIG = OpenFHEConfig(
 )
 
 
+def _development_execroot_link(repo_root):
+  candidates = [
+      repo_root / f"bazel-{repo_root.name}",
+      repo_root / "bazel-heir",
+  ]
+  for candidate in candidates:
+    if candidate.exists():
+      return candidate
+  return candidates[0]
+
+
 def development_openfhe_config() -> OpenFHEConfig:
   repo_root = get_repo_root()
   if not repo_root:
     raise RuntimeError("Could not build development config. Did you run bazel?")
+  execroot_link = _development_execroot_link(repo_root)
+  bazel_bin_openfhe = repo_root / "bazel-bin" / "external" / "openfhe+"
 
   return OpenFHEConfig(
       include_dirs=[
-          str(repo_root / "bazel-heir" / "external" / "openfhe+"),
-          str(
-              repo_root
-              / "bazel-heir"
-              / "external"
-              / "openfhe+"
-              / "src"
-              / "binfhe"
-              / "include"
-          ),
-          str(
-              repo_root
-              / "bazel-heir"
-              / "external"
-              / "openfhe+"
-              / "src"
-              / "core"
-              / "include"
-          ),
-          str(
-              repo_root
-              / "bazel-heir"
-              / "external"
-              / "openfhe+"
-              / "src"
-              / "pke"
-              / "include"
-          ),
-          str(repo_root / "bazel-heir" / "external" / "cereal+" / "include"),
+          str(execroot_link / "external" / "openfhe+"),
+          str(bazel_bin_openfhe / "src" / "binfhe" / "include"),
+          str(execroot_link / "external" / "openfhe+" / "src" / "binfhe" / "include"),
+          str(bazel_bin_openfhe / "src" / "core" / "include"),
+          str(execroot_link / "external" / "openfhe+" / "src" / "core" / "include"),
+          str(bazel_bin_openfhe / "src" / "pke" / "include"),
+          str(execroot_link / "external" / "openfhe+" / "src" / "pke" / "include"),
+          str(execroot_link / "external" / "cereal+" / "include"),
       ],
       include_type="source-relative",
       lib_dir=str(repo_root / "bazel-bin" / "external" / "openfhe+"),

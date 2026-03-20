@@ -1,9 +1,11 @@
 #include "lib/Target/OpenFhePke/Interpreter.h"
 
 #include <algorithm>
+#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -111,6 +113,46 @@ using PrivateKeyT = PrivateKey<DCRTPoly>;
 using PublicKeyT = PublicKey<DCRTPoly>;
 using FastRotPrecompT = std::shared_ptr<std::vector<DCRTPoly>>;
 
+static int64_t wrapRotation(int64_t rot, int64_t slots) {
+  int64_t wrapped = rot % slots;
+  return wrapped < 0 ? wrapped + slots : wrapped;
+}
+
+static int64_t findBestBSGSRatio(ArrayRef<int32_t> diags, int64_t slots,
+                                 int64_t logMaxRatio) {
+  int64_t maxRatio = 1LL << logMaxRatio;
+  for (int64_t n1 = 1; n1 < slots; n1 <<= 1) {
+    std::map<int64_t, bool> rotN1Set, rotN2Set;
+    for (auto rot : diags) {
+      int64_t r = wrapRotation(rot, slots);
+      rotN1Set[((r / n1) * n1) & (slots - 1)] = true;
+      rotN2Set[r & (n1 - 1)] = true;
+    }
+    int64_t nbN1 = static_cast<int64_t>(rotN1Set.size()) - 1;
+    int64_t nbN2 = static_cast<int64_t>(rotN2Set.size()) - 1;
+    if (nbN1 > 0) {
+      if (nbN2 == maxRatio * nbN1) return n1;
+      if (nbN2 > maxRatio * nbN1) return n1 / 2;
+    }
+  }
+  return 1;
+}
+
+template <typename FloatT>
+static std::vector<std::vector<std::complex<double>>> makeSparseDiagonals(
+    const std::vector<FloatT>& flatDiagonals, int64_t diagonalCount,
+    int64_t slotCount) {
+  std::vector<std::vector<std::complex<double>>> diagonals(
+      diagonalCount, std::vector<std::complex<double>>(slotCount));
+  for (int64_t diagonal = 0; diagonal < diagonalCount; ++diagonal) {
+    for (int64_t slot = 0; slot < slotCount; ++slot) {
+      diagonals[diagonal][slot] = std::complex<double>(
+          flatDiagonals[diagonal * slotCount + slot], 0.0);
+    }
+  }
+  return diagonals;
+}
+
 // Helper function for floor division on integers
 static inline int floorDivInt(int lhs, int rhs) {
   return static_cast<int>(std::floor(static_cast<float>(lhs) / rhs));
@@ -156,6 +198,7 @@ void Interpreter::initializeDispatchTable() {
   REGISTER_OP(AddPlainOp);
   REGISTER_OP(AutomorphOp);
   REGISTER_OP(BootstrapOp);
+  REGISTER_OP(ChebyshevOp);
   REGISTER_OP(DecodeCKKSOp);
   REGISTER_OP(DecodeOp);
   REGISTER_OP(DecryptOp);
@@ -173,6 +216,7 @@ void Interpreter::initializeDispatchTable() {
   REGISTER_OP(KeySwitchDownOp);
   REGISTER_OP(LevelReduceInPlaceOp);
   REGISTER_OP(LevelReduceOp);
+  REGISTER_OP(LinearTransformOp);
   REGISTER_OP(MakeCKKSPackedPlaintextOp);
   REGISTER_OP(MakePackedPlaintextOp);
   REGISTER_OP(ModReduceInPlaceOp);
@@ -1804,6 +1848,77 @@ void Interpreter::visit(BootstrapOp op) {
   auto cc = cryptoContexts.at(op.getCryptoContext());
   auto ct = ciphertexts.at(op.getCiphertext());
   TIME_OPERATION("Bootstrap", op.getOutput(), cc->EvalBootstrap(ct));
+}
+
+void Interpreter::visit(LinearTransformOp op) {
+  auto cc = cryptoContexts.at(op.getCryptoContext());
+  auto ct = ciphertexts.at(op.getCiphertext());
+  auto diagonalsType = dyn_cast<RankedTensorType>(op.getDiagonals().getType());
+  if (!diagonalsType || diagonalsType.getRank() != 2 ||
+      !diagonalsType.hasStaticShape()) {
+    op.emitError("expected a statically shaped rank-2 diagonals tensor");
+    return;
+  }
+
+  int64_t diagonalCount = diagonalsType.getShape()[0];
+  int64_t slotCount = diagonalsType.getShape()[1];
+  std::vector<int32_t> diagonalIndices(op.getDiagonalIndices().begin(),
+                                       op.getDiagonalIndices().end());
+  uint32_t babyStep = static_cast<uint32_t>(findBestBSGSRatio(
+      op.getDiagonalIndices(), slotCount,
+      op.getLogBabyStepGiantStepRatio()));
+
+  auto scheme = std::dynamic_pointer_cast<SchemeCKKSRNS>(cc->GetScheme());
+  if (!scheme) {
+    op.emitError("expected a CKKS SchemeCKKSRNS scheme");
+    return;
+  }
+
+  std::vector<std::vector<std::complex<double>>> sparseDiagonals;
+  if (auto it = doubleVectors.find(op.getDiagonals()); it != doubleVectors.end()) {
+    sparseDiagonals =
+        makeSparseDiagonals(*it->second, diagonalCount, slotCount);
+  } else if (auto it = floatVectors.find(op.getDiagonals());
+             it != floatVectors.end()) {
+    sparseDiagonals =
+        makeSparseDiagonals(*it->second, diagonalCount, slotCount);
+  } else {
+    op.emitError("expected floating-point diagonal storage for linear transform");
+    return;
+  }
+
+  auto precomputed = scheme->EvalLinearTransformPrecomputeSparse(
+      *cc.get(), sparseDiagonals, diagonalIndices, babyStep, 1.0,
+      ct->GetLevel());
+  TIME_OPERATION("LinearTransform", op.getOutput(),
+                 scheme->EvalLinearTransformSparse(precomputed, ct,
+                                                   diagonalIndices,
+                                                   babyStep));
+}
+
+void Interpreter::visit(ChebyshevOp op) {
+  auto cc = cryptoContexts.at(op.getCryptoContext());
+  auto ct = ciphertexts.at(op.getCiphertext());
+
+  std::vector<double> coefficients;
+  coefficients.reserve(op.getCoefficients().size());
+  for (Attribute attr : op.getCoefficients()) {
+    if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
+      coefficients.push_back(floatAttr.getValueAsDouble());
+      continue;
+    }
+    if (auto integerAttr = dyn_cast<IntegerAttr>(attr)) {
+      coefficients.push_back(integerAttr.getValue().getSExtValue());
+      continue;
+    }
+    op.emitError("expected float or integer Chebyshev coefficients");
+    return;
+  }
+
+  TIME_OPERATION("Chebyshev", op.getOutput(),
+                 cc->EvalChebyshevSeries(
+                     ct, coefficients, op.getDomainStart(),
+                     op.getDomainEnd()));
 }
 
 // OpenFHE encryption/decryption operations
