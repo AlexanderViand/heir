@@ -506,7 +506,8 @@ LogicalResult OpenFhePkeEmitter::emitPrecomputeFunction(func::FuncOp funcOp) {
       os << cacheVar << " = heir_precompute_linear_transform(" << contextName
          << ", " << diagonalsName << ", " << diagonalIndicesName << ", "
          << linearTransform.getLogBabyStepGiantStepRatio() << ", "
-         << level.value() << ");\n";
+         << "heir_openfhe_level_from_orion(" << contextName << ", "
+         << level.value() << "));\n";
     } else if (auto makePlain = dyn_cast<MakeCKKSPackedPlaintextOp>(op)) {
       auto inputType = dyn_cast<RankedTensorType>(makePlain.getValue().getType());
       if (!inputType || !isa<BlockArgument>(makePlain.getValue())) {
@@ -1131,9 +1132,11 @@ LogicalResult OpenFhePkeEmitter::printOperation(LinearTransformOp op) {
   std::string resultName = variableNames->getNameForValue(op.getResult());
   std::string cacheName = resultName + "_lt";
   std::string diagonalIndicesName = cacheName + "_diagonal_indices";
-  std::string levelExpr = succeeded(level)
-                              ? std::to_string(level.value())
-                              : ciphertextName + "->GetLevel()";
+  std::string levelExpr =
+      succeeded(level)
+          ? ("heir_openfhe_level_from_orion(" + contextName + ", " +
+             std::to_string(level.value()) + ")")
+          : (ciphertextName + "->GetLevel()");
   if (parentFunc) {
     std::string cacheKey(canonicalizeDebugPort(parentFunc.getName()));
     cacheKey += "::";

@@ -8,6 +8,7 @@ namespace heir {
 namespace openfhe {
 
 constexpr std::string_view kSourceRelativeOpenfheImport = R"cpp(
+#include <algorithm>
 #include <complex>
 #include <cstdint>
 #include <map>
@@ -17,6 +18,7 @@ constexpr std::string_view kSourceRelativeOpenfheImport = R"cpp(
 #include "src/pke/include/openfhe.h"  // from @openfhe
 )cpp";
 constexpr std::string_view kInstallationRelativeOpenfheImport = R"cpp(
+#include <algorithm>
 #include <complex>
 #include <cstdint>
 #include <map>
@@ -26,6 +28,7 @@ constexpr std::string_view kInstallationRelativeOpenfheImport = R"cpp(
 #include "openfhe/pke/openfhe.h"  // from @openfhe
 )cpp";
 constexpr std::string_view kEmbeddedOpenfheImport = R"cpp(
+#include <algorithm>
 #include <complex>
 #include <cstdint>
 #include <map>
@@ -44,7 +47,6 @@ using CCParamsT = CCParams<CryptoContext{0}RNS>;
 using CryptoContextT = CryptoContext<DCRTPoly>;
 using EvalKeyT = EvalKey<DCRTPoly>;
 using PlaintextT = Plaintext;
-using ReadOnlyPlaintextT = ReadOnlyPlaintext;
 using PrivateKeyT = PrivateKey<DCRTPoly>;
 using PublicKeyT = PublicKey<DCRTPoly>;
 )cpp";
@@ -60,8 +62,11 @@ inline std::string heir_cache_key(const char* base, CryptoContextT cc) {
 struct HeirLinearTransform {
   bool initialized = false;
   uint32_t baby_step = 0;
-  std::vector<int32_t> diagonal_indices;
-  std::vector<ReadOnlyPlaintextT> plaintexts;
+  std::vector<uint32_t> baby_indices;
+  std::vector<uint32_t> baby_rotations;
+  std::vector<uint32_t> giant_steps;
+  std::vector<std::vector<size_t>> giant_positions;
+  std::vector<PlaintextT> plaintexts;
 };
 
 inline std::map<std::string, HeirLinearTransform>&
@@ -73,6 +78,34 @@ heir_linear_transform_cache() {
 inline std::map<std::string, PlaintextT>& heir_ckks_plaintext_cache() {
   static std::map<std::string, PlaintextT> cache;
   return cache;
+}
+
+inline uint32_t heir_openfhe_level_from_orion(CryptoContextT cc,
+                                              uint32_t orion_level) {
+  uint32_t num_moduli =
+      cc->GetCryptoParameters()->GetElementParams()->GetParams().size();
+  if (orion_level >= num_moduli) {
+    OPENFHE_THROW("HEIR Orion level exceeds OpenFHE modulus chain length");
+  }
+  return num_moduli - 1 - orion_level;
+}
+
+template <typename T>
+inline std::vector<T> heir_rotate_vector(const std::vector<T>& values,
+                                         int64_t rotation) {
+  std::vector<T> rotated(values.size());
+  int64_t slots = static_cast<int64_t>(values.size());
+  if (slots == 0) {
+    return rotated;
+  }
+  for (int64_t slot = 0; slot < slots; ++slot) {
+    int64_t index = (slot + rotation) % slots;
+    if (index < 0) {
+      index += slots;
+    }
+    rotated[slot] = values[index];
+  }
+  return rotated;
 }
 
 inline int64_t heir_wrap_rotation(int64_t rot, int64_t slots) {
@@ -122,10 +155,6 @@ inline HeirLinearTransform heir_precompute_linear_transform(
     CryptoContextT cc, const std::vector<FloatT>& flat_diagonals,
     const std::vector<int32_t>& diagonal_indices, int64_t log_bsgs_ratio,
     uint32_t level) {
-  auto scheme = std::dynamic_pointer_cast<SchemeCKKSRNS>(cc->GetScheme());
-  if (!scheme) {
-    OPENFHE_THROW("HEIR expected a CKKS SchemeCKKSRNS scheme");
-  }
   if (diagonal_indices.empty()) {
     OPENFHE_THROW("HEIR linear transform precompute requires diagonals");
   }
@@ -138,27 +167,87 @@ inline HeirLinearTransform heir_precompute_linear_transform(
 
   HeirLinearTransform result;
   result.initialized = true;
-  result.diagonal_indices = diagonal_indices;
   result.baby_step = (log_bsgs_ratio < 0)
                          ? static_cast<uint32_t>(slot_count)
                          : heir_find_best_bsgs_ratio(diagonal_indices,
                                                      slot_count,
                                                      log_bsgs_ratio);
-  result.plaintexts = scheme->EvalLinearTransformPrecomputeSparse(
-      *cc.get(), sparse_diagonals, diagonal_indices, result.baby_step, 1.0,
-      level);
+  result.baby_indices.reserve(diagonal_count);
+  result.plaintexts.reserve(diagonal_count);
+
+  std::map<uint32_t, bool> baby_rotation_map;
+  std::map<uint32_t, std::vector<size_t>> giant_to_positions;
+  for (size_t position = 0; position < diagonal_indices.size(); ++position) {
+    uint32_t rot = static_cast<uint32_t>(
+        heir_wrap_rotation(diagonal_indices[position], slot_count));
+    uint32_t giant =
+        ((rot / result.baby_step) * result.baby_step) & (slot_count - 1);
+    uint32_t baby = rot & (result.baby_step - 1);
+    result.baby_indices.push_back(baby);
+    if (baby != 0) {
+      baby_rotation_map[baby] = true;
+    }
+    giant_to_positions[giant].push_back(position);
+
+    auto shifted = heir_rotate_vector(sparse_diagonals[position],
+                                      -static_cast<int64_t>(giant));
+    result.plaintexts.push_back(cc->MakeCKKSPackedPlaintext(
+        shifted, /*noiseScaleDeg=*/1, level, /*params=*/nullptr,
+        /*slots=*/static_cast<uint32_t>(slot_count)));
+  }
+
+  result.baby_rotations.reserve(baby_rotation_map.size());
+  for (const auto& [baby, _] : baby_rotation_map) {
+    result.baby_rotations.push_back(baby);
+  }
+  result.giant_steps.reserve(giant_to_positions.size());
+  result.giant_positions.reserve(giant_to_positions.size());
+  for (auto& [giant, positions] : giant_to_positions) {
+    result.giant_steps.push_back(giant);
+    result.giant_positions.push_back(std::move(positions));
+  }
   return result;
 }
 
 inline CiphertextT heir_eval_linear_transform(CryptoContextT cc,
                                               ConstCiphertextT ciphertext,
                                               const HeirLinearTransform& lt) {
-  auto scheme = std::dynamic_pointer_cast<SchemeCKKSRNS>(cc->GetScheme());
-  if (!scheme) {
-    OPENFHE_THROW("HEIR expected a CKKS SchemeCKKSRNS scheme");
+  std::map<uint32_t, ConstCiphertextT> rotated_ciphertexts;
+  rotated_ciphertexts.emplace(0, ciphertext);
+  for (uint32_t baby : lt.baby_rotations) {
+    rotated_ciphertexts.emplace(
+        baby, cc->EvalRotate(ciphertext, static_cast<int32_t>(baby)));
   }
-  return scheme->EvalLinearTransformSparse(lt.plaintexts, ciphertext,
-                                           lt.diagonal_indices, lt.baby_step);
+
+  CiphertextT result;
+  bool result_initialized = false;
+  for (size_t group = 0; group < lt.giant_steps.size(); ++group) {
+    CiphertextT inner;
+    bool inner_initialized = false;
+    for (size_t position : lt.giant_positions[group]) {
+      auto product = cc->EvalMult(rotated_ciphertexts.at(lt.baby_indices[position]),
+                                  lt.plaintexts[position]);
+      if (!inner_initialized) {
+        inner = std::move(product);
+        inner_initialized = true;
+      } else {
+        cc->EvalAddInPlace(inner, product);
+      }
+    }
+
+    uint32_t giant = lt.giant_steps[group];
+    if (giant != 0) {
+      inner = cc->EvalRotate(inner, static_cast<int32_t>(giant));
+    }
+
+    if (!result_initialized) {
+      result = std::move(inner);
+      result_initialized = true;
+    } else {
+      cc->EvalAddInPlace(result, inner);
+    }
+  }
+  return result;
 }
 )cpp";
 // clang-format on

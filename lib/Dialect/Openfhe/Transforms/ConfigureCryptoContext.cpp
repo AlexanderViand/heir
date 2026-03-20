@@ -279,8 +279,7 @@ struct ConfigureCryptoContext
     Value cryptoContext = openfhe::GenContextOp::create(
         builder, openfheContextType, ccParams,
         BoolAttr::get(builder.getContext(),
-                      config.hasBootstrapOp || config.hasChebyshevOp ||
-                          config.hasLinearTransformOp));
+                      config.hasBootstrapOp || config.hasChebyshevOp));
 
     func::ReturnOp::create(builder, cryptoContext);
     return success();
@@ -496,10 +495,6 @@ struct ConfigureCryptoContext
     // re-derived OpenFHE depth heuristics.
     if (ckksSchemeMulDepth.has_value()) {
       config.mulDepth = static_cast<int>(*ckksSchemeMulDepth);
-    } else if (config.hasLinearTransformOp) {
-      // OpenFHE's auxiliary plaintext path sets explicit CKKS levels, and a
-      // value at level N requires multiplicative depth at least N+1.
-      config.mulDepth += 1;
     }
 
     // relin and rotation

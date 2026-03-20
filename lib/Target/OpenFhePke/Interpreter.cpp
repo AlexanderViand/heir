@@ -153,6 +153,20 @@ static std::vector<std::vector<std::complex<double>>> makeSparseDiagonals(
   return diagonals;
 }
 
+template <typename T>
+static std::vector<T> rotateVector(const std::vector<T>& values,
+                                   int64_t rotation) {
+  std::vector<T> rotated(values.size());
+  int64_t slots = static_cast<int64_t>(values.size());
+  if (slots == 0) {
+    return rotated;
+  }
+  for (int64_t slot = 0; slot < slots; ++slot) {
+    rotated[slot] = values[wrapRotation(slot + rotation, slots)];
+  }
+  return rotated;
+}
+
 // Helper function for floor division on integers
 static inline int floorDivInt(int lhs, int rhs) {
   return static_cast<int>(std::floor(static_cast<float>(lhs) / rhs));
@@ -1868,12 +1882,6 @@ void Interpreter::visit(LinearTransformOp op) {
       op.getDiagonalIndices(), slotCount,
       op.getLogBabyStepGiantStepRatio()));
 
-  auto scheme = std::dynamic_pointer_cast<SchemeCKKSRNS>(cc->GetScheme());
-  if (!scheme) {
-    op.emitError("expected a CKKS SchemeCKKSRNS scheme");
-    return;
-  }
-
   std::vector<std::vector<std::complex<double>>> sparseDiagonals;
   if (auto it = doubleVectors.find(op.getDiagonals()); it != doubleVectors.end()) {
     sparseDiagonals =
@@ -1887,13 +1895,68 @@ void Interpreter::visit(LinearTransformOp op) {
     return;
   }
 
-  auto precomputed = scheme->EvalLinearTransformPrecomputeSparse(
-      *cc.get(), sparseDiagonals, diagonalIndices, babyStep, 1.0,
-      ct->GetLevel());
-  TIME_OPERATION("LinearTransform", op.getOutput(),
-                 scheme->EvalLinearTransformSparse(precomputed, ct,
-                                                   diagonalIndices,
-                                                   babyStep));
+  std::vector<PlaintextT> plaintexts;
+  plaintexts.reserve(diagonalIndices.size());
+  std::vector<uint32_t> babyIndices;
+  babyIndices.reserve(diagonalIndices.size());
+  std::map<uint32_t, std::vector<size_t>> giantToPositions;
+  std::map<uint32_t, bool> babyRotationMap;
+  for (size_t position = 0; position < diagonalIndices.size(); ++position) {
+    uint32_t rot =
+        static_cast<uint32_t>(wrapRotation(diagonalIndices[position], slotCount));
+    uint32_t giant = ((rot / babyStep) * babyStep) & (slotCount - 1);
+    uint32_t baby = rot & (babyStep - 1);
+    babyIndices.push_back(baby);
+    if (baby != 0) {
+      babyRotationMap[baby] = true;
+    }
+    giantToPositions[giant].push_back(position);
+
+    auto shifted =
+        rotateVector(sparseDiagonals[position], -static_cast<int64_t>(giant));
+    plaintexts.push_back(cc->MakeCKKSPackedPlaintext(
+        shifted, /*noiseScaleDeg=*/1, /*level=*/ct->GetLevel(),
+        /*params=*/nullptr, /*slots=*/static_cast<uint32_t>(slotCount)));
+  }
+
+  TIME_OPERATION("LinearTransform", op.getOutput(), [&]() {
+    std::map<uint32_t, CiphertextT> rotatedCiphertexts;
+    rotatedCiphertexts.emplace(0, ct);
+    for (const auto& [baby, _] : babyRotationMap) {
+      rotatedCiphertexts.emplace(
+          baby, cc->EvalRotate(ct, static_cast<int32_t>(baby)));
+    }
+
+    CiphertextT result;
+    bool resultInitialized = false;
+    for (const auto& [giant, positions] : giantToPositions) {
+      CiphertextT inner;
+      bool innerInitialized = false;
+      for (size_t position : positions) {
+        auto product =
+            cc->EvalMult(rotatedCiphertexts.at(babyIndices[position]),
+                         plaintexts[position]);
+        if (!innerInitialized) {
+          inner = std::move(product);
+          innerInitialized = true;
+        } else {
+          cc->EvalAddInPlace(inner, product);
+        }
+      }
+
+      if (giant != 0) {
+        inner = cc->EvalRotate(inner, static_cast<int32_t>(giant));
+      }
+
+      if (!resultInitialized) {
+        result = std::move(inner);
+        resultInitialized = true;
+      } else {
+        cc->EvalAddInPlace(result, inner);
+      }
+    }
+    return result;
+  }());
 }
 
 void Interpreter::visit(ChebyshevOp op) {
