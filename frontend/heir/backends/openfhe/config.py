@@ -3,7 +3,7 @@
 import dataclasses
 import importlib.resources
 import os
-from heir.backends.util.common import get_repo_root, is_pip_installed
+from heir.backends.util.common import get_bazel_bin, get_repo_root, is_pip_installed
 
 dataclass = dataclasses.dataclass
 
@@ -58,8 +58,9 @@ def development_openfhe_config() -> OpenFHEConfig:
   repo_root = get_repo_root()
   if not repo_root:
     raise RuntimeError("Could not build development config. Did you run bazel?")
+  bazel_bin = get_bazel_bin("opt") or repo_root / "bazel-bin"
   execroot_link = _development_execroot_link(repo_root)
-  bazel_bin_openfhe = repo_root / "bazel-bin" / "external" / "openfhe+"
+  bazel_bin_openfhe = bazel_bin / "external" / "openfhe+"
 
   return OpenFHEConfig(
       include_dirs=[
@@ -73,7 +74,7 @@ def development_openfhe_config() -> OpenFHEConfig:
           str(execroot_link / "external" / "cereal+" / "include"),
       ],
       include_type="source-relative",
-      lib_dir=str(repo_root / "bazel-bin" / "external" / "openfhe+"),
+      lib_dir=str(bazel_bin_openfhe),
       link_libs=["openfhe"],
   )
 
