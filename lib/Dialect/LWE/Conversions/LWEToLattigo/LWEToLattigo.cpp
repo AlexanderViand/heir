@@ -671,7 +671,8 @@ struct ConvertOrionChebyshevOp
 
     auto chebyshevOp = lattigo::CKKSChebyshevOp::create(
         rewriter, op.getLoc(), adaptor.getInput().getType(), polyEvaluator,
-        adaptor.getInput(), adaptor.getCoefficients(), defaultScale);
+        adaptor.getInput(), adaptor.getCoefficients(), defaultScale,
+        op.getDomainStartAttr(), op.getDomainEndAttr());
     rewriter.replaceOp(op, chebyshevOp.getResult());
 
     return success();

@@ -2131,10 +2131,22 @@ LogicalResult LattigoEmitter::printOperation(CKKSChebyshevOp op) {
   os.unindent();
   os << "}\n";
   std::string bignumPoly = getName(op.getOutput()) + "_bignumPoly";
+  double domainStart = op.getDomainStart().getValue().convertToDouble();
+  double domainEnd = op.getDomainEnd().getValue().convertToDouble();
+  std::string intervalArg;
+  if (domainStart == -1.0 && domainEnd == 1.0) {
+    intervalArg = "nil";
+  } else {
+    std::string intervalName = getName(op.getOutput()) + "_interval";
+    std::ostringstream startStream, endStream;
+    startStream << std::scientific << domainStart;
+    endStream << std::scientific << domainEnd;
+    os << intervalName << " := [2]float64{" << startStream.str() << ", "
+       << endStream.str() << "}\n";
+    intervalArg = intervalName;
+  }
   os << bignumPoly << " := bignum.NewPolynomial(bignum.Chebyshev, "
-     << polyCoeffs
-     << ", "
-        "nil)\n";
+     << polyCoeffs << ", " << intervalArg << ")\n";
   std::string resultName = getName(op.getOutput());
   os << resultName << ", " << errName << " := ";
   os << getName(op.getEvaluator()) << ".Evaluate(";
