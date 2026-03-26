@@ -4,6 +4,7 @@ import importlib.resources
 import importlib.util
 import os
 import pathlib
+import subprocess
 import sysconfig
 
 from heir.interfaces import CompilationResult, EncValue
@@ -21,6 +22,24 @@ def get_repo_root() -> Path | None:
   default = find_above("bazel-bin")
   found = os.getenv("HEIR_REPO_ROOT_MARKER")
   return Path(found) if found else default
+
+
+def get_bazel_bin(compilation_mode: str = "opt") -> Path | None:
+  repo_root = get_repo_root()
+  if not repo_root:
+    return None
+  completed = subprocess.run(
+      ["bazel", "info", "bazel-bin", "-c", compilation_mode],
+      cwd=repo_root,
+      text=True,
+      capture_output=True,
+      check=False,
+  )
+  if completed.returncode == 0:
+    stdout = completed.stdout.strip()
+    if stdout:
+      return Path(stdout)
+  return repo_root / "bazel-bin"
 
 
 def strip_and_verify_eval_arg_consistency(

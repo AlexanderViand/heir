@@ -109,6 +109,22 @@ class OpenfheClientInterface(ClientInterface):
     if fn is None:
       raise ValueError("No main function found in compilation result")
 
+    precompute_fn = getattr(
+        self.compilation_result.module,
+        f"{self.compilation_result.func_name}__precompute",
+        None,
+    )
+    if precompute_fn is not None:
+      ordered_public_args = []
+      for i, arg_name in enumerate(self.compilation_result.arg_names):
+        if i in self.compilation_result.secret_args:
+          continue
+        if i < len(stripped_args):
+          ordered_public_args.append(stripped_args[i])
+        else:
+          ordered_public_args.append(stripped_kwargs[arg_name])
+      precompute_fn(self.crypto_context, *ordered_public_args)
+
     return fn(self.crypto_context, *stripped_args, **stripped_kwargs)
 
   def __call__(self, *args, **kwargs):

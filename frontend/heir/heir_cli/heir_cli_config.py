@@ -6,7 +6,7 @@ import importlib.resources
 import pathlib
 from pathlib import Path
 import shutil
-from heir.backends.util.common import get_repo_root, is_pip_installed
+from heir.backends.util.common import get_bazel_bin, get_repo_root, is_pip_installed
 
 
 dataclass = dataclasses.dataclass
@@ -24,10 +24,10 @@ def development_heir_config() -> HEIRConfig:
   repo_root = get_repo_root()
   if not repo_root:
     raise RuntimeError("Could not build development config. Did you run bazel?")
+  bazel_bin = get_bazel_bin("opt") or repo_root / "bazel-bin"
 
   techmap_dir_path = (
-      repo_root
-      / "bazel-bin"
+      bazel_bin
       / "tools"
       / "heir-opt.runfiles"
       / "_main"
@@ -39,20 +39,13 @@ def development_heir_config() -> HEIRConfig:
   if not techmap_dir_path.exists():
     techmap_dir_path = ""
 
-  abc_path = (
-      repo_root
-      / "bazel-bin"
-      / "tools"
-      / "heir-opt.runfiles"
-      / "abc"
-      / "abc_bin"
-  )
+  abc_path = bazel_bin / "tools" / "heir-opt.runfiles" / "abc" / "abc_bin"
   if not abc_path.exists():
     abc_path = ""
 
   return HEIRConfig(
-      heir_opt_path=repo_root / "bazel-bin" / "tools" / "heir-opt",
-      heir_translate_path=repo_root / "bazel-bin" / "tools" / "heir-translate",
+      heir_opt_path=bazel_bin / "tools" / "heir-opt",
+      heir_translate_path=bazel_bin / "tools" / "heir-translate",
       techmap_dir_path=techmap_dir_path,
       abc_path=abc_path,
   )
