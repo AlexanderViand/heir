@@ -616,6 +616,25 @@ struct ConvertOrionLinearTransformOp
   }
 };
 
+struct ConvertCKKSMulScalarOp : public OpConversionPattern<ckks::MulScalarOp> {
+  using OpConversionPattern<ckks::MulScalarOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      ckks::MulScalarOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    FailureOr<Value> evaluatorResult =
+        getContextualEvaluator<lattigo::CKKSEvaluatorType>(op.getOperation());
+    if (failed(evaluatorResult))
+      return rewriter.notifyMatchFailure(op, "CKKS evaluator not found");
+
+    auto result = lattigo::CKKSMulScalarNewOp::create(
+        rewriter, op.getLoc(), adaptor.getInput().getType(),
+        evaluatorResult.value(), adaptor.getInput(), op.getScalarAttr());
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+};
+
 struct ConvertOrionChebyshevOp
     : public OpConversionPattern<orion::ChebyshevOp> {
   using OpConversionPattern<orion::ChebyshevOp>::OpConversionPattern;
@@ -999,15 +1018,15 @@ struct LWEToLattigo : public impl::LWEToLattigoBase<LWEToLattigo> {
                                                                 context);
     }
     if (moduleIsCKKS(module)) {
-      patterns.add<ConvertCKKSAddOp, ConvertCKKSSubOp, ConvertCKKSMulOp,
-                   ConvertCKKSAddPlainOp, ConvertCKKSSubPlainOp,
-                   ConvertCKKSMulPlainOp, ConvertCKKSRelinOp,
-                   ConvertCKKSModulusSwitchOp, ConvertCKKSRotateOp,
-                   ConvertCKKSEncryptOp, ConvertCKKSDecryptOp,
-                   ConvertCKKSEncodeOp, ConvertCKKSDecodeOp,
-                   ConvertCKKSLevelReduceOp, ConvertCKKSBootstrappingOp,
-                   ConvertOrionLinearTransformOp, ConvertOrionChebyshevOp>(
-          typeConverter, context);
+      patterns.add<
+          ConvertCKKSAddOp, ConvertCKKSSubOp, ConvertCKKSMulOp,
+          ConvertCKKSAddPlainOp, ConvertCKKSSubPlainOp, ConvertCKKSMulPlainOp,
+          ConvertCKKSRelinOp, ConvertCKKSModulusSwitchOp, ConvertCKKSRotateOp,
+          ConvertCKKSEncryptOp, ConvertCKKSDecryptOp, ConvertCKKSEncodeOp,
+          ConvertCKKSDecodeOp, ConvertCKKSLevelReduceOp,
+          ConvertCKKSBootstrappingOp, ConvertCKKSMulScalarOp,
+          ConvertOrionLinearTransformOp, ConvertOrionChebyshevOp>(typeConverter,
+                                                                  context);
     }
     // Misc
 

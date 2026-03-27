@@ -129,8 +129,8 @@ LogicalResult LattigoEmitter::translate(Operation& op) {
               CKKSAddNewOp, CKKSSubNewOp, CKKSMulNewOp, CKKSAddOp, CKKSSubOp,
               CKKSMulOp, CKKSRelinearizeOp, CKKSRescaleOp, CKKSRotateOp,
               CKKSRelinearizeNewOp, CKKSRescaleNewOp, CKKSRotateNewOp,
-              CKKSLinearTransformOp, CKKSChebyshevOp, CKKSBootstrapOp,
-              CKKSNewBootstrappingParametersFromLiteralOp,
+              CKKSLinearTransformOp, CKKSChebyshevOp, CKKSMulScalarNewOp,
+              CKKSBootstrapOp, CKKSNewBootstrappingParametersFromLiteralOp,
               CKKSGenEvaluationKeysBootstrappingOp,
               CKKSNewBootstrappingEvaluatorOp>(
               [&](auto op) { return printOperation(op); })
@@ -2154,6 +2154,46 @@ LogicalResult LattigoEmitter::printOperation(CKKSChebyshevOp op) {
   os << bignumPoly << ", ";
   os << "rlwe.NewScale(" << op.getTargetScale().getInt() << "))\n";
   printErrPanic(errName);
+  return success();
+}
+
+LogicalResult LattigoEmitter::printOperation(CKKSMulScalarNewOp op) {
+  double scalar = op.getScalar().getValue().convertToDouble();
+  std::ostringstream scalarStream;
+  scalarStream << std::scientific << scalar;
+
+  std::string base = getName(op.getOutput());
+  std::string ptName = base + "_pt";
+  std::string ctName = base + "_ct";
+  std::string resultName = getName(op.getOutput());
+
+  // Encode scalar into a plaintext at the input's level and default scale
+  os << ptName << " := ckks.NewPlaintext(param, " << getName(op.getInput())
+     << ".Level())\n";
+  os << ptName << ".Scale = param.DefaultScale()\n";
+
+  // Fill all slots with the scalar value
+  os << "{\n";
+  os.indent();
+  os << "vals := make([]float64, param.MaxSlots())\n";
+  os << "for i := range vals { vals[i] = " << scalarStream.str() << " }\n";
+  os << "encoder.Encode(vals, " << ptName << ")\n";
+  os.unindent();
+  os << "}\n";
+
+  // ct × pt (doubles scale)
+  std::string mulErr = getErrName();
+  os << ctName << ", " << mulErr << " := " << getName(op.getEvaluator())
+     << ".MulNew(" << getName(op.getInput()) << ", " << ptName << ")\n";
+  printErrPanic(mulErr);
+
+  // Rescale (halves scale back)
+  os << resultName << " := " << ctName << ".CopyNew()\n";
+  std::string rescaleErr = getErrName();
+  os << rescaleErr << " := " << getName(op.getEvaluator()) << ".Rescale("
+     << ctName << ", " << resultName << ")\n";
+  printErrPanic(rescaleErr);
+
   return success();
 }
 

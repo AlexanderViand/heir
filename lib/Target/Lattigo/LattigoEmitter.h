@@ -193,6 +193,7 @@ class LattigoEmitter {
   LogicalResult printOperation(CKKSRotateOp op);
   LogicalResult printOperation(CKKSLinearTransformOp op);
   LogicalResult printOperation(CKKSChebyshevOp op);
+  LogicalResult printOperation(CKKSMulScalarNewOp op);
 
   // Helpers for above
   void printErrPanic(std::string_view errName);

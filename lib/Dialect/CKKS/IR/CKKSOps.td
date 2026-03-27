@@ -93,6 +93,22 @@ def CKKS_MulPlainOp : CKKS_CiphertextPlaintextOp<"mul_plain", [ElementwiseMappab
   let hasCanonicalizer = 1;
 }
 
+def CKKS_MulScalarOp : CKKS_Op<"mul_scalar", [ElementwiseMappable,
+    SameOperandsAndResultType]> {
+  let summary = "Multiply a ciphertext by a scalar float constant.";
+
+  let arguments = (ins
+    LWECiphertextLike:$input,
+    Builtin_FloatAttr:$scalar
+  );
+
+  let results = (outs
+    LWECiphertextLike:$output
+  );
+
+  let assemblyFormat = "$input attr-dict `:` type($input) `->` type($output)";
+}
+
 def CKKS_RotateOp : CKKS_Op<"rotate", [
   ElementwiseMappable,
   AllTypesMatch<["input", "output"]>,

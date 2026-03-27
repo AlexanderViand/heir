@@ -430,4 +430,15 @@ def Lattigo_CKKSChebyshevOp : Lattigo_CKKSOp<"chebyshev", [AllTypesMatch<["ciphe
 }
 
 
+def Lattigo_CKKSMulScalarNewOp : Lattigo_CKKSOp<"mul_scalar_new",
+    [AllTypesMatch<["input", "output"]>]> {
+  let summary = "Multiply a CKKS ciphertext by a scalar float constant";
+  let arguments = (ins
+    Lattigo_CKKSEvaluator:$evaluator,
+    Lattigo_RLWECiphertext:$input,
+    Builtin_FloatAttr:$scalar
+  );
+  let results = (outs Lattigo_RLWECiphertext:$output);
+}
+
 #endif  // LIB_DIALECT_LATTIGO_IR_LATTIGOCKKSOPS_TD_
