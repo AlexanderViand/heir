@@ -328,9 +328,34 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto encoder = getContextualArg<cheddar::EncoderType>(op.getOperation());
     if (failed(encoder)) return encoder;
 
-    // TODO: derive level and scale from the encoding attributes
-    auto level = rewriter.getI64IntegerAttr(0);
-    auto scale = rewriter.getI64IntegerAttr(1ULL << 40);
+    // Derive level from the plaintext's ciphertext space modulus chain
+    // and scale from the encoding's scaling factor.
+    int64_t levelVal = 0;
+    int64_t logScale = 45;  // default
+
+    auto ptType = dyn_cast<lwe::LWEPlaintextType>(op.getOutput().getType());
+    if (ptType) {
+      auto encoding = ptType.getPlaintextSpace().getEncoding();
+      if (auto invEncoding =
+              dyn_cast<lwe::InverseCanonicalEncodingAttr>(encoding)) {
+        logScale = invEncoding.getScalingFactor();
+      }
+    }
+
+    // Get level from the result users — find the first ciphertext user
+    // and extract its modulus chain current level.
+    for (auto user : op.getResult().getUsers()) {
+      for (auto result : user->getResults()) {
+        if (auto ctType = dyn_cast<lwe::LWECiphertextType>(result.getType())) {
+          levelVal = ctType.getModulusChain().getCurrent();
+          break;
+        }
+      }
+      if (levelVal > 0) break;
+    }
+
+    auto level = rewriter.getI64IntegerAttr(levelVal);
+    auto scale = rewriter.getI64IntegerAttr(1ULL << logScale);
 
     rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
         op, cheddar::PlaintextType::get(getContext()), encoder.value(),
