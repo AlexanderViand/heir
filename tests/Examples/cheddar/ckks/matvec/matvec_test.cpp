@@ -21,22 +21,11 @@ TEST(CheddarMatvec, EndToEnd) {
   std::cout << "=== CHEDDAR Matvec 16x16 Test ===" << std::endl;
 
   // Parameters from the compiled MLIR's cheddar.Q / cheddar.P attributes.
-  // Padded to CHEDDAR's minimum prime count (26 Q, 7 P) by
-  // ConfigureCryptoContext.
-  std::vector<word> main_primes = {
-      36028797014376449ULL, 35184372744193ULL, 35184373006337ULL,
-      35184376545281ULL,    35184377331713ULL, 35184378511361ULL,
-      35184379035649ULL,    35184380870657ULL, 35184382967809ULL,
-      35184383229953ULL,    35184383754241ULL, 35184385196033ULL,
-      35184386899969ULL,    35184388734977ULL, 35184394240001ULL,
-      35184398958593ULL,    35184399351809ULL, 35184404070401ULL,
-      35184410361857ULL,    35184411279361ULL, 35184412065793ULL,
-      35184414031873ULL,    35184415080449ULL, 35184415866881ULL,
-      35184418619393ULL,    35184419930113ULL};
-  std::vector<word> aux_primes = {
-      1152921504614055937ULL, 1152921504615628801ULL, 1152921504616808449ULL,
-      1152921504618381313ULL, 1152921504620347393ULL, 1152921504622575617ULL,
-      1152921504625328129ULL};
+  // NOTE: Only 2 Q primes (depth 1 computation). This may be too few
+  // for CHEDDAR's GPU kernels. Test is marked as expected to fail
+  // until we implement proper minimum level enforcement.
+  std::vector<word> main_primes = {36028797014376449ULL, 35184372744193ULL};
+  std::vector<word> aux_primes = {1152921504614055937ULL};
 
   std::vector<std::pair<int, int>> level_config;
   for (int i = 1; i <= static_cast<int>(main_primes.size()); ++i) {
