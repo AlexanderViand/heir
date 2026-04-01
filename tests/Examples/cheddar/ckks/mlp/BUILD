@@ -44,7 +44,6 @@ cc_library(
     name = "mlp_lib",
     srcs = [":mlp_cpp"],
     hdrs = [":mlp_header"],
-    copts = ["-isystem /usr/local/cuda/include"],
     linkopts = [
         "-L/usr/local/cuda/lib64",
         "-lcuda",
@@ -60,7 +59,6 @@ cc_library(
 cc_test(
     name = "mlp_test",
     srcs = ["mlp_test.cpp"],
-    copts = ["-isystem /usr/local/cuda/include"],
     tags = ["notap"],  # Requires GPU, not run in CI
     target_compatible_with = requires_cheddar(),
     deps = [
