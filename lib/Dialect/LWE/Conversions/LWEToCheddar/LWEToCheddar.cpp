@@ -325,7 +325,27 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
   }
 };
 
+// Helper: get the ciphertext level from an op (checking both operands and
+// results for LWECiphertextType).
+static int64_t getCiphertextLevel(Operation* user) {
+  for (auto operand : user->getOperands()) {
+    if (auto ctType = dyn_cast<lwe::LWECiphertextType>(operand.getType())) {
+      return ctType.getModulusChain().getCurrent();
+    }
+  }
+  for (auto result : user->getResults()) {
+    if (auto ctType = dyn_cast<lwe::LWECiphertextType>(result.getType())) {
+      return ctType.getModulusChain().getCurrent();
+    }
+  }
+  return 0;
+}
+
 // Encode
+// CHEDDAR requires the plaintext level to exactly match the ciphertext level
+// in ct-pt operations. When the same plaintext is used at multiple levels
+// (e.g., mult_plain then rescale then mult_plain), we create separate encode
+// ops for each distinct level.
 struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -335,11 +355,7 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto encoder = getContextualArg<cheddar::EncoderType>(op.getOperation());
     if (failed(encoder)) return encoder;
 
-    // Derive level from the plaintext's ciphertext space modulus chain
-    // and scale from the encoding's scaling factor.
-    int64_t levelVal = 0;
     int64_t logScale = 45;  // default
-
     auto ptType = dyn_cast<lwe::LWEPlaintextType>(op.getOutput().getType());
     if (ptType) {
       auto encoding = ptType.getPlaintextSpace().getEncoding();
@@ -349,33 +365,47 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
       }
     }
 
-    // Get level from the ciphertext type associated with the operation that
-    // uses this plaintext. Check both operands (for ct-pt ops like add_plain)
-    // and results (for encrypt ops where the output is a ciphertext).
-    for (auto user : op.getResult().getUsers()) {
-      for (auto operand : user->getOperands()) {
-        if (auto ctType = dyn_cast<lwe::LWECiphertextType>(operand.getType())) {
-          levelVal = ctType.getModulusChain().getCurrent();
-          break;
-        }
-      }
-      if (levelVal > 0) break;
-      for (auto result : user->getResults()) {
-        if (auto ctType = dyn_cast<lwe::LWECiphertextType>(result.getType())) {
-          levelVal = ctType.getModulusChain().getCurrent();
-          break;
-        }
-      }
-      if (levelVal > 0) break;
+    // Collect per-user levels.
+    SmallVector<std::pair<Operation*, int64_t>> userLevels;
+    for (auto* user : op.getResult().getUsers()) {
+      userLevels.push_back({user, getCiphertextLevel(user)});
     }
 
-    auto level = rewriter.getI64IntegerAttr(levelVal);
-    // Store logScale directly; the emitter will compute the actual scale.
-    auto scale = rewriter.getI64IntegerAttr(logScale);
+    // Check if all users need the same level.
+    bool allSameLevel = llvm::all_of(userLevels, [&](auto& pair) {
+      return pair.second == userLevels.front().second;
+    });
 
-    rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
-        op, cheddar::PlaintextType::get(getContext()), encoder.value(),
-        adaptor.getInput(), level, scale);
+    auto scale = rewriter.getI64IntegerAttr(logScale);
+    auto ptTy = cheddar::PlaintextType::get(getContext());
+
+    if (allSameLevel || userLevels.size() <= 1) {
+      int64_t levelVal = userLevels.empty() ? 0 : userLevels.front().second;
+      rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
+          op, ptTy, encoder.value(), adaptor.getInput(),
+          rewriter.getI64IntegerAttr(levelVal), scale);
+    } else {
+      // Create separate encodes for each distinct level and replace uses.
+      DenseMap<int64_t, Value> levelToEncode;
+      for (auto& [user, level] : userLevels) {
+        if (!levelToEncode.count(level)) {
+          levelToEncode[level] = cheddar::EncodeOp::create(
+              rewriter, op.getLoc(), ptTy, encoder.value(), adaptor.getInput(),
+              rewriter.getI64IntegerAttr(level), scale);
+        }
+      }
+      // Replace each user's use of the original plaintext with the
+      // level-matched encode.
+      for (auto& [user, level] : userLevels) {
+        for (auto& operand : user->getOpOperands()) {
+          if (operand.get() == op.getResult()) {
+            rewriter.modifyOpInPlace(
+                user, [&] { operand.set(levelToEncode[level]); });
+          }
+        }
+      }
+      rewriter.eraseOp(op);
+    }
     return success();
   }
 };
