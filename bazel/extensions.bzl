@@ -53,3 +53,28 @@ def _llvm_deps_impl(_):
 llvm_deps = module_extension(
     implementation = _llvm_deps_impl,
 )
+
+FIDESLIB_COMMIT = "2614633e8d52fa3ace844ce86a3a61ea4828f774"
+
+def _fideslib_deps_impl(_):
+    """Implementation of the fideslib_deps module extension."""
+
+    maybe(
+        new_git_repository,
+        name = "fideslib",
+        build_file = "@heir//bazel/fideslib:fideslib.BUILD",
+        commit = FIDESLIB_COMMIT,
+        init_submodules = False,
+        remote = "https://github.com/CAPS-UMU/FIDESlib.git",
+        # Use system patch(1) because Bazel's built-in patcher doesn't
+        # handle the "\ No newline at end of file" marker in diffs.
+        patches = [
+            "@heir//patches/fideslib:0001-bazel-and-compiler-compat.patch",
+        ],
+        patch_args = ["-p1"],
+        patch_tool = "patch",
+    )
+
+fideslib_deps = module_extension(
+    implementation = _fideslib_deps_impl,
+)

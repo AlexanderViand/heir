@@ -4,5 +4,5 @@ package(
 )
 
 exports_files([
-    "llvm.patch",
+    "0001-bazel-and-compiler-compat.patch",
 ])

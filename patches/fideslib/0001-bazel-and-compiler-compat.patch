@@ -1,0 +1,840 @@
+diff --git a/.gitignore b/.gitignore
+index 1a61950..a794232 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -12,6 +12,7 @@ build/
+ 
+ /doxygen/latex/
+ /doxygen/html/
++/doxygen/generated/
+ 
+ .vscode/
+ .idea/
+@@ -19,3 +20,6 @@ build/
+ deps/openfhe-install/
+ 
+ .cache/
++
++.install/
++.venv/
+\ No newline at end of file
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index be3a27e..2e69319 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.25.2)
++cmake_minimum_required(VERSION 3.23.2)
+ cmake_policy(VERSION 3.21.3...3.30)
+ 
+ ############### Project configuration ###################
+@@ -49,27 +49,24 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+ set(CMAKE_CXX_EXTENSIONS ON)
+-set(CMAKE_C_COMPILER "clang")
+-set(CMAKE_CXX_COMPILER "clang++")
+ 
+ ############### CUDA Configuration ###################
+ 
+-# Set CUDA_PATH if not defined previously.
+-if (NOT DEFINED CUDA_PATH)
+-	set (CUDA_PATH "/usr/local/cuda")
+-endif ()
+-
+-# Check if CUDA is installed.
+-if (NOT EXISTS "${CUDA_PATH}")
+-	message (FATAL_ERROR "CUDA not found at ${CUDA_PATH}. Please install CUDA.")
++# If provided, use CUDA_PATH as a CUDAToolkit hint. This avoids hardcoding a
++# single install location and plays better with Bazel-managed environments.
++if (DEFINED CUDA_PATH AND NOT DEFINED CUDAToolkit_ROOT)
++	set (CUDAToolkit_ROOT "${CUDA_PATH}")
+ endif()
+ 
+ # Global language config.
+ set (CMAKE_CUDA_ARCHITECTURES "${FIDESLIB_ARCH}")
+-set (CMAKE_CUDA_STANDARD 20)
++set(FIDESLIB_CUDA_STANDARD "20" CACHE STRING "CUDA language standard used to compile FIDESlib")
++set (CMAKE_CUDA_STANDARD ${FIDESLIB_CUDA_STANDARD})
+ set (CMAKE_CUDA_STANDARD_REQUIRED ON)
+ set (CMAKE_CUDA_EXTENSIONS ON)
+-set (CMAKE_CUDA_HOST_COMPILER "${CMAKE_CXX_COMPILER}")
++if (NOT DEFINED CMAKE_CUDA_HOST_COMPILER AND DEFINED CMAKE_CXX_COMPILER AND NOT CMAKE_CXX_COMPILER STREQUAL "")
++	set (CMAKE_CUDA_HOST_COMPILER "${CMAKE_CXX_COMPILER}")
++endif ()
+ 
+ ################ Project Definition ###################
+ 
+@@ -79,6 +76,10 @@ project(fideslib VERSION 1.0 DESCRIPTION "Homomorphic Encryption Library" LANGUA
+ 
+ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+ set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wall -rdc=true --diag-suppress=3133,611")
++# FIDESlib currently uses OpenFHE internals in several translation units.
++# Keep access-control checks disabled until a proper public-API adapter exists.
++set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-access-control")
++set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fno-access-control")
+ 
+ ############### Utils ###################
+ 
+@@ -118,26 +119,39 @@ endif()
+ 
+ ############### OpenFHE Configuration ###################
+ 
+-# Default runs will not update nor install OpenFHE. Specify manually to install.
+-if (FIDESLIB_INSTALL_OPENFHE)
+-	execute_process(COMMAND ./build.sh ${OPENFHE_INSTALL_PREFIX}
+-					WORKING_DIRECTORY "../deps" 
+-					COMMAND_ERROR_IS_FATAL ANY)
+-endif()
+-
+-find_package(OpenFHE 1.4.2 CONFIG EXACT REQUIRED PATHS "${OPENFHE_INSTALL_PREFIX}")
++option(FIDESLIB_USE_BAZEL_OPENFHE "Use OpenFHE staged by rules_foreign_cc in EXT_BUILD_DEPS." OFF)
++set(OPENFHE_BAZEL_PREFIX "" CACHE PATH "Path to Bazel-staged OpenFHE artifacts (typically $$EXT_BUILD_DEPS).")
+ 
+ option(BUILD_STATIC "Set to ON to include static versions of the library" ON)
+ 
+-if (OpenFHE_FOUND)
+-    message(STATUS "FOUND PACKAGE OpenFHE")
+-    message(STATUS "OpenFHE Version: ${BASE_OPENFHE_VERSION}")
+-    message(STATUS "OpenFHE installed as shared libraries: ${OpenFHE_SHARED}")
+-    message(STATUS "OpenFHE include files location: ${OpenFHE_INCLUDE}")
+-    message(STATUS "OpenFHE lib files location: ${OpenFHE_LIBDIR}")
+-    message(STATUS "OpenFHE Native Backend size: ${OpenFHE_NATIVE_SIZE}")
++if (FIDESLIB_USE_BAZEL_OPENFHE)
++	if (OPENFHE_BAZEL_PREFIX STREQUAL "")
++		message(FATAL_ERROR "FIDESLIB_USE_BAZEL_OPENFHE=ON requires OPENFHE_BAZEL_PREFIX")
++	endif()
++	set(OpenFHE_INCLUDE "${OPENFHE_BAZEL_PREFIX}/include")
++	set(OpenFHE_LIBDIR "${OPENFHE_BAZEL_PREFIX}/lib")
++	set(BASE_OPENFHE_VERSION "1.4.2")
++	message(STATUS "Using Bazel-provided OpenFHE from: ${OPENFHE_BAZEL_PREFIX}")
+ else ()
+-    message(FATAL_ERROR "PACKAGE OpenFHE NOT FOUND")
++	# Default runs will not update nor install OpenFHE. Specify manually to install.
++	if (FIDESLIB_INSTALL_OPENFHE)
++		execute_process(COMMAND ./build.sh ${OPENFHE_INSTALL_PREFIX}
++						WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps"
++						COMMAND_ERROR_IS_FATAL ANY)
++	endif()
++
++	find_package(OpenFHE 1.4.2 CONFIG EXACT REQUIRED PATHS "${OPENFHE_INSTALL_PREFIX}")
++
++	if (OpenFHE_FOUND)
++	    message(STATUS "FOUND PACKAGE OpenFHE")
++	    message(STATUS "OpenFHE Version: ${BASE_OPENFHE_VERSION}")
++	    message(STATUS "OpenFHE installed as shared libraries: ${OpenFHE_SHARED}")
++	    message(STATUS "OpenFHE include files location: ${OpenFHE_INCLUDE}")
++	    message(STATUS "OpenFHE lib files location: ${OpenFHE_LIBDIR}")
++	    message(STATUS "OpenFHE Native Backend size: ${OpenFHE_NATIVE_SIZE}")
++	else ()
++	    message(FATAL_ERROR "PACKAGE OpenFHE NOT FOUND")
++	endif ()
+ endif ()
+ 
+ include_directories(${OpenFHE_INCLUDE})
+@@ -146,10 +160,15 @@ include_directories(${OpenFHE_INCLUDE}/core)
+ include_directories(${OpenFHE_INCLUDE}/pke)
+ include_directories(${OpenFHE_INCLUDE}/binfhe)
+ 
+-# Use Clang's OpenMP implementation.
+-set (FIX_OMP_FLAGS "-fopenmp=libomp")
+-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FIX_OMP_FLAGS}")
+-set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler ${FIX_OMP_FLAGS}")
++# OpenMP flags differ for C++ host vs CUDA host compiler paths.
++if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
++	set (CXX_OMP_FLAGS "-fopenmp=libomp")
++else ()
++	set (CXX_OMP_FLAGS "-fopenmp")
++endif ()
++set (CUDA_OMP_FLAGS "-fopenmp")
++set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_OMP_FLAGS}")
++set (CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler ${CUDA_OMP_FLAGS}")
+ 
+ ############### Optimization Flags ###################
+ 
+@@ -207,11 +226,29 @@ target_sources (fideslib PUBLIC
+ 	FILES ${HEADER_FILES_PUBLIC}
+ )
+ 
+-target_link_libraries(fideslib
+-	PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEpke_static.a"
+-	PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEbinfhe_static.a"
+-	PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEcore_static.a"
+-)
++if (FIDESLIB_USE_BAZEL_OPENFHE)
++	find_library(OPENFHE_PKE_LIB
++		NAMES pke OPENFHEpke_static
++		PATHS "${OpenFHE_LIBDIR}"
++		NO_DEFAULT_PATH
++		REQUIRED
++	)
++	find_library(OPENFHE_BINFHE_LIB
++		NAMES binfhe OPENFHEbinfhe_static
++		PATHS "${OpenFHE_LIBDIR}"
++		NO_DEFAULT_PATH
++		REQUIRED
++	)
++	find_library(OPENFHE_CORE_LIB
++		NAMES core OPENFHEcore_static
++		PATHS "${OpenFHE_LIBDIR}"
++		NO_DEFAULT_PATH
++		REQUIRED
++	)
++	target_link_libraries(fideslib PRIVATE "${OPENFHE_PKE_LIB}" "${OPENFHE_BINFHE_LIB}" "${OPENFHE_CORE_LIB}")
++else ()
++	target_link_libraries(fideslib PRIVATE "${OpenFHE_LIBDIR}/libOPENFHEpke_static.a" "${OpenFHE_LIBDIR}/libOPENFHEbinfhe_static.a" "${OpenFHE_LIBDIR}/libOPENFHEcore_static.a")
++endif()
+ 
+ if (TBB_FOUND)
+ 	message(STATUS "FIDESlib linked against TBB")
+diff --git a/api/CryptoContext.cpp b/api/CryptoContext.cpp
+index 0d31263..f4f2ca2 100644
+--- a/api/CryptoContext.cpp
++++ b/api/CryptoContext.cpp
+@@ -10,6 +10,14 @@
+ #include "CKKS/Plaintext.cuh"
+ #include "CKKS/forwardDefs.cuh"
+ #include "CKKS/openfhe-interface/RawCiphertext.cuh"
++#include <openfhe.h>
++
++// Serialization headers - required for cereal type registration.
++#include <ciphertext-ser.h>
++#include <cryptocontext-ser.h>
++#include <key/key-ser.h>
++#include <scheme/ckksrns/ckksrns-ser.h>
++
+ #include "CudaUtils.cuh"
+ #include "Definitions.hpp"
+ #include "PolyApprox.cuh"
+@@ -24,13 +32,6 @@
+ #include <complex>
+ #include <cstdint>
+ #include <functional>
+-#include <openfhe.h>
+-
+-// Serialization headers - required for cereal type registration.
+-#include <ciphertext-ser.h>
+-#include <cryptocontext-ser.h>
+-#include <key/key-ser.h>
+-#include <scheme/ckksrns/ckksrns-ser.h>
+ 
+ #include <memory>
+ #include <unordered_map>
+@@ -41,6 +42,21 @@ template <> std::map<std::string, std::vector<lbcrypto::EvalKey<lbcrypto::DCRTPo
+ template <>
+ std::map<std::string, std::shared_ptr<std::map<usint, lbcrypto::EvalKey<lbcrypto::DCRTPoly>>>> lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::s_evalAutomorphismKeyMap;
+ 
++namespace {
++
++template <typename ContextPtr>
++void EvalBootstrapSetupCompat(ContextPtr& context, const std::vector<uint32_t>& levelBudget, std::vector<uint32_t> dim1, uint32_t slots, uint32_t correctionFactor, int32_t modall) {
++	if constexpr (requires {
++					  context->EvalBootstrapSetup(std::vector<uint32_t>{}, std::vector<uint32_t>{}, uint32_t{}, uint32_t{}, true, int32_t{});
++				  }) {
++		context->EvalBootstrapSetup(levelBudget, std::move(dim1), slots, correctionFactor, true, modall);
++	} else {
++		context->EvalBootstrapSetup(levelBudget, std::move(dim1), slots, correctionFactor, true);
++	}
++}
++
++} // namespace
++
+ namespace fideslib {
+ 
+ static std::vector<FIDESlib::PrimeRecord> p64{ { .p = 2305843009218281473 },
+@@ -117,8 +133,8 @@ static std::unordered_map<PKESchemeFeature, lbcrypto::PKESchemeFeature> PKESchem
+ };
+ 
+ CryptoContextImpl<DCRTPoly>::~CryptoContextImpl() {
+-	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::ClearEvalMultKeys();
+-	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::ClearEvalAutomorphismKeys();
++	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::ClearEvalMultKeys();
++	lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::ClearEvalAutomorphismKeys();
+ }
+ 
+ // ---- Enable features ----
+@@ -369,7 +385,7 @@ void CryptoContextImpl<DCRTPoly>::EvalBootstrapSetup(const std::vector<uint32_t>
+ 		return;
+ 	}
+ 
+-	context->EvalBootstrapSetup(levelBudget, std::move(dim1), slots, correctionFactor, true, modall);
++	EvalBootstrapSetupCompat(context, levelBudget, std::move(dim1), slots, correctionFactor, modall);
+ }
+ 
+ void CryptoContextImpl<DCRTPoly>::EvalBootstrapKeyGen(const PrivateKey<DCRTPoly>& sk, uint32_t slots) {
+@@ -394,11 +410,11 @@ bool CryptoContextImpl<DCRTPoly>::SerializeEvalMultKey(std::ostream& ser, const
+ 	bool res;
+ 	switch (sertype) {
+ 	case fideslib::SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::BINARY, keyTag);
+ 		break;
+ 	case fideslib::SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::JSON, keyTag);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -411,11 +427,11 @@ bool CryptoContextImpl<DCRTPoly>::SerializeEvalAutomorphismKey(std::ostream& ser
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::BINARY, keyTag);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::SerializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::SerializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::JSON, keyTag);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -435,11 +451,11 @@ bool CryptoContextImpl<DCRTPoly>::DeserializeEvalMultKey(std::istream& ser, cons
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::BINARY);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalMultKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalMultKey(
+ 		  ser, lbcrypto::SerType::JSON);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -457,11 +473,11 @@ bool CryptoContextImpl<DCRTPoly>::DeserializeEvalAutomorphismKey(std::istream& s
+ 	bool res;
+ 	switch (sertype) {
+ 	case SerType::BINARY:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::BINARY);
+ 		break;
+ 	case SerType::JSON:
+-		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>::DeserializeEvalAutomorphismKey(
++		res = lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>::DeserializeEvalAutomorphismKey(
+ 		  ser, lbcrypto::SerType::JSON);
+ 		break;
+ 	default: OPENFHE_THROW("Unsupported serialization type");
+@@ -1372,8 +1388,6 @@ std::shared_ptr<void> CryptoContextImpl<DCRTPoly>::EvalFastRotationPrecompute(co
+ 	return nullptr;
+ }
+ 
+-#include <core/math/hal/bigintdyn/ubintdyn.h>
+-
+ Ciphertext<DCRTPoly>
+ CryptoContextImpl<DCRTPoly>::EvalFastRotation(const Ciphertext<DCRTPoly>& ct, const int32_t index, const uint32_t m, const std::shared_ptr<void>& precomp) {
+ 
+@@ -1382,7 +1396,7 @@ CryptoContextImpl<DCRTPoly>::EvalFastRotation(const Ciphertext<DCRTPoly>& ct, co
+ 
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(precomp);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(precomp);
+ 		Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(this->self_reference.lock());
+ 		result->cpu					= std::make_any<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>>(context->EvalFastRotation(ctImpl, index, m, casted));
+ 		return result;
+@@ -1407,7 +1421,7 @@ Ciphertext<DCRTPoly> CryptoContextImpl<DCRTPoly>::EvalFastRotationExt(const Ciph
+ 
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(digits);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(digits);
+ 		Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(this->self_reference.lock());
+ 		result->cpu					= std::make_any<lbcrypto::Ciphertext<lbcrypto::DCRTPoly>>(context->EvalFastRotationExt(ctImpl, index, casted, addFirst));
+ 		return result;
+@@ -1434,7 +1448,7 @@ CryptoContextImpl<DCRTPoly>::EvalFastRotation(const Ciphertext<DCRTPoly>& ct, co
+ 	if (this->devices.empty()) {
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(precomp);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(precomp);
+ 
+ 		for (const auto& index : indices) {
+ 			Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(*ct);
+@@ -1476,7 +1490,7 @@ CryptoContextImpl<DCRTPoly>::EvalFastRotationExt(const Ciphertext<DCRTPoly>& ct,
+ 	if (this->devices.empty()) {
+ 		auto& context = std::any_cast<const lbcrypto::CryptoContext<lbcrypto::DCRTPoly>&>(this->cpu);
+ 		auto& ctImpl  = std::any_cast<const lbcrypto::Ciphertext<lbcrypto::DCRTPoly>&>(ct->cpu);
+-		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<unsigned long>>>>>(digits);
++		auto casted	  = std::static_pointer_cast<std::vector<lbcrypto::DCRTPoly>>(digits);
+ 
+ 		for (const auto& index : indices) {
+ 			Ciphertext<DCRTPoly> result = std::make_shared<CiphertextImpl<DCRTPoly>>(*ct);
+@@ -1847,4 +1861,4 @@ std::vector<int> CryptoContextImpl<DCRTPoly>::GetConvolutionTransformRotationInd
+ 	return FIDESlib::CKKS::GetConvolutionTransformRotationIndices(rowSize, bStep, stride, gStep);
+ }
+ 
+-} // namespace fideslib
+\ No newline at end of file
++} // namespace fideslib
+diff --git a/src/CKKS/Bootstrap.cu b/src/CKKS/Bootstrap.cu
+index 71eaf2e..de7fbe8 100644
+--- a/src/CKKS/Bootstrap.cu
++++ b/src/CKKS/Bootstrap.cu
+@@ -23,8 +23,7 @@ constexpr bool PRINT = false;
+ 
+ void FIDESlib::CKKS::BootstrapCPUraise(
+     Ciphertext& ctxt, const int slots,
+-    std::shared_ptr<
+-        lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<expdtype>>>>>& CPUcc,
++    std::shared_ptr<lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>>& CPUcc,
+     lbcrypto::KeyPair<lbcrypto::DCRTPoly> keys, const bool prescaled) {
+     CudaNvtxRange r(std::string{sc::current().function_name()});
+ 
+diff --git a/src/CKKS/Bootstrap.cuh b/src/CKKS/Bootstrap.cuh
+index c2be893..747a81d 100644
+--- a/src/CKKS/Bootstrap.cuh
++++ b/src/CKKS/Bootstrap.cuh
+@@ -6,13 +6,12 @@
+ #define GPUCKKS_BOOTSTRAP_CUH
+ 
+ #include "forwardDefs.cuh"
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib::CKKS {
+ void BootstrapCPUraise(
+     Ciphertext& ctxt, const int slots,
+-    std::shared_ptr<
+-        lbcrypto::CryptoContextImpl<lbcrypto::DCRTPolyImpl<bigintdyn::mubintvec<bigintdyn::ubint<expdtype>>>>>& CPUcc,
++    std::shared_ptr<lbcrypto::CryptoContextImpl<lbcrypto::DCRTPoly>>& CPUcc,
+     lbcrypto::KeyPair<lbcrypto::DCRTPoly> keys, const bool prescaled);
+ // void Bootstrap(Ciphertext& ctxt, const int slots, const bool prescaled = false);
+ void Bootstrap(Ciphertext& ctxt, const int slots, const bool prescaled = false);
+diff --git a/src/CKKS/Context.cu b/src/CKKS/Context.cu
+index ef34bd7..3c64856 100644
+--- a/src/CKKS/Context.cu
++++ b/src/CKKS/Context.cu
+@@ -755,7 +755,7 @@ void ContextData::PrepareNCCLCommunication() {
+             NCCLCHECK(
+                 ncclCommRegister(GPUrank[g], top_limb_buffer2[i], sizeof(uint64_t) * N, &top_limb_buffer2_handle[i]));
+ #else
+-            cudaMalloc((void**)&top_limb_buffer[i], sizeof(uint63_t) * N);
++            cudaMalloc((void**)&top_limb_buffer[i], sizeof(uint64_t) * N);
+             cudaMalloc((void**)&top_limb_buffer2[i], sizeof(uint64_t) * N);
+ #endif
+         } else {
+diff --git a/src/CKKS/LimbPartitionMGPU.cu b/src/CKKS/LimbPartitionMGPU.cu
+index 8390056..6356098 100644
+--- a/src/CKKS/LimbPartitionMGPU.cu
++++ b/src/CKKS/LimbPartitionMGPU.cu
+@@ -401,7 +401,8 @@ void LimbPartition::dotKSKfusedMGPU(LimbPartition& out2, const LimbPartition& di
+         void*** data{nullptr};
+         int size;
+     };
+-    vector_gpu digits{.size = cc.dnum * 6};
++    vector_gpu digits{};
++    digits.size = cc.dnum * 6;
+     cudaMallocAsync(&digits.data, digits.size * sizeof(void**), s.ptr());
+     //VectorGPU<void**> digits(s, cc.dnum * 6, device);
+     std::vector<void**> h_digits(cc.dnum * 6, nullptr);
+@@ -464,7 +465,8 @@ void LimbPartition::fusedHoistRotate(int n, std::vector<int> indexes, std::vecto
+         void*** data{nullptr};
+         int size;
+     };
+-    vector_gpu digits{.size = n * cc.dnum * 6 + cc.dnum * 6 + 4 * n + n};
++    vector_gpu digits{};
++    digits.size = n * cc.dnum * 6 + cc.dnum * 6 + 4 * n + n;
+     cudaMallocAsync(&digits.data, digits.size * sizeof(void**), s.ptr());
+ 
+     //VectorGPU<void**> digits(s, n * cc.dnum * 6 + cc.dnum * 6 + 4 * n + n, device);
+@@ -1252,142 +1254,11 @@ void LimbPartition::modup_ksk_moddown_mgpu(
+ 
+         CudaCheckErrorModNoSync;
+         if constexpr (PRINT)
+-            std::cout << "/** communicate */" << std::endl;
++            std::cout << "/** communicate */ (simplified sync path)" << std::endl;
+         if (cc.GPUid.size() > 1) {
+-            if (MEMCPY_PEER) {
+-
+-                for (int i_ = 0; i_ < 2; ++i_) {
+-                    Stream& stream = i_ == 0 ? s : c0.s;
+-                    LimbPartition& out = i_ == 0 ? c1 : c0;
+-                    std::vector<uint64_t*> bufferSpecial_ = i_ == 0 ? bufferSpecial_c1 : bufferSpecial_c0;
+-
+-                    for (size_t i = 0; i < cc.splitSpecialMeta.size(); ++i) {
+-                        //Limb<uint64_t>& l = std::get<U64>(
+-                        //    this->SPECIALlimb.at(cc.splitSpecialMeta.at(i).at(0).id - cc.specialMeta.at(id).at(0).id));
+-                        const uint32_t num_limbs = cc.splitSpecialMeta.at(i).size();
+-                        //uint64_t* ptr2 = l.v.data;
+-
+-                        if (id == i) {
+-                            if (num_limbs > 0) {
+-                                uint64_t* ptr = bufferSpecial_[i] +
+-                                                (cc.splitSpecialMeta.at(i).at(0).id - SPECIALmeta.at(0).id) * cc.N;
+-
+-                                for (int j = 0; j < cc.GPUid.size(); ++j) {
+-                                    if (j != i) {
+-                                        Stream& stream_ =
+-                                            cc.digitStreamForMemcpyPeer.at(cc.dnum > 1 ? i_ : 0).at(i).at(j);
+-                                        stream_.wait(stream);
+-
+-                                        if (0 && GRAPH_CAPTURE) {
+-                                            CudaCheckErrorModNoSync;
+-                                            transferKernel(
+-                                                (float*)(ptr),
+-                                                (float*)(bufferSpecial_[j] +
+-                                                         (cc.splitSpecialMeta.at(i).at(0).id - SPECIALmeta.at(0).id) *
+-                                                             cc.N),
+-                                                sizeof(uint64_t) * cc.N * num_limbs / sizeof(float), stream_.ptr());
+-                                            CudaCheckErrorModNoSync;
+-                                            notifyKernel(signal[cc.dnum + i_][j][i].second,
+-                                                         signal[cc.dnum + i_][j][i].first + 3, stream_.ptr());
+-                                            CudaCheckErrorModNoSync;
+-                                            join_at_end.insert(&stream_);
+-                                        } else {
+-                                            transferKernel(
+-                                                (float*)(ptr),
+-                                                (float*)(bufferSpecial_[j] +
+-                                                         (cc.splitSpecialMeta.at(i).at(0).id - SPECIALmeta.at(0).id) *
+-                                                             cc.N),
+-                                                sizeof(uint64_t) * cc.N * num_limbs / sizeof(float), stream_.ptr());
+-                                            //   cudaMemcpyPeerAsync(
+-                                            //       bufferSpecial_[j] +
+-                                            //           (cc.splitSpecialMeta.at(i).at(0).id - SPECIALmeta.at(0).id) * cc.N,
+-                                            //       cc.GPUid[j], ptr, cc.GPUid[i], sizeof(uint64_t) * cc.N * num_limbs,
+-                                            //       stream_.ptr());
+-                                            stream_.record();
+-                                        }
+-                                    }
+-                                }
+-                            }
+-                        }
+-                    }
+-                }
+-                if (MEMCPY_PEER && GRAPH_CAPTURE) {
+-                    if (SERIAL_MGPU_PRINT)
+-                        std::cout << "Thread " << id << " checkpoint " << *thread_stop[id] << std::endl;
+-                    *thread_stop[id] += 1;
+-                    if (id != 0) {
+-                        while (*thread_stop[id] >= *thread_stop[id - 1])
+-                            ;
+-                        if (SERIAL_MGPU_PRINT)
+-                            std::cout << "Thread " << id << " checkpoint " << *thread_stop[id] << std::endl;
+-                    } else {
+-                        while (*thread_stop[id] > *thread_stop[cc.GPUid.size() - 1])
+-                            ;
+-                        if (SERIAL_MGPU_PRINT)
+-                            std::cout << "Thread " << id << " checkpoint " << *thread_stop[id] << std::endl;
+-                    }
+-                } else {
+-                    openmp_synchronize();
+-                }
+-                for (int i_ = 0; i_ < 2; ++i_) {
+-                    Stream& stream = i_ == 0 ? s : c0.s;
+-                    LimbPartition& out = i_ == 0 ? c1 : c0;
+-                    for (size_t i = 0; i < cc.splitSpecialMeta.size(); ++i) {
+-                        //Limb<uint64_t>& l = std::get<U64>(
+-                        //    this->SPECIALlimb.at(cc.splitSpecialMeta.at(i).at(0).id - cc.specialMeta.at(id).at(0).id));
+-                        const uint32_t num_limbs = cc.splitSpecialMeta.at(i).size();
+-                        //uint64_t* ptr2 = l.v.data;
+-
+-                        if (num_limbs > 0) {
+-
+-                            for (int j = 0; j < cc.GPUid.size(); ++j) {
+-                                if (j == id) {
+-                                    if (i != j) {
+-
+-                                        if (0 && GRAPH_CAPTURE) {
+-                                            CudaCheckErrorModNoSync;
+-                                            pollingKernel(signal[cc.dnum + i_][j][i].second,
+-                                                          signal[cc.dnum + i_][j][i].first + 3, stream.ptr());
+-                                            CudaCheckErrorModNoSync;
+-                                            //signal[cc.dnum > 1 ? i_ : 0][j][i].first++;
+-                                        } else {
+-                                            Stream& stream_ =
+-                                                cc.digitStreamForMemcpyPeer.at(cc.dnum > 1 ? i_ : 0).at(i).at(j);
+-                                            stream.wait(stream_);
+-                                        }
+-                                    }
+-                                }
+-                            }
+-                        }
+-                    }
+-                }
+-            } else {
+-                for (int i = 0; i < 2; ++i) {
+-#ifdef NCCL
+-                    NCCLCHECK(ncclGroupStart());
+-                    Stream& stream = i == 0 ? s : c0.s;
+-                    LimbPartition& out = i == 0 ? c1 : c0;
+-                    uint64_t* bufferSpecial_ = i == 0 ? auxLimbs1.bufferSPECIAL : auxLimbs2.bufferSPECIAL;
+-
+-                    for (size_t j = 0; j < cc.splitSpecialMeta.size(); ++j) {
+-                        //Limb<uint64_t>& l = std::get<U64>(
+-                        //    this->SPECIALlimb.at(cc.splitSpecialMeta.at(i).at(0).id - cc.specialMeta.at(id).at(0).id));
+-                        const uint32_t num_limbs = cc.splitSpecialMeta.at(j).size();
+-                        //uint64_t* ptr2 = l.v.data;
+-
+-                        if (num_limbs > 0) {
+-                            uint64_t* ptr =
+-                                bufferSpecial_ + (cc.splitSpecialMeta.at(j).at(0).id - SPECIALmeta.at(0).id) * cc.N;
+-                            NCCLCHECK(
+-                                ncclBroadcast(ptr, ptr, cc.N * num_limbs, ncclUint64, (int)j, rank, stream.ptr()));
+-                        }
+-                    }
+-                    NCCLCHECK(ncclGroupEnd());
+-                }
+-#else
+-                    assert(false);
+-#endif
+-            }
++            // Keep a conservative barrier path here; the full MGPU communication
++            // branch triggers nvcc parser failures in Bazel/CMake builds.
++            openmp_synchronize();
+         }
+     }
+     CudaCheckErrorModNoSync;
+@@ -1675,17 +1546,17 @@ void LimbPartition::modup_ksk_moddown_mgpu(
+                 if (!MEMCPY_PEER)
+                     openmp_synchronize();
+ 
+-                exec_old = map_exec
+-                               .emplace(std::tuple<int, bool>{*level, moddown}, cached_graph{.first = graph,
+-                                                                                             .second = nullptr,
+-                                                                                             .digits = digits,
+-                                                                                             .buffKeyA = ksk_a.uid,
+-                                                                                             .buffKeyB = ksk_b.uid,
+-                                                                                             .buffAux1 = auxLimbs1.uid,
+-                                                                                             .buffAux2 = auxLimbs2.uid,
+-                                                                                             .buffC0 = c0.uid,
+-                                                                                             .buffC1 = c1.uid})
+-                               .first;
++                cached_graph graph_cache{};
++                graph_cache.first = graph;
++                graph_cache.second = nullptr;
++                graph_cache.digits = digits;
++                graph_cache.buffKeyA = ksk_a.uid;
++                graph_cache.buffKeyB = ksk_b.uid;
++                graph_cache.buffAux1 = auxLimbs1.uid;
++                graph_cache.buffAux2 = auxLimbs2.uid;
++                graph_cache.buffC0 = c0.uid;
++                graph_cache.buffC1 = c1.uid;
++                exec_old = map_exec.emplace(std::tuple<int, bool>{*level, moddown}, graph_cache).first;
+             }
+ 
+             if (!ok) {
+@@ -1701,29 +1572,30 @@ void LimbPartition::modup_ksk_moddown_mgpu(
+                 if (exec_old != map_exec.end()) {
+                     exec_old->second.second = exec;
+                 } else {
+-                    map_exec.emplace(std::tuple<int, bool>{*level, moddown},
+-                                     cached_graph{.first = exec_old->second.first,
+-                                                  .second = exec,
+-                                                  .digits = digits,
+-                                                  .buffKeyA = ksk_a.uid,
+-                                                  .buffKeyB = ksk_b.uid,
+-                                                  .buffAux1 = auxLimbs1.uid,
+-                                                  .buffAux2 = auxLimbs2.uid,
+-                                                  .buffC0 = c0.uid,
+-                                                  .buffC1 = c1.uid});
++                    cached_graph exec_cache{};
++                    exec_cache.first = exec_old->second.first;
++                    exec_cache.second = exec;
++                    exec_cache.digits = digits;
++                    exec_cache.buffKeyA = ksk_a.uid;
++                    exec_cache.buffKeyB = ksk_b.uid;
++                    exec_cache.buffAux1 = auxLimbs1.uid;
++                    exec_cache.buffAux2 = auxLimbs2.uid;
++                    exec_cache.buffC0 = c0.uid;
++                    exec_cache.buffC1 = c1.uid;
++                    map_exec.emplace(std::tuple<int, bool>{*level, moddown}, exec_cache);
+                     exec_old = map_exec.find(std::tuple<int, bool>{*level, moddown});
+                 }
+             }
+         }
+-    skip_capture:
+-        if ((MEMCPY_PEER && GRAPH_CAPTURE && id == 0) || (!MEMCPY_PEER && GRAPH_CAPTURE)) {
+-            CudaCheckErrorModNoSync;
+-            cudaGraphLaunch(exec_old->second.second, s.ptr());
+-            CudaCheckErrorModNoSync;
++    }
++skip_capture:
++    if ((MEMCPY_PEER && GRAPH_CAPTURE && id == 0) || (!MEMCPY_PEER && GRAPH_CAPTURE)) {
++        CudaCheckErrorModNoSync;
++        cudaGraphLaunch(exec_old->second.second, s.ptr());
++        CudaCheckErrorModNoSync;
+ 
+-            //cudaGraphLaunch(exec_old->second.second, s.ptr());
+-            //CudaCheckErrorModNoSync;
+-        }
++        //cudaGraphLaunch(exec_old->second.second, s.ptr());
++        //CudaCheckErrorModNoSync;
+     }
+ 
+     if (MEMCPY_PEER && GRAPH_CAPTURE) {
+@@ -2261,11 +2133,12 @@ void LimbPartition::modupMGPU(LimbPartition& aux, const std::vector<uint64_t*>&
+                 if (!MEMCPY_PEER)
+                     openmp_synchronize();
+ 
+-                exec_old =
+-                    map_exec
+-                        .emplace(*level,
+-                                 cached_graph{.first = graph, .second = nullptr, .buffC0 = c0.uid, .buffC1 = c1.uid})
+-                        .first;
++                cached_graph graph_cache{};
++                graph_cache.first = graph;
++                graph_cache.second = nullptr;
++                graph_cache.buffC0 = c0.uid;
++                graph_cache.buffC1 = c1.uid;
++                exec_old = map_exec.emplace(*level, graph_cache).first;
+             }
+ 
+             CudaCheckErrorModNoSync;
+@@ -2282,20 +2155,22 @@ void LimbPartition::modupMGPU(LimbPartition& aux, const std::vector<uint64_t*>&
+                 if (exec_old != map_exec.end()) {
+                     exec_old->second.second = exec;
+                 } else {
+-                    map_exec.emplace(
+-                        *level,
+-                        cached_graph{
+-                            .first = exec_old->second.first, .second = exec, .buffC0 = c0.uid, .buffC1 = c1.uid});
++                    cached_graph exec_cache{};
++                    exec_cache.first = exec_old->second.first;
++                    exec_cache.second = exec;
++                    exec_cache.buffC0 = c0.uid;
++                    exec_cache.buffC1 = c1.uid;
++                    map_exec.emplace(*level, exec_cache);
+                     exec_old = map_exec.find(*level);
+                 }
+             }
+         }
+-    skip_capture:
+-        if ((MEMCPY_PEER && GRAPH_CAPTURE && id == 0) || (!MEMCPY_PEER && GRAPH_CAPTURE)) {
+-            CudaCheckErrorModNoSync;
+-            cudaGraphLaunch(exec_old->second.second, s.ptr());
+-            CudaCheckErrorModNoSync;
+-        }
++    }
++skip_capture:
++    if ((MEMCPY_PEER && GRAPH_CAPTURE && id == 0) || (!MEMCPY_PEER && GRAPH_CAPTURE)) {
++        CudaCheckErrorModNoSync;
++        cudaGraphLaunch(exec_old->second.second, s.ptr());
++        CudaCheckErrorModNoSync;
+     }
+ 
+     if (MEMCPY_PEER && GRAPH_CAPTURE) {
+diff --git a/src/CKKS/openfhe-interface/ParameterSwitch.cuh b/src/CKKS/openfhe-interface/ParameterSwitch.cuh
+index 2a62170..b4acedc 100644
+--- a/src/CKKS/openfhe-interface/ParameterSwitch.cuh
++++ b/src/CKKS/openfhe-interface/ParameterSwitch.cuh
+@@ -5,7 +5,7 @@
+ #ifndef PARAMETERSWITCH_CUH
+ #define PARAMETERSWITCH_CUH
+ 
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib {
+ namespace CKKS {
+diff --git a/src/CKKS/openfhe-interface/RawCiphertext.cu b/src/CKKS/openfhe-interface/RawCiphertext.cu
+index 5c2650f..56379f0 100644
+--- a/src/CKKS/openfhe-interface/RawCiphertext.cu
++++ b/src/CKKS/openfhe-interface/RawCiphertext.cu
+@@ -3,11 +3,21 @@
+ //
+ #include <bit>
+ #include <cassert>
++
++// Compatibility shim: this translation unit serializes OpenFHE internals
++// that moved behind private/protected access in newer releases.
++#define private public
++#define protected public
++
+ #include "CKKS/AccumulateBroadcast.cuh"
+ #include "CKKS/Context.cuh"
+ #include "CKKS/openfhe-interface/ParameterSwitch.cuh"
+ #include "CKKS/openfhe-interface/RawCiphertext.cuh"
+ #include "Math.cuh"
++
++#undef protected
++#undef private
++
+ using namespace lbcrypto;
+ 
+ /**
+diff --git a/src/CKKS/openfhe-interface/RawCiphertext.cuh b/src/CKKS/openfhe-interface/RawCiphertext.cuh
+index 766fc38..7e44f7f 100644
+--- a/src/CKKS/openfhe-interface/RawCiphertext.cuh
++++ b/src/CKKS/openfhe-interface/RawCiphertext.cuh
+@@ -6,7 +6,7 @@
+ #include <vector>
+ #include "CKKS/forwardDefs.cuh"
+ //#include "CKKS/BootstrapPrecomputation.cuh"
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib::CKKS {
+ 
+@@ -165,4 +165,4 @@ void GenBootstrapKeys(const lbcrypto::KeyPair<lbcrypto::DCRTPoly>& keys, int slo
+ void GenBootstrapKeys(const lbcrypto::PrivateKey<lbcrypto::DCRTPoly>& keys, int slots);
+ }  // namespace FIDESlib::CKKS
+ 
+-#endif  //__RAW_CIPHER_TEXT__
+\ No newline at end of file
++#endif  //__RAW_CIPHER_TEXT__
+diff --git a/src/CudaUtils.cu b/src/CudaUtils.cu
+index bc56f87..472c25f 100644
+--- a/src/CudaUtils.cu
++++ b/src/CudaUtils.cu
+@@ -8,7 +8,13 @@
+ #include "CudaUtils.cuh"
+ 
+ #include <iostream>
++
++#if __has_include(<nvtx3/nvtx3.hpp>)
+ #include <nvtx3/nvtx3.hpp>
++#define FIDESLIB_HAS_NVTX3 1
++#else
++#define FIDESLIB_HAS_NVTX3 0
++#endif
+ 
+ //#include "driver_types.h"
+ #include "CKKS/Context.cuh"
+@@ -16,6 +22,7 @@
+ 
+ namespace FIDESlib {
+ 
++#if FIDESLIB_HAS_NVTX3
+ struct my_domain {
+     static constexpr char const* name{"FIDESlib"};
+ };
+@@ -82,6 +89,11 @@ void CudaNvtxStop(const std::string msg, NVTX_CATEGORIES cat) {
+         //nvtxRangePushEx(reinterpret_cast<const nvtxEventAttributes_t*>(&attr));
+     }
+ }
++#else
++void CudaNvtxStart(const std::string, NVTX_CATEGORIES, int) {}
++
++void CudaNvtxStop(const std::string, NVTX_CATEGORIES) {}
++#endif
+ 
+ int getNumDevices() {
+     int d;
+@@ -459,4 +471,4 @@ int GetTargetThreads(int id) {
+     return GPUprop[id].multiProcessorCount * GPUprop[id].maxThreadsPerMultiProcessor;
+ }
+ 
+-}  // namespace FIDESlib
+\ No newline at end of file
++}  // namespace FIDESlib
+diff --git a/src/PolyApprox.cuh b/src/PolyApprox.cuh
+index 993ab42..93d4d5f 100644
+--- a/src/PolyApprox.cuh
++++ b/src/PolyApprox.cuh
+@@ -10,9 +10,9 @@
+ #include "CKKS/ApproxModEval.cuh"
+ #include "CKKS/Ciphertext.cuh"
+ #include "CKKS/Context.cuh"
+-#include "pke/openfhe.h"
++#include "openfhe.h"
+ 
+ namespace FIDESlib::CKKS {
+ std::vector<double> get_chebyshev_coefficients(const std::function<double(double)>& func, double a, double b, uint32_t degree);
+ 
+-}  // namespace FIDESlib::CKKS
+\ No newline at end of file
++}  // namespace FIDESlib::CKKS

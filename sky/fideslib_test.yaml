@@ -1,0 +1,56 @@
+# Run from repo root with:
+#   sky launch -c heir-fideslib sky/fideslib_test.yaml
+# Rerun on an existing cluster with:
+#   sky exec --workdir . heir-fideslib sky/fideslib_test.yaml
+# SSH into the cluster with:
+#   ssh heir-fideslib
+# Sync FIDESlib changes to the cluster:
+#   rsync -avz --exclude='.git' --exclude='build' ../FIDESlib/ heir-fideslib:~/FIDESlib/
+
+name: heir-fideslib-test
+
+resources:
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+  accelerators: T4
+  cpus: 32+
+  memory: 64+
+
+workdir: .
+
+setup: |
+  set -euo pipefail
+
+  if ! command -v bazel >/dev/null 2>&1; then
+    curl -fsSL https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
+      -o /tmp/bazel
+    sudo install -m 0755 /tmp/bazel /usr/local/bin/bazel
+  fi
+
+  sudo apt-get update
+  sudo apt-get install -y git clang lld gcc g++ cmake ninja-build libomp-dev libtbb-dev
+
+  echo '== Verify CUDA =='
+  nvcc --version
+  nvidia-smi
+
+  echo '== Build HEIR tools =='
+  bazel build //tools:heir-opt //tools:heir-translate
+
+run: |
+  set -euo pipefail
+
+  echo '== Build HEIR tools =='
+  bazel build //tools:heir-opt //tools:heir-translate
+
+  echo '== Run FIDESlib emitter test =='
+  bazel test //tests/Emitter/Openfhe:emit_fideslib_pke.mlir.test --test_output=all
+
+  echo '== Run auto-relin dimension test =='
+  bazel test //tests/Transforms/annotate_mgmt:auto_relin_dimension.mlir.test --test_output=all
+
+  echo '== All tests passed =='
+  echo ''
+  echo 'Next steps — sync FIDESlib and test with actual GPU backend:'
+  echo '  rsync -avz --exclude=.git --exclude=build ../FIDESlib/ heir-fideslib:~/FIDESlib/'
+  echo '  ssh heir-fideslib'
+  echo '  cd ~/sky_workdir && bazel build <target> --//:enable_fideslib=1'
