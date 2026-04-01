@@ -185,6 +185,10 @@ def GenerateParamCKKS : Pass<"generate-param-ckks"> {
     Option<"reducedError", "reduced-error", "bool",
            /*default=*/"false", "If true, uses the prime selection logic in Reduced Error paper "
            "(https://eprint.iacr.org/2020/1118).">,
+    Option<"minLevels", "min-levels", "int",
+           /*default=*/"0", "Minimum number of scaling moduli (levels) to generate. "
+           "Backends with minimum parameter size requirements (e.g., CHEDDAR GPU) "
+           "can use this to ensure enough RNS limbs even for shallow computations.">,
   ];
 }
 

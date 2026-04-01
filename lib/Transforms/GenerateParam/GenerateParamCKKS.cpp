@@ -114,6 +114,16 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     std::optional<int> maxLevel = getMaxLevel(getOperation());
     LDBG() << "Max level identified as " << maxLevel;
 
+    // Enforce minimum levels if requested (e.g., for GPU backends)
+    if (minLevels > 0) {
+      int effective = maxLevel.value_or(0);
+      if (effective < minLevels) {
+        LDBG() << "Raising max level from " << effective << " to " << minLevels
+               << " (min-levels)";
+        maxLevel = minLevels;
+      }
+    }
+
     if (auto schemeParamAttr =
             getOperation()->getAttrOfType<ckks::SchemeParamAttr>(
                 ckks::CKKSDialect::kSchemeParamAttrName)) {

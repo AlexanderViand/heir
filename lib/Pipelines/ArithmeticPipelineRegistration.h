@@ -104,6 +104,13 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       llvm::cl::desc("Split preprocessing into separate function with N return "
                      "values (default to no split)"),
       llvm::cl::init(0)};
+  PassOptions::Option<int> minLevels{
+      *this, "min-levels",
+      llvm::cl::desc(
+          "Minimum number of levels (scaling moduli) to generate. "
+          "GPU backends may require a minimum for efficient kernel "
+          "execution (default to 0, meaning use computation depth)."),
+      llvm::cl::init(0)};
 };
 
 struct PlaintextBackendOptions

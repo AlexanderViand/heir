@@ -366,6 +366,7 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       generateParamOptions.scalingModBits = options.scalingModBits;
       generateParamOptions.slotNumber = options.ciphertextDegree;
       generateParamOptions.usePublicKey = options.usePublicKey;
+      generateParamOptions.minLevels = options.minLevels;
       pm.addPass(createGenerateParamCKKS(generateParamOptions));
 
       PopulateScaleCKKSOptions populateScaleCKKSOptions;

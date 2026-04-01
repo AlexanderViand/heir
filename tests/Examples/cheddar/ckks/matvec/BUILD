@@ -15,7 +15,7 @@ heir_opt(
     generated_filename = "matvec_cheddar.mlir",
     pass_flags = [
         "--annotate-module=backend=cheddar scheme=ckks",
-        "--torch-linalg-to-ckks=ciphertext-degree=32768",
+        "--torch-linalg-to-ckks=ciphertext-degree=32768 min-levels=25",
         "--scheme-to-cheddar",
     ],
 )
