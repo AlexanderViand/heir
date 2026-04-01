@@ -345,11 +345,12 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
       }
     }
 
-    // Get level from the result users — find the first ciphertext user
-    // and extract its modulus chain current level.
+    // Get level from the ciphertext operand of the operation that uses
+    // this plaintext. The plaintext level must match the ciphertext level
+    // it will operate with (e.g., in add_plain, mul_plain).
     for (auto user : op.getResult().getUsers()) {
-      for (auto result : user->getResults()) {
-        if (auto ctType = dyn_cast<lwe::LWECiphertextType>(result.getType())) {
+      for (auto operand : user->getOperands()) {
+        if (auto ctType = dyn_cast<lwe::LWECiphertextType>(operand.getType())) {
           levelVal = ctType.getModulusChain().getCurrent();
           break;
         }

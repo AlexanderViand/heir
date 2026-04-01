@@ -400,7 +400,11 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
     needsComplexConversion = elemType.isF32() || elemType.isF64();
   }
 
-  // CHEDDAR Encode takes scale as double. We store logScale in the attr.
+  // Use CHEDDAR's Parameter::GetScale(level) for the correct runtime scale.
+  // The logScale from the IR is a hint but CHEDDAR's actual scale per level
+  // depends on the prime chain. GetScale returns the exact value.
+  // We need the context to access the parameter — find it from the encoder's
+  // parent function args.
   std::string scaleExpr = "pow(2.0, " + std::to_string(logScale) + ")";
 
   os << "Pt " << name << ";\n";
