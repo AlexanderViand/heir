@@ -16,8 +16,8 @@ namespace mlir::heir::cheddar {
 // CHEDDAR's GPU kernels require a minimum number of RNS limbs to function
 // correctly. Shallow computations (depth 1-2) generate too few primes for
 // CHEDDAR's NTT and key-switch GPU kernels. Pad with extra scaling primes.
-static constexpr int kMinQPrimes = 8;
-static constexpr int kMinPPrimes = 3;
+static constexpr int kMinQPrimes = 26;
+static constexpr int kMinPPrimes = 7;
 
 #define GEN_PASS_DEF_CHEDDARCONFIGURECRYPTOCONTEXT
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h.inc"
