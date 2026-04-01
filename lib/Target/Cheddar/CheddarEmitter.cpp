@@ -66,14 +66,26 @@ FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
       .Case<RankedTensorType>(
           [asArg](RankedTensorType type) -> FailureOr<std::string> {
             auto elemType = type.getElementType();
-            if (elemType.isF64() || elemType.isF32()) {
+            if (isa<ComplexType>(elemType)) {
               return std::string(asArg ? "const std::vector<Complex>&"
                                        : "std::vector<Complex>");
             }
+            if (elemType.isF64() || elemType.isF32()) {
+              return std::string(asArg ? "const std::vector<double>&"
+                                       : "std::vector<double>");
+            }
+            if (elemType.isInteger(32) || elemType.isInteger(64) ||
+                elemType.isIndex()) {
+              return std::string(asArg ? "const std::vector<int64_t>&"
+                                       : "std::vector<int64_t>");
+            }
             if (isa<CiphertextType>(elemType)) {
-              // tensor<NxCt> maps to std::vector<Ct>
               return std::string(asArg ? "const std::vector<Ct>&"
                                        : "std::vector<Ct>");
+            }
+            if (isa<PlaintextType>(elemType)) {
+              return std::string(asArg ? "const std::vector<Pt>&"
+                                       : "std::vector<Pt>");
             }
             return failure();
           })
@@ -259,16 +271,18 @@ LogicalResult CheddarEmitter::printOperation(arith::ConstantOp op) {
   auto attr = op.getValue();
 
   if (auto denseAttr = dyn_cast<DenseFPElementsAttr>(attr)) {
-    // Emit as std::vector<Complex>
     auto name = getName(result);
-    os << "std::vector<Complex> " << name << " = {";
+    auto typeStr = convertType(result.getType());
+    if (failed(typeStr))
+      return op.emitOpError("failed to convert dense constant type");
+    os << *typeStr << " " << name << " = {";
     bool first = true;
     for (auto val : denseAttr.getValues<APFloat>()) {
       if (!first) os << ", ";
       first = false;
       SmallString<16> str;
       val.toString(str, /*FormatPrecision=*/15);
-      os << "Complex(" << str << ", 0.0)";
+      os << str;
     }
     os << "};\n";
     return success();
@@ -278,6 +292,22 @@ LogicalResult CheddarEmitter::printOperation(arith::ConstantOp op) {
     SmallString<16> str;
     floatAttr.getValue().toString(str, /*FormatPrecision=*/15);
     os << "double " << getName(result) << " = " << str << ";\n";
+    return success();
+  }
+
+  if (auto denseIntAttr = dyn_cast<DenseIntElementsAttr>(attr)) {
+    auto name = getName(result);
+    auto typeStr = convertType(result.getType());
+    if (failed(typeStr))
+      return op.emitOpError("failed to convert dense int constant type");
+    os << *typeStr << " " << name << " = {";
+    bool first = true;
+    for (auto val : denseIntAttr.getValues<APInt>()) {
+      if (!first) os << ", ";
+      first = false;
+      os << val.getSExtValue();
+    }
+    os << "};\n";
     return success();
   }
 
