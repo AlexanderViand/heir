@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 323e218..78e22c2 100644
+index 323e218..4cf2161 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -24,6 +24,7 @@ FetchContent_Declare(
@@ -15,11 +15,11 @@ index 323e218..78e22c2 100644
  
  target_include_directories(cheddar
 -  PUBLIC include
-+  PUBLIC include ${CUDAToolkit_INCLUDE_DIRS}
++  PUBLIC include ${CUDAToolkit_INCLUDE_DIRS} ${rmm_SOURCE_DIR}/include
  )
  
  target_compile_options(cheddar PRIVATE
-@@ -112,3 +113,7 @@ if (BUILD_UNITTEST)
+@@ -112,3 +113,9 @@ if (BUILD_UNITTEST)
    message(STATUS "Building unit tests")
    add_subdirectory(unittest)
  endif()
@@ -27,3 +27,5 @@ index 323e218..78e22c2 100644
 +# Install targets for bazel compatibility
 +install(TARGETS cheddar LIBRARY DESTINATION lib)
 +install(DIRECTORY include/ DESTINATION include)
++# Also install RMM headers (CHEDDAR's public API leaks rmm/ includes)
++install(DIRECTORY ${rmm_SOURCE_DIR}/include/ DESTINATION include)
