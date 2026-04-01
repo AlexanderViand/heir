@@ -17,15 +17,16 @@
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"        // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinOps.h"             // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
-#include "mlir/include/mlir/IR/DialectRegistry.h"        // from @llvm-project
-#include "mlir/include/mlir/IR/Types.h"                  // from @llvm-project
-#include "mlir/include/mlir/IR/Value.h"                  // from @llvm-project
-#include "mlir/include/mlir/IR/ValueRange.h"             // from @llvm-project
-#include "mlir/include/mlir/Support/LLVM.h"              // from @llvm-project
-#include "mlir/include/mlir/Support/LogicalResult.h"     // from @llvm-project
+#include "mlir/include/mlir/Dialect/Utils/ReshapeOpsUtils.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"   // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"          // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinTypes.h"        // from @llvm-project
+#include "mlir/include/mlir/IR/DialectRegistry.h"     // from @llvm-project
+#include "mlir/include/mlir/IR/Types.h"               // from @llvm-project
+#include "mlir/include/mlir/IR/Value.h"               // from @llvm-project
+#include "mlir/include/mlir/IR/ValueRange.h"          // from @llvm-project
+#include "mlir/include/mlir/Support/LLVM.h"           // from @llvm-project
+#include "mlir/include/mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "mlir/include/mlir/Tools/mlir-translate/Translation.h"  // from @llvm-project
 
 namespace mlir {
@@ -134,6 +135,17 @@ LogicalResult CheddarEmitter::translate(Operation &op) {
           // Extension ops
           .Case<BootOp, LinearTransformOp, EvalPolyOp>(
               [&](auto op) { return printOperation(op); })
+          // SCF control flow
+          .Case<scf::ForOp, scf::IfOp, scf::YieldOp>(
+              [&](auto op) { return printOperation(op); })
+          // Tensor ops
+          .Case<tensor::EmptyOp, tensor::ExtractOp, tensor::InsertOp,
+                tensor::FromElementsOp, tensor::ExpandShapeOp,
+                tensor::ExtractSliceOp, tensor::InsertSliceOp>(
+              [&](auto op) { return printOperation(op); })
+          // Additional arith ops
+          .Case<arith::AddIOp, arith::SubIOp, arith::RemSIOp, arith::CmpIOp,
+                arith::IndexCastOp>([&](auto op) { return printOperation(op); })
           .Default([&](Operation &) {
             return op.emitOpError("unable to find printer for op");
           });
@@ -652,6 +664,311 @@ LogicalResult CheddarEmitter::printOperation(EvalPolyOp op) {
   // TODO: Emit proper EvalPoly code
   os << "// EvalPoly: coefficients=" << op.getCoefficientsAttr() << "\n";
   os << "Ct " << name << "; // TODO: implement EvalPoly emission\n";
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// SCF control flow ops
+//===----------------------------------------------------------------------===//
+
+LogicalResult CheddarEmitter::printOperation(scf::ForOp op) {
+  // Initialize iter args
+  for (unsigned i = 0; i < op.getNumRegionIterArgs(); ++i) {
+    Value result = op.getResults()[i];
+    Value init = op.getInitArgs()[i];
+    Value iterArg = op.getRegionIterArgs()[i];
+    if (variableNames->contains(result) && variableNames->contains(init) &&
+        getName(result) == getName(init))
+      continue;
+    auto typeStr = convertType(iterArg.getType());
+    if (failed(typeStr))
+      return op.emitOpError("failed to convert iter arg type");
+    os << *typeStr << " " << getName(iterArg) << " = " << getName(init)
+       << ";\n";
+  }
+
+  // for (int64_t iv = lb; iv < ub; iv += step)
+  auto getVal = [&](Value v) -> std::string {
+    if (auto constOp = v.getDefiningOp<arith::ConstantOp>()) {
+      if (auto intAttr = dyn_cast<IntegerAttr>(constOp.getValue()))
+        return std::to_string(intAttr.getInt());
+    }
+    return getName(v);
+  };
+  os << "for (int64_t " << getName(op.getInductionVar()) << " = "
+     << getVal(op.getLowerBound()) << "; " << getName(op.getInductionVar())
+     << " < " << getVal(op.getUpperBound()) << "; "
+     << getName(op.getInductionVar()) << " += " << getVal(op.getStep())
+     << ") {\n";
+  os.indent();
+  for (Operation &bodyOp : *op.getBody()) {
+    if (failed(translate(bodyOp))) return failure();
+  }
+  os.unindent();
+  os << "}\n";
+
+  // Forward iter args to results
+  for (unsigned i = 0; i < op.getNumResults(); ++i) {
+    Value opResult = op.getResult(i);
+    Value iterArg = op.getRegionIterArg(i);
+    if (getName(opResult) != getName(iterArg)) {
+      auto typeStr = convertType(opResult.getType());
+      if (failed(typeStr)) return failure();
+      os << *typeStr << " " << getName(opResult) << " = " << getName(iterArg)
+         << ";\n";
+    }
+  }
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(scf::IfOp op) {
+  // Declare result variables
+  for (unsigned i = 0; i < op.getNumResults(); ++i) {
+    auto typeStr = convertType(op.getResults()[i].getType());
+    if (failed(typeStr))
+      return op.emitOpError("failed to convert if result type");
+    os << *typeStr << " " << getName(op.getResults()[i]) << ";\n";
+  }
+
+  os << "if (" << getName(op.getCondition()) << ") {\n";
+  os.indent();
+  for (Operation &thenOp : *op.thenBlock()) {
+    if (failed(translate(thenOp))) return failure();
+  }
+  os.unindent();
+  os << "} else {\n";
+  os.indent();
+  for (Operation &elseOp : *op.elseBlock()) {
+    if (failed(translate(elseOp))) return failure();
+  }
+  os.unindent();
+  os << "}\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(scf::YieldOp op) {
+  ValueRange destValues =
+      llvm::TypeSwitch<Operation *, ValueRange>(op->getParentOp())
+          .Case<scf::ForOp>(
+              [&](auto forOp) { return forOp.getRegionIterArgs(); })
+          .Case<scf::IfOp>([&](auto ifOp) { return ifOp.getResults(); })
+          .Default([&](auto) { return ValueRange{}; });
+
+  for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+    os << getName(destValues[i]) << " = " << getName(op.getOperand(i)) << ";\n";
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Tensor ops (tensors are flattened to std::vector)
+//===----------------------------------------------------------------------===//
+
+LogicalResult CheddarEmitter::printOperation(tensor::EmptyOp op) {
+  auto resultType = op.getResult().getType();
+  auto typeStr = convertType(resultType.getElementType());
+  if (failed(typeStr)) return op.emitOpError("failed to convert element type");
+  os << "std::vector<" << *typeStr << "> " << getName(op.getResult()) << "("
+     << resultType.getNumElements() << ");\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(tensor::ExtractOp op) {
+  auto typeStr = convertType(op.getResult().getType());
+  if (failed(typeStr)) return failure();
+  os << *typeStr << " " << getName(op.getResult()) << " = "
+     << getName(op.getTensor()) << "[";
+  os << flattenIndexExpression(op.getTensor().getType(), op.getIndices(),
+                               [&](Value value) { return getName(value); });
+  os << "];\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(tensor::InsertOp op) {
+  bool inPlace = variableNames->contains(op.getResult()) &&
+                 variableNames->contains(op.getDest()) &&
+                 getName(op.getResult()) == getName(op.getDest());
+  std::string resultName;
+  if (inPlace) {
+    resultName = getName(op.getResult());
+  } else {
+    // Copy dest
+    auto typeStr = convertType(
+        cast<RankedTensorType>(op.getResult().getType()).getElementType());
+    if (failed(typeStr)) return failure();
+    resultName = getName(op.getResult());
+    os << "std::vector<" << *typeStr << "> " << resultName << "("
+       << getName(op.getDest()) << ");\n";
+  }
+  os << resultName << "[";
+  os << flattenIndexExpression(op.getResult().getType(), op.getIndices(),
+                               [&](Value value) { return getName(value); });
+  os << "] = " << getName(op.getScalar()) << ";\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(tensor::FromElementsOp op) {
+  auto typeStr = convertType(getElementTypeOrSelf(op.getResult().getType()));
+  if (failed(typeStr)) return failure();
+  os << "std::vector<" << *typeStr << "> " << getName(op.getResult()) << " = {";
+  for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+    if (i > 0) os << ", ";
+    os << getName(op.getOperand(i));
+  }
+  os << "};\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(tensor::ExpandShapeOp op) {
+  // Tensors are flat — expand_shape is a no-op alias.
+  SliceVerificationResult res =
+      isRankReducedType(op.getResultType(), op.getSrcType());
+  if (res != SliceVerificationResult::Success) {
+    return op.emitError()
+           << "Only rank-reduced types are supported for ExpandShapeOp";
+  }
+  variableNames->mapValueNameToValue(op.getResult(), op.getSrc());
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(tensor::ExtractSliceOp op) {
+  auto resultType = op.getResultType();
+  auto typeStr = convertType(resultType.getElementType());
+  if (failed(typeStr)) return failure();
+
+  auto getOffsetStr = [&](OpFoldResult ofr) -> std::string {
+    if (auto attr = dyn_cast<Attribute>(ofr))
+      return std::to_string(cast<IntegerAttr>(attr).getInt());
+    return getName(cast<Value>(ofr));
+  };
+
+  // Simple contiguous case: just take a sub-span
+  auto offsets = op.getMixedOffsets();
+  auto sizes = op.getMixedSizes();
+  int64_t numElements = resultType.getNumElements();
+
+  os << "std::vector<" << *typeStr << "> " << getName(op.getResult()) << "("
+     << getName(op.getSource()) << ".begin() + " << getOffsetStr(offsets[0]);
+  // Flatten multi-dim offset
+  auto srcType = op.getSourceType();
+  for (unsigned i = 1; i < offsets.size(); ++i) {
+    int64_t stride = 1;
+    for (unsigned j = i + 1; j < srcType.getRank(); ++j)
+      stride *= srcType.getDimSize(j);
+    os << " + " << getOffsetStr(offsets[i]) << " * " << stride;
+  }
+  os << ", " << getName(op.getSource()) << ".begin() + "
+     << getOffsetStr(offsets[0]);
+  for (unsigned i = 1; i < offsets.size(); ++i) {
+    int64_t stride = 1;
+    for (unsigned j = i + 1; j < srcType.getRank(); ++j)
+      stride *= srcType.getDimSize(j);
+    os << " + " << getOffsetStr(offsets[i]) << " * " << stride;
+  }
+  os << " + " << numElements << ");\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(tensor::InsertSliceOp op) {
+  bool inPlace = variableNames->contains(op.getResult()) &&
+                 variableNames->contains(op.getDest()) &&
+                 getName(op.getResult()) == getName(op.getDest());
+  std::string resultName;
+  if (inPlace) {
+    resultName = getName(op.getResult());
+  } else {
+    auto typeStr = convertType(
+        cast<RankedTensorType>(op.getResult().getType()).getElementType());
+    if (failed(typeStr)) return failure();
+    resultName = getName(op.getResult());
+    os << "std::vector<" << *typeStr << "> " << resultName << "("
+       << getName(op.getDest()) << ");\n";
+  }
+  // Copy source into dest at offset
+  auto offsets = op.getMixedOffsets();
+  auto getOffsetStr = [&](OpFoldResult ofr) -> std::string {
+    if (auto attr = dyn_cast<Attribute>(ofr))
+      return std::to_string(cast<IntegerAttr>(attr).getInt());
+    return getName(cast<Value>(ofr));
+  };
+  os << "std::copy(" << getName(op.getSource()) << ".begin(), "
+     << getName(op.getSource()) << ".end(), " << resultName << ".begin() + "
+     << getOffsetStr(offsets[0]);
+  auto destType = op.getType();
+  for (unsigned i = 1; i < offsets.size(); ++i) {
+    int64_t stride = 1;
+    for (unsigned j = i + 1; j < destType.getRank(); ++j)
+      stride *= destType.getDimSize(j);
+    os << " + " << getOffsetStr(offsets[i]) << " * " << stride;
+  }
+  os << ");\n";
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Additional arith ops
+//===----------------------------------------------------------------------===//
+
+LogicalResult CheddarEmitter::printOperation(arith::AddIOp op) {
+  auto typeStr = convertType(op.getResult().getType());
+  if (failed(typeStr)) return failure();
+  os << *typeStr << " " << getName(op.getResult()) << " = "
+     << getName(op.getLhs()) << " + " << getName(op.getRhs()) << ";\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(arith::SubIOp op) {
+  auto typeStr = convertType(op.getResult().getType());
+  if (failed(typeStr)) return failure();
+  os << *typeStr << " " << getName(op.getResult()) << " = "
+     << getName(op.getLhs()) << " - " << getName(op.getRhs()) << ";\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(arith::RemSIOp op) {
+  auto typeStr = convertType(op.getResult().getType());
+  if (failed(typeStr)) return failure();
+  os << *typeStr << " " << getName(op.getResult()) << " = "
+     << getName(op.getLhs()) << " % " << getName(op.getRhs()) << ";\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(arith::CmpIOp op) {
+  std::string cmpOp;
+  switch (op.getPredicate()) {
+    case arith::CmpIPredicate::eq:
+      cmpOp = "==";
+      break;
+    case arith::CmpIPredicate::ne:
+      cmpOp = "!=";
+      break;
+    case arith::CmpIPredicate::slt:
+    case arith::CmpIPredicate::ult:
+      cmpOp = "<";
+      break;
+    case arith::CmpIPredicate::sle:
+    case arith::CmpIPredicate::ule:
+      cmpOp = "<=";
+      break;
+    case arith::CmpIPredicate::sgt:
+    case arith::CmpIPredicate::ugt:
+      cmpOp = ">";
+      break;
+    case arith::CmpIPredicate::sge:
+    case arith::CmpIPredicate::uge:
+      cmpOp = ">=";
+      break;
+  }
+  os << "bool " << getName(op.getResult()) << " = " << getName(op.getLhs())
+     << " " << cmpOp << " " << getName(op.getRhs()) << ";\n";
+  return success();
+}
+
+LogicalResult CheddarEmitter::printOperation(arith::IndexCastOp op) {
+  auto typeStr = convertType(op.getOut().getType());
+  if (failed(typeStr)) return failure();
+  os << *typeStr << " " << getName(op.getOut()) << " = static_cast<" << *typeStr
+     << ">(" << getName(op.getIn()) << ");\n";
   return success();
 }
 

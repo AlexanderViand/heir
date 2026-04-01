@@ -5,16 +5,18 @@
 
 #include "lib/Analysis/SelectVariableNames/SelectVariableNames.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
-#include "llvm/include/llvm/Support/raw_ostream.h"      // from @llvm-project
-#include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"   // from @llvm-project
-#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinOps.h"            // from @llvm-project
-#include "mlir/include/mlir/IR/Operation.h"             // from @llvm-project
-#include "mlir/include/mlir/IR/Types.h"                 // from @llvm-project
-#include "mlir/include/mlir/IR/Value.h"                 // from @llvm-project
-#include "mlir/include/mlir/Support/IndentedOstream.h"  // from @llvm-project
-#include "mlir/include/mlir/Support/LLVM.h"             // from @llvm-project
-#include "mlir/include/mlir/Support/LogicalResult.h"    // from @llvm-project
+#include "llvm/include/llvm/Support/raw_ostream.h"       // from @llvm-project
+#include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
+#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
+#include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"        // from @llvm-project
+#include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"             // from @llvm-project
+#include "mlir/include/mlir/IR/Operation.h"              // from @llvm-project
+#include "mlir/include/mlir/IR/Types.h"                  // from @llvm-project
+#include "mlir/include/mlir/IR/Value.h"                  // from @llvm-project
+#include "mlir/include/mlir/Support/IndentedOstream.h"   // from @llvm-project
+#include "mlir/include/mlir/Support/LLVM.h"              // from @llvm-project
+#include "mlir/include/mlir/Support/LogicalResult.h"     // from @llvm-project
 
 namespace mlir {
 namespace heir {
@@ -91,6 +93,25 @@ class CheddarEmitter {
 
   // Arith dialect ops
   LogicalResult printOperation(arith::ConstantOp op);
+  LogicalResult printOperation(arith::AddIOp op);
+  LogicalResult printOperation(arith::SubIOp op);
+  LogicalResult printOperation(arith::RemSIOp op);
+  LogicalResult printOperation(arith::CmpIOp op);
+  LogicalResult printOperation(arith::IndexCastOp op);
+
+  // SCF ops
+  LogicalResult printOperation(scf::ForOp op);
+  LogicalResult printOperation(scf::IfOp op);
+  LogicalResult printOperation(scf::YieldOp op);
+
+  // Tensor ops
+  LogicalResult printOperation(tensor::EmptyOp op);
+  LogicalResult printOperation(tensor::ExtractOp op);
+  LogicalResult printOperation(tensor::InsertOp op);
+  LogicalResult printOperation(tensor::FromElementsOp op);
+  LogicalResult printOperation(tensor::ExpandShapeOp op);
+  LogicalResult printOperation(tensor::ExtractSliceOp op);
+  LogicalResult printOperation(tensor::InsertSliceOp op);
 
  public:
   // Type conversion (public for header emission)
