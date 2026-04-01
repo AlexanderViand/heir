@@ -1,5 +1,6 @@
 #include "lib/Target/Cheddar/CheddarEmitter.h"
 
+#include <cmath>
 #include <string>
 
 #include "lib/Analysis/SelectVariableNames/SelectVariableNames.h"
@@ -567,12 +568,60 @@ LogicalResult CheddarEmitter::printOperation(BootOp op) {
 LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   needsExtensionIncludes = true;
   auto name = getName(op.getOutput());
-  // TODO: Emit proper LinearTransform setup code with BSGS
-  // For now, emit a placeholder that shows the structure
-  os << "// LinearTransform: diag_indices=" << op.getDiagonalIndicesAttr()
-     << ", level=" << op.getLevelAttr().getInt()
-     << ", logBSGS=" << op.getLogBabyStepGiantStepRatioAttr().getInt() << "\n";
-  os << "Ct " << name << "; // TODO: implement LinearTransform emission\n";
+  auto diagIndices = op.getDiagonalIndicesAttr().asArrayRef();
+  auto level = op.getLevelAttr().getInt();
+  auto logBSGS = op.getLogBabyStepGiantStepRatioAttr().getInt();
+  auto diagonalsName = getName(op.getDiagonals());
+  auto ctxName = getName(op.getCtx());
+  auto evkMapName = getName(op.getEvkMap());
+  auto inputName = getName(op.getInput());
+
+  // Get diagonals tensor shape to determine slots
+  auto diagType = cast<RankedTensorType>(op.getDiagonals().getType());
+  int64_t numDiags = diagType.getShape()[0];
+  int64_t slots = diagType.getShape()[1];
+
+  // Compute baby-step / giant-step from logBSGS ratio
+  // bs * gs >= numDiags, bs/gs ~ 2^logBSGS
+  int64_t bs = 1;
+  int64_t gs = numDiags;
+  if (logBSGS > 0) {
+    // Simple BSGS split: bs = ceil(sqrt(numDiags * 2^logBSGS))
+    double ratio = std::pow(2.0, logBSGS);
+    bs = static_cast<int64_t>(
+        std::ceil(std::sqrt(static_cast<double>(numDiags) * ratio)));
+    gs = (numDiags + bs - 1) / bs;
+  }
+
+  // Unique name for this linear transform
+  std::string ltName = name + "_lt";
+  std::string matName = name + "_mat";
+
+  // Build the StripedMatrix from the diagonals tensor
+  os << "StripedMatrix " << matName << "(" << numDiags << ", " << slots
+     << ");\n";
+  os << "{\n";
+  os.indent();
+  os << "// Populate diagonals from " << diagonalsName << "\n";
+  os << "auto* data = " << diagonalsName << ".data();\n";
+  for (int64_t i = 0; i < numDiags; ++i) {
+    os << matName << "[" << diagIndices[i] << "] = std::vector<Complex>(data + "
+       << i * slots << ", data + " << (i + 1) * slots << ");\n";
+  }
+  os.unindent();
+  os << "}\n";
+
+  // Construct LinearTransform
+  // TODO: derive scale from scheme params rather than hardcoding
+  os << "LinearTransform<word> " << ltName << "(" << ctxName << ", " << matName
+     << ", " << level << ", static_cast<double>(1ULL << "
+     << 40  // logDefaultScale placeholder
+     << "), " << bs << ", " << gs << ");\n";
+
+  // Evaluate
+  os << "Ct " << name << ";\n";
+  os << ltName << ".Evaluate(" << ctxName << ", " << name << ", " << inputName
+     << ", " << evkMapName << ");\n";
   return success();
 }
 
