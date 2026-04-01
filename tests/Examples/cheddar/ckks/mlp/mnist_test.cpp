@@ -67,6 +67,15 @@ TEST(CheddarMNIST, EndToEnd) {
   start = std::chrono::high_resolution_clock::now();
 
   UserInterface<word> ui(context);
+  // Prepare rotation keys for all distances used by the MNIST inference.
+  // These are derived from the layout/packing scheme (ciphertext-degree=32768).
+  for (int rot :
+       {1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,  12,  13,
+        14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  32,  46,  64,
+        69,  92,  115, 128, 138, 161, 184, 207, 230, 253, 256, 276, 299,
+        322, 345, 368, 391, 414, 437, 460, 483, 506, 512}) {
+    ui.PrepareRotationKey(rot);
+  }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout

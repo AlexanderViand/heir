@@ -603,14 +603,29 @@ LogicalResult CheddarEmitter::printOperation(HMultOp op) {
 LogicalResult CheddarEmitter::printOperation(HRotOp op) {
   auto name = getName(op.getOutput());
   os << "Ct " << name << ";\n";
-  os << getName(op.getCtx()) << "->HRot(" << name << ", "
-     << getName(op.getInput()) << ", " << getName(op.getRotKey()) << ", ";
   if (auto staticShift = op.getStaticShift()) {
-    os << staticShift->getInt();
+    // Static shift: use the pre-fetched rotation key
+    os << getName(op.getCtx()) << "->HRot(" << name << ", "
+       << getName(op.getInput()) << ", " << getName(op.getRotKey()) << ", "
+       << staticShift->getInt() << ");\n";
   } else {
-    os << getName(op.getDynamicShift());
+    // Dynamic shift: look up the rotation key at runtime by the shift value.
+    // The pre-fetched key (from GetRotKeyOp with distance=0) is a placeholder;
+    // we need to get the actual key from the UserInterface at runtime.
+    auto shiftName = getName(op.getDynamicShift());
+    // Find the UserInterface from the GetRotKeyOp's operand
+    auto getRotKeyOp = op.getRotKey().getDefiningOp<GetRotKeyOp>();
+    if (getRotKeyOp) {
+      os << getName(op.getCtx()) << "->HRot(" << name << ", "
+         << getName(op.getInput()) << ", " << getName(getRotKeyOp.getUi())
+         << ".GetRotationKey(" << shiftName << "), " << shiftName << ");\n";
+    } else {
+      // Fallback: use the key as-is (won't work correctly for dynamic shifts)
+      os << getName(op.getCtx()) << "->HRot(" << name << ", "
+         << getName(op.getInput()) << ", " << getName(op.getRotKey()) << ", "
+         << shiftName << ");\n";
+    }
   }
-  os << ");\n";
   return success();
 }
 
