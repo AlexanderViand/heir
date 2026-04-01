@@ -2,6 +2,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def _llvm_deps_impl(_):
@@ -53,3 +54,28 @@ def _llvm_deps_impl(_):
 llvm_deps = module_extension(
     implementation = _llvm_deps_impl,
 )
+
+# CHEDDAR GPU FHE library
+# For local development, point at a local clone.
+# For CI/upstream, switch to new_git_repository with a commit hash.
+CHEDDAR_LOCAL_PATH = "/tmp/cheddar-fhe"
+CHEDDAR_COMMIT = None  # Set to a commit hash to fetch from GitHub instead
+
+def _cheddar_deps_impl(_):
+    if CHEDDAR_COMMIT:
+        maybe(
+            new_git_repository,
+            name = "cheddar",
+            build_file = "@heir//bazel/cheddar:cheddar.BUILD",
+            commit = CHEDDAR_COMMIT,
+            remote = "https://github.com/scale-snu/cheddar-fhe.git",
+        )
+    else:
+        maybe(
+            new_local_repository,
+            name = "cheddar",
+            build_file = "@heir//bazel/cheddar:cheddar.BUILD",
+            path = CHEDDAR_LOCAL_PATH,
+        )
+
+cheddar_deps = module_extension(implementation = _cheddar_deps_impl)

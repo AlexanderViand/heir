@@ -1,0 +1,53 @@
+# SkyPilot config for running CHEDDAR backend tests on a GPU instance.
+# Usage: sky launch sky/cheddar_test.yaml
+#
+# This provisions a GPU instance, installs CUDA and dependencies,
+# clones HEIR and CHEDDAR, builds and runs the end-to-end tests.
+
+name: cheddar-test
+
+resources:
+  accelerators: T4:1
+  cloud: gcp
+  disk_size: 100
+
+setup: |
+  # Install CUDA 12
+  sudo apt-get update
+  sudo apt-get install -y nvidia-cuda-toolkit libtommath-dev libjsoncpp-dev
+
+  # Install Bazelisk
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    sudo chmod +x /usr/local/bin/bazel
+  fi
+
+  # Clone CHEDDAR
+  if [ ! -d /tmp/cheddar-fhe ]; then
+    git clone https://github.com/scale-snu/cheddar-fhe.git /tmp/cheddar-fhe
+  fi
+
+  # Clone HEIR (use the cheddar branch)
+  if [ ! -d ~/heir ]; then
+    git clone --branch worktree-cheddar-backend https://github.com/google/heir.git ~/heir
+  fi
+
+run: |
+  cd ~/heir
+
+  # Build with CHEDDAR enabled
+  bazel build -c opt \
+    --//:enable_cheddar=1 \
+    //tools:heir-opt \
+    //tools:heir-translate
+
+  # Run the roundtrip test
+  bazel-bin/tools/heir-opt tests/Dialect/Cheddar/IR/roundtrip.mlir
+
+  # Run the emitter test
+  bazel-bin/tools/heir-translate --emit-cheddar tests/Emitter/Cheddar/emit_cheddar.mlir
+
+  # Run the fusion test
+  bazel-bin/tools/heir-opt --cheddar-fuse-ops tests/Dialect/Cheddar/Transforms/fuse_ops.mlir
+
+  echo "All CHEDDAR tests passed!"

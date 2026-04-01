@@ -64,6 +64,10 @@ use_repo(
     "llvm_zstd",
 )
 
+# CHEDDAR GPU FHE library (opt-in, requires CUDA)
+cheddar_extensions = use_extension("//bazel:extensions.bzl", "cheddar_deps")
+use_repo(cheddar_extensions, "cheddar")
+
 # The subset of LLVM backend targets that should be compiled
 _LLVM_TARGETS = [
     "X86",
