@@ -1,8 +1,7 @@
 # SkyPilot config for running CHEDDAR backend tests on a GPU instance.
 # Usage: sky launch sky/cheddar_test.yaml
 #
-# Provisions a GPU instance, installs all deps, builds CHEDDAR and HEIR,
-# and runs the end-to-end tests.
+# Uses nvidia/cuda Ubuntu 24.04 base image for clang-18 + CUDA compatibility.
 
 name: heir-cheddar
 
@@ -12,26 +11,26 @@ resources:
   memory: 128+
   disk_size: 200
   cloud: aws
+  image_id: docker:nvidia/cuda:12.6.3-devel-ubuntu24.04
 
 setup: |
   set -ex
 
-  # System deps: clang toolchain, CUDA headers, CHEDDAR deps
-  # clang-14 is too old (protobuf compat), need clang-15+
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq \
-    clang-15 lld-15 libstdc++-12-dev libomp-15-dev \
+  # System deps
+  apt-get update -qq
+  apt-get install -y -qq \
+    clang lld libomp-dev \
     zlib1g-dev \
     libtommath-dev libjsoncpp-dev \
-    cmake
+    git wget pip
 
-  # Newer cmake (CHEDDAR requires >= 3.24, Ubuntu 22.04 ships 3.22)
-  pip install cmake --upgrade -q
+  # Newer cmake (CHEDDAR requires >= 3.24)
+  pip install cmake --upgrade -q --break-system-packages
 
   # Bazelisk
   if ! command -v bazel &> /dev/null; then
-    sudo wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
-    sudo chmod +x /usr/local/bin/bazel
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
   fi
 
   # Clone CHEDDAR
@@ -40,7 +39,6 @@ setup: |
   fi
 
   # Build CHEDDAR
-  export PATH=/usr/local/cuda/bin:$PATH
   cd /tmp/cheddar-fhe
   rm -rf build && mkdir build && cd build
   NCPU=$(cat /proc/cpuinfo | grep processor | wc -l)
@@ -56,27 +54,23 @@ setup: |
   git checkout -B worktree-cheddar-backend origin/worktree-cheddar-backend
 
   # Build HEIR tools
-  CC=clang-15 bazel build //tools:heir-opt //tools:heir-translate
+  CC=clang bazel build //tools:heir-opt //tools:heir-translate
 
 run: |
   set -ex
-  export PATH=/usr/local/cuda/bin:$PATH
   export LD_LIBRARY_PATH=/tmp/cheddar-fhe/build:$LD_LIBRARY_PATH
   cd ~/heir
 
   # HEIR dialect roundtrip
-  bazel-bin/tools/heir-opt tests/Dialect/Cheddar/IR/roundtrip.mlir
-
-  # HEIR emitter
-  bazel-bin/tools/heir-translate --emit-cheddar tests/Emitter/Cheddar/emit_cheddar.mlir
+  bazel run //tools:heir-opt -- $(pwd)/tests/Dialect/Cheddar/IR/roundtrip.mlir
 
   # HEIR fusion pass
-  bazel-bin/tools/heir-opt --cheddar-fuse-ops tests/Dialect/Cheddar/Transforms/fuse_ops.mlir
+  bazel run //tools:heir-opt -- --cheddar-fuse-ops $(pwd)/tests/Dialect/Cheddar/Transforms/fuse_ops.mlir
 
   # Full MLP pipeline: lower + fuse + emit C++
-  bazel-bin/tools/heir-opt --lwe-to-cheddar --cheddar-fuse-ops \
-    tests/Examples/orion/mlp/mlp.mlir | \
-    bazel-bin/tools/heir-translate --emit-cheddar --allow-unregistered-dialect
+  bazel run //tools:heir-opt -- --lwe-to-cheddar --cheddar-fuse-ops \
+    $(pwd)/tests/Examples/orion/mlp/mlp.mlir | \
+    bazel run //tools:heir-translate -- --emit-cheddar --allow-unregistered-dialect
 
   # CHEDDAR GPU test
   cd /tmp/cheddar-fhe/build/unittest
