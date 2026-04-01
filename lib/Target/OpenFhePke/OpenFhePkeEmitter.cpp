@@ -241,29 +241,6 @@ FailureOr<std::string> getWeightType(Type type) {
   return result;
 }
 
-FailureOr<int64_t> getOrionLevel(Value value) {
-  auto blockArg = dyn_cast<BlockArgument>(value);
-  if (!blockArg) {
-    return failure();
-  }
-
-  auto funcOp = dyn_cast<func::FuncOp>(blockArg.getOwner()->getParentOp());
-  if (!funcOp) {
-    return failure();
-  }
-
-  DictionaryAttr attrs = funcOp.getArgAttrDict(blockArg.getArgNumber());
-  if (!attrs) {
-    return failure();
-  }
-
-  auto levelAttr = dyn_cast_or_null<IntegerAttr>(attrs.get("orion.level"));
-  if (!levelAttr) {
-    return failure();
-  }
-  return levelAttr.getInt();
-}
-
 }  // namespace
 
 std::string OpenFhePkeEmitter::getConstantOrValue(Value value) {
@@ -492,11 +469,14 @@ LogicalResult OpenFhePkeEmitter::emitPrecomputeFunction(func::FuncOp funcOp) {
     if (auto linearTransform = dyn_cast<LinearTransformOp>(op)) {
       auto diagonalsType =
           dyn_cast<RankedTensorType>(linearTransform.getDiagonals().getType());
-      auto level = getOrionLevel(linearTransform.getDiagonals());
       if (!diagonalsType || diagonalsType.getRank() != 2 ||
-          !diagonalsType.hasStaticShape() || failed(level)) {
+          !diagonalsType.hasStaticShape()) {
         return WalkResult::advance();
       }
+
+      int64_t level = linearTransform.getLevel();
+      std::string levelExpr = "heir_openfhe_level_from_orion(" + contextName +
+                              ", " + std::to_string(level) + ")";
 
       std::string diagonalsName =
           variableNames->getNameForValue(linearTransform.getDiagonals());
@@ -509,15 +489,13 @@ LogicalResult OpenFhePkeEmitter::emitPrecomputeFunction(func::FuncOp funcOp) {
 
       os << "auto& " << cacheVar << " = heir_linear_transform_cache()["
          << "heir_cache_key(\"" << cacheKey << "\", " << contextName << ", "
-         << diagonalsName << ", " << "heir_openfhe_level_from_orion("
-         << contextName << ", " << level.value() << "))];\n";
+         << diagonalsName << ", " << levelExpr << ")];\n";
       os << "std::vector<int32_t> " << diagonalIndicesName << " = "
          << printI32Vector(linearTransform.getDiagonalIndices()) << ";\n";
       os << cacheVar << " = heir_precompute_linear_transform(" << contextName
          << ", " << diagonalsName << ", " << diagonalIndicesName << ", "
-         << linearTransform.getLogBabyStepGiantStepRatio() << ", "
-         << "heir_openfhe_level_from_orion(" << contextName << ", "
-         << level.value() << "));\n";
+         << linearTransform.getLogBabyStepGiantStepRatio() << ", " << levelExpr
+         << ");\n";
     } else if (auto makePlain = dyn_cast<MakeCKKSPackedPlaintextOp>(op)) {
       auto inputType =
           dyn_cast<RankedTensorType>(makePlain.getValue().getType());
@@ -1138,7 +1116,6 @@ LogicalResult OpenFhePkeEmitter::printOperation(LinearTransformOp op) {
   }
 
   auto parentFunc = op->getParentOfType<func::FuncOp>();
-  auto level = getOrionLevel(op.getDiagonals());
 
   std::string contextName =
       variableNames->getNameForValue(op.getCryptoContext());
@@ -1148,10 +1125,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(LinearTransformOp op) {
   std::string resultName = variableNames->getNameForValue(op.getResult());
   std::string cacheName = resultName + "_lt";
   std::string diagonalIndicesName = cacheName + "_diagonal_indices";
-  std::string levelExpr =
-      succeeded(level) ? ("heir_openfhe_level_from_orion(" + contextName +
-                          ", " + std::to_string(level.value()) + ")")
-                       : (ciphertextName + "->GetLevel()");
+  int64_t level = op.getLevel();
+  std::string levelExpr = "heir_openfhe_level_from_orion(" + contextName +
+                          ", " + std::to_string(level) + ")";
   if (parentFunc) {
     std::string cacheKey(canonicalizeDebugPort(parentFunc.getName()));
     cacheKey += "::";

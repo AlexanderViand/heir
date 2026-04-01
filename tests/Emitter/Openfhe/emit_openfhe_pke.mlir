@@ -267,16 +267,16 @@ module attributes {scheme.bgv} {
 !ct = !openfhe.ciphertext
 
 // CHECK: CiphertextT test_linear_transform(
-// CHECK: auto& [[LT:.*]] = heir_linear_transform_cache()[heir_cache_key("test_linear_transform::[[RESNAME:.*]]", [[CC:.*]], [[DIAGS:.*]], [[ARG:.*]]->GetLevel())];
+// CHECK: auto& [[LT:.*]] = heir_linear_transform_cache()[heir_cache_key("test_linear_transform::[[RESNAME:.*]]", [[CC:.*]], [[DIAGS:.*]], heir_openfhe_level_from_orion([[CC]], 5))];
 // CHECK: if (![[LT]].initialized) {
 // CHECK: std::vector<int32_t> [[DIAGIDX:.*]] = {0, 1, 2};
-// CHECK: [[LT]] = heir_precompute_linear_transform([[CC]], [[DIAGS]], [[DIAGIDX]], 0, [[ARG]]->GetLevel());
-// CHECK: auto [[RES:.*]] = heir_eval_linear_transform([[CC]], [[ARG]], [[LT]]);
+// CHECK: [[LT]] = heir_precompute_linear_transform([[CC]], [[DIAGS]], [[DIAGIDX]], 0, heir_openfhe_level_from_orion([[CC]], 5));
+// CHECK: auto [[RES:.*]] = heir_eval_linear_transform([[CC]], [[ARG:.*]], [[LT]]);
 // CHECK: return [[RES]];
 module attributes {scheme.ckks} {
   func.func @test_linear_transform(%cc: !cc, %arg0: !ct) -> !ct {
     %diags = arith.constant dense<[[1.0, 2.0, 3.0, 4.0], [0.5, 0.0, 0.0, 0.0], [0.25, 0.0, 0.0, 0.0]]> : tensor<3x4xf64>
-    %0 = openfhe.linear_transform %cc, %arg0, %diags {diagonal_indices = array<i32: 0, 1, 2>, logBabyStepGiantStepRatio = 0 : i64} : (!cc, !ct, tensor<3x4xf64>) -> !ct
+    %0 = openfhe.linear_transform %cc, %arg0, %diags {diagonal_indices = array<i32: 0, 1, 2>, level = 5 : i64, logBabyStepGiantStepRatio = 0 : i64} : (!cc, !ct, tensor<3x4xf64>) -> !ct
     return %0 : !ct
   }
 }

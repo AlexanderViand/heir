@@ -467,6 +467,7 @@ def LinearTransformOp : Openfhe_Op<"linear_transform", [
     Openfhe_Ciphertext:$ciphertext,
     2DTensorOf<[AnyFloat]>:$diagonals,
     DenseI32ArrayAttr:$diagonal_indices,
+    I64Attr:$level,
     I64Attr:$logBabyStepGiantStepRatio
   );
   let results = (outs Openfhe_Ciphertext:$output);

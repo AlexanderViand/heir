@@ -398,14 +398,18 @@ struct ConvertOrionLinearTransformOp
     }
 
     auto bsgsRatio = op.getBsgsRatioAttr();
+    // bsgs_ratio stores the log2 ratio as a float; cast to int is intentional.
     int64_t logBsgsRatio =
         static_cast<int64_t>(cast<FloatAttr>(bsgsRatio).getValueAsDouble());
     auto logBsgsRatioAttr = rewriter.getI64IntegerAttr(logBsgsRatio);
 
+    auto levelAttr = rewriter.getI64IntegerAttr(
+        cast<IntegerAttr>(op.getOrionLevelAttr()).getInt());
+
     rewriter.replaceOpWithNewOp<openfhe::LinearTransformOp>(
         op, openfhe::CiphertextType::get(op.getContext()), cryptoContext,
         adaptor.getInput(), adaptor.getDiagonals(), op.getDiagonalIndicesAttr(),
-        logBsgsRatioAttr);
+        levelAttr, logBsgsRatioAttr);
     return success();
   }
 };

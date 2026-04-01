@@ -241,11 +241,18 @@ inline HeirLinearTransform heir_precompute_linear_transform(
 inline CiphertextT heir_eval_linear_transform(CryptoContextT cc,
                                               ConstCiphertextT ciphertext,
                                               const HeirLinearTransform& lt) {
+  // Single-hoisted baby-step rotations: precompute the digit decomposition
+  // once and reuse it for all baby-step rotations, avoiding redundant
+  // key-switch decompositions.
+  uint32_t M = cc->GetCyclotomicOrder();
+  auto precomp = cc->EvalFastRotationPrecompute(ciphertext);
+
   std::map<uint32_t, ConstCiphertextT> rotated_ciphertexts;
   rotated_ciphertexts.emplace(0, ciphertext);
   for (uint32_t baby : lt.baby_rotations) {
     rotated_ciphertexts.emplace(
-        baby, cc->EvalRotate(ciphertext, static_cast<int32_t>(baby)));
+        baby, cc->EvalFastRotation(ciphertext, static_cast<int32_t>(baby),
+                                   M, precomp));
   }
 
   CiphertextT result;

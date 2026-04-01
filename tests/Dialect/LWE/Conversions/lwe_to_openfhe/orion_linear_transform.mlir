@@ -2,7 +2,7 @@
 
 // CHECK: func.func @linear_transform
 // CHECK-NOT: orion.linear_transform
-// CHECK: %[[LT:.+]] = openfhe.linear_transform %[[CC:.+]], %[[CT:.+]], %[[DIAGS:.+]] {diagonal_indices = array<i32: 0, 1>, logBabyStepGiantStepRatio = 2 : i64} : (!cc, !ct, tensor<2x4096xf64>) -> !ct
+// CHECK: %[[LT:.+]] = openfhe.linear_transform %[[CC:.+]], %[[CT:.+]], %[[DIAGS:.+]] {diagonal_indices = array<i32: 0, 1>, level = 5 : i64, logBabyStepGiantStepRatio = 2 : i64} : (!cc, !ct, tensor<2x4096xf64>) -> !ct
 // CHECK: return %[[LT]]
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
