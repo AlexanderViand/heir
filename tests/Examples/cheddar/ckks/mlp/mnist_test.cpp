@@ -81,11 +81,7 @@ TEST(CheddarMNIST, EndToEnd) {
   start = std::chrono::high_resolution_clock::now();
 
   // Create a simple test input (784 pixels, all 0.5)
-  std::vector<Complex> input_clear(slots, Complex(0.0, 0.0));
-  for (int i = 0; i < 784; ++i) {
-    input_clear[i] = Complex(0.5, 0.0);
-  }
-  std::vector<Complex> input_tensor = {Complex(0.0, 0.0)};  // tensor<1x...>
+  std::vector<double> input_clear(784, 0.5);
 
   // Use the generated encrypt helper
   auto& encoder = context->encoder_;
@@ -102,10 +98,10 @@ TEST(CheddarMNIST, EndToEnd) {
   std::cout << "[4/5] Running MNIST inference on GPU..." << std::flush;
   start = std::chrono::high_resolution_clock::now();
 
-  std::vector<Complex> fc1_weights(512 * 784, Complex(0.01, 0.0));
-  std::vector<Complex> fc1_bias(512, Complex(0.0, 0.0));
-  std::vector<Complex> fc2_weights(10 * 512, Complex(0.01, 0.0));
-  std::vector<Complex> fc2_bias(10, Complex(0.0, 0.0));
+  std::vector<double> fc1_weights(512 * 784, 0.01);
+  std::vector<double> fc1_bias(512, 0.0);
+  std::vector<double> fc2_weights(10 * 512, 0.01);
+  std::vector<double> fc2_bias(10, 0.0);
 
   auto result_ct = mnist(context, encoder, ui, fc1_weights, fc1_bias,
                          fc2_weights, fc2_bias, encrypted_input);
@@ -131,7 +127,7 @@ TEST(CheddarMNIST, EndToEnd) {
   // Print output
   std::cout << "\nOutput (first 10 values):" << std::endl;
   for (int i = 0; i < std::min(10, static_cast<int>(result.size())); ++i) {
-    std::cout << "  [" << i << "] = " << result[i].real() << std::endl;
+    std::cout << "  [" << i << "] = " << result[i] << std::endl;
   }
 
   std::cout << "\n=== CHEDDAR MNIST Test Complete ===" << std::endl;
