@@ -10,20 +10,20 @@ namespace cheddar {
 // Includes emitted at the top of generated files
 // CHEDDAR headers use unnamespaced paths (core/, extension/).
 constexpr std::string_view kCheddarInclude = R"cpp(
-#include "cheddar/core/Context.h"
-#include "cheddar/core/Container.h"
-#include "cheddar/core/Parameter.h"
-#include "cheddar/core/Encode.h"
-#include "cheddar/core/EvkMap.h"
-#include "cheddar/core/EvkRequest.h"
-#include "cheddar/UserInterface.h"
+#include "core/Context.h"
+#include "core/Container.h"
+#include "core/Parameter.h"
+#include "core/Encode.h"
+#include "core/EvkMap.h"
+#include "core/EvkRequest.h"
+#include "UserInterface.h"
 )cpp";
 
 constexpr std::string_view kCheddarExtensionInclude = R"cpp(
-#include "cheddar/extension/BootContext.h"
-#include "cheddar/extension/LinearTransform.h"
-#include "cheddar/extension/EvalPoly.h"
-#include "cheddar/extension/Hoist.h"
+#include "extension/BootContext.h"
+#include "extension/LinearTransform.h"
+#include "extension/EvalPoly.h"
+#include "extension/Hoist.h"
 )cpp";
 
 constexpr std::string_view kStdIncludes = R"cpp(

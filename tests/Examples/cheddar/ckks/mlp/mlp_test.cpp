@@ -16,15 +16,15 @@
 #include <string>
 #include <vector>
 
-#include "cheddar/UserInterface.h"
-#include "cheddar/core/Container.h"
-#include "cheddar/core/Context.h"
-#include "cheddar/core/Encode.h"
-#include "cheddar/core/EvkMap.h"
-#include "cheddar/core/EvkRequest.h"
-#include "cheddar/core/Parameter.h"
-#include "cheddar/extension/BootContext.h"
-#include "cheddar/extension/LinearTransform.h"
+#include "UserInterface.h"
+#include "core/Container.h"
+#include "core/Context.h"
+#include "core/Encode.h"
+#include "core/EvkMap.h"
+#include "core/EvkRequest.h"
+#include "core/Parameter.h"
+#include "extension/BootContext.h"
+#include "extension/LinearTransform.h"
 #include "mlp_lib.h"
 
 using namespace cheddar;
