@@ -384,9 +384,28 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   auto level = op.getLevelAttr().getInt();
   auto scale = op.getScaleAttr().getInt();
   auto name = getName(op.getPlaintext());
+  auto msgName = getName(op.getMessage());
+
+  // CHEDDAR's Encode takes std::vector<Complex>. If the message is
+  // std::vector<double>, emit a conversion.
+  auto msgType = op.getMessage().getType();
+  bool needsComplexConversion = false;
+  if (auto tensorType = dyn_cast<RankedTensorType>(msgType)) {
+    auto elemType = tensorType.getElementType();
+    needsComplexConversion = elemType.isF32() || elemType.isF64();
+  }
+
   os << "Pt " << name << ";\n";
-  os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level << ", "
-     << scale << ", " << getName(op.getMessage()) << ");\n";
+  if (needsComplexConversion) {
+    std::string complexMsgName = msgName + "_complex";
+    os << "std::vector<Complex> " << complexMsgName << "(" << msgName
+       << ".begin(), " << msgName << ".end());\n";
+    os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
+       << ", " << scale << ", " << complexMsgName << ");\n";
+  } else {
+    os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
+       << ", " << scale << ", " << msgName << ");\n";
+  }
   return success();
 }
 
@@ -401,10 +420,30 @@ LogicalResult CheddarEmitter::printOperation(EncodeConstantOp op) {
 }
 
 LogicalResult CheddarEmitter::printOperation(DecodeOp op) {
-  auto name = getName(op.getMessage());
-  os << "std::vector<Complex> " << name << ";\n";
-  os << getName(op.getEncoder()) << ".Decode(" << name << ", "
-     << getName(op.getPlaintext()) << ");\n";
+  auto msgType = op.getMessage().getType();
+  bool needsRealConversion = false;
+  if (auto tensorType = dyn_cast<RankedTensorType>(msgType)) {
+    auto elemType = tensorType.getElementType();
+    needsRealConversion = elemType.isF32() || elemType.isF64();
+  }
+
+  if (needsRealConversion) {
+    // CHEDDAR Decode returns Complex; convert to double for float tensors
+    std::string complexName = getName(op.getMessage()) + "_complex";
+    os << "std::vector<Complex> " << complexName << ";\n";
+    os << getName(op.getEncoder()) << ".Decode(" << complexName << ", "
+       << getName(op.getPlaintext()) << ");\n";
+    os << "std::vector<double> " << getName(op.getMessage()) << "("
+       << complexName << ".size());\n";
+    os << "for (size_t i = 0; i < " << complexName << ".size(); ++i) "
+       << getName(op.getMessage()) << "[i] = " << complexName
+       << "[i].real();\n";
+  } else {
+    auto name = getName(op.getMessage());
+    os << "std::vector<Complex> " << name << ";\n";
+    os << getName(op.getEncoder()) << ".Decode(" << name << ", "
+       << getName(op.getPlaintext()) << ");\n";
+  }
   return success();
 }
 
@@ -713,8 +752,8 @@ LogicalResult CheddarEmitter::printOperation(scf::ForOp op) {
     auto typeStr = convertType(iterArg.getType());
     if (failed(typeStr))
       return op.emitOpError("failed to convert iter arg type");
-    os << *typeStr << " " << getName(iterArg) << " = " << getName(init)
-       << ";\n";
+    os << *typeStr << " " << getName(iterArg) << " = std::move("
+       << getName(init) << ");\n";
   }
 
   // for (int64_t iv = lb; iv < ub; iv += step)
@@ -744,8 +783,8 @@ LogicalResult CheddarEmitter::printOperation(scf::ForOp op) {
     if (getName(opResult) != getName(iterArg)) {
       auto typeStr = convertType(opResult.getType());
       if (failed(typeStr)) return failure();
-      os << *typeStr << " " << getName(opResult) << " = " << getName(iterArg)
-         << ";\n";
+      os << *typeStr << " " << getName(opResult) << " = std::move("
+         << getName(iterArg) << ");\n";
     }
   }
   return success();
@@ -785,7 +824,8 @@ LogicalResult CheddarEmitter::printOperation(scf::YieldOp op) {
           .Default([&](auto) { return ValueRange{}; });
 
   for (unsigned i = 0; i < op.getNumOperands(); ++i) {
-    os << getName(destValues[i]) << " = " << getName(op.getOperand(i)) << ";\n";
+    os << getName(destValues[i]) << " = std::move(" << getName(op.getOperand(i))
+       << ");\n";
   }
   return success();
 }
