@@ -163,6 +163,48 @@ struct FuseHConjAdd : public OpRewritePattern<AddOp> {
   }
 };
 
+// Pattern: move relinearize before add_plain/sub_plain when the input is
+// an unrelinearized mult result (degree-3 ciphertext).
+// CHEDDAR doesn't support add/sub on degree-3 ciphertexts, so relin must
+// come first.  Transforms:
+//   %a = mult(%x, %y)
+//   %b = sub_plain(%a, %pt)    [or add_plain]
+//   %c = relin(%b, %key)
+// into:
+//   %a = mult(%x, %y)
+//   %a2 = relin(%a, %key)
+//   %c = sub_plain(%a2, %pt)   [or add_plain]
+//
+// This is valid because relin and sub_plain commute: both modify independent
+// components of the ciphertext polynomial representation.
+template <typename PlainOp>
+struct HoistRelinBeforePlainOp : public OpRewritePattern<RelinearizeOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(RelinearizeOp relinOp,
+                                PatternRewriter &rewriter) const override {
+    auto plainOp = relinOp.getInput().getDefiningOp<PlainOp>();
+    if (!plainOp || !plainOp.getResult().hasOneUse()) return failure();
+
+    auto multOp = plainOp.getCiphertext().template getDefiningOp<MultOp>();
+    if (!multOp || !multOp.getResult().hasOneUse()) return failure();
+
+    // Insert relin right after mult (before the plain op)
+    rewriter.setInsertionPointAfter(multOp);
+    auto newRelin = RelinearizeOp::create(
+        rewriter, relinOp.getLoc(), relinOp.getOutput().getType(),
+        multOp.getCtx(), multOp.getResult(), relinOp.getMultKey());
+
+    // Replace the plain op's ciphertext input with the relinearized result
+    rewriter.replaceOpWithNewOp<PlainOp>(relinOp, relinOp.getOutput().getType(),
+                                         plainOp.getCtx(), newRelin.getResult(),
+                                         plainOp.getPlaintext());
+
+    rewriter.eraseOp(plainOp);
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Pass definition
 //===----------------------------------------------------------------------===//
@@ -175,7 +217,13 @@ struct CheddarFuseOps : public impl::CheddarFuseOpsBase<CheddarFuseOps> {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
 
-    // Add fusion patterns. Order matters: try the longest fusions first.
+    // First, hoist relinearize before add/sub_plain so that CHEDDAR never
+    // sees degree-3 ciphertexts in add/sub operations. This also enables
+    // the subsequent mult+relin fusion patterns to match.
+    patterns.add<HoistRelinBeforePlainOp<AddPlainOp>>(context, /*benefit=*/4);
+    patterns.add<HoistRelinBeforePlainOp<SubPlainOp>>(context, /*benefit=*/4);
+
+    // Fusion patterns. Order matters: try the longest fusions first.
     patterns.add<FuseMultRelinRescale>(context, /*benefit=*/3);
     patterns.add<FuseMultRelinRescaleFused>(context, /*benefit=*/2);
     patterns.add<FuseMultRelin>(context, /*benefit=*/1);
