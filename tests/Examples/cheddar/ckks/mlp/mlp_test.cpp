@@ -5,15 +5,15 @@
 // Uses the same Orion MLP architecture (3-layer FC with x^2 activation,
 // 4096 slots, logN=13, logDefaultScale=26).
 
-#include <UserInterface.h>
-#include <core/Container.h>
-#include <core/Context.h>
-#include <core/Encode.h>
-#include <core/EvkMap.h>
-#include <core/EvkRequest.h>
-#include <core/Parameter.h>
-#include <extension/BootContext.h>
-#include <extension/LinearTransform.h>
+#include <cheddar/UserInterface.h>
+#include <cheddar/core/Container.h>
+#include <cheddar/core/Context.h>
+#include <cheddar/core/Encode.h>
+#include <cheddar/core/EvkMap.h>
+#include <cheddar/core/EvkRequest.h>
+#include <cheddar/core/Parameter.h>
+#include <cheddar/extension/BootContext.h>
+#include <cheddar/extension/LinearTransform.h>
 #include <gtest/gtest.h>
 
 #include <chrono>

@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 323e218..bc70a80 100644
+index 323e218..16720ae 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -24,6 +24,7 @@ FetchContent_Declare(
@@ -10,11 +10,12 @@ index 323e218..bc70a80 100644
  )
  FetchContent_MakeAvailable(rmm)
  message(STATUS "RMM source dir: ${rmm_SOURCE_DIR}")
-@@ -112,3 +113,7 @@ if (BUILD_UNITTEST)
+@@ -112,3 +113,8 @@ if (BUILD_UNITTEST)
    message(STATUS "Building unit tests")
    add_subdirectory(unittest)
  endif()
 +
 +# Install targets for bazel compatibility
++# Install headers under cheddar/ prefix so includes are <cheddar/core/Context.h>
 +install(TARGETS cheddar LIBRARY DESTINATION lib)
-+install(DIRECTORY include/ DESTINATION include)
++install(DIRECTORY include/ DESTINATION include/cheddar)
