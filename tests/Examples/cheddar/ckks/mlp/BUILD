@@ -56,6 +56,7 @@ cc_library(
 # Step 3: End-to-end test
 cc_test(
     name = "mnist_test",
+    size = "enormous",
     srcs = ["mnist_test.cpp"],
     data = [
         "@cheddar//:all_srcs",  # For parameter JSON files
