@@ -18,6 +18,10 @@ void registerToOpenFhePkeDebugHeaderTranslation();
 
 void registerToOpenFhePkeDebugTranslation();
 
+void registerToFideslibPkeTranslation();
+
+void registerToFideslibPkeHeaderTranslation();
+
 }  // namespace openfhe
 }  // namespace heir
 }  // namespace mlir

@@ -16,6 +16,9 @@ constexpr std::string_view kInstallationRelativeOpenfheImport = R"cpp(
 constexpr std::string_view kEmbeddedOpenfheImport = R"cpp(
 #include "openfhe.h"
 )cpp";
+constexpr std::string_view kFideslibImport = R"cpp(
+#include "fideslib/fideslib.hpp"  // from @fideslib
+)cpp";
 
 // clang-format off
 constexpr std::string_view kModulePreludeTemplate = R"cpp(
@@ -25,6 +28,17 @@ using ConstCiphertextT = ConstCiphertext<DCRTPoly>;
 using CCParamsT = CCParams<CryptoContext{0}RNS>;
 using CryptoContextT = CryptoContext<DCRTPoly>;
 using EvalKeyT = EvalKey<DCRTPoly>;
+using PlaintextT = Plaintext;
+using PrivateKeyT = PrivateKey<DCRTPoly>;
+using PublicKeyT = PublicKey<DCRTPoly>;
+)cpp";
+
+constexpr std::string_view kFideslibModulePreludeTemplate = R"cpp(
+using namespace fideslib;
+using CiphertextT = Ciphertext<DCRTPoly>;
+using ConstCiphertextT = CiphertextT;
+using CCParamsT = CCParams<CryptoContextCKKSRNS>;
+using CryptoContextT = CryptoContext<DCRTPoly>;
 using PlaintextT = Plaintext;
 using PrivateKeyT = PrivateKey<DCRTPoly>;
 using PublicKeyT = PublicKey<DCRTPoly>;

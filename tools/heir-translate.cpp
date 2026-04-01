@@ -40,6 +40,10 @@ int main(int argc, char** argv) {
   mlir::heir::openfhe::registerToOpenFhePkeDebugHeaderTranslation();
   mlir::heir::openfhe::registerToOpenFhePkeDebugTranslation();
 
+  // FIDESlib (via OpenFHE emitter with FIDESlib backend)
+  mlir::heir::openfhe::registerToFideslibPkeTranslation();
+  mlir::heir::openfhe::registerToFideslibPkeHeaderTranslation();
+
   // Lattigo
   mlir::heir::lattigo::registerToLattigoTranslation();
   mlir::heir::lattigo::registerToLattigoPreprocessingTranslation();

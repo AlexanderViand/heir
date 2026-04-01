@@ -25,6 +25,11 @@ inline constexpr llvm::StringLiteral kPlaintxtVar = "ptxt";
 
 enum class OpenfheScheme { BGV, BFV, CKKS };
 
+// Backend implementation target. FIDESlib is a GPU-accelerated library with
+// an API closely modeled on OpenFHE (CKKS-only), but with some differences
+// in naming, supported operations, and type signatures.
+enum class OpenfheBackend { OPENFHE, FIDESLIB };
+
 // OpenFHE's installation process moves headers around in the install directory,
 // as well as changing the import paths from the development repository. This
 // option controls which type of import should be used on the generated code.
@@ -48,15 +53,15 @@ enum class OpenfheImportType {
   EMBEDDED,
 };
 
-std::string getModulePrelude(OpenfheScheme scheme,
-                             OpenfheImportType importType);
+std::string getModulePrelude(OpenfheScheme scheme, OpenfheImportType importType,
+                             OpenfheBackend backend = OpenfheBackend::OPENFHE);
 
 std::string getWeightsPrelude();
 
 /// Convert a type to a string, using a const specifier if constant is true.
-::mlir::FailureOr<std::string> convertType(::mlir::Type type,
-                                           ::mlir::Location loc,
-                                           bool constant = false);
+::mlir::FailureOr<std::string> convertType(
+    ::mlir::Type type, ::mlir::Location loc, bool constant = false,
+    OpenfheBackend backend = OpenfheBackend::OPENFHE);
 
 /// Find the CryptoContext SSA value in the input operation's parent func
 /// arguments.
@@ -72,16 +77,15 @@ using TypeEmitterFn =
 // declaration and its definition. I.e., stop at the closing parent
 // after the argument list, and let the caller decide whether to emit
 // a following semicolon or function body.
-LogicalResult funcDeclarationHelper(::mlir::func::FuncOp funcOp,
-                                    ::mlir::raw_indented_ostream& os,
-                                    SelectVariableNames* variableNames,
-                                    TypeEmitterFn emitType,
-                                    ErrorEmitterFn emitError);
+LogicalResult funcDeclarationHelper(
+    ::mlir::func::FuncOp funcOp, ::mlir::raw_indented_ostream& os,
+    SelectVariableNames* variableNames, TypeEmitterFn emitType,
+    ErrorEmitterFn emitError, OpenfheBackend backend = OpenfheBackend::OPENFHE);
 
 // Emit the default debug helper function signature
-LogicalResult emitDebugHelperSignature(::mlir::func::FuncOp funcOp,
-                                       ::mlir::raw_indented_ostream& os,
-                                       ErrorEmitterFn emitError);
+LogicalResult emitDebugHelperSignature(
+    ::mlir::func::FuncOp funcOp, ::mlir::raw_indented_ostream& os,
+    ErrorEmitterFn emitError, OpenfheBackend backend = OpenfheBackend::OPENFHE);
 
 }  // namespace openfhe
 }  // namespace heir

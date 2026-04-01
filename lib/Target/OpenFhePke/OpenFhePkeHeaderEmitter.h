@@ -25,13 +25,18 @@ namespace openfhe {
     ::mlir::Operation* op, llvm::raw_ostream& os, OpenfheImportType importType,
     const std::string& debugImportPath);
 
+/// Translates the given operation to a FIDESlib header.
+::mlir::LogicalResult translateToFideslibPkeHeader(::mlir::Operation* op,
+                                                   llvm::raw_ostream& os);
+
 /// For each function in the mlir module, emits a function header declaration
 /// along with any necessary includes.
 class OpenFhePkeHeaderEmitter {
  public:
   OpenFhePkeHeaderEmitter(raw_ostream& os, SelectVariableNames* variableNames,
                           OpenfheImportType importType,
-                          const std::string& debugImportPath);
+                          const std::string& debugImportPath,
+                          OpenfheBackend backend = OpenfheBackend::OPENFHE);
 
   LogicalResult translate(::mlir::Operation& operation);
 
@@ -47,6 +52,9 @@ class OpenFhePkeHeaderEmitter {
 
   /// Include path for debug imports
   std::string debugImportPath;
+
+  /// Backend target
+  OpenfheBackend backend_;
 
   // Functions for printing individual ops
   LogicalResult printOperation(::mlir::ModuleOp op);
