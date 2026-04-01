@@ -25,11 +25,17 @@
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
 #include "extension/LinearTransform.h"
-#include "mlp_lib.h"
-
 using namespace cheddar;
 using word = uint64_t;
 using Complex = std::complex<double>;
+
+// Forward-declare the HEIR-generated MLP function.
+// Signature matches the emitter output for the orion MLP.
+Ciphertext<word> mlp(std::shared_ptr<Context<word>> ctx, Encoder<word>& encoder,
+                     UserInterface<word> ui, Ciphertext<word> ct,
+                     std::vector<Complex> v0, std::vector<Complex> v1,
+                     std::vector<Complex> v2, std::vector<Complex> v3,
+                     std::vector<Complex> v4, std::vector<Complex> v5);
 
 // Load CHEDDAR parameters from JSON file.
 // Returns a Parameter<word> suitable for the Orion MLP (logN=13, 6 levels).
