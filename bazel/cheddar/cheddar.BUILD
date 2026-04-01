@@ -23,8 +23,6 @@ cmake(
         "BUILD_UNITTEST": "OFF",
         "ENABLE_EXTENSION": "ON",
         "USE_GMP": "OFF",
-        # Prevent FetchContent subdeps from trying to install
-        "SPDLOG_INSTALL": "OFF",
         # Build for the local GPU architecture to keep build times manageable.
         "CMAKE_CUDA_ARCHITECTURES": "native",
         "CMAKE_CUDA_COMPILER": "/usr/local/cuda/bin/nvcc",
@@ -37,11 +35,19 @@ cmake(
         "CMAKE_SHARED_LINKER_FLAGS": "",
     },
     generate_crosstool_file = False,
+    # Skip cmake install (spdlog/rmm subdeps fail to install).
+    # Instead, manually copy the built library and headers.
+    install = False,
     lib_source = ":all_srcs",
-    out_include_dir = "include",
     out_shared_libs = [
         "libcheddar.so",
     ],
+    postfix_script = """
+        # Copy built library to expected output location
+        cp libcheddar.so $$INSTALLDIR$$/lib/
+        # Copy headers
+        cp -r $$BUILD_TMPDIR$$/../include $$INSTALLDIR$$/
+    """,
     targets = ["cheddar"],
 )
 
