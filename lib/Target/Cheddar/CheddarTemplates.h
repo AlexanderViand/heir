@@ -9,20 +9,20 @@ namespace cheddar {
 
 // Includes emitted at the top of generated files
 constexpr std::string_view kCheddarInclude = R"cpp(
-#include <cheddar/include/core/Context.h>
-#include <cheddar/include/core/Container.h>
-#include <cheddar/include/core/Parameter.h>
-#include <cheddar/include/core/Encode.h>
-#include <cheddar/include/core/EvkMap.h>
-#include <cheddar/include/core/EvkRequest.h>
-#include <cheddar/include/UserInterface.h>
+#include <core/Context.h>
+#include <core/Container.h>
+#include <core/Parameter.h>
+#include <core/Encode.h>
+#include <core/EvkMap.h>
+#include <core/EvkRequest.h>
+#include <UserInterface.h>
 )cpp";
 
 constexpr std::string_view kCheddarExtensionInclude = R"cpp(
-#include <cheddar/include/extension/BootContext.h>
-#include <cheddar/include/extension/LinearTransform.h>
-#include <cheddar/include/extension/EvalPoly.h>
-#include <cheddar/include/extension/Hoist.h>
+#include <extension/BootContext.h>
+#include <extension/LinearTransform.h>
+#include <extension/EvalPoly.h>
+#include <extension/Hoist.h>
 )cpp";
 
 constexpr std::string_view kStdIncludes = R"cpp(
