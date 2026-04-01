@@ -74,7 +74,7 @@ TEST(CheddarMNIST, EndToEnd) {
         14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  32,  46,  64,
         69,  92,  115, 128, 138, 161, 184, 207, 230, 253, 256, 276, 299,
         322, 345, 368, 391, 414, 437, 460, 483, 506, 512}) {
-    ui.PrepareRotationKey(rot);
+    ui.PrepareRotationKey(rot, default_encryption_level);
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
