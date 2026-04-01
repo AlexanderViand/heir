@@ -35,19 +35,11 @@ cmake(
         "CMAKE_SHARED_LINKER_FLAGS": "",
     },
     generate_crosstool_file = False,
-    # Skip cmake install (spdlog/rmm subdeps fail to install).
-    # Instead, manually copy the built library and headers.
-    install = False,
     lib_source = ":all_srcs",
+    out_include_dir = "include",
     out_shared_libs = [
         "libcheddar.so",
     ],
-    postfix_script = """
-        # Copy built library to expected output location
-        cp libcheddar.so $$INSTALLDIR$$/lib/
-        # Copy headers
-        cp -r $$BUILD_TMPDIR$$/../include $$INSTALLDIR$$/
-    """,
     targets = ["cheddar"],
 )
 

@@ -69,6 +69,8 @@ def _cheddar_deps_impl(_):
             build_file = "@heir//bazel/cheddar:cheddar.BUILD",
             commit = CHEDDAR_COMMIT,
             remote = "https://github.com/scale-snu/cheddar-fhe.git",
+            patches = ["@heir//patches/cheddar:0001-bazel-compat.patch"],
+            patch_tool = "patch",
         )
     else:
         maybe(
@@ -76,6 +78,9 @@ def _cheddar_deps_impl(_):
             name = "cheddar",
             build_file = "@heir//bazel/cheddar:cheddar.BUILD",
             path = CHEDDAR_LOCAL_PATH,
+            # Note: new_local_repository does not support patches.
+            # For local dev, apply the patch manually:
+            #   cd /tmp/cheddar-fhe && git apply /path/to/patches/cheddar/0001-bazel-compat.patch
         )
 
 cheddar_deps = module_extension(implementation = _cheddar_deps_impl)
