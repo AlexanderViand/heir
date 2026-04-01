@@ -69,8 +69,9 @@ def from_os_env() -> HEIRConfig:
   1. Environment variables HEIR_OPT_PATH, HEIR_TRANSLATE_PATH, HEIR_ABC_BINARY,
      or HEIR_YOSYS_SCRIPTS_DIR
   2. The path to the heir-opt or heir-translate binary on the PATH
-  3. The default development configuration (relative to the project root, in
-     bazel-bin)
+  3. If pip-installed: the pip installation paths
+  4. Otherwise: the default development configuration (relative to the project
+     root, in bazel-bin)
 
   Returns:
     The HEIRConfig
@@ -78,21 +79,28 @@ def from_os_env() -> HEIRConfig:
   which_heir_opt = shutil.which("heir-opt")
   which_heir_translate = shutil.which("heir-translate")
   which_abc = shutil.which("abc")
+
+  fallback = (
+      from_pip_installation()
+      if is_pip_installed()
+      else development_heir_config()
+  )
+
   resolved_heir_opt_path = os.environ.get(
       "HEIR_OPT_PATH",
-      which_heir_opt or development_heir_config().heir_opt_path,
+      which_heir_opt or fallback.heir_opt_path,
   )
   resolved_heir_translate_path = os.environ.get(
       "HEIR_TRANSLATE_PATH",
-      which_heir_translate or development_heir_config().heir_translate_path,
+      which_heir_translate or fallback.heir_translate_path,
   )
   resolved_abc_path = os.environ.get(
       "HEIR_ABC_BINARY",
-      which_abc or development_heir_config().abc_path,
+      which_abc or fallback.abc_path,
   )
   resolved_techmap_dir_path = os.environ.get(
       "HEIR_YOSYS_SCRIPTS_DIR",
-      development_heir_config().techmap_dir_path,
+      fallback.techmap_dir_path,
   )
 
   return HEIRConfig(
@@ -116,5 +124,5 @@ def from_pip_installation() -> HEIRConfig:
       heir_translate_path=package_path / "heir-translate",
       # These paths are configured in setup.py
       techmap_dir_path=package_path / "techmaps",
-      abc_path=package_path / "abc",
+      abc_path=package_path / "abc_bin",
   )

@@ -323,10 +323,9 @@ def compile(
       config = heir_cli_config.from_os_env()
 
   if not backend:
-    if is_pip_installed():
-      backend = OpenFHEBackend(openfhe_config.from_pip_installation())
-    else:
-      backend = OpenFHEBackend(openfhe_config.from_os_env())
+    backend = OpenFHEBackend(
+        openfhe_config.autodetect_openfhe_config(debug=debug or False)
+    )
 
   if debug and heir_opt_options is not None:
     DebugMessage(f"Overriding scheme with options {heir_opt_options}")

@@ -86,8 +86,8 @@ def development_openfhe_config() -> OpenFHEConfig:
   )
 
 
-def from_os_env(debug=False) -> OpenFHEConfig:
-  """Create an OpenFHEConfig from environment variables.
+def _from_os_env_only(debug=False) -> OpenFHEConfig | None:
+  """Create an OpenFHEConfig from environment variables, if present.
 
   Note, this is required for running tests under bazel, as the openfhe
   libraries, headers, and locations are not in the default locations.
@@ -109,7 +109,7 @@ def from_os_env(debug=False) -> OpenFHEConfig:
       debug: whether to print debug information
 
   Returns:
-      the OpenFHEConfig
+      the OpenFHEConfig if environment variables are set, otherwise None
   """
   if debug:
     print("Env:")
@@ -144,7 +144,6 @@ def from_os_env(debug=False) -> OpenFHEConfig:
           f'Warning: OpenFHE include directory "{include_dir}" does not exist'
       )
 
-  # If something has been found from the environment variables, return it
   if include_dirs:
     return OpenFHEConfig(
         include_dirs=include_dirs,
@@ -152,8 +151,19 @@ def from_os_env(debug=False) -> OpenFHEConfig:
         link_libs=link_libs,
         include_type=include_type,
     )
+  return None
 
-  # if nothing is found, check the default installed config
+
+def from_os_env(debug=False) -> OpenFHEConfig:
+  """Create an OpenFHEConfig from environment variables.
+
+  Falls back to the default system install and then the development tree when
+  no environment variables are set.
+  """
+  env_config = _from_os_env_only(debug=debug)
+  if env_config:
+    return env_config
+
   if debug:
     print(
         "HEIRpy Debug (OpenFHE Backend): No valid OpenFHE config found in"
@@ -162,7 +172,6 @@ def from_os_env(debug=False) -> OpenFHEConfig:
   if os.path.exists(DEFAULT_INSTALLED_OPENFHE_CONFIG.include_dirs[0]):
     return DEFAULT_INSTALLED_OPENFHE_CONFIG
 
-  # if nothing is found still, check the development config
   if debug:
     print(
         "HEIRpy Debug (OpenFHE Backend): No valid OpenFHE config found in"
@@ -174,9 +183,40 @@ def from_os_env(debug=False) -> OpenFHEConfig:
   )  # will raise a RuntimeError if repo_root not found
 
 
+def autodetect_openfhe_config(debug=False) -> OpenFHEConfig:
+  """Resolve the default OpenFHE config for the current installation mode."""
+  env_config = _from_os_env_only(debug=debug)
+  if env_config:
+    return env_config
+
+  if is_pip_installed():
+    if debug:
+      print(
+          "HEIRpy Debug (OpenFHE Backend): No valid OpenFHE config found in"
+          " environment variables, using pip installation."
+      )
+    return from_pip_installation()
+
+  if debug:
+    print(
+        "HEIRpy Debug (OpenFHE Backend): No valid OpenFHE config found in"
+        " environment variables, trying default install location."
+    )
+  if os.path.exists(DEFAULT_INSTALLED_OPENFHE_CONFIG.include_dirs[0]):
+    return DEFAULT_INSTALLED_OPENFHE_CONFIG
+
+  if debug:
+    print(
+        "HEIRpy Debug (OpenFHE Backend): No valid OpenFHE config found in"
+        " environment variables or default install location, trying"
+        " development location."
+    )
+  return development_openfhe_config()
+
+
 def from_pip_installation() -> OpenFHEConfig:
   """
-  Configure HEIR binaries from the expected pip installation structure.
+  Configure OpenFHE resources from the expected pip installation structure.
   """
   if not is_pip_installed():
     raise RuntimeError("HEIR is not installed via pip.")
