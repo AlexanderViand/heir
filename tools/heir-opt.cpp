@@ -495,6 +495,11 @@ int main(int argc, char** argv) {
       "Convert code expressed at FHE scheme level to Lattigo Go code.",
       toLattigoPipelineBuilder());
 
+  PassPipelineRegistration<mlir::heir::BackendOptions>(
+      "scheme-to-cheddar",
+      "Convert code expressed at FHE scheme level to CHEDDAR C++ code.",
+      toCheddarPipelineBuilder());
+
   // TODO(#1645): Add backend options for tfhe-rs, fpt, jaxite.
   PassPipelineRegistration<>(
       "scheme-to-tfhe-rs",

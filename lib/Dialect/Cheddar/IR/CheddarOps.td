@@ -359,14 +359,17 @@ def Cheddar_HRotOp : Cheddar_Op<"hrot", [
   let description = [{
     Calls context->HRot(res, a, rot_key, distance).
     Single fused GPU kernel for rotation.
+    Supports both static and dynamic shift distances.
   }];
   let arguments = (ins
     Cheddar_Context:$ctx,
     Cheddar_Ciphertext:$input,
     Cheddar_EvalKey:$rotKey,
-    Builtin_IntegerAttr:$distance
+    Optional<AnySignlessIntegerOrIndex>:$dynamic_shift,
+    OptionalAttr<Builtin_IntegerAttr>:$static_shift
   );
   let results = (outs Cheddar_Ciphertext:$output);
+  let hasVerifier = 1;
 }
 
 def Cheddar_HRotAddOp : Cheddar_Op<"hrot_add", [

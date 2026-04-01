@@ -5,8 +5,11 @@
 
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
+#include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Debug/Transforms/Passes.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
+#include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
@@ -516,6 +519,31 @@ BackendPipelineBuilder toLattigoPipelineBuilder() {
     configureCryptoContextOptions.entryFunction = options.entryFunction;
     pm.addPass(
         lattigo::createConfigureCryptoContext(configureCryptoContextOptions));
+
+    pm.addPass(createRemoveUnusedPureCall());
+    pm.addPass(createCSEPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createSymbolDCEPass());
+  };
+}
+
+BackendPipelineBuilder toCheddarPipelineBuilder() {
+  return [=](OpPassManager& pm, const BackendOptions& options) {
+    // Convert CKKS to LWE
+    pm.addPass(ckks::createCKKSToLWE());
+
+    // Convert LWE to CHEDDAR
+    pm.addPass(lwe::createLWEToCheddar());
+
+    // Fuse compound GPU ops
+    pm.addPass(cheddar::createCheddarFuseOps());
+
+    // Simplify
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+
+    // Configure crypto context (consume CKKS module attrs)
+    pm.addPass(cheddar::createCheddarConfigureCryptoContext());
 
     pm.addPass(createRemoveUnusedPureCall());
     pm.addPass(createCSEPass());

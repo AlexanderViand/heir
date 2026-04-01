@@ -131,6 +131,11 @@ using ConvertCKKSAddOp = ConvertCKKSBinOp<ckks::AddOp, cheddar::AddOp>;
 using ConvertCKKSSubOp = ConvertCKKSBinOp<ckks::SubOp, cheddar::SubOp>;
 using ConvertCKKSMulOp = ConvertCKKSBinOp<ckks::MulOp, cheddar::MultOp>;
 
+// LWE R* ops (used by torch-linalg-to-ckks pipeline)
+using ConvertRAddOp = ConvertCKKSBinOp<lwe::RAddOp, cheddar::AddOp>;
+using ConvertRSubOp = ConvertCKKSBinOp<lwe::RSubOp, cheddar::SubOp>;
+using ConvertRMulOp = ConvertCKKSBinOp<lwe::RMulOp, cheddar::MultOp>;
+
 // Ct-pt operations
 template <typename CKKSOp, typename CheddarOp>
 struct ConvertCKKSPlainOp : public OpConversionPattern<CKKSOp> {
@@ -163,6 +168,13 @@ using ConvertCKKSSubPlainOp =
     ConvertCKKSPlainOp<ckks::SubPlainOp, cheddar::SubPlainOp>;
 using ConvertCKKSMulPlainOp =
     ConvertCKKSPlainOp<ckks::MulPlainOp, cheddar::MultPlainOp>;
+
+using ConvertRAddPlainOp =
+    ConvertCKKSPlainOp<lwe::RAddPlainOp, cheddar::AddPlainOp>;
+using ConvertRSubPlainOp =
+    ConvertCKKSPlainOp<lwe::RSubPlainOp, cheddar::SubPlainOp>;
+using ConvertRMulPlainOp =
+    ConvertCKKSPlainOp<lwe::RMulPlainOp, cheddar::MultPlainOp>;
 
 // Negate
 struct ConvertCKKSNegateOp : public OpConversionPattern<ckks::NegateOp> {
@@ -528,11 +540,14 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     ConversionTarget target(*context);
     target.addLegalDialect<cheddar::CheddarDialect>();
     target.addIllegalDialect<ckks::CKKSDialect, orion::OrionDialect>();
-    target.addIllegalOp<lwe::RLWEEncryptOp, lwe::RLWEDecryptOp,
-                        lwe::RLWEEncodeOp, lwe::RLWEDecodeOp>();
+    target
+        .addIllegalOp<lwe::RLWEEncryptOp, lwe::RLWEDecryptOp, lwe::RLWEEncodeOp,
+                      lwe::RLWEDecodeOp, lwe::RAddOp, lwe::RSubOp, lwe::RMulOp,
+                      lwe::RAddPlainOp, lwe::RSubPlainOp, lwe::RMulPlainOp>();
 
     RewritePatternSet patterns(context);
     addStructuralConversionPatterns(typeConverter, patterns, target);
+    addTensorConversionPatterns(typeConverter, patterns, target);
 
     // Predicate: function contains CKKS/LWE operands
     auto hasCryptoOps = [&](Operation* op) -> bool {
@@ -567,7 +582,12 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
                  ConvertCKKSLevelReduceOp, ConvertCKKSBootstrapOp>(
         typeConverter, context);
 
-    // LWE ops
+    // LWE R* ops (produced by torch-linalg-to-ckks pipeline)
+    patterns.add<ConvertRAddOp, ConvertRSubOp, ConvertRMulOp,
+                 ConvertRAddPlainOp, ConvertRSubPlainOp, ConvertRMulPlainOp>(
+        typeConverter, context);
+
+    // LWE encrypt/decrypt/encode/decode ops
     patterns.add<ConvertLWEEncodeOp, ConvertLWEDecodeOp, ConvertLWEEncryptOp,
                  ConvertLWEDecryptOp>(typeConverter, context);
 
