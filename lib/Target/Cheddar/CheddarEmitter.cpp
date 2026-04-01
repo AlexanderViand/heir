@@ -7,12 +7,15 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtDialect.h"
 #include "lib/Target/Cheddar/CheddarTemplates.h"
 #include "lib/Utils/TargetUtils.h"
-#include "llvm/include/llvm/ADT/TypeSwitch.h"            // from @llvm-project
-#include "llvm/include/llvm/Support/ManagedStatic.h"     // from @llvm-project
+#include "llvm/include/llvm/ADT/TypeSwitch.h"         // from @llvm-project
+#include "llvm/include/llvm/Support/ManagedStatic.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Affine/IR/AffineOps.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
+#include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"        // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinOps.h"             // from @llvm-project
@@ -60,10 +63,16 @@ FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
       .Case<EvalKeyType>([](auto) { return std::string("const Evk&"); })
       .Case<EvkMapType>([](auto) { return std::string("const EvkMapT&"); })
       .Case<RankedTensorType>(
-          [](RankedTensorType type) -> FailureOr<std::string> {
+          [asArg](RankedTensorType type) -> FailureOr<std::string> {
             auto elemType = type.getElementType();
             if (elemType.isF64() || elemType.isF32()) {
-              return std::string("std::vector<Complex>");
+              return std::string(asArg ? "const std::vector<Complex>&"
+                                       : "std::vector<Complex>");
+            }
+            if (isa<CiphertextType>(elemType)) {
+              // tensor<NxCt> maps to std::vector<Ct>
+              return std::string(asArg ? "const std::vector<Ct>&"
+                                       : "std::vector<Ct>");
             }
             return failure();
           })
@@ -678,8 +687,9 @@ static llvm::ManagedStatic<CheddarTranslateOptions> cheddarTranslateOptions;
 void registerCheddarTranslateOptions() { *cheddarTranslateOptions; }
 
 static void registerRelevantDialects(DialectRegistry &registry) {
-  registry.insert<arith::ArithDialect, func::FuncDialect, tensor::TensorDialect,
-                  cheddar::CheddarDialect>();
+  registry.insert<affine::AffineDialect, arith::ArithDialect, func::FuncDialect,
+                  scf::SCFDialect, tensor::TensorDialect,
+                  tensor_ext::TensorExtDialect, cheddar::CheddarDialect>();
 }
 
 void registerToCheddarTranslation() {

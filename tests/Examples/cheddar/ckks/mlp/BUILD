@@ -9,41 +9,41 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-# Step 1: Lower the Orion MLP MLIR to cheddar dialect
+# Step 1: Lower MNIST MLIR to cheddar dialect
 heir_opt(
-    name = "mlp_cheddar_mlir",
-    src = "@heir//tests/Examples/orion/mlp:mlp.mlir",
-    generated_filename = "mlp_cheddar.mlir",
+    name = "mnist_cheddar_mlir",
+    src = "@heir//tests/Examples/common/mnist:mnist.mlir",
+    generated_filename = "mnist_cheddar.mlir",
     pass_flags = [
-        "--lwe-to-cheddar",
-        "--cheddar-fuse-ops",
-        "--cheddar-configure-crypto-context",
+        "--annotate-module=backend=cheddar scheme=ckks",
+        "--torch-linalg-to-ckks=ciphertext-degree=32768",
+        "--scheme-to-cheddar",
     ],
 )
 
 # Step 2: Generate C++ from cheddar dialect
 heir_translate(
-    name = "mlp_cpp",
-    src = ":mlp_cheddar.mlir",
-    generated_filename = "mlp_lib.cpp",
+    name = "mnist_cpp",
+    src = ":mnist_cheddar.mlir",
+    generated_filename = "mnist_lib.cpp",
     pass_flags = [
         "--emit-cheddar",
     ],
 )
 
 heir_translate(
-    name = "mlp_header",
-    src = ":mlp_cheddar.mlir",
-    generated_filename = "mlp_lib.h",
+    name = "mnist_header",
+    src = ":mnist_cheddar.mlir",
+    generated_filename = "mnist_lib.h",
     pass_flags = [
         "--emit-cheddar-header",
     ],
 )
 
 cc_library(
-    name = "mlp_lib",
-    srcs = [":mlp_cpp"],
-    hdrs = ["mlp_lib.h"],
+    name = "mnist_lib",
+    srcs = [":mnist_cpp"],
+    hdrs = ["mnist_lib.h"],
     target_compatible_with = requires_cheddar(),
     deps = [
         "@cheddar",
@@ -55,12 +55,15 @@ cc_library(
 
 # Step 3: End-to-end test
 cc_test(
-    name = "mlp_test",
-    srcs = ["mlp_test.cpp"],
-    tags = ["notap"],  # Requires GPU, not run in CI
+    name = "mnist_test",
+    srcs = ["mnist_test.cpp"],
+    data = [
+        "@cheddar//:all_srcs",  # For parameter JSON files
+    ],
+    tags = ["notap"],
     target_compatible_with = requires_cheddar(),
     deps = [
-        ":mlp_lib",
+        ":mnist_lib",
         "@cheddar",
         "@cuda//:cuda_headers",
         "@cuda//:cuda_runtime",
