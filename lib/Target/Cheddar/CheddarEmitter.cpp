@@ -836,10 +836,20 @@ LogicalResult CheddarEmitter::printOperation(scf::YieldOp op) {
 
 LogicalResult CheddarEmitter::printOperation(tensor::EmptyOp op) {
   auto resultType = op.getResult().getType();
-  auto typeStr = convertType(resultType.getElementType());
+  auto elemType = resultType.getElementType();
+  auto typeStr = convertType(elemType);
   if (failed(typeStr)) return op.emitOpError("failed to convert element type");
-  os << "std::vector<" << *typeStr << "> " << getName(op.getResult()) << "("
-     << resultType.getNumElements() << ");\n";
+  bool isMoveOnly = isa<CiphertextType, PlaintextType, ConstantType>(elemType);
+  if (isMoveOnly) {
+    // Move-only: reserve without constructing (will be filled via insert)
+    os << "std::vector<" << *typeStr << "> " << getName(op.getResult())
+       << ";\n";
+    os << getName(op.getResult()) << ".resize(" << resultType.getNumElements()
+       << ");\n";
+  } else {
+    os << "std::vector<" << *typeStr << "> " << getName(op.getResult()) << "("
+       << resultType.getNumElements() << ");\n";
+  }
   return success();
 }
 
@@ -878,14 +888,29 @@ LogicalResult CheddarEmitter::printOperation(tensor::InsertOp op) {
 }
 
 LogicalResult CheddarEmitter::printOperation(tensor::FromElementsOp op) {
-  auto typeStr = convertType(getElementTypeOrSelf(op.getResult().getType()));
+  auto elemType = getElementTypeOrSelf(op.getResult().getType());
+  auto typeStr = convertType(elemType);
   if (failed(typeStr)) return failure();
-  os << "std::vector<" << *typeStr << "> " << getName(op.getResult()) << " = {";
-  for (unsigned i = 0; i < op.getNumOperands(); ++i) {
-    if (i > 0) os << ", ";
-    os << getName(op.getOperand(i));
+  bool isMoveOnly = isa<CiphertextType, PlaintextType, ConstantType>(elemType);
+  if (isMoveOnly) {
+    // Move-only types: reserve + emplace_back with std::move
+    os << "std::vector<" << *typeStr << "> " << getName(op.getResult())
+       << ";\n";
+    os << getName(op.getResult()) << ".reserve(" << op.getNumOperands()
+       << ");\n";
+    for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+      os << getName(op.getResult()) << ".emplace_back(std::move("
+         << getName(op.getOperand(i)) << "));\n";
+    }
+  } else {
+    os << "std::vector<" << *typeStr << "> " << getName(op.getResult())
+       << " = {";
+    for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+      if (i > 0) os << ", ";
+      os << getName(op.getOperand(i));
+    }
+    os << "};\n";
   }
-  os << "};\n";
   return success();
 }
 
