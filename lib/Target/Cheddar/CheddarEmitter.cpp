@@ -854,10 +854,19 @@ LogicalResult CheddarEmitter::printOperation(tensor::EmptyOp op) {
 }
 
 LogicalResult CheddarEmitter::printOperation(tensor::ExtractOp op) {
-  auto typeStr = convertType(op.getResult().getType());
-  if (failed(typeStr)) return failure();
-  os << *typeStr << " " << getName(op.getResult()) << " = "
-     << getName(op.getTensor()) << "[";
+  auto resultType = op.getResult().getType();
+  bool isMoveOnly =
+      isa<CiphertextType, PlaintextType, ConstantType>(resultType);
+  if (isMoveOnly) {
+    // Reference to avoid copying move-only types
+    os << "auto& " << getName(op.getResult()) << " = "
+       << getName(op.getTensor()) << "[";
+  } else {
+    auto typeStr = convertType(resultType);
+    if (failed(typeStr)) return failure();
+    os << *typeStr << " " << getName(op.getResult()) << " = "
+       << getName(op.getTensor()) << "[";
+  }
   os << flattenIndexExpression(op.getTensor().getType(), op.getIndices(),
                                [&](Value value) { return getName(value); });
   os << "];\n";
