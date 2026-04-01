@@ -43,7 +43,7 @@ heir_translate(
 cc_library(
     name = "mlp_lib",
     srcs = [":mlp_cpp"],
-    hdrs = [":mlp_header"],
+    hdrs = ["mlp_lib.h"],
     target_compatible_with = requires_cheddar(),
     deps = [
         "@cheddar",
