@@ -1,24 +1,36 @@
 # SkyPilot config for running CHEDDAR backend tests on a GPU instance.
 # Usage: sky launch sky/cheddar_test.yaml
 #
-# This provisions a GPU instance, installs CUDA and dependencies,
-# clones HEIR and CHEDDAR, builds and runs the end-to-end tests.
+# Provisions a GPU instance, installs all deps, builds CHEDDAR and HEIR,
+# and runs the end-to-end tests.
 
-name: cheddar-test
+name: heir-cheddar
 
 resources:
-  accelerators: T4:1
-  cloud: gcp
-  disk_size: 100
+  accelerators: A10G:1
+  cpus: 64+
+  memory: 128+
+  disk_size: 200
+  cloud: aws
 
 setup: |
-  # Install CUDA 12
-  sudo apt-get update
-  sudo apt-get install -y nvidia-cuda-toolkit libtommath-dev libjsoncpp-dev
+  set -ex
 
-  # Install Bazelisk
+  # System deps: clang toolchain, CUDA headers, CHEDDAR deps
+  # clang-14 is too old (protobuf compat), need clang-15+
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq \
+    clang-15 lld-15 libstdc++-12-dev libomp-15-dev \
+    zlib1g-dev \
+    libtommath-dev libjsoncpp-dev \
+    cmake
+
+  # Newer cmake (CHEDDAR requires >= 3.24, Ubuntu 22.04 ships 3.22)
+  pip install cmake --upgrade -q
+
+  # Bazelisk
   if ! command -v bazel &> /dev/null; then
-    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    sudo wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
     sudo chmod +x /usr/local/bin/bazel
   fi
 
@@ -27,27 +39,47 @@ setup: |
     git clone https://github.com/scale-snu/cheddar-fhe.git /tmp/cheddar-fhe
   fi
 
-  # Clone HEIR (use the cheddar branch)
+  # Build CHEDDAR
+  export PATH=/usr/local/cuda/bin:$PATH
+  cd /tmp/cheddar-fhe
+  rm -rf build && mkdir build && cd build
+  NCPU=$(cat /proc/cpuinfo | grep processor | wc -l)
+  cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_UNITTEST=ON -DENABLE_EXTENSION=ON -DUSE_GMP=OFF
+  make -j$NCPU
+
+  # Clone HEIR (cheddar branch)
   if [ ! -d ~/heir ]; then
-    git clone --branch worktree-cheddar-backend https://github.com/google/heir.git ~/heir
+    git clone https://github.com/AlexanderViand/heir.git ~/heir
   fi
+  cd ~/heir
+  git fetch origin
+  git checkout -B worktree-cheddar-backend origin/worktree-cheddar-backend
+
+  # Build HEIR tools
+  CC=clang-15 bazel build //tools:heir-opt //tools:heir-translate
 
 run: |
+  set -ex
+  export PATH=/usr/local/cuda/bin:$PATH
+  export LD_LIBRARY_PATH=/tmp/cheddar-fhe/build:$LD_LIBRARY_PATH
   cd ~/heir
 
-  # Build with CHEDDAR enabled
-  bazel build -c opt \
-    --//:enable_cheddar=1 \
-    //tools:heir-opt \
-    //tools:heir-translate
-
-  # Run the roundtrip test
+  # HEIR dialect roundtrip
   bazel-bin/tools/heir-opt tests/Dialect/Cheddar/IR/roundtrip.mlir
 
-  # Run the emitter test
+  # HEIR emitter
   bazel-bin/tools/heir-translate --emit-cheddar tests/Emitter/Cheddar/emit_cheddar.mlir
 
-  # Run the fusion test
+  # HEIR fusion pass
   bazel-bin/tools/heir-opt --cheddar-fuse-ops tests/Dialect/Cheddar/Transforms/fuse_ops.mlir
+
+  # Full MLP pipeline: lower + fuse + emit C++
+  bazel-bin/tools/heir-opt --lwe-to-cheddar --cheddar-fuse-ops \
+    tests/Examples/orion/mlp/mlp.mlir | \
+    bazel-bin/tools/heir-translate --emit-cheddar --allow-unregistered-dialect
+
+  # CHEDDAR GPU test
+  cd /tmp/cheddar-fhe/build/unittest
+  ./basic_test --gtest_filter="Cheddar/Testbed32.CtAddCt/bootparam_30_json"
 
   echo "All CHEDDAR tests passed!"
