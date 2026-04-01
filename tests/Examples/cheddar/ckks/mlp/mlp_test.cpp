@@ -25,7 +25,7 @@
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
 #include "extension/LinearTransform.h"
-#include "mlp_lib.h"
+#include "tests/Examples/cheddar/ckks/mlp/mlp_lib.h"
 
 using namespace cheddar;
 using word = uint64_t;
