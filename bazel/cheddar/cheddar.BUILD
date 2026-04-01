@@ -40,6 +40,10 @@ cmake(
     out_shared_libs = [
         "libcheddar.so",
     ],
+    # CHEDDAR's public headers include CUDA Thrust. rules_foreign_cc only
+    # exposes out_include_dir to downstream bazel targets, so we symlink
+    # CUDA toolkit headers into the install include dir.
+    postfix_script = "cp -rs /usr/local/cuda/include/* $$INSTALLDIR$$/include/ 2>/dev/null || true",
     targets = ["cheddar"],
 )
 
