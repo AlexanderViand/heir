@@ -24,7 +24,7 @@ heir_opt(
 # Step 2: Generate C++ from cheddar dialect
 heir_translate(
     name = "mlp_cpp",
-    src = ":mlp_cheddar_mlir",
+    src = ":mlp_cheddar.mlir",
     generated_filename = "mlp_lib.cpp",
     pass_flags = [
         "--emit-cheddar",
@@ -33,7 +33,7 @@ heir_translate(
 
 heir_translate(
     name = "mlp_header",
-    src = ":mlp_cheddar_mlir",
+    src = ":mlp_cheddar.mlir",
     generated_filename = "mlp_lib.h",
     pass_flags = [
         "--emit-cheddar-header",
