@@ -11,7 +11,7 @@ cc_library(
     srcs = ["FuseOps.cpp"],
     hdrs = ["FuseOps.h"],
     deps = [
-        ":pass_inc_gen",
+        ":fuse_ops_inc_gen",
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
@@ -20,8 +20,30 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "ConfigureCryptoContext",
+    srcs = ["ConfigureCryptoContext.cpp"],
+    hdrs = ["ConfigureCryptoContext.h"],
+    deps = [
+        ":configure_crypto_context_inc_gen",
+        "@heir//lib/Dialect/CKKS/IR:Dialect",
+        "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+    ],
+)
+
 add_heir_transforms(
+    generated_target_name = "fuse_ops_inc_gen",
     header_filename = "FuseOps.h.inc",
     pass_name = "CheddarFuseOps",
     td_file = "FuseOps.td",
+)
+
+add_heir_transforms(
+    generated_target_name = "configure_crypto_context_inc_gen",
+    header_filename = "ConfigureCryptoContext.h.inc",
+    pass_name = "CheddarConfigureCryptoContext",
+    td_file = "ConfigureCryptoContext.td",
 )
