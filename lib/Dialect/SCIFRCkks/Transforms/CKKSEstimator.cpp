@@ -238,7 +238,7 @@ struct CKKSEstimator : impl::CKKSEstimatorBase<CKKSEstimator> {
       opcode = CKKSOpcode::SUB;
     } else if (llvm::isa<ckks::SubPlainOp>(op)) {
       opcode = CKKSOpcode::SUBPLAIN;
-    } else if (llvm::isa<ckks::MulOp>(op)) {
+    } else if (llvm::isa<ckks::MulOp, ckks::MulRelinOp>(op)) {
       opcode = CKKSOpcode::MUL;
     } else if (llvm::isa<ckks::MulPlainOp>(op)) {
       opcode = CKKSOpcode::MULPLAIN;

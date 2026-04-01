@@ -13,6 +13,7 @@ struct InsertMgmtPipelineOptions {
   bool modReduceBeforeMulIncludeFirstMul;
   std::optional<int64_t> bootstrapWaterline;
   int64_t levelBudget;
+  bool autoRelinearize = false;
 };
 
 // Run the secret-insert-mgmt pipeline.

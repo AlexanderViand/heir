@@ -34,6 +34,7 @@ struct SecretInsertMgmtCKKS
     options.modReduceAfterMul = afterMul;
     options.modReduceBeforeMulIncludeFirstMul = beforeMulIncludeFirstMul;
     options.bootstrapWaterline = bootstrapWaterline;
+    options.autoRelinearize = autoRelinearize;
     LogicalResult result = runInsertMgmtPipeline(getOperation(), options);
 
     if (failed(result)) {
@@ -54,7 +55,9 @@ struct SecretInsertMgmtCKKS
     OpPassManager pipeline("builtin.module");
     pipeline.addPass(createCanonicalizerPass());
     pipeline.addPass(createCSEPass());
-    pipeline.addPass(mgmt::createAnnotateMgmt());
+    mgmt::AnnotateMgmtOptions annotateOpts;
+    annotateOpts.autoRelinearize = autoRelinearize;
+    pipeline.addPass(mgmt::createAnnotateMgmt(annotateOpts));
     (void)runPipeline(pipeline, getOperation());
   }
 };

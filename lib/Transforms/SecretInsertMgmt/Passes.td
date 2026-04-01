@@ -54,6 +54,8 @@ def SecretInsertMgmtBGV : Pass<"secret-insert-mgmt-bgv", "ModuleOp"> {
            /*default=*/"false", "Modulus switching before each multiplication, including the first multiplication (default to false)">,
     Option<"levelBudget", "level-budget", "int", /*default=*/"0",
            "An optional maximum level budget for the pipeline to assume">,
+    Option<"autoRelinearize", "auto-relinearize", "bool",
+           /*default=*/"false", "Skip explicit relinearization (backend handles it in mul)">,
   ];
 }
 
@@ -116,6 +118,8 @@ def SecretInsertMgmtCKKS : Pass<"secret-insert-mgmt-ckks", "ModuleOp"> {
            /*default=*/"10", "Waterline for insert bootstrap op">,
     Option<"levelBudget", "level-budget", "int", /*default=*/"0",
            "An optional maximum level budget for the pipeline to assume">,
+    Option<"autoRelinearize", "auto-relinearize", "bool",
+           /*default=*/"false", "Skip explicit relinearization (backend handles it in mul)">,
   ];
 }
 

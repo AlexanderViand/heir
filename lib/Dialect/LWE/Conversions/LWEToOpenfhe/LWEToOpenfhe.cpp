@@ -498,6 +498,8 @@ struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
         // Relin
         ConvertRelinOp<bgv::RelinearizeOp, openfhe::RelinOp>,
         ConvertRelinOp<ckks::RelinearizeOp, openfhe::RelinOp>,
+        // Mul with implied relin (CKKS auto-relin backends like FIDESlib)
+        ConvertLWEBinOp<ckks::MulRelinOp, openfhe::MulOp>,
         // Modulus Switch (BGV only)
         lwe::ConvertModulusSwitchOp<bgv::ModulusSwitchOp>,
         // Rescale (CKKS version of Modulus Switch)

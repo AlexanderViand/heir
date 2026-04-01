@@ -104,6 +104,11 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       llvm::cl::desc("Split preprocessing into separate function with N return "
                      "values (default to no split)"),
       llvm::cl::init(0)};
+  PassOptions::Option<bool> autoRelinearize{
+      *this, "auto-relinearize",
+      llvm::cl::desc("Skip explicit relinearization, assume backend handles "
+                     "it in mul (e.g., FIDESlib)"),
+      llvm::cl::init(false)};
 };
 
 struct PlaintextBackendOptions

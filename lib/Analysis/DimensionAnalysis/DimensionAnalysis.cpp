@@ -58,8 +58,10 @@ LogicalResult DimensionAnalysis::visitOperation(
           isMul = true;
         }
 
-        // for mul, initialize to 0, for max, initialize to 2
-        auto dimensionResult = isMul ? 0 : 2;
+        // For mul without auto-relin: dimension is additive (tensor product)
+        // For mul with auto-relin or non-mul ops: dimension is max (preserved)
+        bool isMulNoAutoRelin = isMul && !autoRelinearize_;
+        auto dimensionResult = isMulNoAutoRelin ? 0 : 2;
 
         SmallVector<OpOperand*> secretOperands;
         getSecretOperands(&op, secretOperands);
@@ -69,15 +71,15 @@ LogicalResult DimensionAnalysis::visitOperation(
             return;
           }
           auto dimension = dimensionState.getDimension();
-          if (isMul) {
+          if (isMulNoAutoRelin) {
             dimensionResult += dimension;
           } else {
             dimensionResult = std::max(dimensionResult, dimension);
           }
         }
 
-        // tensor product
-        if (isMul && secretOperands.size() == 2) {
+        // tensor product correction (only without auto-relin)
+        if (isMulNoAutoRelin && secretOperands.size() == 2) {
           dimensionResult -= 1;
         }
 

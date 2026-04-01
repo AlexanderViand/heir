@@ -121,7 +121,9 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     LDBG() << "Running annotate-mgmt sub-pass";
     annotateScale(getOperation(), &solver2);
     OpPassManager annotateMgmt("builtin.module");
-    annotateMgmt.addPass(mgmt::createAnnotateMgmt());
+    mgmt::AnnotateMgmtOptions annotateOpts;
+    annotateOpts.autoRelinearize = autoRelinearize;
+    annotateMgmt.addPass(mgmt::createAnnotateMgmt(annotateOpts));
     (void)runPipeline(annotateMgmt, getOperation());
 
     LLVM_DEBUG({

@@ -68,6 +68,28 @@ LogicalResult verifyMulOp(Op* op) {
 }
 
 template <typename Op>
+LogicalResult verifyMulRelinOp(Op* op) {
+  // verify dimension preserved (relin is implicit in the mul)
+  auto x = getCtTy(op->getLhs());
+  auto y = getCtTy(op->getRhs());
+  auto out = getCtTy(op->getOutput());
+  auto expectedDim = std::max(x.getCiphertextSpace().getSize(),
+                              y.getCiphertextSpace().getSize());
+  if (out.getCiphertextSpace().getSize() != expectedDim) {
+    return op->emitOpError() << "output.dim == max(x.dim, y.dim) does not hold";
+  }
+  // verify plaintext space matches (same as mul)
+  auto xPlaintext = x.getPlaintextSpace();
+  auto yPlaintext = y.getPlaintextSpace();
+  auto outPlaintext = out.getPlaintextSpace();
+  if (outPlaintext !=
+      inferMulOpPlaintextSpaceAttr(op->getContext(), xPlaintext, yPlaintext)) {
+    return op->emitOpError() << "output plaintext space does not match";
+  }
+  return success();
+}
+
+template <typename Op>
 LogicalResult verifyMulPlainOp(Op* op) {
   lwe::LWECiphertextType ct;
   lwe::LWEPlaintextType pt;
@@ -281,6 +303,37 @@ LogicalResult inferPlainOpReturnTypes(
   emitError(adaptor.getLhs().getLoc())
       << "expected lhs or rhs to be a ciphertext type";
   return failure();
+}
+
+template <typename Adaptor>
+LogicalResult inferMulRelinOpReturnTypes(
+    MLIRContext* ctx, Adaptor adaptor,
+    SmallVectorImpl<Type>& inferredReturnTypes) {
+  auto x = getCtTy(adaptor.getLhs());
+  auto y = getCtTy(adaptor.getRhs());
+  auto newDim = std::max(x.getCiphertextSpace().getSize(),
+                         y.getCiphertextSpace().getSize());
+  auto xPlaintextSpace = x.getPlaintextSpace();
+  auto yPlaintextSpace = y.getPlaintextSpace();
+
+  lwe::PlaintextSpaceAttr newPlaintextSpaceAttr =
+      inferMulOpPlaintextSpaceAttr(ctx, xPlaintextSpace, yPlaintextSpace);
+
+  auto newCtTy = lwe::LWECiphertextType::get(
+      ctx, newPlaintextSpaceAttr,
+      lwe::CiphertextSpaceAttr::get(ctx, x.getCiphertextSpace().getRing(),
+                                    x.getCiphertextSpace().getEncryptionType(),
+                                    newDim),
+      x.getKey(), x.getModulusChain());
+
+  if (auto tensorTy = dyn_cast<RankedTensorType>(adaptor.getLhs().getType())) {
+    inferredReturnTypes.push_back(
+        RankedTensorType::get(tensorTy.getShape(), newCtTy));
+    return success();
+  }
+
+  inferredReturnTypes.push_back(newCtTy);
+  return success();
 }
 
 template <typename Adaptor>

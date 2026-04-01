@@ -77,8 +77,10 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
   LLVM_DEBUG(top->dump());
 
   // this must be run after ModReduceAfterMult
-  LDBG() << "Inserting relinearize";
-  insertRelinearizeAfterMult(top, options.includeFloats);
+  if (!options.autoRelinearize) {
+    LDBG() << "Inserting relinearize";
+    insertRelinearizeAfterMult(top, options.includeFloats);
+  }
 
   LDBG() << "Unrolling loops for level consumption";
   unrollLoopsForLevelUtilization(top, options.levelBudget);

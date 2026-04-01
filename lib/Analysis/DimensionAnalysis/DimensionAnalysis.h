@@ -89,6 +89,8 @@ class DimensionAnalysis
   using SparseForwardDataFlowAnalysis::SparseForwardDataFlowAnalysis;
   friend class SecretnessAnalysisDependent<DimensionAnalysis>;
 
+  void setAutoRelinearize(bool autoRelin) { autoRelinearize_ = autoRelin; }
+
   void setToEntryState(DimensionLattice* lattice) override {
     if (isa<secret::SecretType>(lattice->getAnchor().getType())) {
       propagateIfChanged(lattice, lattice->join(DimensionState(2)));
@@ -108,6 +110,9 @@ class DimensionAnalysis
   void propagateIfChangedWrapper(AnalysisState* state, ChangeResult changed) {
     propagateIfChanged(state, changed);
   }
+
+ private:
+  bool autoRelinearize_ = false;
 };
 
 /// Back propagate dimension to plaintext operands.

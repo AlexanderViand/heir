@@ -83,7 +83,8 @@ struct AnnotateMgmt : impl::AnnotateMgmtBase<AnnotateMgmt> {
     solver.load<SecretnessAnalysis>();
     solver.load<LevelAnalysis>();
     solver.load<LevelAnalysisBackward>(symbolTable);
-    solver.load<DimensionAnalysis>();
+    auto* dimAnalysis = solver.load<DimensionAnalysis>();
+    dimAnalysis->setAutoRelinearize(autoRelinearize);
     solver.load<DimensionAnalysisBackward>(symbolTable);
 
     if (failed(solver.initializeAndRun(getOperation()))) {

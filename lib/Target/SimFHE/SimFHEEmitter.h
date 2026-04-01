@@ -64,6 +64,7 @@ class SimFHEEmitter {
   LogicalResult printOperation(ckks::SubOp op);
   LogicalResult printOperation(ckks::SubPlainOp op);
   LogicalResult printOperation(ckks::MulOp op);
+  LogicalResult printOperation(ckks::MulRelinOp op);
   LogicalResult printOperation(ckks::MulPlainOp op);
   LogicalResult printOperation(ckks::NegateOp op);
   LogicalResult printOperation(ckks::RotateOp op);

@@ -58,9 +58,9 @@ LogicalResult SimFHEEmitter::translate(Operation& op) {
       llvm::TypeSwitch<Operation&, LogicalResult>(op)
           .Case<ModuleOp, func::FuncOp, func::ReturnOp, ckks::AddOp,
                 ckks::AddPlainOp, ckks::SubOp, ckks::SubPlainOp, ckks::MulOp,
-                ckks::MulPlainOp, ckks::NegateOp, ckks::RotateOp,
-                ckks::RelinearizeOp, ckks::RescaleOp, ckks::LevelReduceOp,
-                ckks::BootstrapOp>(
+                ckks::MulRelinOp, ckks::MulPlainOp, ckks::NegateOp,
+                ckks::RotateOp, ckks::RelinearizeOp, ckks::RescaleOp,
+                ckks::LevelReduceOp, ckks::BootstrapOp>(
               [&](auto innerOp) { return printOperation(innerOp); })
           .Default([&](Operation&) {
             return op.emitOpError("unable to find printer for op");
@@ -159,6 +159,7 @@ EMIT(ckks::AddPlainOp, getLhs, "add_plain");
 EMIT(ckks::SubOp, getLhs, "add");
 EMIT(ckks::SubPlainOp, getLhs, "add_plain");
 EMIT(ckks::MulOp, getLhs, "multiply");
+EMIT(ckks::MulRelinOp, getLhs, "multiply");
 EMIT(ckks::MulPlainOp, getLhs, "multiply_plain");
 EMIT(ckks::NegateOp, getInput, "multiply_plain");
 EMIT(ckks::RotateOp, getInput, "rotate");

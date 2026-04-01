@@ -13,6 +13,8 @@ def AnnotateMgmt : Pass<"annotate-mgmt"> {
   let options = [
     Option<"baseLevel", "base-level", "int",
            /*default=*/"0", "Level to start counting from (used by B/FV)">,
+    Option<"autoRelinearize", "auto-relinearize", "bool",
+           /*default=*/"false", "Assume backend auto-relinearizes in mul (dimension stays 2)">,
   ];
 }
 

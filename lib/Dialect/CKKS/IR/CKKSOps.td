@@ -86,6 +86,27 @@ def CKKS_MulOp : CKKS_Op<"mul", [ElementwiseMappable, Commutative, SameOperandsA
   let hasVerifier = 1;
 }
 
+def CKKS_MulRelinOp : CKKS_Op<"mul_relin", [ElementwiseMappable, Commutative, SameOperandsAndResultRings, InferTypeOpAdaptor, IncreasesMulDepthOpInterface]> {
+  let summary = "Multiplication with implied relinearization.";
+  let description = [{
+    Represents a ciphertext-ciphertext multiplication where relinearization
+    is fused into the operation, as done by backends like FIDESlib where
+    EvalMult auto-relinearizes. The output dimension equals the input
+    dimension (typically 2), unlike ckks.mul which increases it.
+  }];
+
+  let arguments = (ins
+    LWECiphertextLike:$lhs,
+    LWECiphertextLike:$rhs
+  );
+
+  let results = (outs
+    LWECiphertextLike:$output
+  );
+
+  let hasVerifier = 1;
+}
+
 // MulPlain op result ciphertext type could be different from the input
 def CKKS_MulPlainOp : CKKS_CiphertextPlaintextOp<"mul_plain", [ElementwiseMappable, InferTypeOpAdaptor, Commutative]> {
   let summary = "Multiplication operation between ciphertext-plaintext.";

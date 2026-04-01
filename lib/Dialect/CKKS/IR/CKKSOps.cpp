@@ -101,6 +101,14 @@ LogicalResult MulOp::inferReturnTypes(
   return lwe::inferMulOpReturnTypes(ctx, adaptor, inferredReturnTypes);
 }
 
+LogicalResult MulRelinOp::verify() { return lwe::verifyMulRelinOp(this); }
+
+LogicalResult MulRelinOp::inferReturnTypes(
+    MLIRContext* ctx, std::optional<Location>, MulRelinOp::Adaptor adaptor,
+    SmallVectorImpl<Type>& inferredReturnTypes) {
+  return lwe::inferMulRelinOpReturnTypes(ctx, adaptor, inferredReturnTypes);
+}
+
 LogicalResult MulPlainOp::inferReturnTypes(
     MLIRContext* ctx, std::optional<Location>, MulPlainOp::Adaptor adaptor,
     SmallVectorImpl<Type>& inferredReturnTypes) {

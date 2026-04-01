@@ -47,6 +47,8 @@ def PopulateScaleCKKS : Pass<"populate-scale-ckks"> {
   let options = [
     Option<"beforeMulIncludeFirstMul", "before-mul-include-first-mul", "bool",
            /*default=*/"false", "Modulus switching before each multiplication, including the first multiplication (default to false)">,
+    Option<"autoRelinearize", "auto-relinearize", "bool",
+           /*default=*/"false", "Assume backend auto-relinearizes in mul (dimension stays 2)">,
   ];
 }
 

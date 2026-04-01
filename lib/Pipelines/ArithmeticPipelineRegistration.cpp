@@ -288,6 +288,7 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       secretInsertMgmtCKKSOptions.bootstrapWaterline =
           options.ckksBootstrapWaterline;
       secretInsertMgmtCKKSOptions.levelBudget = options.levelBudget;
+      secretInsertMgmtCKKSOptions.autoRelinearize = options.autoRelinearize;
       pm.addPass(createSecretInsertMgmtCKKS(secretInsertMgmtCKKSOptions));
       break;
     }
@@ -297,7 +298,9 @@ void mlirToRLWEPipeline(OpPassManager& pm,
   }
 
   // TODO(#2600): support loops in optimize-relinearization
-  if (!options.experimentalDisableLoopUnroll) {
+  // Skip relinearization optimization when auto-relinearize is active (no
+  // explicit relin ops to optimize).
+  if (!options.experimentalDisableLoopUnroll && !options.autoRelinearize) {
     OptimizeRelinearizationOptions optimizeRelinearizationOptions;
     optimizeRelinearizationOptions.allowMixedDegreeOperands = false;
     pm.addPass(createOptimizeRelinearization(optimizeRelinearizationOptions));
@@ -368,6 +371,7 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       PopulateScaleCKKSOptions populateScaleCKKSOptions;
       populateScaleCKKSOptions.beforeMulIncludeFirstMul =
           options.modulusSwitchBeforeFirstMul;
+      populateScaleCKKSOptions.autoRelinearize = options.autoRelinearize;
       pm.addPass(createPopulateScaleCKKS(populateScaleCKKSOptions));
       break;
     }

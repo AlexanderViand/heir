@@ -243,6 +243,40 @@ class SecretGenericPlaintextDivision
   }
 };
 
+// Conversion for secret-secret multiplication that dispatches to
+// ckks.mul_relin (dim preserved) or ckks.mul (dim increases) based on
+// the converted output type's dimension.
+template <typename MulOp>
+class SecretGenericOpMulConversion
+    : public SecretGenericOpConversion<MulOp, ckks::MulOp> {
+ public:
+  using SecretGenericOpConversion<MulOp,
+                                  ckks::MulOp>::SecretGenericOpConversion;
+
+  FailureOr<Operation*> matchAndRewriteInner(
+      secret::GenericOp op, TypeRange outputTypes, ValueRange inputs,
+      ArrayRef<NamedAttribute> attributes,
+      ContextAwareConversionPatternRewriter& rewriter) const override {
+    // Check if the output ciphertext dimension equals the input dimension,
+    // which indicates auto-relinearization is active.
+    auto outCtTy =
+        dyn_cast<lwe::LWECiphertextType>(getElementTypeOrSelf(outputTypes[0]));
+    auto lhsCtTy =
+        dyn_cast<lwe::LWECiphertextType>(getElementTypeOrSelf(inputs[0]));
+    if (outCtTy && lhsCtTy &&
+        outCtTy.getCiphertextSpace().getSize() ==
+            lhsCtTy.getCiphertextSpace().getSize()) {
+      return rewriter
+          .replaceOpWithNewOp<ckks::MulRelinOp>(op, outputTypes, inputs,
+                                                attributes)
+          .getOperation();
+    }
+    return rewriter
+        .replaceOpWithNewOp<ckks::MulOp>(op, outputTypes, inputs, attributes)
+        .getOperation();
+  }
+};
+
 struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
   using SecretToCKKSBase::SecretToCKKSBase;
 
@@ -296,8 +330,8 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
         SecretGenericOpConversion<arith::NegFOp, ckks::NegateOp>,
         SecretGenericOpConversion<arith::AddFOp, ckks::AddOp>,
         SecretGenericOpConversion<arith::AddIOp, ckks::AddOp>,
-        SecretGenericOpConversion<arith::MulFOp, ckks::MulOp>,
-        SecretGenericOpConversion<arith::MulIOp, ckks::MulOp>,
+        SecretGenericOpMulConversion<arith::MulFOp>,
+        SecretGenericOpMulConversion<arith::MulIOp>,
         SecretGenericOpConversion<arith::SubFOp, ckks::SubOp>,
         SecretGenericOpConversion<arith::SubIOp, ckks::SubOp>,
         SecretGenericOpConversion<mgmt::BootstrapOp, ckks::BootstrapOp>,
