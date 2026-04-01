@@ -289,8 +289,12 @@ struct ConvertCKKSLevelReduceOp
     auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
     if (failed(ctx)) return ctx;
 
-    // TODO: compute target level from the mgmt attributes
-    auto targetLevel = rewriter.getI64IntegerAttr(0);
+    // Derive target level from the output ciphertext's modulus chain.
+    auto outputCtType = dyn_cast<lwe::LWECiphertextType>(
+        getElementTypeOrSelf(op.getOutput().getType()));
+    int64_t targetLevelVal =
+        outputCtType ? outputCtType.getModulusChain().getCurrent() : 0;
+    auto targetLevel = rewriter.getI64IntegerAttr(targetLevelVal);
     rewriter.replaceOpWithNewOp<cheddar::LevelDownOp>(
         op, this->typeConverter->convertType(op.getOutput().getType()),
         ctx.value(), adaptor.getInput(), targetLevel);

@@ -169,6 +169,11 @@ LogicalResult CheddarEmitter::translate(Operation &op) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult CheddarEmitter::printOperation(ModuleOp moduleOp) {
+  // Read module-level scheme params set by ConfigureCryptoContext
+  if (auto attr =
+          moduleOp->getAttrOfType<IntegerAttr>("cheddar.logDefaultScale"))
+    logDefaultScale = attr.getInt();
+
   for (Operation &op : moduleOp) {
     if (failed(translate(op))) return failure();
   }
@@ -377,7 +382,9 @@ LogicalResult CheddarEmitter::printOperation(GetConjKeyOp op) {
 
 LogicalResult CheddarEmitter::printOperation(PrepareRotKeyOp op) {
   auto dist = op.getDistanceAttr().getInt();
-  os << getName(op.getUi()) << ".PrepareRotationKey(" << dist << ");\n";
+  auto maxLevel = op.getMaxLevelAttr().getInt();
+  os << getName(op.getUi()) << ".PrepareRotationKey(" << dist << ", "
+     << maxLevel << ");\n";
   return success();
 }
 
@@ -741,10 +748,8 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   os << "}\n";
 
   // Construct LinearTransform
-  // TODO: derive scale from scheme params rather than hardcoding
   os << "LinearTransform<word> " << ltName << "(" << ctxName << ", " << matName
-     << ", " << level << ", static_cast<double>(1ULL << "
-     << 40  // logDefaultScale placeholder
+     << ", " << level << ", static_cast<double>(1ULL << " << logDefaultScale
      << "), " << bs << ", " << gs << ");\n";
 
   // Evaluate
@@ -757,9 +762,30 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
 LogicalResult CheddarEmitter::printOperation(EvalPolyOp op) {
   needsExtensionIncludes = true;
   auto name = getName(op.getOutput());
-  // TODO: Emit proper EvalPoly code
-  os << "// EvalPoly: coefficients=" << op.getCoefficientsAttr() << "\n";
-  os << "Ct " << name << "; // TODO: implement EvalPoly emission\n";
+  auto ctxName = getName(op.getCtx());
+  auto evkMapName = getName(op.getEvkMap());
+  auto inputName = getName(op.getInput());
+  auto coeffsAttr = op.getCoefficientsAttr();
+
+  // Emit coefficient vector
+  std::string coeffsName = name + "_coeffs";
+  os << "std::vector<double> " << coeffsName << " = {";
+  for (unsigned i = 0; i < coeffsAttr.size(); ++i) {
+    if (i > 0) os << ", ";
+    auto floatAttr = cast<FloatAttr>(coeffsAttr[i]);
+    SmallString<16> str;
+    floatAttr.getValue().toString(str, /*FormatPrecision=*/15);
+    os << str;
+  }
+  os << "};\n";
+
+  // Construct EvalPoly and evaluate
+  std::string evalPolyName = name + "_ep";
+  os << "EvalPoly<word> " << evalPolyName << "(" << ctxName << ", "
+     << evkMapName << ");\n";
+  os << "Ct " << name << ";\n";
+  os << evalPolyName << ".Evaluate(" << ctxName << ", " << name << ", "
+     << inputName << ", " << coeffsName << ");\n";
   return success();
 }
 

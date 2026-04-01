@@ -29,7 +29,7 @@ func.func @test_hrot(
     %ct: !cheddar.ciphertext,
     %key: !cheddar.eval_key) -> !cheddar.ciphertext {
   // CHECK: cheddar.hrot
-  %result = cheddar.hrot %ctx, %ct, %key {distance = 5 : i64} : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
+  %result = cheddar.hrot %ctx, %ct, %key {static_shift = 5 : i64} : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
   return %result : !cheddar.ciphertext
 }
 

@@ -89,12 +89,15 @@ def Cheddar_GetConjKeyOp : Cheddar_Op<"get_conj_key"> {
 def Cheddar_PrepareRotKeyOp : Cheddar_Op<"prepare_rot_key"> {
   let summary = "Generate a rotation key for a given distance";
   let description = [{
-    Calls ui.PrepareRotationKey(distance) to generate a rotation key.
+    Calls ui.PrepareRotationKey(distance, max_level) to generate a rotation key.
     Must be called before using rotation with that distance.
+    The max_level parameter specifies the maximum ciphertext level at which
+    this rotation key will be used.
   }];
   let arguments = (ins
     Cheddar_UserInterface:$ui,
-    Builtin_IntegerAttr:$distance
+    Builtin_IntegerAttr:$distance,
+    Builtin_IntegerAttr:$maxLevel
   );
   let results = (outs);
 }

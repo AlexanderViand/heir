@@ -42,6 +42,9 @@ class CheddarEmitter {
   bool needsExtensionIncludes = false;
   bool needsJsonIncludes = false;
 
+  // Module-level scheme params (read from cheddar.* attrs)
+  int64_t logDefaultScale = 45;  // fallback
+
   // Per-op printers
   LogicalResult printOperation(ModuleOp op);
   LogicalResult printOperation(func::FuncOp op);

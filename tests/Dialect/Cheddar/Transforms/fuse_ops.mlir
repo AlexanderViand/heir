@@ -11,7 +11,8 @@ func.func @test_fuse_hmult_with_rescale(
   // CHECK-NOT: cheddar.relinearize
   // CHECK-NOT: cheddar.rescale
   // CHECK: cheddar.hmult
-  // CHECK-SAME: rescale = true
+  // rescale=true is the default and gets elided from the attr-dict
+  // CHECK-NOT: rescale = false
   %mult = cheddar.mult %ctx, %ct0, %ct1 : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
   %relin = cheddar.relinearize %ctx, %mult, %key : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
   %rescaled = cheddar.rescale %ctx, %relin : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
@@ -44,7 +45,7 @@ func.func @test_fuse_hrot_add(
   // CHECK-NOT: cheddar.hrot
   // CHECK-NOT: cheddar.add
   // CHECK: cheddar.hrot_add
-  %rotated = cheddar.hrot %ctx, %ct0, %key {distance = 3 : i64} : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
+  %rotated = cheddar.hrot %ctx, %ct0, %key {static_shift = 3 : i64} : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
   %sum = cheddar.add %ctx, %rotated, %ct1 : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
   return %sum : !cheddar.ciphertext
 }
