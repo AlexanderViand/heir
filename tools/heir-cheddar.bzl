@@ -44,12 +44,10 @@ def cheddar_lib(
         hdrs = [":" + header_name],
         deps = [
             "@cheddar//:cheddar",
+            "@cuda//:cuda_headers",
+            "@cuda//:cuda_runtime",
+            "@cuda//:thrust",
         ] + extra_deps,
-        linkopts = [
-            "-L/usr/local/cuda/lib64",
-            "-lcuda",
-            "-lcudart",
-        ],
         target_compatible_with = requires_cheddar(),
         **kwargs
     )

@@ -44,14 +44,12 @@ cc_library(
     name = "mlp_lib",
     srcs = [":mlp_cpp"],
     hdrs = [":mlp_header"],
-    linkopts = [
-        "-L/usr/local/cuda/lib64",
-        "-lcuda",
-        "-lcudart",
-    ],
     target_compatible_with = requires_cheddar(),
     deps = [
         "@cheddar",
+        "@cuda//:cuda_headers",
+        "@cuda//:cuda_runtime",
+        "@cuda//:thrust",
     ],
 )
 
@@ -64,6 +62,9 @@ cc_test(
     deps = [
         ":mlp_lib",
         "@cheddar",
+        "@cuda//:cuda_headers",
+        "@cuda//:cuda_runtime",
+        "@cuda//:thrust",
         "@googletest//:gtest_main",
     ],
 )
