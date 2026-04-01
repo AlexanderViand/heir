@@ -349,12 +349,19 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
       }
     }
 
-    // Get level from the ciphertext operand of the operation that uses
-    // this plaintext. The plaintext level must match the ciphertext level
-    // it will operate with (e.g., in add_plain, mul_plain).
+    // Get level from the ciphertext type associated with the operation that
+    // uses this plaintext. Check both operands (for ct-pt ops like add_plain)
+    // and results (for encrypt ops where the output is a ciphertext).
     for (auto user : op.getResult().getUsers()) {
       for (auto operand : user->getOperands()) {
         if (auto ctType = dyn_cast<lwe::LWECiphertextType>(operand.getType())) {
+          levelVal = ctType.getModulusChain().getCurrent();
+          break;
+        }
+      }
+      if (levelVal > 0) break;
+      for (auto result : user->getResults()) {
+        if (auto ctType = dyn_cast<lwe::LWECiphertextType>(result.getType())) {
           levelVal = ctType.getModulusChain().getCurrent();
           break;
         }
