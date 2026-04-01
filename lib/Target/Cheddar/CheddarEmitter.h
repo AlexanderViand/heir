@@ -94,7 +94,9 @@ class CheddarEmitter {
 
  public:
   // Type conversion (public for header emission)
-  FailureOr<std::string> convertType(Type type);
+  // asArg=true emits const-ref for move-only CHEDDAR types (function params)
+  // asArg=false emits by-value (return types, local variables)
+  FailureOr<std::string> convertType(Type type, bool asArg = false);
 
  private:
   std::string getName(Value value);

@@ -41,15 +41,22 @@ std::string CheddarEmitter::getName(Value value) {
   return variableNames->getNameForValue(value);
 }
 
-FailureOr<std::string> CheddarEmitter::convertType(Type type) {
+FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
   return llvm::TypeSwitch<Type, FailureOr<std::string>>(type)
       .Case<ContextType>([](auto) { return std::string("CtxPtr"); })
-      .Case<ParameterType>([](auto) { return std::string("Param"); })
+      .Case<ParameterType>([asArg](auto) {
+        return std::string(asArg ? "const Param&" : "Param");
+      })
       .Case<EncoderType>([](auto) { return std::string("Enc&"); })
       .Case<UserInterfaceType>([](auto) { return std::string("UI&"); })
-      .Case<CiphertextType>([](auto) { return std::string("Ct"); })
-      .Case<PlaintextType>([](auto) { return std::string("Pt"); })
-      .Case<ConstantType>([](auto) { return std::string("Const"); })
+      // CHEDDAR containers are move-only: pass by const ref, return by value
+      .Case<CiphertextType>(
+          [asArg](auto) { return std::string(asArg ? "const Ct&" : "Ct"); })
+      .Case<PlaintextType>(
+          [asArg](auto) { return std::string(asArg ? "const Pt&" : "Pt"); })
+      .Case<ConstantType>([asArg](auto) {
+        return std::string(asArg ? "const Const&" : "Const");
+      })
       .Case<EvalKeyType>([](auto) { return std::string("const Evk&"); })
       .Case<EvkMapType>([](auto) { return std::string("const EvkMapT&"); })
       .Case<RankedTensorType>(
@@ -166,7 +173,7 @@ LogicalResult CheddarEmitter::printOperation(func::FuncOp funcOp) {
   auto &entryBlock = funcOp.getBody().front();
   for (unsigned i = 0; i < argTypes.size(); ++i) {
     if (i > 0) os << ", ";
-    auto typeStr = convertType(argTypes[i]);
+    auto typeStr = convertType(argTypes[i], /*asArg=*/true);
     if (failed(typeStr))
       return funcOp.emitOpError("failed to convert argument type");
     os << *typeStr << " " << getName(entryBlock.getArgument(i));
@@ -741,7 +748,7 @@ LogicalResult translateToCheddarHeader(Operation *op, llvm::raw_ostream &os,
     os << funcOp.getName() << "(";
     for (unsigned i = 0; i < argTypes.size(); ++i) {
       if (i > 0) os << ", ";
-      auto typeStr = tempEmitter.convertType(argTypes[i]);
+      auto typeStr = tempEmitter.convertType(argTypes[i], /*asArg=*/true);
       if (failed(typeStr)) return failure();
       os << *typeStr;
     }
