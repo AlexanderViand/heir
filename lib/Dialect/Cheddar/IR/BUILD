@@ -88,6 +88,7 @@ cc_library(
         ":ops_inc_gen",
         ":types_inc_gen",
         "@heir//lib/Dialect:HEIRInterfaces",
+        "@heir//lib/Utils",
         "@heir//lib/Utils:RotationUtils",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:InferTypeOpInterface",

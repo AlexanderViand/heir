@@ -511,11 +511,15 @@ LogicalResult CheddarEmitter::printOperation(HMultOp op) {
 
 LogicalResult CheddarEmitter::printOperation(HRotOp op) {
   auto name = getName(op.getOutput());
-  auto dist = op.getDistanceAttr().getInt();
   os << "Ct " << name << ";\n";
   os << getName(op.getCtx()) << "->HRot(" << name << ", "
-     << getName(op.getInput()) << ", " << getName(op.getRotKey()) << ", "
-     << dist << ");\n";
+     << getName(op.getInput()) << ", " << getName(op.getRotKey()) << ", ";
+  if (auto staticShift = op.getStaticShift()) {
+    os << staticShift->getInt();
+  } else {
+    os << getName(op.getDynamicShift());
+  }
+  os << ");\n";
   return success();
 }
 

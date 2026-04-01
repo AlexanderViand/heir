@@ -2,6 +2,7 @@
 
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
 #include "lib/Utils/RotationUtils.h"
+#include "lib/Utils/Utils.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"       // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"          // from @llvm-project
@@ -11,7 +12,13 @@ namespace heir {
 namespace cheddar {
 
 ::llvm::SmallVector<::mlir::OpFoldResult> HRotOp::getRotationIndices() {
-  return {getDistanceAttr()};
+  if (getStaticShift()) return {getStaticShiftAttr()};
+  return {getDynamicShift()};
+}
+
+LogicalResult HRotOp::verify() {
+  return containsExactlyOneOrEmitError(getOperation(), getDynamicShift(),
+                                       getStaticShift());
 }
 
 ::llvm::SmallVector<::mlir::OpFoldResult> HRotAddOp::getRotationIndices() {

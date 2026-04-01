@@ -116,9 +116,13 @@ struct FuseHRotAdd : public OpRewritePattern<AddOp> {
     }
     if (!hrotOp) return failure();
 
+    // Only fuse static-shift rotations into HRotAdd
+    auto staticShift = hrotOp.getStaticShift();
+    if (!staticShift) return failure();
+
     rewriter.replaceOpWithNewOp<HRotAddOp>(
         addOp, addOp.getOutput().getType(), hrotOp.getCtx(), hrotOp.getInput(),
-        otherOperand, hrotOp.getRotKey(), hrotOp.getDistanceAttr());
+        otherOperand, hrotOp.getRotKey(), *staticShift);
 
     rewriter.eraseOp(hrotOp);
     return success();

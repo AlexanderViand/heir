@@ -246,19 +246,31 @@ struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
     auto ui = getContextualArg<cheddar::UserInterfaceType>(op.getOperation());
     if (failed(ui)) return ui;
 
-    auto shift = op.getStaticShiftAttr();
-    if (!shift) {
-      return op.emitOpError("CHEDDAR only supports static rotation shifts");
+    Value dynamicShift = adaptor.getDynamicShift();
+    IntegerAttr staticShift = op.getStaticShiftAttr();
+    if (!staticShift && !dynamicShift) {
+      return rewriter.notifyMatchFailure(
+          op, "rotate op must have either static or dynamic shift");
     }
 
-    // Get rotation key for this distance
+    // For static shifts, get the rotation key at lowering time.
+    // For dynamic shifts, the key must be looked up at runtime.
+    // TODO: dynamic shift key lookup — for now use a placeholder key.
     auto rotKey = cheddar::GetRotKeyOp::create(
         rewriter, op.getLoc(), cheddar::EvalKeyType::get(getContext()),
-        ui.value(), shift);
+        ui.value(), staticShift ? staticShift : rewriter.getI64IntegerAttr(0));
 
-    rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
-        op, this->typeConverter->convertType(op.getOutput().getType()),
-        ctx.value(), adaptor.getInput(), rotKey, shift);
+    if (dynamicShift) {
+      rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
+          op, this->typeConverter->convertType(op.getOutput().getType()),
+          ctx.value(), adaptor.getInput(), rotKey, dynamicShift,
+          /*static_shift=*/nullptr);
+    } else {
+      rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
+          op, this->typeConverter->convertType(op.getOutput().getType()),
+          ctx.value(), adaptor.getInput(), rotKey, /*dynamic_shift=*/Value(),
+          staticShift);
+    }
     return success();
   }
 };
