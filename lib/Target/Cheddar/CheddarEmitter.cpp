@@ -382,7 +382,7 @@ LogicalResult CheddarEmitter::printOperation(PrepareRotKeyOp op) {
 
 LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   auto level = op.getLevelAttr().getInt();
-  auto scale = op.getScaleAttr().getInt();
+  auto logScale = op.getScaleAttr().getInt();
   auto name = getName(op.getPlaintext());
   auto msgName = getName(op.getMessage());
 
@@ -395,27 +395,30 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
     needsComplexConversion = elemType.isF32() || elemType.isF64();
   }
 
+  // CHEDDAR Encode takes scale as double. We store logScale in the attr.
+  std::string scaleExpr = "pow(2.0, " + std::to_string(logScale) + ")";
+
   os << "Pt " << name << ";\n";
   if (needsComplexConversion) {
     std::string complexMsgName = msgName + "_complex";
     os << "std::vector<Complex> " << complexMsgName << "(" << msgName
        << ".begin(), " << msgName << ".end());\n";
     os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
-       << ", " << scale << ", " << complexMsgName << ");\n";
+       << ", " << scaleExpr << ", " << complexMsgName << ");\n";
   } else {
     os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
-       << ", " << scale << ", " << msgName << ");\n";
+       << ", " << scaleExpr << ", " << msgName << ");\n";
   }
   return success();
 }
 
 LogicalResult CheddarEmitter::printOperation(EncodeConstantOp op) {
   auto level = op.getLevelAttr().getInt();
-  auto scale = op.getScaleAttr().getInt();
+  auto logScale = op.getScaleAttr().getInt();
   auto name = getName(op.getConstant());
   os << "Const " << name << ";\n";
   os << getName(op.getEncoder()) << ".EncodeConstant(" << name << ", " << level
-     << ", " << scale << ", " << getName(op.getValue()) << ");\n";
+     << ", pow(2.0, " << logScale << "), " << getName(op.getValue()) << ");\n";
   return success();
 }
 

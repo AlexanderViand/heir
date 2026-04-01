@@ -355,7 +355,8 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     }
 
     auto level = rewriter.getI64IntegerAttr(levelVal);
-    auto scale = rewriter.getI64IntegerAttr(1ULL << logScale);
+    // Store logScale directly; the emitter will compute the actual scale.
+    auto scale = rewriter.getI64IntegerAttr(logScale);
 
     rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
         op, cheddar::PlaintextType::get(getContext()), encoder.value(),
