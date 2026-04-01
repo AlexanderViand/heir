@@ -862,18 +862,18 @@ LogicalResult CheddarEmitter::printOperation(tensor::InsertOp op) {
   if (inPlace) {
     resultName = getName(op.getResult());
   } else {
-    // Copy dest
+    // Move dest (important for move-only types like Ct)
     auto typeStr = convertType(
         cast<RankedTensorType>(op.getResult().getType()).getElementType());
     if (failed(typeStr)) return failure();
     resultName = getName(op.getResult());
-    os << "std::vector<" << *typeStr << "> " << resultName << "("
-       << getName(op.getDest()) << ");\n";
+    os << "auto " << resultName << " = std::move(" << getName(op.getDest())
+       << ");\n";
   }
   os << resultName << "[";
   os << flattenIndexExpression(op.getResult().getType(), op.getIndices(),
                                [&](Value value) { return getName(value); });
-  os << "] = " << getName(op.getScalar()) << ";\n";
+  os << "] = std::move(" << getName(op.getScalar()) << ");\n";
   return success();
 }
 
@@ -951,8 +951,8 @@ LogicalResult CheddarEmitter::printOperation(tensor::InsertSliceOp op) {
         cast<RankedTensorType>(op.getResult().getType()).getElementType());
     if (failed(typeStr)) return failure();
     resultName = getName(op.getResult());
-    os << "std::vector<" << *typeStr << "> " << resultName << "("
-       << getName(op.getDest()) << ");\n";
+    os << "auto " << resultName << " = std::move(" << getName(op.getDest())
+       << ");\n";
   }
   // Copy source into dest at offset
   auto offsets = op.getMixedOffsets();
