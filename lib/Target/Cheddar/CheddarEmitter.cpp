@@ -416,7 +416,7 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
 
   os << "Pt " << name << ";\n";
   if (needsComplexConversion) {
-    std::string complexMsgName = msgName + "_complex";
+    std::string complexMsgName = name + "_complex";
     os << "std::vector<Complex> " << complexMsgName << "(" << msgName
        << ".begin(), " << msgName << ".end());\n";
     os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
