@@ -17,6 +17,7 @@
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/Transforms/Passes.h"
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
+#include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Comb/IR/CombDialect.h"
 #include "lib/Dialect/Debug/IR/DebugDialect.h"
 #include "lib/Dialect/Debug/Transforms/Passes.h"
@@ -294,6 +295,7 @@ int main(int argc, char** argv) {
   registerEmitCInterfacePass();
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
+  cheddar::registerCheddarFuseOpsPasses();
   ckks::registerCKKSPasses();
   lattigo::registerLattigoPasses();
   lwe::registerLWEPasses();
