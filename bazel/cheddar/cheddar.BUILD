@@ -23,6 +23,8 @@ cmake(
         "BUILD_UNITTEST": "OFF",
         "ENABLE_EXTENSION": "ON",
         "USE_GMP": "OFF",
+        # Prevent FetchContent subdeps from trying to install
+        "SPDLOG_INSTALL": "OFF",
         # Build for the local GPU architecture to keep build times manageable.
         "CMAKE_CUDA_ARCHITECTURES": "native",
         "CMAKE_CUDA_COMPILER": "/usr/local/cuda/bin/nvcc",
