@@ -408,11 +408,36 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   }
 
   // Use CHEDDAR's Parameter::GetScale(level) for the correct runtime scale.
-  // The logScale from the IR is a hint but CHEDDAR's actual scale per level
-  // depends on the prime chain. GetScale returns the exact value.
-  // We need the context to access the parameter — find it from the encoder's
-  // parent function args.
-  std::string scaleExpr = "pow(2.0, " + std::to_string(logScale) + ")";
+  // The logScale from the IR is the log2 of the nominal scale, but CHEDDAR's
+  // actual scale per level depends on the prime chain. Using GetScale ensures
+  // the plaintext scale matches the ciphertext scale exactly.
+  //
+  // For normal scale (logScale == logDefaultScale): use GetScale(level)
+  // For doubled scale (logScale == 2*logDefaultScale, e.g. after mult
+  //   before rescale): use GetScale(level)^2
+  //
+  // Find the context arg (first arg of the parent function) to access params.
+  std::string ctxName;
+  if (auto funcOp = op->getParentOfType<func::FuncOp>()) {
+    if (funcOp.getNumArguments() > 0) ctxName = getName(funcOp.getArgument(0));
+  }
+
+  std::string scaleExpr;
+  if (!ctxName.empty()) {
+    std::string baseScale =
+        ctxName + "->param_.GetScale(" + std::to_string(level) + ")";
+    if (logScale > logDefaultScale) {
+      // Doubled (or higher) scale: square the base scale per doubling
+      int multiplier = logScale / logDefaultScale;
+      scaleExpr = baseScale;
+      for (int i = 1; i < multiplier; ++i) scaleExpr += " * " + baseScale;
+    } else {
+      scaleExpr = baseScale;
+    }
+  } else {
+    // Fallback if context not found
+    scaleExpr = "pow(2.0, " + std::to_string(logScale) + ")";
+  }
 
   os << "Pt " << name << ";\n";
   if (needsComplexConversion) {
