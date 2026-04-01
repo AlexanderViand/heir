@@ -21,11 +21,21 @@ TEST(CheddarMatvec, EndToEnd) {
   std::cout << "=== CHEDDAR Matvec 16x16 Test ===" << std::endl;
 
   // Parameters from the compiled MLIR's cheddar.Q / cheddar.P attributes.
-  // NOTE: Only 2 Q primes (depth 1 computation). This may be too few
-  // for CHEDDAR's GPU kernels. Test is marked as expected to fail
-  // until we implement proper minimum level enforcement.
-  std::vector<word> main_primes = {36028797014376449ULL, 35184372744193ULL};
-  std::vector<word> aux_primes = {1152921504614055937ULL};
+  // Uses min-levels=25 to ensure enough RNS primes for CHEDDAR's GPU.
+  std::vector<word> main_primes = {
+      36028797014376449ULL, 35184388734977ULL, 35184339320833ULL,
+      35184386899969ULL,    35184343908353ULL, 35184385196033ULL,
+      35184345088001ULL,    35184383754241ULL, 35184346267649ULL,
+      35184383229953ULL,    35184350330881ULL, 35184382967809ULL,
+      35184351772673ULL,    35184380870657ULL, 35184353083393ULL,
+      35184379035649ULL,    35184355704833ULL, 35184378511361ULL,
+      35184358850561ULL,    35184377331713ULL, 35184363569153ULL,
+      35184376545281ULL,    35184365273089ULL, 35184373006337ULL,
+      35184368025601ULL,    35184372744193ULL};
+  std::vector<word> aux_primes = {
+      1152921504614055937ULL, 1152921504615628801ULL, 1152921504616808449ULL,
+      1152921504618381313ULL, 1152921504620347393ULL, 1152921504622575617ULL,
+      1152921504625328129ULL};
 
   std::vector<std::pair<int, int>> level_config;
   for (int i = 1; i <= static_cast<int>(main_primes.size()); ++i) {
