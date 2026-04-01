@@ -46,7 +46,7 @@ FailureOr<std::string> CheddarEmitter::convertType(Type type) {
       .Case<ContextType>([](auto) { return std::string("CtxPtr"); })
       .Case<ParameterType>([](auto) { return std::string("Param"); })
       .Case<EncoderType>([](auto) { return std::string("Enc&"); })
-      .Case<UserInterfaceType>([](auto) { return std::string("UI"); })
+      .Case<UserInterfaceType>([](auto) { return std::string("UI&"); })
       .Case<CiphertextType>([](auto) { return std::string("Ct"); })
       .Case<PlaintextType>([](auto) { return std::string("Pt"); })
       .Case<ConstantType>([](auto) { return std::string("Const"); })

@@ -96,14 +96,14 @@ TEST(CheddarMLP, EndToEnd) {
       << " ms)" << std::endl;
 
   // 3. Prepare input (all 1s, same as lattigo test)
-  int slots = 1 << (param.GetLogDegree() - 1);  // N/2 = 4096
+  int slots = 1 << (param.log_degree_ - 1);  // N/2 = 4096
   std::cout << "[3/6] Encoding and encrypting input (" << slots << " slots)..."
             << std::flush;
   start = std::chrono::high_resolution_clock::now();
 
   std::vector<Complex> input(slots, Complex(1.0, 0.0));
   Plaintext<word> pt_input;
-  context->encoder_.Encode(pt_input, param.GetDefaultEncryptionLevel(),
+  context->encoder_.Encode(pt_input, param.default_encryption_level_,
                            static_cast<double>(1ULL << 26), input);
   Ciphertext<word> ct_input;
   ui.Encrypt(ct_input, pt_input);
