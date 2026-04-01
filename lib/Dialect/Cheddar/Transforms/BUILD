@@ -28,6 +28,7 @@ cc_library(
         ":configure_crypto_context_inc_gen",
         "@heir//lib/Dialect/CKKS/IR:Dialect",
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@heir//lib/Parameters:RLWEParams",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
