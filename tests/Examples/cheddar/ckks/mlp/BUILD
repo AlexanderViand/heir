@@ -64,6 +64,6 @@ cc_test(
     deps = [
         ":mlp_lib",
         "@cheddar",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest_main",
     ],
 )
