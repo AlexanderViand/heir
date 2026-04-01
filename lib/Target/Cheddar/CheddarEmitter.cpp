@@ -682,14 +682,82 @@ void registerToCheddarTranslation() {
       registerRelevantDialects);
 }
 
+LogicalResult translateToCheddarHeader(Operation *op, llvm::raw_ostream &os,
+                                       bool use64Bit) {
+  // Emit a proper C++ header: includes, type aliases, function declarations.
+  auto moduleOp = dyn_cast<ModuleOp>(op);
+  if (!moduleOp) return failure();
+
+  SelectVariableNames variableNames(op);
+
+  os << "#pragma once\n";
+  os << kStdIncludes;
+  os << kCheddarInclude;
+
+  // Check if extensions are needed
+  bool needsExtension = false;
+  moduleOp->walk([&](Operation *innerOp) {
+    if (isa<LinearTransformOp, EvalPolyOp, BootOp>(innerOp))
+      needsExtension = true;
+  });
+  if (needsExtension) os << kCheddarExtensionInclude;
+
+  os << "\n";
+  if (use64Bit) {
+    os << kTypeAliasPrelude64;
+  } else {
+    os << kTypeAliasPrelude32;
+  }
+  os << "\n";
+
+  // Emit function declarations
+  for (auto funcOp : moduleOp.getOps<func::FuncOp>()) {
+    auto funcType = funcOp.getFunctionType();
+    auto resultTypes = funcType.getResults();
+    auto argTypes = funcType.getInputs();
+
+    // Two-pass: buffer to determine return type string
+    CheddarEmitter tempEmitter(llvm::nulls(), &variableNames, use64Bit);
+
+    // Return type
+    if (resultTypes.empty()) {
+      os << "void ";
+    } else if (resultTypes.size() == 1) {
+      auto typeStr = tempEmitter.convertType(resultTypes[0]);
+      if (failed(typeStr)) return failure();
+      os << *typeStr << " ";
+    } else {
+      os << "std::tuple<";
+      for (unsigned i = 0; i < resultTypes.size(); ++i) {
+        if (i > 0) os << ", ";
+        auto typeStr = tempEmitter.convertType(resultTypes[i]);
+        if (failed(typeStr)) return failure();
+        os << *typeStr;
+      }
+      os << "> ";
+    }
+
+    // Function name and arg types
+    os << funcOp.getName() << "(";
+    for (unsigned i = 0; i < argTypes.size(); ++i) {
+      if (i > 0) os << ", ";
+      auto typeStr = tempEmitter.convertType(argTypes[i]);
+      if (failed(typeStr)) return failure();
+      os << *typeStr;
+    }
+    os << ");\n";
+  }
+
+  return success();
+}
+
 void registerToCheddarHeaderTranslation() {
   TranslateFromMLIRRegistration reg(
       "emit-cheddar-header",
       "translate the cheddar dialect to a C++ header file",
       [](Operation *op, llvm::raw_ostream &output) {
-        // TODO: implement header-only emission
-        return translateToCheddar(op, output, cheddarTranslateOptions->use64Bit,
-                                  cheddarTranslateOptions->paramsJson);
+        return translateToCheddarHeader(op, output,
+                                        cheddarTranslateOptions->use64Bit);
       },
       registerRelevantDialects);
 }

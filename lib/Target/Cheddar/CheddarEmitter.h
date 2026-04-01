@@ -92,9 +92,12 @@ class CheddarEmitter {
   // Arith dialect ops
   LogicalResult printOperation(arith::ConstantOp op);
 
-  // Helpers
-  std::string getName(Value value);
+ public:
+  // Type conversion (public for header emission)
   FailureOr<std::string> convertType(Type type);
+
+ private:
+  std::string getName(Value value);
 };
 
 /// Free functions for translation registration
