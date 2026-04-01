@@ -189,13 +189,13 @@ struct HoistRelinBeforePlainOp : public OpRewritePattern<RelinearizeOp> {
     auto multOp = plainOp.getCiphertext().template getDefiningOp<MultOp>();
     if (!multOp || !multOp.getResult().hasOneUse()) return failure();
 
-    // Insert relin right after mult (before the plain op)
-    rewriter.setInsertionPointAfter(multOp);
+    // Insert at the relin's position (all operands dominate here).
+    rewriter.setInsertionPoint(relinOp);
     auto newRelin = RelinearizeOp::create(
         rewriter, relinOp.getLoc(), relinOp.getOutput().getType(),
         multOp.getCtx(), multOp.getResult(), relinOp.getMultKey());
 
-    // Replace the plain op's ciphertext input with the relinearized result
+    // Replace the relin with plain(relin(mult), pt)
     rewriter.replaceOpWithNewOp<PlainOp>(relinOp, relinOp.getOutput().getType(),
                                          plainOp.getCtx(), newRelin.getResult(),
                                          plainOp.getPlaintext());
