@@ -21,10 +21,13 @@ TEST(CheddarMatvec, EndToEnd) {
   std::cout << "=== CHEDDAR Matvec 16x16 Test ===" << std::endl;
 
   // Parameters from the compiled MLIR's cheddar.Q / cheddar.P attributes.
-  // Q = [36028797014376449, 35184372744193]
-  // P = [1152921504614055937]
-  std::vector<word> main_primes = {36028797014376449ULL, 35184372744193ULL};
-  std::vector<word> aux_primes = {1152921504614055937ULL};
+  // Padded to CHEDDAR's minimum prime count by ConfigureCryptoContext.
+  std::vector<word> main_primes = {36028797014376449ULL, 35184372744193ULL,
+                                   35184373006337ULL,    35184376545281ULL,
+                                   35184377331713ULL,    35184378511361ULL,
+                                   35184379035649ULL,    35184380870657ULL};
+  std::vector<word> aux_primes = {
+      1152921504614055937ULL, 1152921504615628801ULL, 1152921504616808449ULL};
 
   std::vector<std::pair<int, int>> level_config;
   for (int i = 1; i <= static_cast<int>(main_primes.size()); ++i) {
