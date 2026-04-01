@@ -45,7 +45,7 @@ TEST(CheddarDotProduct, EndToEnd) {
 
   std::cout << "[2/6] Generating keys..." << std::flush;
   UserInterface<word> ui(context);
-  // Rotation keys needed by the dot product (from compiled MLIR)
+  // Rotation keys needed by the dot product (from compiled MLIR).
   for (int rot : {6, 7}) {
     ui.PrepareRotationKey(rot, default_encryption_level);
   }

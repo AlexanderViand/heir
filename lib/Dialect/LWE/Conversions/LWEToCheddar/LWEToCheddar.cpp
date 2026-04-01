@@ -253,19 +253,22 @@ struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
           op, "rotate op must have either static or dynamic shift");
     }
 
-    // For static shifts, get the rotation key at lowering time.
-    // For dynamic shifts, the key must be looked up at runtime.
-    // TODO: dynamic shift key lookup — for now use a placeholder key.
-    auto rotKey = cheddar::GetRotKeyOp::create(
-        rewriter, op.getLoc(), cheddar::EvalKeyType::get(getContext()),
-        ui.value(), staticShift ? staticShift : rewriter.getI64IntegerAttr(0));
-
     if (dynamicShift) {
+      // Dynamic shift: the emitter will inline ui.GetRotationKey(shift).
+      // Create a placeholder GetRotKeyOp that the emitter traces back to
+      // the UserInterface for the key lookup.
+      auto rotKey = cheddar::GetRotKeyOp::create(
+          rewriter, op.getLoc(), cheddar::EvalKeyType::get(getContext()),
+          ui.value(), rewriter.getI64IntegerAttr(-1));  // sentinel
       rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
           op, this->typeConverter->convertType(op.getOutput().getType()),
           ctx.value(), adaptor.getInput(), rotKey, dynamicShift,
           /*static_shift=*/nullptr);
     } else {
+      // Static shift: get the rotation key at lowering time.
+      auto rotKey = cheddar::GetRotKeyOp::create(
+          rewriter, op.getLoc(), cheddar::EvalKeyType::get(getContext()),
+          ui.value(), staticShift);
       rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
           op, this->typeConverter->convertType(op.getOutput().getType()),
           ctx.value(), adaptor.getInput(), rotKey, /*dynamic_shift=*/Value(),

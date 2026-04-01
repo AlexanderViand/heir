@@ -359,6 +359,11 @@ LogicalResult CheddarEmitter::printOperation(GetMultKeyOp op) {
 
 LogicalResult CheddarEmitter::printOperation(GetRotKeyOp op) {
   auto dist = op.getDistanceAttr().getInt();
+  if (dist == -1) {
+    // Sentinel for dynamic rotation: key lookup is inlined in HRotOp emitter.
+    // Emit nothing; the HRotOp emitter traces back to the UI.
+    return success();
+  }
   os << "const auto& " << getName(op.getKey()) << " = " << getName(op.getUi())
      << ".GetRotationKey(" << dist << ");\n";
   return success();
