@@ -77,6 +77,7 @@ FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
             return failure();
           })
       .Case<FloatType>([](auto) { return std::string("double"); })
+      .Case<IndexType>([](auto) { return std::string("int64_t"); })
       .Case<IntegerType>([](IntegerType type) -> FailureOr<std::string> {
         auto width = type.getWidth();
         if (width == 1) return std::string("bool");
