@@ -1,16 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 1234567..abcdefg 100644
+index 323e218..bc70a80 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -18,13 +18,20 @@ find_package(CUDAToolkit 11.8 REQUIRED)
-
- include(FetchContent)
- option(BUILD_TESTS OFF)
-+
-+# When building inside bazel (rules_foreign_cc), we need EXCLUDE_FROM_ALL
-+# to prevent FetchContent subdeps from being included in cmake install.
- FetchContent_Declare(
-   rmm
+@@ -24,6 +24,7 @@ FetchContent_Declare(
    GIT_REPOSITORY https://github.com/rapidsai/rmm
    GIT_TAG        branch-22.12
    GIT_SHALLOW
@@ -18,10 +10,11 @@ index 1234567..abcdefg 100644
  )
  FetchContent_MakeAvailable(rmm)
  message(STATUS "RMM source dir: ${rmm_SOURCE_DIR}")
-
- # options
- option(ENABLE_EXTENSION "Enable extension sources" ON)
+@@ -112,3 +113,7 @@ if (BUILD_UNITTEST)
+   message(STATUS "Building unit tests")
+   add_subdirectory(unittest)
+ endif()
 +
-+# Install the cheddar library and headers
++# Install targets for bazel compatibility
 +install(TARGETS cheddar LIBRARY DESTINATION lib)
 +install(DIRECTORY include/ DESTINATION include)
