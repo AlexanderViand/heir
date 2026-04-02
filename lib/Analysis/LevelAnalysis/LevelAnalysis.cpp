@@ -19,6 +19,7 @@
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"     // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"        // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"                // from @llvm-project
 #include "mlir/include/mlir/IR/Value.h"                    // from @llvm-project
@@ -251,6 +252,19 @@ void annotateLevel(Operation* top, DataFlowSolver* solver, int baseLevel,
   // If minLevels is set and exceeds the computed depth, raise baseLevel
   // so that encryption happens at a higher level. This is needed for GPU
   // backends (e.g., CHEDDAR) that require a minimum number of RNS limbs.
+  // Also check for a module-level min-levels attribute (set by backends
+  // like CHEDDAR that need a minimum number of RNS limbs).
+  if (minLevels == 0) {
+    if (auto moduleOp = top->getParentOfType<ModuleOp>()) {
+      if (auto attr = moduleOp->getAttrOfType<IntegerAttr>("heir.min_levels"))
+        minLevels = attr.getInt();
+    }
+    // Also check if top itself is a ModuleOp
+    if (auto moduleOp = dyn_cast<ModuleOp>(top)) {
+      if (auto attr = moduleOp->getAttrOfType<IntegerAttr>("heir.min_levels"))
+        minLevels = attr.getInt();
+    }
+  }
   if (minLevels > 0 && maxLevel + baseLevel < minLevels) {
     baseLevel = minLevels - maxLevel;
   }

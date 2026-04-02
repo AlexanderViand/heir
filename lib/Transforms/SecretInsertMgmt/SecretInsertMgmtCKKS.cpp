@@ -28,6 +28,16 @@ struct SecretInsertMgmtCKKS
     // Helper for future lowerings that want to know what scheme was used
     moduleSetCKKS(getOperation());
 
+    // Persist minLevels as a module attribute so downstream passes
+    // (PopulateScale, OptimizeRelinearization) that re-run annotateLevel
+    // also pick it up.
+    if (minLevels > 0) {
+      auto* ctx = &getContext();
+      getOperation()->setAttr(
+          "heir.min_levels",
+          IntegerAttr::get(IntegerType::get(ctx, 64), minLevels));
+    }
+
     InsertMgmtPipelineOptions options;
     options.includeFloats = true;
     options.levelBudget = levelBudget;
