@@ -54,7 +54,9 @@ struct SecretInsertMgmtCKKS
     OpPassManager pipeline("builtin.module");
     pipeline.addPass(createCanonicalizerPass());
     pipeline.addPass(createCSEPass());
-    pipeline.addPass(mgmt::createAnnotateMgmt());
+    mgmt::AnnotateMgmtOptions annotateMgmtOptions;
+    annotateMgmtOptions.minLevels = minLevels;
+    pipeline.addPass(mgmt::createAnnotateMgmt(annotateMgmtOptions));
     (void)runPipeline(pipeline, getOperation());
   }
 };

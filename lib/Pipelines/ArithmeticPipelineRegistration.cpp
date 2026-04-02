@@ -291,6 +291,7 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       secretInsertMgmtCKKSOptions.bootstrapWaterline =
           options.ckksBootstrapWaterline;
       secretInsertMgmtCKKSOptions.levelBudget = options.levelBudget;
+      secretInsertMgmtCKKSOptions.minLevels = options.minLevels;
       pm.addPass(createSecretInsertMgmtCKKS(secretInsertMgmtCKKSOptions));
       break;
     }

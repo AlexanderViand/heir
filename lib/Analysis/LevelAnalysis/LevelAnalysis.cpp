@@ -245,8 +245,15 @@ int getMaxLevel(Operation* top, DataFlowSolver* solver) {
 }
 
 /// baseLevel is for B/FV scheme, where all the analysis result would be 0
-void annotateLevel(Operation* top, DataFlowSolver* solver, int baseLevel) {
+void annotateLevel(Operation* top, DataFlowSolver* solver, int baseLevel,
+                   int minLevels) {
   auto maxLevel = getMaxLevel(top, solver);
+  // If minLevels is set and exceeds the computed depth, raise baseLevel
+  // so that encryption happens at a higher level. This is needed for GPU
+  // backends (e.g., CHEDDAR) that require a minimum number of RNS limbs.
+  if (minLevels > 0 && maxLevel + baseLevel < minLevels) {
+    baseLevel = minLevels - maxLevel;
+  }
 
   auto getIntegerAttr = [&](int level) {
     return IntegerAttr::get(IntegerType::get(top->getContext(), 64), level);

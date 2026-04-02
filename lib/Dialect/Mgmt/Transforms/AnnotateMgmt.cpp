@@ -93,7 +93,7 @@ struct AnnotateMgmt : impl::AnnotateMgmtBase<AnnotateMgmt> {
     }
 
     clearAttrs(getOperation(), MgmtDialect::kArgMgmtAttrName);
-    annotateLevel(getOperation(), &solver, baseLevel);
+    annotateLevel(getOperation(), &solver, baseLevel, minLevels);
     annotateDimension(getOperation(), &solver);
     // Combine level and dimension (and optional scale) into MgmtAttr
     // also removes the level/dimension/(optional scale) annotations.

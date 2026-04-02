@@ -13,6 +13,8 @@ def AnnotateMgmt : Pass<"annotate-mgmt"> {
   let options = [
     Option<"baseLevel", "base-level", "int",
            /*default=*/"0", "Level to start counting from (used by B/FV)">,
+    Option<"minLevels", "min-levels", "int",
+           /*default=*/"0", "Minimum number of levels (for GPU backends)">,
   ];
 }
 

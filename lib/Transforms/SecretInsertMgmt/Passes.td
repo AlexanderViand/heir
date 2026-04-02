@@ -116,6 +116,8 @@ def SecretInsertMgmtCKKS : Pass<"secret-insert-mgmt-ckks", "ModuleOp"> {
            /*default=*/"10", "Waterline for insert bootstrap op">,
     Option<"levelBudget", "level-budget", "int", /*default=*/"0",
            "An optional maximum level budget for the pipeline to assume">,
+    Option<"minLevels", "min-levels", "int", /*default=*/"0",
+           "Minimum number of levels to ensure (for GPU backends)">,
   ];
 }
 
