@@ -46,6 +46,19 @@ FailureOr<APInt> divideUnsignedAPIntExact(const APInt& dividend,
                                           const APInt& divisor,
                                           unsigned minWidth = 64);
 
+FailureOr<APInt> divideUnsignedAPIntNearest(const APInt& dividend,
+                                            const APInt& divisor,
+                                            unsigned minWidth = 64);
+
+FailureOr<APInt> solveUnsignedPostRescaleScaleDelta(const APInt& inputScale,
+                                                    const APInt& targetScale,
+                                                    const APInt& dividedModulus,
+                                                    unsigned minWidth = 64);
+
+FailureOr<APInt> solveUnsignedPostRescaleScaleDeltaChain(
+    const APInt& inputScale, const APInt& targetScale,
+    ArrayRef<APInt> dividedModuli, unsigned minWidth = 64);
+
 }  // namespace heir
 }  // namespace mlir
 

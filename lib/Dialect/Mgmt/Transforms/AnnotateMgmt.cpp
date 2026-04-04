@@ -92,6 +92,24 @@ struct AnnotateMgmt : impl::AnnotateMgmtBase<AnnotateMgmt> {
       return;
     }
 
+    walkValues(getOperation(), [&](Value value) {
+      if (succeeded(findAttributeAssociatedWith(value, kArgScaleAttrName))) {
+        return;
+      }
+      auto mgmtAttr = dyn_cast_or_null<MgmtAttr>(
+          findAttributeAssociatedWith(value, MgmtDialect::kArgMgmtAttrName)
+              .value_or(nullptr));
+      if (!mgmtAttr || !mgmtAttr.getScale()) {
+        return;
+      }
+      setAttributeAssociatedWith(
+          value, kArgScaleAttrName,
+          IntegerAttr::get(
+              IntegerType::get(getOperation()->getContext(),
+                               mgmtAttr.getScale().getValue().getBitWidth()),
+              mgmtAttr.getScale().getValue()));
+    });
+
     clearAttrs(getOperation(), MgmtDialect::kArgMgmtAttrName);
     annotateLevel(getOperation(), &solver, baseLevel);
     annotateDimension(getOperation(), &solver);

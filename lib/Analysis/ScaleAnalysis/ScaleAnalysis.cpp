@@ -102,6 +102,38 @@ FailureOr<APInt> CKKSScaleModel::evalModReduceScaleBackward(
   return multiplyUnsignedAPIntExact(resultScale, nominalScale);
 }
 
+FailureOr<APInt> CKKSPreciseScaleModel::evalMulScale(
+    const ckks::LocalParam& param, const APInt& lhs, const APInt& rhs) {
+  return multiplyUnsignedAPIntExact(lhs, rhs);
+}
+
+FailureOr<APInt> CKKSPreciseScaleModel::evalMulScaleBackward(
+    const ckks::LocalParam& param, const APInt& result, const APInt& lhs) {
+  return divideUnsignedAPIntExact(result, lhs);
+}
+
+FailureOr<APInt> CKKSPreciseScaleModel::evalModReduceScale(
+    const ckks::LocalParam& inputParam, const APInt& scale) {
+  const auto* schemeParam = inputParam.getSchemeParam();
+  int level = inputParam.getCurrentLevel();
+  if (level < 0 || level >= static_cast<int>(schemeParam->getQi().size())) {
+    return failure();
+  }
+  APInt droppedPrime(64, static_cast<uint64_t>(schemeParam->getQi()[level]));
+  return divideUnsignedAPIntNearest(scale, droppedPrime);
+}
+
+FailureOr<APInt> CKKSPreciseScaleModel::evalModReduceScaleBackward(
+    const ckks::LocalParam& inputParam, const APInt& resultScale) {
+  const auto* schemeParam = inputParam.getSchemeParam();
+  int level = inputParam.getCurrentLevel();
+  if (level < 0 || level >= static_cast<int>(schemeParam->getQi().size())) {
+    return failure();
+  }
+  APInt droppedPrime(64, static_cast<uint64_t>(schemeParam->getQi()[level]));
+  return multiplyUnsignedAPIntExact(resultScale, droppedPrime);
+}
+
 //===----------------------------------------------------------------------===//
 // ScaleAnalysis (Forward)
 //===----------------------------------------------------------------------===//
@@ -263,6 +295,7 @@ void ScaleAnalysis<ScaleModelT>::visitExternalCall(
 // instantiation
 template class ScaleAnalysis<BGVScaleModel>;
 template class ScaleAnalysis<CKKSScaleModel>;
+template class ScaleAnalysis<CKKSPreciseScaleModel>;
 
 //===----------------------------------------------------------------------===//
 // ScaleAnalysis (Backward)
@@ -459,6 +492,7 @@ LogicalResult ScaleAnalysisBackward<ScaleModelT>::visitOperation(
 // instantiation
 template class ScaleAnalysisBackward<BGVScaleModel>;
 template class ScaleAnalysisBackward<CKKSScaleModel>;
+template class ScaleAnalysisBackward<CKKSPreciseScaleModel>;
 
 //===----------------------------------------------------------------------===//
 // Utils

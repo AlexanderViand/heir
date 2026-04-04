@@ -87,6 +87,23 @@ void moduleSetCGGI(Operation* moduleOp) {
                     mlir::UnitAttr::get(moduleOp->getContext()));
 }
 
+StringRef getModuleCKKSScalePolicy(Operation* moduleOp) {
+  if (auto policy =
+          moduleOp->getAttrOfType<mlir::StringAttr>(kCKKSScalePolicyAttrName)) {
+    return policy.getValue();
+  }
+  return kCKKSNominalScalePolicyValue;
+}
+
+bool moduleUsesPreciseCKKSScalePolicy(Operation* moduleOp) {
+  return getModuleCKKSScalePolicy(moduleOp) == kCKKSPreciseScalePolicyValue;
+}
+
+void moduleSetCKKSScalePolicy(Operation* moduleOp, StringRef policy) {
+  moduleOp->setAttr(kCKKSScalePolicyAttrName,
+                    mlir::StringAttr::get(moduleOp->getContext(), policy));
+}
+
 /*===----------------------------------------------------------------------===*/
 // Module Attributes for Backend
 /*===----------------------------------------------------------------------===*/

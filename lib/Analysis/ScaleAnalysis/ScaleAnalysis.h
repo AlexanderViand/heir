@@ -127,6 +127,21 @@ struct CKKSScaleModel {
       const LocalParam& inputParam, const APInt& resultScale);
 };
 
+struct CKKSPreciseScaleModel {
+  using SchemeParam = ckks::SchemeParam;
+  using LocalParam = ckks::LocalParam;
+
+  static FailureOr<APInt> evalMulScale(const LocalParam& param,
+                                       const APInt& lhs, const APInt& rhs);
+  static FailureOr<APInt> evalMulScaleBackward(const LocalParam& param,
+                                               const APInt& result,
+                                               const APInt& lhs);
+  static FailureOr<APInt> evalModReduceScale(const LocalParam& inputParam,
+                                             const APInt& scale);
+  static FailureOr<APInt> evalModReduceScaleBackward(
+      const LocalParam& inputParam, const APInt& resultScale);
+};
+
 /// Forward Analyse the scale of each secret Value
 ///
 /// This forward analysis roots from user input as `inputScale`,

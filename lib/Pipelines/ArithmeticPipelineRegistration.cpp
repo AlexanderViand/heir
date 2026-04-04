@@ -369,6 +369,7 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       PopulateScaleCKKSOptions populateScaleCKKSOptions;
       populateScaleCKKSOptions.beforeMulIncludeFirstMul =
           options.modulusSwitchBeforeFirstMul;
+      populateScaleCKKSOptions.scalePolicy = options.ckksScalePolicy;
       pm.addPass(createPopulateScaleCKKS(populateScaleCKKSOptions));
       break;
     }
@@ -550,6 +551,7 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.ckksBootstrapWaterline = options.ckksBootstrapWaterline;
   suboptions.scalingModBits = options.scalingModBits;
   suboptions.firstModBits = options.firstModBits;
+  suboptions.ckksScalePolicy = options.ckksScalePolicy;
   suboptions.splitPreprocessing = options.splitPreprocessing;
 
   mlirToRLWEPipelineBuilder(mlir::heir::RLWEScheme::ckksScheme)(manager,

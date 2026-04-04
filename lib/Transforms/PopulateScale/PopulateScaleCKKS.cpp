@@ -1,9 +1,12 @@
+#include <cmath>
 #include <utility>
 
+#include "lib/Analysis/LevelAnalysis/LevelAnalysis.h"
 #include "lib/Analysis/ScaleAnalysis/ScaleAnalysis.h"
 #include "lib/Analysis/SecretnessAnalysis/SecretnessAnalysis.h"
 #include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
+#include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Mgmt/Transforms/AnnotateMgmt.h"
 #include "lib/Transforms/PopulateScale/PopulateScalePatterns.h"
@@ -35,23 +38,84 @@
 namespace mlir {
 namespace heir {
 
+enum class CKKSScalePolicyKind { kNominal, kPrecise };
+
+FailureOr<CKKSScalePolicyKind> parseCKKSScalePolicy(StringRef scalePolicy) {
+  if (scalePolicy == kCKKSNominalScalePolicyValue) {
+    return CKKSScalePolicyKind::kNominal;
+  }
+  if (scalePolicy == kCKKSPreciseScalePolicyValue) {
+    return CKKSScalePolicyKind::kPrecise;
+  }
+  return failure();
+}
+
 class CKKSAdjustScaleMaterializer : public AdjustScaleMaterializer {
  public:
+  CKKSAdjustScaleMaterializer(ckks::SchemeParamAttr schemeParamAttr,
+                              CKKSScalePolicyKind scalePolicy)
+      : schemeParamAttr(schemeParamAttr), scalePolicy(scalePolicy) {}
+
   virtual ~CKKSAdjustScaleMaterializer() = default;
 
   FailureOr<APInt> deltaScale(mgmt::AdjustScaleOp op, const APInt& scale,
                               const APInt& inputScale) const override {
-    return divideUnsignedAPIntExact(scale, inputScale);
+    auto directDelta = divideUnsignedAPIntExact(scale, inputScale);
+    if (succeeded(directDelta)) {
+      return *directDelta;
+    }
+    if (scalePolicy != CKKSScalePolicyKind::kPrecise || !op->hasOneUse()) {
+      return failure();
+    }
+
+    Operation* consumer = *op->user_begin();
+    SmallVector<APInt> droppedPrimes;
+    Value finalAdjustedValue = op.getResult();
+    while (auto modReduceOp = dyn_cast<mgmt::ModReduceOp>(consumer)) {
+      auto inputMgmtAttr =
+          mgmt::findMgmtAttrAssociatedWith(modReduceOp.getInput());
+      if (!inputMgmtAttr) {
+        return failure();
+      }
+      int level = inputMgmtAttr.getLevel();
+      auto droppedPrimeAttrs = schemeParamAttr.getQ().asArrayRef();
+      if (level < 0 || level >= static_cast<int>(droppedPrimeAttrs.size())) {
+        return failure();
+      }
+      droppedPrimes.push_back(
+          APInt(64, static_cast<uint64_t>(droppedPrimeAttrs[level])));
+      finalAdjustedValue = modReduceOp.getResult();
+      if (!modReduceOp->hasOneUse()) {
+        break;
+      }
+      consumer = *modReduceOp->user_begin();
+    }
+    if (droppedPrimes.empty()) {
+      return failure();
+    }
+
+    auto finalAdjustedMgmtAttr =
+        mgmt::findMgmtAttrAssociatedWith(finalAdjustedValue);
+    if (!finalAdjustedMgmtAttr || !finalAdjustedMgmtAttr.getScale()) {
+      return failure();
+    }
+    return solveUnsignedPostRescaleScaleDeltaChain(
+        inputScale, mgmt::getScaleAsAPInt(finalAdjustedMgmtAttr),
+        droppedPrimes);
   }
+
+ private:
+  ckks::SchemeParamAttr schemeParamAttr;
+  CKKSScalePolicyKind scalePolicy;
 };
 
 #define GEN_PASS_DEF_POPULATESCALECKKS
 #include "lib/Transforms/PopulateScale/PopulateScale.h.inc"
 
-LogicalResult createAndRunDataflow(Operation* op, DataFlowSolver& solver,
-                                   int64_t logDefaultScale,
-                                   ckks::SchemeParamAttr ckksSchemeParamAttr,
-                                   bool beforeMulIncludeFirstMul) {
+template <typename ScaleModelT>
+LogicalResult createAndRunDataflowForPolicy(
+    Operation* op, DataFlowSolver& solver, int64_t logDefaultScale,
+    ckks::SchemeParamAttr ckksSchemeParamAttr, bool beforeMulIncludeFirstMul) {
   SymbolTableCollection symbolTable;
   dataflow::loadBaselineAnalyses(solver);
   solver.load<SecretnessAnalysis>();
@@ -61,75 +125,297 @@ LogicalResult createAndRunDataflow(Operation* op, DataFlowSolver& solver,
     inputScale = multiplyUnsignedAPIntExact(inputScale, inputScale);
   }
   auto param = ckks::getSchemeParamFromAttr(ckksSchemeParamAttr);
-  solver.load<ScaleAnalysis<CKKSScaleModel>>(param,
-                                             /*inputScale*/ inputScale);
+  solver.load<ScaleAnalysis<ScaleModelT>>(param,
+                                          /*inputScale*/ inputScale);
   // Back-prop ScaleAnalysis depends on (forward) ScaleAnalysis
-  solver.load<ScaleAnalysisBackward<CKKSScaleModel>>(symbolTable, param);
+  solver.load<ScaleAnalysisBackward<ScaleModelT>>(symbolTable, param);
 
   return solver.initializeAndRun(op);
+}
+
+LogicalResult createAndRunDataflow(Operation* op, DataFlowSolver& solver,
+                                   int64_t logDefaultScale,
+                                   ckks::SchemeParamAttr ckksSchemeParamAttr,
+                                   bool beforeMulIncludeFirstMul,
+                                   CKKSScalePolicyKind scalePolicy) {
+  switch (scalePolicy) {
+    case CKKSScalePolicyKind::kNominal:
+      return createAndRunDataflowForPolicy<CKKSScaleModel>(
+          op, solver, logDefaultScale, ckksSchemeParamAttr,
+          beforeMulIncludeFirstMul);
+    case CKKSScalePolicyKind::kPrecise:
+      return createAndRunDataflowForPolicy<CKKSPreciseScaleModel>(
+          op, solver, logDefaultScale, ckksSchemeParamAttr,
+          beforeMulIncludeFirstMul);
+  }
+  return failure();
+}
+
+FailureOr<ckks::SchemeParamAttr> maybeRegeneratePreciseSchemeParam(
+    Operation* moduleOp, ckks::SchemeParamAttr schemeParamAttr) {
+  auto maxLevel = getMaxLevel(moduleOp);
+  if (!maxLevel.has_value()) {
+    return schemeParamAttr;
+  }
+
+  auto currentSchemeParam = ckks::getSchemeParamFromAttr(schemeParamAttr);
+  if (currentSchemeParam.getLevel() >= maxLevel.value()) {
+    return schemeParamAttr;
+  }
+
+  auto q = schemeParamAttr.getQ().asArrayRef();
+  if (q.empty()) {
+    return failure();
+  }
+
+  int firstModBits =
+      APInt(64, static_cast<uint64_t>(q.front())).getActiveBits();
+  int scalingModBits = schemeParamAttr.getLogDefaultScale();
+  int slotNumber = 0;
+  if (auto requestedSlotCount =
+          moduleOp->getAttrOfType<IntegerAttr>(kRequestedSlotCountAttrName)) {
+    slotNumber = requestedSlotCount.getInt();
+  } else if (auto actualSlotCount = moduleOp->getAttrOfType<IntegerAttr>(
+                 kActualSlotCountAttrName)) {
+    slotNumber = actualSlotCount.getInt();
+  }
+  bool usePublicKey =
+      schemeParamAttr.getEncryptionType() == ckks::CKKSEncryptionType::pk;
+  bool encryptionTechniqueExtended = schemeParamAttr.getEncryptionTechnique() ==
+                                     ckks::CKKSEncryptionTechnique::extended;
+  bool reducedError = false;
+  if (auto reducedErrorAttr =
+          moduleOp->getAttrOfType<BoolAttr>(kCKKSReducedErrorAttrName)) {
+    reducedError = reducedErrorAttr.getValue();
+  }
+
+  auto newSchemeParam = ckks::SchemeParam::getConcreteSchemeParam(
+      firstModBits, scalingModBits, maxLevel.value(), slotNumber, usePublicKey,
+      encryptionTechniqueExtended, reducedError);
+  auto* context = moduleOp->getContext();
+  OpBuilder builder(context);
+  moduleOp->setAttr(
+      ckks::CKKSDialect::kSchemeParamAttrName,
+      ckks::SchemeParamAttr::get(
+          context, log2(newSchemeParam.getRingDim()),
+          DenseI64ArrayAttr::get(context, ArrayRef(newSchemeParam.getQi())),
+          DenseI64ArrayAttr::get(context, ArrayRef(newSchemeParam.getPi())),
+          newSchemeParam.getLogDefaultScale(),
+          usePublicKey ? ckks::CKKSEncryptionType::pk
+                       : ckks::CKKSEncryptionType::sk,
+          encryptionTechniqueExtended
+              ? ckks::CKKSEncryptionTechnique::extended
+              : ckks::CKKSEncryptionTechnique::standard));
+  moduleOp->setAttr(kRequestedSlotCountAttrName,
+                    builder.getI64IntegerAttr(slotNumber));
+  moduleOp->setAttr(kActualSlotCountAttrName,
+                    builder.getI64IntegerAttr(newSchemeParam.getRingDim() / 2));
+  return moduleOp->getAttrOfType<ckks::SchemeParamAttr>(
+      ckks::CKKSDialect::kSchemeParamAttrName);
+}
+
+bool isScaleBalancingConsumer(Operation* op) {
+  return isa<arith::AddIOp, arith::AddFOp, arith::SubIOp, arith::SubFOp,
+             arith::MulIOp, arith::MulFOp>(op);
+}
+
+LogicalResult lowerAdjustScaleMeetingPoint(mgmt::AdjustScaleOp op) {
+  if (!op->hasOneUse()) {
+    return op.emitOpError()
+           << "precise scale refinement requires adjust_scale to have one use";
+  }
+
+  Value valueToLower = op.getResult();
+  Operation* consumer = *op->user_begin();
+  while (auto modReduceOp = dyn_cast<mgmt::ModReduceOp>(consumer)) {
+    if (!modReduceOp->hasOneUse()) {
+      return modReduceOp.emitOpError()
+             << "precise scale refinement requires modreduce chain to have one "
+                "use";
+    }
+    valueToLower = modReduceOp.getResult();
+    consumer = *modReduceOp->user_begin();
+  }
+
+  if (!isScaleBalancingConsumer(consumer)) {
+    return op.emitOpError()
+           << "precise scale refinement only supports adjust_scale feeding a "
+              "binary secret arithmetic op";
+  }
+
+  Value peerOperand;
+  for (Value operand : consumer->getOperands()) {
+    if (operand != valueToLower) {
+      peerOperand = operand;
+      break;
+    }
+  }
+  if (!peerOperand) {
+    return op.emitOpError()
+           << "failed to identify peer operand for precise scale refinement";
+  }
+
+  IRRewriter rewriter(op.getContext());
+  rewriter.setInsertionPoint(consumer);
+  auto loweredAdjusted =
+      mgmt::ModReduceOp::create(rewriter, consumer->getLoc(), valueToLower);
+  auto loweredPeer =
+      mgmt::ModReduceOp::create(rewriter, consumer->getLoc(), peerOperand);
+  consumer->replaceUsesOfWith(valueToLower, loweredAdjusted.getResult());
+  consumer->replaceUsesOfWith(peerOperand, loweredPeer.getResult());
+  return success();
+}
+
+FailureOr<bool> refinePreciseAdjustScales(
+    Operation* top, const CKKSAdjustScaleMaterializer& mat) {
+  SmallVector<mgmt::AdjustScaleOp> adjustScaleOps;
+  top->walk([&](mgmt::AdjustScaleOp adjustScaleOp) {
+    adjustScaleOps.push_back(adjustScaleOp);
+  });
+
+  for (auto adjustScaleOp : adjustScaleOps) {
+    auto adjustScaleMgmtAttr =
+        mgmt::findMgmtAttrAssociatedWith(adjustScaleOp.getResult());
+    auto inputMgmtAttr =
+        mgmt::findMgmtAttrAssociatedWith(adjustScaleOp.getInput());
+    if (!adjustScaleMgmtAttr || !inputMgmtAttr ||
+        !adjustScaleMgmtAttr.getScale() || !inputMgmtAttr.getScale()) {
+      continue;
+    }
+
+    APInt targetScale = mgmt::getScaleAsAPInt(adjustScaleMgmtAttr);
+    APInt inputScale = mgmt::getScaleAsAPInt(inputMgmtAttr);
+    if (APInt::isSameValue(targetScale, inputScale, /*SignedCompare=*/false)) {
+      continue;
+    }
+    if (succeeded(mat.deltaScale(adjustScaleOp, targetScale, inputScale))) {
+      continue;
+    }
+    if (failed(lowerAdjustScaleMeetingPoint(adjustScaleOp))) {
+      return failure();
+    }
+    return true;
+  }
+  return false;
 }
 
 struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
   using PopulateScaleCKKSBase::PopulateScaleCKKSBase;
 
   void runOnOperation() override {
+    auto parsedScalePolicy = parseCKKSScalePolicy(scalePolicy);
+    if (failed(parsedScalePolicy)) {
+      getOperation()->emitOpError()
+          << "unsupported CKKS scale policy `" << scalePolicy
+          << "`; expected `nominal` or `precise`";
+      signalPassFailure();
+      return;
+    }
+    CKKSScalePolicyKind scalePolicyKind = *parsedScalePolicy;
+    moduleSetCKKSScalePolicy(getOperation(), scalePolicy);
+
     auto ckksSchemeParamAttr = mlir::dyn_cast<ckks::SchemeParamAttr>(
         getOperation()->getAttr(ckks::CKKSDialect::kSchemeParamAttrName));
     auto logDefaultScale = ckksSchemeParamAttr.getLogDefaultScale();
 
-    OpPassManager normalizeMgmt("builtin.module");
-    normalizeMgmt.addPass(mgmt::createAnnotateMgmt());
-    if (failed(runPipeline(normalizeMgmt, getOperation()))) {
-      signalPassFailure();
-      return;
-    }
+    auto runAnnotateMgmt = [&]() -> LogicalResult {
+      OpPassManager normalizeMgmt("builtin.module");
+      normalizeMgmt.addPass(mgmt::createAnnotateMgmt());
+      return runPipeline(normalizeMgmt, getOperation());
+    };
 
-    DataFlowSolver solver;
-    if (failed(createAndRunDataflow(getOperation(), solver, logDefaultScale,
-                                    ckksSchemeParamAttr,
-                                    beforeMulIncludeFirstMul))) {
-      signalPassFailure();
-      return;
-    }
-
-    // At this point all adjust_scale and mgmt.init results must have fully
-    // resolved nominal scales. Leaving them unresolved means the pre-lowering
-    // symbolic management structure is inconsistent with the current policy.
-    bool scaleConflict = false;
-    SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
-    getOperation()->walk([&](mgmt::AdjustScaleOp op) {
-      auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
-      if (!lattice) {
-        op.emitOpError() << "Dataflow analysis failed to populate scale "
-                            "lattice for result\n";
-        scaleConflict = true;
-        return WalkResult::interrupt();
-      }
-      if (lattice->getValue().hasConflict()) {
-        op.emitOpError() << "Dataflow analysis found conflicting exact scales "
-                            "for result\n";
-        scaleConflict = true;
-        return WalkResult::interrupt();
-      }
-      if (!lattice->getValue().isInitialized()) {
-        auto* inputLattice = solver.lookupState<ScaleLattice>(op.getInput());
-        if (inputLattice && inputLattice->getValue().isInitialized() &&
-            !inputLattice->getValue().hasConflict()) {
-          // If nothing downstream constrains the target scale, the symbolic
-          // adjust_scale is a no-op and can be erased before materialization.
-          noOpAdjustScales.push_back(op);
-          return WalkResult::advance();
+    auto validateAdjustScaleResolution =
+        [&](DataFlowSolver& solver,
+            SmallVectorImpl<mgmt::AdjustScaleOp>& noOpAdjustScales)
+        -> LogicalResult {
+      bool scaleConflict = false;
+      getOperation()->walk([&](mgmt::AdjustScaleOp op) {
+        auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
+        if (!lattice) {
+          op.emitOpError() << "dataflow analysis failed to populate scale "
+                              "lattice for result";
+          scaleConflict = true;
+          return WalkResult::interrupt();
         }
-        op.emitOpError()
-            << "Dataflow analysis did not resolve a nominal target scale\n";
-        scaleConflict = true;
-        return WalkResult::interrupt();
+        if (lattice->getValue().hasConflict()) {
+          op.emitOpError() << "dataflow analysis found conflicting exact "
+                              "scales for result";
+          scaleConflict = true;
+          return WalkResult::interrupt();
+        }
+        if (!lattice->getValue().isInitialized()) {
+          auto* inputLattice = solver.lookupState<ScaleLattice>(op.getInput());
+          if (inputLattice && inputLattice->getValue().isInitialized() &&
+              !inputLattice->getValue().hasConflict()) {
+            noOpAdjustScales.push_back(op);
+            return WalkResult::advance();
+          }
+          op.emitOpError() << "dataflow analysis did not resolve a target "
+                              "scale";
+          scaleConflict = true;
+          return WalkResult::interrupt();
+        }
+        return WalkResult::advance();
+      });
+      return failure(scaleConflict);
+    };
+
+    SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
+    while (true) {
+      if (failed(runAnnotateMgmt())) {
+        signalPassFailure();
+        return;
       }
-      return WalkResult::advance();
-    });
-    if (scaleConflict) {
-      signalPassFailure();
-      return;
+
+      if (scalePolicyKind == CKKSScalePolicyKind::kPrecise) {
+        auto regeneratedSchemeParam = maybeRegeneratePreciseSchemeParam(
+            getOperation(), ckksSchemeParamAttr);
+        if (failed(regeneratedSchemeParam)) {
+          getOperation()->emitOpError()
+              << "failed to regenerate CKKS parameters for precise scale "
+                 "refinement";
+          signalPassFailure();
+          return;
+        }
+        ckksSchemeParamAttr = *regeneratedSchemeParam;
+      }
+      CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
+                                               scalePolicyKind);
+
+      DataFlowSolver solver;
+      if (failed(createAndRunDataflow(
+              getOperation(), solver, logDefaultScale, ckksSchemeParamAttr,
+              beforeMulIncludeFirstMul, scalePolicyKind))) {
+        signalPassFailure();
+        return;
+      }
+
+      SmallVector<mgmt::AdjustScaleOp> candidateNoOpAdjustScales;
+      if (failed(validateAdjustScaleResolution(solver,
+                                               candidateNoOpAdjustScales))) {
+        signalPassFailure();
+        return;
+      }
+
+      annotateScale(getOperation(), &solver);
+      if (failed(runAnnotateMgmt())) {
+        signalPassFailure();
+        return;
+      }
+
+      if (scalePolicyKind == CKKSScalePolicyKind::kPrecise) {
+        auto repaired = refinePreciseAdjustScales(getOperation(), materializer);
+        if (failed(repaired)) {
+          signalPassFailure();
+          return;
+        }
+        if (*repaired) {
+          continue;
+        }
+      }
+
+      noOpAdjustScales = std::move(candidateNoOpAdjustScales);
+      break;
     }
 
     for (auto op : noOpAdjustScales) {
@@ -137,21 +423,17 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       op->erase();
     }
 
-    DataFlowSolver* activeSolver = &solver;
-    DataFlowSolver refinedSolver;
-    if (!noOpAdjustScales.empty()) {
-      if (failed(createAndRunDataflow(getOperation(), refinedSolver,
-                                      logDefaultScale, ckksSchemeParamAttr,
-                                      beforeMulIncludeFirstMul))) {
-        signalPassFailure();
-        return;
-      }
-      activeSolver = &refinedSolver;
+    DataFlowSolver activeSolver;
+    if (failed(createAndRunDataflow(
+            getOperation(), activeSolver, logDefaultScale, ckksSchemeParamAttr,
+            beforeMulIncludeFirstMul, scalePolicyKind))) {
+      signalPassFailure();
+      return;
     }
 
     bool initScaleFailure = false;
     getOperation()->walk([&](mgmt::InitOp op) {
-      auto* lattice = activeSolver->lookupState<ScaleLattice>(op.getResult());
+      auto* lattice = activeSolver.lookupState<ScaleLattice>(op.getResult());
       if (!lattice || lattice->getValue().hasConflict() ||
           !lattice->getValue().isInitialized()) {
         op.emitOpError() << "Dataflow analysis failed to populate scale "
@@ -164,10 +446,8 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       return;
     }
 
-    annotateScale(getOperation(), activeSolver);
-    OpPassManager annotateMgmt("builtin.module");
-    annotateMgmt.addPass(mgmt::createAnnotateMgmt());
-    if (failed(runPipeline(annotateMgmt, getOperation()))) {
+    annotateScale(getOperation(), &activeSolver);
+    if (failed(runAnnotateMgmt())) {
       signalPassFailure();
       return;
     }
@@ -178,8 +458,9 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     });
 
     LDBG() << "convert adjust_scale to mul_plain";
+    CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
+                                             scalePolicyKind);
     RewritePatternSet patterns(&getContext());
-    CKKSAdjustScaleMaterializer materializer;
     // TODO(#1641): handle arith.muli in CKKS
     patterns.add<ConvertAdjustScaleToMulPlain<arith::MulFOp>>(&getContext(),
                                                               &materializer);
@@ -187,7 +468,7 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
 
     bool materializationFailure = false;
     getOperation()->walk([&](mgmt::AdjustScaleOp op) {
-      op.emitOpError() << "failed to materialize nominal scale adjustment";
+      op.emitOpError() << "failed to materialize scale adjustment";
       materializationFailure = true;
     });
     if (materializationFailure) {
@@ -195,28 +476,34 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       return;
     }
 
-    // run canonicalizer and CSE to clean up arith.constant and move no-op out
-    // of the secret.generic
+    // In precise mode, mgmt.modreduce chains are semantically significant for
+    // exact scale tracking and must not be folded into level_reduce forms by
+    // generic canonicalization.
     OpPassManager cleanup("builtin.module");
-    cleanup.addPass(createCanonicalizerPass());
+    if (scalePolicyKind != CKKSScalePolicyKind::kPrecise) {
+      cleanup.addPass(createCanonicalizerPass());
+    }
     cleanup.addPass(createCSEPass());
     if (failed(runPipeline(cleanup, getOperation()))) {
       signalPassFailure();
       return;
     }
 
+    if (failed(runAnnotateMgmt())) {
+      signalPassFailure();
+      return;
+    }
+
     DataFlowSolver solverFinal;
-    if (failed(createAndRunDataflow(getOperation(), solverFinal,
-                                    logDefaultScale, ckksSchemeParamAttr,
-                                    beforeMulIncludeFirstMul))) {
+    if (failed(createAndRunDataflow(
+            getOperation(), solverFinal, logDefaultScale, ckksSchemeParamAttr,
+            beforeMulIncludeFirstMul, scalePolicyKind))) {
       signalPassFailure();
       return;
     }
 
     annotateScale(getOperation(), &solverFinal);
-    OpPassManager annotateFinalMgmt("builtin.module");
-    annotateFinalMgmt.addPass(mgmt::createAnnotateMgmt());
-    if (failed(runPipeline(annotateFinalMgmt, getOperation()))) {
+    if (failed(runAnnotateMgmt())) {
       signalPassFailure();
       return;
     }

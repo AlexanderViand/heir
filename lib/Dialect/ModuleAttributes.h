@@ -26,6 +26,14 @@ constexpr const static ::llvm::StringLiteral kRequestedSlotCountAttrName =
     "scheme.requested_slot_count";
 constexpr const static ::llvm::StringLiteral kActualSlotCountAttrName =
     "scheme.actual_slot_count";
+constexpr const static ::llvm::StringLiteral kCKKSScalePolicyAttrName =
+    "ckks.scale_policy";
+constexpr const static ::llvm::StringLiteral kCKKSReducedErrorAttrName =
+    "ckks.reduced_error";
+constexpr const static ::llvm::StringLiteral kCKKSNominalScalePolicyValue =
+    "nominal";
+constexpr const static ::llvm::StringLiteral kCKKSPreciseScalePolicyValue =
+    "precise";
 
 bool moduleIsBGV(Operation* moduleOp);
 bool moduleIsBFV(Operation* moduleOp);
@@ -43,6 +51,10 @@ void moduleSetBGV(Operation* moduleOp);
 void moduleSetBFV(Operation* moduleOp);
 void moduleSetCKKS(Operation* moduleOp);
 void moduleSetCGGI(Operation* moduleOp);
+
+StringRef getModuleCKKSScalePolicy(Operation* moduleOp);
+bool moduleUsesPreciseCKKSScalePolicy(Operation* moduleOp);
+void moduleSetCKKSScalePolicy(Operation* moduleOp, StringRef policy);
 
 /*===----------------------------------------------------------------------===*/
 // Module Attributes for Backend

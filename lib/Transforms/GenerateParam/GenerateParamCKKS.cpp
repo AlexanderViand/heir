@@ -86,6 +86,9 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
 
   void runOnOperation() override {
     LDBG() << "Starting generate-param-ckks pass";
+    OpBuilder builder(&getContext());
+    getOperation()->setAttr(kCKKSReducedErrorAttrName,
+                            builder.getBoolAttr(reducedError));
 
     if (firstModBits == 0 || validateFirstModBits) {
       auto extraBits = getExtraBitsForLevel0();
@@ -141,7 +144,6 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     LDBG() << "Scheme Param:\n" << schemeParam;
 
     auto* context = &getContext();
-    OpBuilder builder(context);
     getOperation()->setAttr(kRequestedSlotCountAttrName,
                             builder.getI64IntegerAttr(slotNumber));
     getOperation()->setAttr(

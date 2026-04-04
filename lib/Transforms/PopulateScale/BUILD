@@ -16,6 +16,7 @@ cc_library(
     deps = [
         ":PopulateScalePatterns",
         ":pass_inc_gen",
+        "@heir//lib/Analysis/LevelAnalysis",
         "@heir//lib/Analysis/ScaleAnalysis",
         "@heir//lib/Analysis/SecretnessAnalysis",
         "@heir//lib/Dialect:ModuleAttributes",

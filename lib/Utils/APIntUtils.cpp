@@ -1,5 +1,6 @@
 #include "lib/Utils/APIntUtils.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <utility>
@@ -173,6 +174,115 @@ FailureOr<APInt> divideUnsignedAPIntExact(const APInt& dividend,
   APInt wideDivisor = divisor.zext(width);
   if (!wideDividend.urem(wideDivisor).isZero()) return failure();
   return canonicalizeUnsignedAPInt(wideDividend.udiv(wideDivisor), minWidth);
+}
+
+FailureOr<APInt> divideUnsignedAPIntNearest(const APInt& dividend,
+                                            const APInt& divisor,
+                                            unsigned minWidth) {
+  if (divisor.isZero()) return failure();
+
+  unsigned width = std::max(dividend.getBitWidth(), divisor.getBitWidth());
+  APInt wideDividend = dividend.zext(width);
+  APInt wideDivisor = divisor.zext(width);
+  APInt quotient = wideDividend.udiv(wideDivisor);
+  APInt remainder = wideDividend.urem(wideDivisor);
+  APInt doubledRemainder = remainder.zext(width + 1) * APInt(width + 1, 2);
+  APInt compareDivisor = wideDivisor.zext(width + 1);
+  if (doubledRemainder.uge(compareDivisor)) {
+    quotient += APInt(width, 1);
+  }
+  return canonicalizeUnsignedAPInt(quotient, minWidth);
+}
+
+FailureOr<APInt> solveUnsignedPostRescaleScaleDelta(const APInt& inputScale,
+                                                    const APInt& targetScale,
+                                                    const APInt& dividedModulus,
+                                                    unsigned minWidth) {
+  if (inputScale.isZero() || targetScale.isZero() || dividedModulus.isZero()) {
+    return failure();
+  }
+
+  APInt two = APInt(64, 2);
+  APInt one = APInt(64, 1);
+  APInt targetTimesTwo = multiplyUnsignedAPIntExact(targetScale, two);
+  APInt oneAtWidth = one.zext(targetTimesTwo.getBitWidth());
+  APInt lowerFactor = targetTimesTwo - oneAtWidth;
+  APInt upperFactor = targetTimesTwo + oneAtWidth;
+
+  APInt lowerNumerator =
+      multiplyUnsignedAPIntExact(dividedModulus, lowerFactor);
+  APInt upperNumerator =
+      multiplyUnsignedAPIntExact(dividedModulus, upperFactor);
+  upperNumerator -= APInt(upperNumerator.getBitWidth(), 1);
+
+  APInt denominator = multiplyUnsignedAPIntExact(inputScale, two);
+  unsigned boundWidth =
+      std::max({lowerNumerator.getBitWidth(), upperNumerator.getBitWidth(),
+                denominator.getBitWidth()});
+  APInt lowerBound = llvm::APIntOps::RoundingUDiv(
+      lowerNumerator.zext(boundWidth), denominator.zext(boundWidth),
+      APInt::Rounding::UP);
+  APInt upperBound = llvm::APIntOps::RoundingUDiv(
+      upperNumerator.zext(boundWidth), denominator.zext(boundWidth),
+      APInt::Rounding::DOWN);
+  APInt candidate =
+      lowerBound.ult(APInt(boundWidth, 1)) ? APInt(boundWidth, 1) : lowerBound;
+  if (candidate.ugt(upperBound)) return failure();
+  return canonicalizeUnsignedAPInt(candidate, minWidth);
+}
+
+FailureOr<APInt> solveUnsignedPostRescaleScaleDeltaChain(
+    const APInt& inputScale, const APInt& targetScale,
+    ArrayRef<APInt> dividedModuli, unsigned minWidth) {
+  if (dividedModuli.empty()) {
+    return divideUnsignedAPIntExact(targetScale, inputScale, minWidth);
+  }
+  if (inputScale.isZero() || targetScale.isZero()) {
+    return failure();
+  }
+
+  APInt lowerBoundTarget = canonicalizeUnsignedAPInt(targetScale);
+  APInt upperBoundTarget = canonicalizeUnsignedAPInt(targetScale);
+  APInt two(64, 2);
+
+  for (const APInt& dividedModulus : llvm::reverse(dividedModuli)) {
+    if (dividedModulus.isZero() || lowerBoundTarget.isZero()) {
+      return failure();
+    }
+
+    APInt lowerFactor = multiplyUnsignedAPIntExact(lowerBoundTarget, two);
+    lowerFactor -= APInt(lowerFactor.getBitWidth(), 1);
+    APInt upperFactor = multiplyUnsignedAPIntExact(upperBoundTarget, two);
+    upperFactor += APInt(upperFactor.getBitWidth(), 1);
+
+    APInt lowerNumerator =
+        multiplyUnsignedAPIntExact(dividedModulus, lowerFactor);
+    APInt upperNumerator =
+        multiplyUnsignedAPIntExact(dividedModulus, upperFactor);
+    upperNumerator -= APInt(upperNumerator.getBitWidth(), 1);
+
+    unsigned boundWidth =
+        std::max(lowerNumerator.getBitWidth(), upperNumerator.getBitWidth());
+    APInt denominator = two.zext(boundWidth);
+    lowerBoundTarget = llvm::APIntOps::RoundingUDiv(
+        lowerNumerator.zext(boundWidth), denominator, APInt::Rounding::UP);
+    upperBoundTarget = llvm::APIntOps::RoundingUDiv(
+        upperNumerator.zext(boundWidth), denominator, APInt::Rounding::DOWN);
+  }
+
+  unsigned boundWidth =
+      std::max({lowerBoundTarget.getBitWidth(), upperBoundTarget.getBitWidth(),
+                inputScale.getBitWidth()});
+  APInt lowerDelta = llvm::APIntOps::RoundingUDiv(
+      lowerBoundTarget.zext(boundWidth), inputScale.zext(boundWidth),
+      APInt::Rounding::UP);
+  APInt upperDelta = llvm::APIntOps::RoundingUDiv(
+      upperBoundTarget.zext(boundWidth), inputScale.zext(boundWidth),
+      APInt::Rounding::DOWN);
+  APInt candidate =
+      lowerDelta.ult(APInt(boundWidth, 1)) ? APInt(boundWidth, 1) : lowerDelta;
+  if (candidate.ugt(upperDelta)) return failure();
+  return canonicalizeUnsignedAPInt(candidate, minWidth);
 }
 
 }  // namespace heir
