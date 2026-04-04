@@ -5,6 +5,7 @@
 
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/CKKSScalePolicy.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Debug/Transforms/Passes.h"
@@ -71,6 +72,20 @@
 #include "mlir/include/mlir/Transforms/Passes.h"  // from @llvm-project
 
 namespace mlir::heir {
+
+namespace {
+
+bool isValidCKKSScalePolicy(StringRef policy) {
+  return policy == kCKKSNominalScalePolicyValue ||
+         policy == kCKKSPreciseScalePolicyValue;
+}
+
+bool isValidCKKSReconcilePolicy(StringRef policy) {
+  return policy == "local-highest-meeting-point" ||
+         policy == "canonical-per-level";
+}
+
+}  // namespace
 
 void hecoSIMDVectorizerPipelineBuilder(OpPassManager& manager,
                                        bool disableLoopUnroll) {
@@ -246,6 +261,22 @@ void mlirToPlaintextPipelineBuilder(OpPassManager& pm,
 void mlirToRLWEPipeline(OpPassManager& pm,
                         const MlirToRLWEPipelineOptions& options,
                         const RLWEScheme scheme) {
+  if (scheme == RLWEScheme::ckksScheme) {
+    if (!isValidCKKSScalePolicy(options.ckksScalePolicy)) {
+      llvm::errs() << "Unsupported CKKS scale policy: `"
+                   << options.ckksScalePolicy
+                   << "`. Expected `nominal` or `precise`.\n";
+      exit(EXIT_FAILURE);
+    }
+    if (!isValidCKKSReconcilePolicy(options.ckksReconcilePolicy)) {
+      llvm::errs() << "Unsupported CKKS reconcile policy: `"
+                   << options.ckksReconcilePolicy
+                   << "`. Expected `local-highest-meeting-point` or "
+                      "`canonical-per-level`.\n";
+      exit(EXIT_FAILURE);
+    }
+  }
+
   pm.addPass(debug::createDebugValidateNames());
   if (options.enableArithmetization) {
     mlirToSecretArithmeticPipelineBuilder(pm, options);
@@ -548,7 +579,10 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     // Convert CKKS to LWE
     pm.addPass(ckks::createCKKSToLWE());
 
-    // TODO: Support debug ports!
+    if (options.debug) {
+      llvm::errs() << "warning: CHEDDAR backend currently ignores "
+                      "--insert-debug-handler-calls\n";
+    }
 
     // Convert LWE to CHEDDAR
     pm.addPass(lwe::createLWEToCheddar());
