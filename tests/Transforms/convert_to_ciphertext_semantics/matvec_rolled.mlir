@@ -55,7 +55,9 @@ module {
 // CHECK-SAME: {func_name = "squat"}
 // CHECK: scf.for {{.*}}
 // CHECK: arith.addi
-// CHECK: arith.remsi
+// CHECK: arith.floordivsi
+// CHECK: arith.muli
+// CHECK: arith.subi
 // CHECK: arith.cmpi sge
 // CHECK: scf.if
 // CHECK: return
@@ -65,7 +67,9 @@ module {
 // CHECK-SAME: {func_name = "squat"}
 // CHECK-COUNT-2: scf.for {{.*}}
 // CHECK: arith.addi
-// CHECK: arith.remsi
+// CHECK: arith.floordivsi
+// CHECK: arith.muli
+// CHECK: arith.subi
 // CHECK: arith.cmpi sge
 // CHECK: scf.if
 // CHECK: return

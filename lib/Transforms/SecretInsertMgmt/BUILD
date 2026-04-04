@@ -87,6 +87,7 @@ cc_library(
         "@heir//lib/Analysis/LevelAnalysis",
         "@heir//lib/Analysis/MulDepthAnalysis",
         "@heir//lib/Analysis/SecretnessAnalysis",
+        "@heir//lib/Dialect:ModuleAttributes",
         "@heir//lib/Dialect/Mgmt/IR:Dialect",
         "@heir//lib/Dialect/Secret/IR:Dialect",
         "@llvm-project//llvm:Support",

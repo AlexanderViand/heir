@@ -25,6 +25,8 @@ namespace lwe {
 
 namespace {
 
+constexpr llvm::StringLiteral kCheddarBackendAttrName = "backend.cheddar";
+
 APInt getNominalCkksRescaleFactor(Operation* op, const APInt& dividedModulus) {
   if (op) {
     if (auto moduleOp = op->getParentOfType<ModuleOp>()) {
@@ -147,11 +149,14 @@ FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
   bool preciseCkksScalePolicy = false;
   if (op) {
     if (auto moduleOp = op->getParentOfType<ModuleOp>()) {
+      bool requestedPrecise = false;
       if (auto policy =
               moduleOp->getAttrOfType<StringAttr>(kCKKSScalePolicyAttrName)) {
-        preciseCkksScalePolicy =
-            policy.getValue() == kCKKSPreciseScalePolicyValue;
+        requestedPrecise = policy.getValue() == kCKKSPreciseScalePolicyValue;
       }
+      bool isCheddar =
+          moduleOp->getAttrOfType<UnitAttr>(kCheddarBackendAttrName) != nullptr;
+      preciseCkksScalePolicy = requestedPrecise && !isCheddar;
     }
   }
   auto xRing = x.getRing();

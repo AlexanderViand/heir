@@ -7,6 +7,7 @@
 #include "lib/Analysis/MulDepthAnalysis/MulDepthAnalysis.h"
 #include "lib/Analysis/SecretnessAnalysis/SecretnessAnalysis.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
+#include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"           // from @llvm-project
@@ -154,7 +155,16 @@ LogicalResult ModReduceBefore<Op>::matchAndRewrite(
   // because one Value can corresponds to multiple OpOperands
   for (auto operand : secretOperandValues) {
     rewriter.setInsertionPoint(op);
-    auto managed = mgmt::ModReduceOp::create(rewriter, op.getLoc(), operand);
+    Value managed;
+    if (includeFirstMul && mulDepth == 0 && moduleIsCheddar(top)) {
+      // CHEDDAR keeps fresh inputs on the canonical per-level bucket. Before
+      // the first multiply, dropping a level should therefore be modeled as a
+      // symbolic level-down rather than a plain rescale.
+      managed = mgmt::LevelReduceOp::create(rewriter, op.getLoc(), operand,
+                                            /*levelToDrop=*/1);
+    } else {
+      managed = mgmt::ModReduceOp::create(rewriter, op.getLoc(), operand);
+    }
     op->replaceUsesOfWith(operand, managed);
   }
 
@@ -218,16 +228,27 @@ LogicalResult MatchCrossLevel<Op>::matchAndRewrite(
       } else {
         auto resultLevel = resultLevelState.getInt();
         auto level = levelState.getInt();
-        if (resultLevel - level > 1) {
+        if (moduleIsCheddar(top)) {
+          // CHEDDAR models cross-level equalization as level-down to the add
+          // level followed by a scale-up-only adjustment. The later populate
+          // pass materializes the adjust_scale on the direct path.
           managed = mgmt::LevelReduceOp::create(rewriter, op.getLoc(), managed,
-                                                resultLevel - level - 1);
+                                                resultLevel - level);
+          managed = mgmt::AdjustScaleOp::create(
+              rewriter, op.getLoc(), managed,
+              rewriter.getI64IntegerAttr((*idCounter)++));
+        } else {
+          if (resultLevel - level > 1) {
+            managed = mgmt::LevelReduceOp::create(
+                rewriter, op.getLoc(), managed, resultLevel - level - 1);
+          }
+          // make a different adjust scale each time
+          // only after parameter selection can we decide the actual scale
+          managed = mgmt::AdjustScaleOp::create(
+              rewriter, op.getLoc(), managed,
+              rewriter.getI64IntegerAttr((*idCounter)++));
+          managed = mgmt::ModReduceOp::create(rewriter, op.getLoc(), managed);
         }
-        // make a different adjust scale each time
-        // only after parameter selection can we decide the actual scale
-        managed = mgmt::AdjustScaleOp::create(
-            rewriter, op.getLoc(), managed,
-            rewriter.getI64IntegerAttr((*idCounter)++));
-        managed = mgmt::ModReduceOp::create(rewriter, op.getLoc(), managed);
       }
       // NOTE that only at most one operand/Value will experience such
       // replacement. For op with two operands with same Value, such replace

@@ -110,6 +110,12 @@ struct BGVScaleModel {
                                              const APInt& scale);
   static FailureOr<APInt> evalModReduceScaleBackward(
       const LocalParam& inputParam, const APInt& resultScale);
+  static FailureOr<APInt> evalLevelReduceScale(const LocalParam& inputParam,
+                                               const APInt& scale,
+                                               int64_t levelToDrop);
+  static FailureOr<APInt> evalLevelReduceScaleBackward(
+      const LocalParam& inputParam, const APInt& resultScale,
+      int64_t levelToDrop);
 };
 
 struct CKKSScaleModel {
@@ -125,6 +131,12 @@ struct CKKSScaleModel {
                                              const APInt& scale);
   static FailureOr<APInt> evalModReduceScaleBackward(
       const LocalParam& inputParam, const APInt& resultScale);
+  static FailureOr<APInt> evalLevelReduceScale(const LocalParam& inputParam,
+                                               const APInt& scale,
+                                               int64_t levelToDrop);
+  static FailureOr<APInt> evalLevelReduceScaleBackward(
+      const LocalParam& inputParam, const APInt& resultScale,
+      int64_t levelToDrop);
 };
 
 struct CKKSPreciseScaleModel {
@@ -140,6 +152,12 @@ struct CKKSPreciseScaleModel {
                                              const APInt& scale);
   static FailureOr<APInt> evalModReduceScaleBackward(
       const LocalParam& inputParam, const APInt& resultScale);
+  static FailureOr<APInt> evalLevelReduceScale(const LocalParam& inputParam,
+                                               const APInt& scale,
+                                               int64_t levelToDrop);
+  static FailureOr<APInt> evalLevelReduceScaleBackward(
+      const LocalParam& inputParam, const APInt& resultScale,
+      int64_t levelToDrop);
 };
 
 /// Forward Analyse the scale of each secret Value

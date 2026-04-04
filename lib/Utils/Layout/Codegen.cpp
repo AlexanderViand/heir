@@ -47,7 +47,6 @@ namespace {
 static std::map<isl_ast_expr_op_type, std::string> islBinaryOpToMlir = {
     {isl_ast_op_add, "arith.addi"},          {isl_ast_op_sub, "arith.subi"},
     {isl_ast_op_mul, "arith.muli"},          {isl_ast_op_div, "arith.divsi"},
-    {isl_ast_op_pdiv_r, "arith.remsi"},      {isl_ast_op_pdiv_q, "arith.divsi"},
     {isl_ast_op_max, "arith.maxsi"},         {isl_ast_op_min, "arith.minsi"},
     {isl_ast_op_and, "arith.andi"},          {isl_ast_op_or, "arith.ori"},
     {isl_ast_op_fdiv_q, "arith.floordivsi"},
@@ -60,6 +59,21 @@ static std::map<isl_ast_expr_op_type, arith::CmpIPredicate> islCmpToMlirAttr = {
     {isl_ast_op_gt, arith::CmpIPredicate::sgt},
     {isl_ast_op_ge, arith::CmpIPredicate::sge},
 };
+
+Value buildPositiveDivRemainder(
+    Value dividend, Value positiveDivisor, ImplicitLocOpBuilder& b,
+    const std::function<void(Operation*)>& createdOpCallback) {
+  auto floorDiv =
+      arith::FloorDivSIOp::create(b, b.getLoc(), dividend, positiveDivisor);
+  auto quotientTimesDivisor =
+      arith::MulIOp::create(b, b.getLoc(), floorDiv, positiveDivisor);
+  auto remainder =
+      arith::SubIOp::create(b, b.getLoc(), dividend, quotientTimesDivisor);
+  createdOpCallback(floorDiv);
+  createdOpCallback(quotientTimesDivisor);
+  createdOpCallback(remainder);
+  return remainder;
+}
 
 }  // namespace
 
@@ -205,6 +219,19 @@ Value buildIslExpr(isl_ast_expr* expr, std::map<std::string, Value> ivToValue,
         return op->getResult(0);
       }
 
+      if (type == isl_ast_op_pdiv_q) {
+        SmallVector<Value> args = getArgs(expr);
+        auto op = arith::FloorDivSIOp::create(b, b.getLoc(), args[0], args[1]);
+        createdOpCallback(op);
+        return op->getResult(0);
+      }
+
+      if (type == isl_ast_op_pdiv_r) {
+        SmallVector<Value> args = getArgs(expr);
+        return buildPositiveDivRemainder(args[0], args[1], b,
+                                         createdOpCallback);
+      }
+
       if (type == isl_ast_op_minus) {
         // Unary op
         SmallVector<Value> args = getArgs(expr);
@@ -244,11 +271,11 @@ Value buildIslExpr(isl_ast_expr* expr, std::map<std::string, Value> ivToValue,
       if (type == isl_ast_expr_op_zdiv_r) {
         // Remainder op with comparison to zero
         SmallVector<Value> args = getArgs(expr);
-        auto op = arith::RemSIOp::create(b, args[0], args[1]);
+        auto op =
+            buildPositiveDivRemainder(args[0], args[1], b, createdOpCallback);
         auto eqOp =
             arith::CmpIOp::create(b, arith::CmpIPredicate::eq, op,
                                   arith::ConstantIntOp::create(b, 0, 32));
-        createdOpCallback(op);
         createdOpCallback(eqOp);
         return eqOp->getResult(0);
       }
