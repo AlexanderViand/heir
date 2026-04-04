@@ -35,6 +35,7 @@
 #include "lib/Pipelines/PipelineRegistration.h"
 #include "lib/Transforms/ActivationCanonicalizations/ActivationCanonicalizations.h"
 #include "lib/Transforms/AddClientInterface/AddClientInterface.h"
+#include "lib/Transforms/AnnotateOrion/AnnotateOrion.h"
 #include "lib/Transforms/ApplyFolders/ApplyFolders.h"
 #include "lib/Transforms/BooleanVectorizer/BooleanVectorizer.h"
 #include "lib/Transforms/CompareToSignRewrite/CompareToSignRewrite.h"
@@ -284,6 +285,8 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       break;
     }
     case RLWEScheme::ckksScheme: {
+      pm.addPass(createAnnotateOrion());
+
       auto secretInsertMgmtCKKSOptions = SecretInsertMgmtCKKSOptions{};
       secretInsertMgmtCKKSOptions.afterMul = options.modulusSwitchAfterMul;
       secretInsertMgmtCKKSOptions.beforeMulIncludeFirstMul =
@@ -369,11 +372,22 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       generateParamOptions.usePublicKey = options.usePublicKey;
       pm.addPass(createGenerateParamCKKS(generateParamOptions));
 
-      PopulateScaleCKKSOptions populateScaleCKKSOptions;
-      populateScaleCKKSOptions.beforeMulIncludeFirstMul =
-          options.modulusSwitchBeforeFirstMul;
-      populateScaleCKKSOptions.scalePolicy = options.ckksScalePolicy;
-      pm.addPass(createPopulateScaleCKKS(populateScaleCKKSOptions));
+      ResolveReconcileCKKSOptions resolveReconcileCKKSOptions;
+      resolveReconcileCKKSOptions.reconcilePolicy = options.ckksReconcilePolicy;
+      pm.addPass(createResolveReconcileCKKS(resolveReconcileCKKSOptions));
+
+      if (options.ckksScalePolicy == "precise") {
+        ResolveScaleCKKSBMPH20Options resolveScaleCKKSBMPH20Options;
+        resolveScaleCKKSBMPH20Options.beforeMulIncludeFirstMul =
+            options.modulusSwitchBeforeFirstMul;
+        pm.addPass(createResolveScaleCKKSBMPH20(resolveScaleCKKSBMPH20Options));
+      } else {
+        PopulateScaleCKKSOptions populateScaleCKKSOptions;
+        populateScaleCKKSOptions.beforeMulIncludeFirstMul =
+            options.modulusSwitchBeforeFirstMul;
+        populateScaleCKKSOptions.scalePolicy = options.ckksScalePolicy;
+        pm.addPass(createPopulateScaleCKKS(populateScaleCKKSOptions));
+      }
       break;
     }
     default:
@@ -585,6 +599,7 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.scalingModBits = options.scalingModBits;
   suboptions.firstModBits = options.firstModBits;
   suboptions.ckksScalePolicy = options.ckksScalePolicy;
+  suboptions.ckksReconcilePolicy = options.ckksReconcilePolicy;
   suboptions.splitPreprocessing = options.splitPreprocessing;
 
   mlirToRLWEPipelineBuilder(mlir::heir::RLWEScheme::ckksScheme)(manager,

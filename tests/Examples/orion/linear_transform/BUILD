@@ -7,6 +7,7 @@ heir_lattigo_lib(
     name = "linear_transform",
     go_library_name = "lineartransform",
     heir_opt_flags = [
+        "--annotate-orion",
         "--scheme-to-lattigo",
     ],
     mlir_src = ":linear_transform.mlir",

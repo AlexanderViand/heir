@@ -15,6 +15,7 @@ cc_library(
         "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect:ModuleAttributes",
         "@heir//lib/Dialect/Mgmt/IR:Dialect",
+        "@heir//lib/Dialect/Orion/IR:Dialect",
         "@heir//lib/Dialect/Secret/IR:Dialect",
         "@heir//lib/Utils",
         "@heir//lib/Utils:AttributeUtils",

@@ -22,7 +22,8 @@
 // CHECK-DAG: %[[v0:.*]] = arith.constant dense<0> : tensor<32x1024xi16>
 // CHECK: %[[v1:.*]] = scf.for %[[arg1:.*]] = %[[c0]] to %[[c32]] step %[[c1]]
 // CHECK:   %[[v3:.*]] = scf.for %[[arg3:.*]] = %[[c0]] to %[[c1024]] step %[[c1]]
-// CHECK-COUNT-2:          arith.remsi
+// CHECK:                  arith.floordivsi
+// CHECK:                  arith.subi
 // CHECK: %[[v2:.*]] = secret.conceal %[[v1]]
 // CHECK: return %[[v2]] : !secret.secret<tensor<32x1024xi16>>
 

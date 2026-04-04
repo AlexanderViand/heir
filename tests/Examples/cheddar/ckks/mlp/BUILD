@@ -16,7 +16,7 @@ heir_opt(
     generated_filename = "mnist_cheddar.mlir",
     pass_flags = [
         "--annotate-module=backend=cheddar scheme=ckks",
-        "--torch-linalg-to-ckks=ciphertext-degree=1024 split-preprocessing=8",
+        "--torch-linalg-to-ckks=ciphertext-degree=1024 split-preprocessing=8 ckks-reconcile-policy=canonical-per-level",
         "--scheme-to-cheddar",
     ],
 )

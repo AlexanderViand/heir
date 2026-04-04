@@ -159,6 +159,29 @@ struct MatchCrossMulDepth : public OpRewritePattern<Op> {
   DataFlowSolver* solver;
 };
 
+/// Insert mgmt.reconcile for each secret operand of a secret binary op.
+///
+/// This is a deliberately coarse marker used by CKKS management. It records
+/// that the operand may need reconciliation with its peer later, without
+/// committing to a particular repair strategy.
+template <typename Op>
+struct InsertReconcileMarker : public OpRewritePattern<Op> {
+  using OpRewritePattern<Op>::OpRewritePattern;
+
+  InsertReconcileMarker(MLIRContext* context, Operation* top,
+                        DataFlowSolver* solver)
+      : OpRewritePattern<Op>(context, /*benefit=*/1),
+        top(top),
+        solver(solver) {}
+
+  LogicalResult matchAndRewrite(Op op,
+                                PatternRewriter& rewriter) const override;
+
+ private:
+  Operation* top;
+  DataFlowSolver* solver;
+};
+
 /// Insert mgmt.init op for plaintext operand.
 ///
 /// See the documentation for mgmt.init for more details.

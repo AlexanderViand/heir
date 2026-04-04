@@ -97,11 +97,24 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
   }
 
   int idCounter = 0;  // for making adjust_scale op different to avoid cse
-  LDBG() << "Handling cross level ops";
-  handleCrossLevelOps(top, &idCounter, options.includeFloats);
+  if (options.deferReconcile) {
+    LDBG() << "Handling cross level mul ops";
+    handleCrossLevelOps(top, &idCounter, options.includeFloats,
+                        /*includeAddSub=*/false);
 
-  LDBG() << "Handling cross mul depth ops";
-  handleCrossMulDepthOps(top, &idCounter, options.includeFloats);
+    LDBG() << "Handling cross mul depth mul ops";
+    handleCrossMulDepthOps(top, &idCounter, options.includeFloats,
+                           /*includeAddSub=*/false);
+
+    LDBG() << "Inserting reconcile markers";
+    insertReconcileMarkers(top, options.includeFloats);
+  } else {
+    LDBG() << "Handling cross level ops";
+    handleCrossLevelOps(top, &idCounter, options.includeFloats);
+
+    LDBG() << "Handling cross mul depth ops";
+    handleCrossMulDepthOps(top, &idCounter, options.includeFloats);
+  }
   return success();
 }
 
@@ -174,36 +187,67 @@ void insertRelinearizeAfterMult(Operation* top, bool includeFloats) {
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 
-void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats) {
+void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
+                         bool includeAddSub) {
   DataFlowSolver solver;
   makeAndRunSecretnessAndLevelSolver(top, solver);
   MLIRContext* ctx = top->getContext();
   RewritePatternSet patterns(ctx);
-  patterns.add<MatchCrossLevel<arith::AddIOp>, MatchCrossLevel<arith::SubIOp>,
-               MatchCrossLevel<arith::MulIOp>>(ctx, idCounter, top, &solver);
-  if (includeFloats)
-    patterns.add<MatchCrossLevel<arith::AddFOp>, MatchCrossLevel<arith::SubFOp>,
-                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver);
+  patterns.add<MatchCrossLevel<arith::MulIOp>>(ctx, idCounter, top, &solver);
+  if (includeAddSub) {
+    patterns
+        .add<MatchCrossLevel<arith::AddIOp>, MatchCrossLevel<arith::SubIOp>>(
+            ctx, idCounter, top, &solver);
+  }
+  if (includeFloats) {
+    patterns.add<MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver);
+    if (includeAddSub) {
+      patterns
+          .add<MatchCrossLevel<arith::AddFOp>, MatchCrossLevel<arith::SubFOp>>(
+              ctx, idCounter, top, &solver);
+    }
+  }
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 
 // this only happen for before-mul but not include-first-mul case
 // at the first level, a Value can be both mulResult or not mulResult
 // we should match their scale by adding one adjust scale op
-void handleCrossMulDepthOps(Operation* top, int* idCounter,
-                            bool includeFloats) {
+void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats,
+                            bool includeAddSub) {
   DataFlowSolver solver;
   makeAndRunSolver(top, solver);
   MLIRContext* ctx = top->getContext();
   RewritePatternSet patterns(ctx);
-  patterns
-      .add<MatchCrossMulDepth<arith::AddIOp>, MatchCrossMulDepth<arith::SubIOp>,
-           MatchCrossMulDepth<arith::MulIOp>>(ctx, idCounter, top, &solver);
-  if (includeFloats)
-    patterns.add<MatchCrossMulDepth<arith::AddFOp>,
-                 MatchCrossMulDepth<arith::SubFOp>,
-                 MatchCrossMulDepth<arith::MulFOp>>(ctx, idCounter, top,
+  patterns.add<MatchCrossMulDepth<arith::MulIOp>>(ctx, idCounter, top, &solver);
+  if (includeAddSub) {
+    patterns.add<MatchCrossMulDepth<arith::AddIOp>,
+                 MatchCrossMulDepth<arith::SubIOp>>(ctx, idCounter, top,
                                                     &solver);
+  }
+  if (includeFloats) {
+    patterns.add<MatchCrossMulDepth<arith::MulFOp>>(ctx, idCounter, top,
+                                                    &solver);
+    if (includeAddSub) {
+      patterns.add<MatchCrossMulDepth<arith::AddFOp>,
+                   MatchCrossMulDepth<arith::SubFOp>>(ctx, idCounter, top,
+                                                      &solver);
+    }
+  }
+  (void)walkAndApplyPatterns(top, std::move(patterns));
+}
+
+void insertReconcileMarkers(Operation* top, bool includeFloats) {
+  DataFlowSolver solver;
+  makeAndRunSecretnessSolver(top, solver);
+  MLIRContext* ctx = top->getContext();
+  RewritePatternSet patterns(ctx);
+  patterns.add<InsertReconcileMarker<arith::AddIOp>,
+               InsertReconcileMarker<arith::SubIOp>>(ctx, top, &solver);
+  if (includeFloats) {
+    patterns.add<InsertReconcileMarker<arith::AddFOp>,
+                 InsertReconcileMarker<arith::SubFOp>>(ctx, top, &solver);
+  }
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 

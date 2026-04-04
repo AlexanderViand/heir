@@ -85,6 +85,12 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       llvm::cl::desc("CKKS scale policy to use during populate-scale "
                      "(`nominal` or `precise`)"),
       llvm::cl::init("nominal")};
+  PassOptions::Option<std::string> ckksReconcilePolicy{
+      *this, "ckks-reconcile-policy",
+      llvm::cl::desc("CKKS reconciliation policy to use after parameter "
+                     "selection (`local-highest-meeting-point` or "
+                     "`canonical-per-level`)"),
+      llvm::cl::init("local-highest-meeting-point")};
   PassOptions::Option<int> bfvModBits{
       *this, "bfv-mod-bits",
       llvm::cl::desc("The number of bits for all moduli for B/FV"),
@@ -195,6 +201,12 @@ struct TorchLinalgToCkksPipelineOptions
       llvm::cl::desc("CKKS scale policy to use during populate-scale "
                      "(`nominal` or `precise`)"),
       llvm::cl::init("nominal")};
+  PassOptions::Option<std::string> ckksReconcilePolicy{
+      *this, "ckks-reconcile-policy",
+      llvm::cl::desc("CKKS reconciliation policy to use after parameter "
+                     "selection (`local-highest-meeting-point` or "
+                     "`canonical-per-level`)"),
+      llvm::cl::init("local-highest-meeting-point")};
   PassOptions::Option<int> ckksBootstrapWaterline{
       *this, "ckks-bootstrap-waterline",
       llvm::cl::desc("The number of levels to keep until bootstrapping in CKKS "
