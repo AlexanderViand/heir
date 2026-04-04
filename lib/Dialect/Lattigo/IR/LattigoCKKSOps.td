@@ -57,7 +57,7 @@ def Lattigo_CKKSEncodeOp : Lattigo_CKKSOp<"encode", [InPlaceOpInterface]> {
     Lattigo_CKKSEncoder:$encoder,
     RankedTensorOf<[AnyFloat, AnyComplex]>:$value,
     Lattigo_RLWEPlaintext:$plaintext,
-    DefaultValuedAttr<I64Attr, "1">:$scale
+    Builtin_IntegerAttr:$scale
   );
   let results = (outs Lattigo_RLWEPlaintext:$encoded);
 

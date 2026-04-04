@@ -34,12 +34,14 @@ class BGVAdjustScaleMaterializer : public AdjustScaleMaterializer {
 
   virtual ~BGVAdjustScaleMaterializer() = default;
 
-  int64_t deltaScale(int64_t scale, int64_t inputScale) const override {
-    auto inputScaleInverse =
-        multiplicativeInverse(llvm::APInt(64, inputScale),
-                              llvm::APInt(64, plaintextModulus))
-            .getSExtValue();
-    return (scale * inputScaleInverse) % plaintextModulus;
+  FailureOr<APInt> deltaScale(mgmt::AdjustScaleOp /*op*/, const APInt& scale,
+                              const APInt& inputScale) const override {
+    APInt modulus(64, plaintextModulus);
+    APInt inputScaleInverse =
+        multiplicativeInverse(inputScale.urem(modulus), modulus);
+    if (inputScaleInverse.isZero()) return failure();
+    return modularMultiplication(scale.urem(modulus), inputScaleInverse,
+                                 modulus);
   }
 
  private:
@@ -70,7 +72,7 @@ struct PopulateScaleBGV : impl::PopulateScaleBGVBase<PopulateScaleBGV> {
     // set input scale to 1, which is arbitrary.
     solver.load<ScaleAnalysis<BGVScaleModel>>(
         bgv::SchemeParam::getSchemeParamFromAttr(bgvSchemeParamAttr),
-        /*inputScale*/ 1);
+        /*inputScale*/ APInt(64, 1));
     // Back-prop ScaleAnalysis depends on (forward) ScaleAnalysis
     solver.load<ScaleAnalysisBackward<BGVScaleModel>>(
         symbolTable,

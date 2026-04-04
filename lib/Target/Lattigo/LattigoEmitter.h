@@ -196,6 +196,7 @@ class LattigoEmitter {
 
   // Helpers for above
   void printErrPanic(std::string_view errName);
+  std::string emitScaleLiteral(IntegerAttr scale, std::string_view prefix);
 
   LogicalResult printNewMethod(::mlir::Value result,
                                ::mlir::ValueRange operands, std::string_view op,
@@ -249,6 +250,7 @@ class LattigoEmitter {
   void resetErrCount() { errCount = 0; }
 
   int errCount = 0;
+  int scaleCount = 0;
 
   // Declare a variable (if it has not already been declared) and return its
   // name

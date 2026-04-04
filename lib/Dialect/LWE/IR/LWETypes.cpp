@@ -82,14 +82,17 @@ FailureOr<LWECiphertextType> applyModReduce(LWECiphertextType inputType) {
   lwe::ModulusChainAttr moddedDownChain = lwe::ModulusChainAttr::get(
       ctx, inputType.getModulusChain().getElements(), newLevel);
   LLVM_DEBUG(llvm::dbgs() << "Modded down chain=" << moddedDownChain << "\n");
-  lwe::PlaintextSpaceAttr newPlaintextSpace =
+  FailureOr<lwe::PlaintextSpaceAttr> newPlaintextSpace =
       inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
           ctx, inputType.getPlaintextSpace(), dividedModulus);
+  if (failed(newPlaintextSpace)) {
+    return failure();
+  }
 
-  LLVM_DEBUG(llvm::dbgs() << "new plaintext space=" << newPlaintextSpace
+  LLVM_DEBUG(llvm::dbgs() << "new plaintext space=" << *newPlaintextSpace
                           << "\n");
   return lwe::LWECiphertextType::get(
-      ctx, newPlaintextSpace,
+      ctx, *newPlaintextSpace,
       lwe::CiphertextSpaceAttr::get(
           ctx, newRing, inputType.getCiphertextSpace().getEncryptionType(),
           inputType.getCiphertextSpace().getSize()),

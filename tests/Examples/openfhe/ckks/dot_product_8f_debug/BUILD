@@ -4,6 +4,7 @@ package(default_applicable_licenses = ["@heir//:license"])
 
 openfhe_end_to_end_test(
     name = "dot_product_8f_debug_test",
+    timeout = "long",
     data = [
         "@heir//tests/Examples/plaintext/dot_product_f_debug:dot_product_8f_debug.log",
     ],

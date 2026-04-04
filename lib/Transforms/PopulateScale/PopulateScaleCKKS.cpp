@@ -1,4 +1,3 @@
-#include <cstdint>
 #include <utility>
 
 #include "lib/Analysis/ScaleAnalysis/ScaleAnalysis.h"
@@ -8,6 +7,7 @@
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Mgmt/Transforms/AnnotateMgmt.h"
 #include "lib/Transforms/PopulateScale/PopulateScalePatterns.h"
+#include "lib/Utils/APIntUtils.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
 #include "llvm/include/llvm/Support/DebugLog.h"            // from @llvm-project
 #include "mlir/include/mlir/Analysis/DataFlow/Utils.h"     // from @llvm-project
@@ -39,9 +39,9 @@ class CKKSAdjustScaleMaterializer : public AdjustScaleMaterializer {
  public:
   virtual ~CKKSAdjustScaleMaterializer() = default;
 
-  int64_t deltaScale(int64_t scale, int64_t inputScale) const override {
-    // TODO(#1640): support high-precision scale management
-    return scale - inputScale;
+  FailureOr<APInt> deltaScale(mgmt::AdjustScaleOp op, const APInt& scale,
+                              const APInt& inputScale) const override {
+    return divideUnsignedAPIntExact(scale, inputScale);
   }
 };
 
@@ -55,10 +55,10 @@ LogicalResult createAndRunDataflow(Operation* op, DataFlowSolver& solver,
   SymbolTableCollection symbolTable;
   dataflow::loadBaselineAnalyses(solver);
   solver.load<SecretnessAnalysis>();
-  auto inputScale = logDefaultScale;
+  APInt inputScale = getNominalPowerOfTwoScaleFromLog2(logDefaultScale);
   if (beforeMulIncludeFirstMul) {
     LDBG() << "Encoding at scale^2 due to 'include-first-mul' config";
-    inputScale *= 2;
+    inputScale = multiplyUnsignedAPIntExact(inputScale, inputScale);
   }
   auto param = ckks::getSchemeParamFromAttr(ckksSchemeParamAttr);
   solver.load<ScaleAnalysis<CKKSScaleModel>>(param,
@@ -77,6 +77,13 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
         getOperation()->getAttr(ckks::CKKSDialect::kSchemeParamAttrName));
     auto logDefaultScale = ckksSchemeParamAttr.getLogDefaultScale();
 
+    OpPassManager normalizeMgmt("builtin.module");
+    normalizeMgmt.addPass(mgmt::createAnnotateMgmt());
+    if (failed(runPipeline(normalizeMgmt, getOperation()))) {
+      signalPassFailure();
+      return;
+    }
+
     DataFlowSolver solver;
     if (failed(createAndRunDataflow(getOperation(), solver, logDefaultScale,
                                     ckksSchemeParamAttr,
@@ -85,44 +92,85 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       return;
     }
 
-    // at this time all adjust_scale should have ScaleLattice for its result.
-    // all plaintext (mgmt.init) should have ScaleLattice for its result.
-    // However, due to the naivete of the scale analysis, there can be
-    // sections of IR in which no scale could be propagated through. E.g., an
-    // op surrounded by two adjust_scale ops that block propagation. In this
-    // case these adjust_scale ops should be removed.
+    // At this point all adjust_scale and mgmt.init results must have fully
+    // resolved nominal scales. Leaving them unresolved means the pre-lowering
+    // symbolic management structure is inconsistent with the current policy.
+    bool scaleConflict = false;
+    SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
     getOperation()->walk([&](mgmt::AdjustScaleOp op) {
       auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
-      if (!lattice || !lattice->getValue().isInitialized()) {
+      if (!lattice) {
         op.emitOpError() << "Dataflow analysis failed to populate scale "
                             "lattice for result\n";
-        op->replaceAllUsesWith(ValueRange{op.getInput()});
-        op->erase();
+        scaleConflict = true;
+        return WalkResult::interrupt();
       }
+      if (lattice->getValue().hasConflict()) {
+        op.emitOpError() << "Dataflow analysis found conflicting exact scales "
+                            "for result\n";
+        scaleConflict = true;
+        return WalkResult::interrupt();
+      }
+      if (!lattice->getValue().isInitialized()) {
+        auto* inputLattice = solver.lookupState<ScaleLattice>(op.getInput());
+        if (inputLattice && inputLattice->getValue().isInitialized() &&
+            !inputLattice->getValue().hasConflict()) {
+          // If nothing downstream constrains the target scale, the symbolic
+          // adjust_scale is a no-op and can be erased before materialization.
+          noOpAdjustScales.push_back(op);
+          return WalkResult::advance();
+        }
+        op.emitOpError()
+            << "Dataflow analysis did not resolve a nominal target scale\n";
+        scaleConflict = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
     });
-
-    DataFlowSolver solver2;
-    if (failed(createAndRunDataflow(getOperation(), solver2, logDefaultScale,
-                                    ckksSchemeParamAttr,
-                                    beforeMulIncludeFirstMul))) {
+    if (scaleConflict) {
       signalPassFailure();
       return;
     }
 
+    for (auto op : noOpAdjustScales) {
+      op->replaceAllUsesWith(ValueRange{op.getInput()});
+      op->erase();
+    }
+
+    DataFlowSolver* activeSolver = &solver;
+    DataFlowSolver refinedSolver;
+    if (!noOpAdjustScales.empty()) {
+      if (failed(createAndRunDataflow(getOperation(), refinedSolver,
+                                      logDefaultScale, ckksSchemeParamAttr,
+                                      beforeMulIncludeFirstMul))) {
+        signalPassFailure();
+        return;
+      }
+      activeSolver = &refinedSolver;
+    }
+
+    bool initScaleFailure = false;
     getOperation()->walk([&](mgmt::InitOp op) {
-      auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
-      if (!lattice || !lattice->getValue().isInitialized()) {
+      auto* lattice = activeSolver->lookupState<ScaleLattice>(op.getResult());
+      if (!lattice || lattice->getValue().hasConflict() ||
+          !lattice->getValue().isInitialized()) {
         op.emitOpError() << "Dataflow analysis failed to populate scale "
                             "lattice for result\n";
-        signalPassFailure();
+        initScaleFailure = true;
       }
     });
+    if (initScaleFailure) {
+      signalPassFailure();
+      return;
+    }
 
-    LDBG() << "Running annotate-mgmt sub-pass";
-    annotateScale(getOperation(), &solver2);
+    annotateScale(getOperation(), activeSolver);
     OpPassManager annotateMgmt("builtin.module");
     annotateMgmt.addPass(mgmt::createAnnotateMgmt());
-    (void)runPipeline(annotateMgmt, getOperation());
+    if (failed(runPipeline(annotateMgmt, getOperation()))) {
+      signalPassFailure();
+      return;
+    }
 
     LLVM_DEBUG({
       llvm::dbgs() << "Dumping op after annotate-mgmt pass:\n";
@@ -135,14 +183,43 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     // TODO(#1641): handle arith.muli in CKKS
     patterns.add<ConvertAdjustScaleToMulPlain<arith::MulFOp>>(&getContext(),
                                                               &materializer);
-    walkAndApplyPatterns(getOperation(), std::move(patterns));
+    (void)walkAndApplyPatterns(getOperation(), std::move(patterns));
+
+    bool materializationFailure = false;
+    getOperation()->walk([&](mgmt::AdjustScaleOp op) {
+      op.emitOpError() << "failed to materialize nominal scale adjustment";
+      materializationFailure = true;
+    });
+    if (materializationFailure) {
+      signalPassFailure();
+      return;
+    }
 
     // run canonicalizer and CSE to clean up arith.constant and move no-op out
     // of the secret.generic
-    OpPassManager pipeline("builtin.module");
-    pipeline.addPass(createCanonicalizerPass());
-    pipeline.addPass(createCSEPass());
-    (void)runPipeline(pipeline, getOperation());
+    OpPassManager cleanup("builtin.module");
+    cleanup.addPass(createCanonicalizerPass());
+    cleanup.addPass(createCSEPass());
+    if (failed(runPipeline(cleanup, getOperation()))) {
+      signalPassFailure();
+      return;
+    }
+
+    DataFlowSolver solverFinal;
+    if (failed(createAndRunDataflow(getOperation(), solverFinal,
+                                    logDefaultScale, ckksSchemeParamAttr,
+                                    beforeMulIncludeFirstMul))) {
+      signalPassFailure();
+      return;
+    }
+
+    annotateScale(getOperation(), &solverFinal);
+    OpPassManager annotateFinalMgmt("builtin.module");
+    annotateFinalMgmt.addPass(mgmt::createAnnotateMgmt());
+    if (failed(runPipeline(annotateFinalMgmt, getOperation()))) {
+      signalPassFailure();
+      return;
+    }
   }
 };
 

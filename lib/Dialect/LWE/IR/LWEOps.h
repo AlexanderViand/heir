@@ -46,6 +46,98 @@ inline LWEPlaintextType getPtTy(Type ty) {
 
 inline LWEPlaintextType getPtTy(Value v) { return getPtTy(v.getType()); }
 
+inline bool equivalentEncodingAttrs(Attribute lhs, Attribute rhs) {
+  if (lhs == rhs) return true;
+  if (!lhs || !rhs) return false;
+  return llvm::TypeSwitch<Attribute, bool>(lhs)
+      .Case<FullCRTPackingEncodingAttr>([&](auto lhsAttr) {
+        auto rhsAttr = dyn_cast<FullCRTPackingEncodingAttr>(rhs);
+        if (!rhsAttr) return false;
+        return APInt::isSameValue(getScalingFactorFromEncodingAttr(lhsAttr),
+                                  getScalingFactorFromEncodingAttr(rhsAttr),
+                                  /*SignedCompare=*/false);
+      })
+      .Case<InverseCanonicalEncodingAttr>([&](auto lhsAttr) {
+        auto rhsAttr = dyn_cast<InverseCanonicalEncodingAttr>(rhs);
+        if (!rhsAttr) return false;
+        return APInt::isSameValue(getScalingFactorFromEncodingAttr(lhsAttr),
+                                  getScalingFactorFromEncodingAttr(rhsAttr),
+                                  /*SignedCompare=*/false);
+      })
+      .Default([&](Attribute) { return false; });
+}
+
+inline bool equivalentPlaintextSpaces(PlaintextSpaceAttr lhs,
+                                      PlaintextSpaceAttr rhs) {
+  return lhs.getRing() == rhs.getRing() &&
+         equivalentEncodingAttrs(lhs.getEncoding(), rhs.getEncoding());
+}
+
+inline bool compatibleEncodingAttrsForModulusSwitchOrRescale(Attribute lhs,
+                                                             Attribute rhs) {
+  if (lhs == rhs) return true;
+  if (!lhs || !rhs) return false;
+  return llvm::TypeSwitch<Attribute, bool>(lhs)
+      .Case<InverseCanonicalEncodingAttr>([&](auto lhsAttr) {
+        auto rhsAttr = dyn_cast<InverseCanonicalEncodingAttr>(rhs);
+        if (!rhsAttr) return false;
+        return APInt::isSameValue(getScalingFactorFromEncodingAttr(lhsAttr),
+                                  getScalingFactorFromEncodingAttr(rhsAttr),
+                                  /*SignedCompare=*/false);
+      })
+      .Default([&](Attribute) { return false; });
+}
+
+inline bool compatiblePlaintextSpacesForModulusSwitchOrRescale(
+    PlaintextSpaceAttr lhs, PlaintextSpaceAttr rhs) {
+  return lhs.getRing() == rhs.getRing() &&
+         compatibleEncodingAttrsForModulusSwitchOrRescale(lhs.getEncoding(),
+                                                          rhs.getEncoding());
+}
+
+template <typename Op>
+LogicalResult verifyAddOp(Op* op) {
+  auto x = getCtTy(op->getLhs());
+  auto y = getCtTy(op->getRhs());
+  auto out = getCtTy(op->getOutput());
+  auto expectedDim = std::max(x.getCiphertextSpace().getSize(),
+                              y.getCiphertextSpace().getSize());
+  if (out.getCiphertextSpace().getSize() != expectedDim) {
+    return op->emitOpError() << "output.dim == max(x.dim, y.dim) does not hold";
+  }
+  if (x.getPlaintextSpace() != y.getPlaintextSpace()) {
+    return op->emitOpError() << "operand plaintext spaces must match";
+  }
+  if (out.getPlaintextSpace() != x.getPlaintextSpace()) {
+    return op->emitOpError()
+           << "output plaintext space must match lhs; got "
+           << out.getPlaintextSpace() << ", expected " << x.getPlaintextSpace();
+  }
+  return success();
+}
+
+template <typename Op>
+LogicalResult verifyAddPlainOp(Op* op) {
+  lwe::LWECiphertextType ct;
+  lwe::LWEPlaintextType pt;
+  if (isa<lwe::LWECiphertextType>(getElementTypeOrSelf(op->getLhs()))) {
+    ct = getCtTy(op->getLhs());
+    pt = getPtTy(op->getRhs());
+  } else {
+    ct = getCtTy(op->getRhs());
+    pt = getPtTy(op->getLhs());
+  }
+  auto out = getCtTy(op->getOutput());
+  if (out != ct) {
+    return op->emitOpError()
+           << "output ciphertext type must match ciphertext operand";
+  }
+  if (ct.getPlaintextSpace() != pt.getPlaintextSpace()) {
+    return op->emitOpError() << "ciphertext/plaintext spaces must match";
+  }
+  return success();
+}
+
 template <typename Op>
 LogicalResult verifyMulOp(Op* op) {
   // verify dimension matches
@@ -60,9 +152,11 @@ LogicalResult verifyMulOp(Op* op) {
   auto xPlaintext = x.getPlaintextSpace();
   auto yPlaintext = y.getPlaintextSpace();
   auto outPlaintext = out.getPlaintextSpace();
-  if (outPlaintext !=
-      inferMulOpPlaintextSpaceAttr(op->getContext(), xPlaintext, yPlaintext)) {
-    return op->emitOpError() << "output plaintext space does not match";
+  auto exactPlaintext =
+      inferMulOpPlaintextSpaceAttr(op->getContext(), xPlaintext, yPlaintext);
+  if (!equivalentPlaintextSpaces(outPlaintext, exactPlaintext)) {
+    return op->emitOpError() << "output plaintext space does not match; got "
+                             << outPlaintext << ", expected " << exactPlaintext;
   }
   return success();
 }
@@ -87,9 +181,11 @@ LogicalResult verifyMulPlainOp(Op* op) {
   auto ctPlaintext = ct.getPlaintextSpace();
   auto ptPlaintext = pt.getPlaintextSpace();
   auto outPlaintext = out.getPlaintextSpace();
-  if (outPlaintext != inferMulOpPlaintextSpaceAttr(op->getContext(),
-                                                   ctPlaintext, ptPlaintext)) {
-    return op->emitOpError() << "output plaintext space does not match";
+  auto exactPlaintext =
+      inferMulOpPlaintextSpaceAttr(op->getContext(), ctPlaintext, ptPlaintext);
+  if (!equivalentPlaintextSpaces(outPlaintext, exactPlaintext)) {
+    return op->emitOpError() << "output plaintext space does not match; got "
+                             << outPlaintext << ", expected " << exactPlaintext;
   }
   return success();
 }
@@ -162,9 +258,17 @@ LogicalResult verifyModulusSwitchOrRescaleOp(Op* op) {
     auto dividedModulus = xRingCoeffType.getModulus().getValue().sdiv(
         outRingCoeffType.getModulus().getValue());
     auto newPlaintextSpace = inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
-        op->getContext(), xPlaintextSpace, dividedModulus);
-    if (outPlaintextSpace != newPlaintextSpace) {
-      return op->emitOpError() << "output plaintext space does not match";
+        op->getOperation(), xPlaintextSpace, dividedModulus);
+    if (failed(newPlaintextSpace)) {
+      return op->emitOpError()
+             << "failed to infer output plaintext space for modulus switch/"
+                "rescale";
+    }
+    if (!compatiblePlaintextSpacesForModulusSwitchOrRescale(
+            outPlaintextSpace, *newPlaintextSpace)) {
+      return op->emitOpError()
+             << "output plaintext space does not match; got "
+             << outPlaintextSpace << ", expected " << *newPlaintextSpace;
     }
   }
 
@@ -202,9 +306,17 @@ LogicalResult verifyModulusSwitchOrRescaleOp(Op* op) {
       dividedModulus *= currentModulus;
     }
     auto newPlaintextSpace = inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
-        op->getContext(), xPlaintextSpace, dividedModulus);
-    if (outPlaintextSpace != newPlaintextSpace) {
-      return op->emitOpError() << "output plaintext space does not match";
+        op->getOperation(), xPlaintextSpace, dividedModulus);
+    if (failed(newPlaintextSpace)) {
+      return op->emitOpError()
+             << "failed to infer output plaintext space for modulus switch/"
+                "rescale";
+    }
+    if (!compatiblePlaintextSpacesForModulusSwitchOrRescale(
+            outPlaintextSpace, *newPlaintextSpace)) {
+      return op->emitOpError()
+             << "output plaintext space does not match; got "
+             << outPlaintextSpace << ", expected " << *newPlaintextSpace;
     }
   }
 

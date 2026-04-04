@@ -126,7 +126,7 @@ class SecretToBGVTypeConverter
     auto* ctx = type.getContext();
     auto level = mgmtAttr.getLevel();
     auto dimension = mgmtAttr.getDimension();
-    auto scale = mgmtAttr.getScale();
+    auto scale = mgmt::getScaleAsAPInt(mgmtAttr);
     auto tensorValueType = dyn_cast<RankedTensorType>(type.getValueType());
 
     auto plaintextRing = polynomial::RingAttr::get(

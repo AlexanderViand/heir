@@ -5,6 +5,7 @@ package(default_applicable_licenses = ["@heir//:license"])
 
 openfhe_end_to_end_test(
     name = "loop_test",
+    timeout = "long",
     generated_lib_header = "loop_lib.h",
     heir_opt_flags = [
         "--annotate-module=backend=openfhe scheme=ckks",

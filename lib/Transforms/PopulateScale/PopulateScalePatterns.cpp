@@ -1,10 +1,9 @@
 #include "lib/Transforms/PopulateScale/PopulateScalePatterns.h"
 
-#include <cstdint>
-
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
+#include "lib/Utils/APIntUtils.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"   // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"          // from @llvm-project
@@ -16,19 +15,26 @@ namespace heir {
 template <typename MulOp>
 LogicalResult ConvertAdjustScaleToMulPlain<MulOp>::matchAndRewrite(
     mgmt::AdjustScaleOp op, PatternRewriter& rewriter) const {
-  auto inputScale = mgmt::findMgmtAttrAssociatedWith(op.getInput()).getScale();
-  int64_t scale = mgmt::findMgmtAttrAssociatedWith(op).getScale();
+  auto inputScale =
+      mgmt::getScaleAsAPInt(mgmt::findMgmtAttrAssociatedWith(op.getInput()));
+  APInt scale = mgmt::getScaleAsAPInt(mgmt::findMgmtAttrAssociatedWith(op));
   // no need to adjust scale
-  if (scale == inputScale) {
+  if (APInt::isSameValue(scale, inputScale, /*SignedCompare=*/false)) {
     rewriter.replaceAllOpUsesWith(op, op->getOperand(0));
     rewriter.eraseOp(op);
     return success();
   }
 
-  auto deltaScale = materializer->deltaScale(scale, inputScale);
-  if (deltaScale < 0) {
-    op.emitError() << "delta scale is negative";
+  auto deltaScale = materializer->deltaScale(op, scale, inputScale);
+  if (failed(deltaScale) || deltaScale->isZero()) {
+    op.emitError() << "delta scale must round to a positive integer";
     return failure();
+  }
+  APInt actualScale = multiplyUnsignedAPIntExact(inputScale, *deltaScale);
+  if (APInt::isSameValue(actualScale, inputScale, /*SignedCompare=*/false)) {
+    rewriter.replaceAllOpUsesWith(op, op->getOperand(0));
+    rewriter.eraseOp(op);
+    return success();
   }
 
   // lower to (input * all_ones)
@@ -57,11 +63,12 @@ LogicalResult ConvertAdjustScaleToMulPlain<MulOp>::matchAndRewrite(
   auto initOp = mgmt::InitOp::create(rewriter, op.getLoc(), inputType,
                                      allOnes.getResult());
   mgmt::setMgmtAttrAssociatedWith(
-      initOp, getMgmtAttrWithNewScale(mgmtAttr, deltaScale));
+      initOp, getMgmtAttrWithNewScale(mgmtAttr, *deltaScale));
   auto mulOp = MulOp::create(rewriter, op.getLoc(), inputType, op.getInput(),
                              initOp.getOutput());
-  mgmt::setMgmtAttrAssociatedWith(mulOp, mgmtAttr);
-  rewriter.replaceAllOpUsesWith(op, mulOp.getResult());
+  mgmt::setMgmtAttrAssociatedWith(
+      mulOp, getMgmtAttrWithNewScale(mgmtAttr, actualScale));
+  rewriter.replaceOp(op, mulOp.getResult());
   return success();
 }
 

@@ -1,10 +1,9 @@
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 
-#include <cstdint>
-
 #include "lib/Analysis/SecretnessAnalysis/SecretnessAnalysis.h"
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
+#include "lib/Utils/APIntUtils.h"
 #include "lib/Utils/AttributeUtils.h"
 #include "mlir/include/mlir/Analysis/DataFlowFramework.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Value.h"                    // from @llvm-project
@@ -18,9 +17,18 @@ namespace mgmt {
 // MgmtAttr helpers
 //===----------------------------------------------------------------------===//
 
-MgmtAttr getMgmtAttrWithNewScale(MgmtAttr mgmtAttr, int64_t scale) {
+MgmtAttr getMgmtAttrWithNewScale(MgmtAttr mgmtAttr, const APInt& scale) {
   return MgmtAttr::get(mgmtAttr.getContext(), mgmtAttr.getLevel(),
-                       mgmtAttr.getDimension(), scale);
+                       mgmtAttr.getDimension(),
+                       getSignlessIntegerAttr(mgmtAttr.getContext(), scale));
+}
+
+MgmtAttr getMgmtAttrWithNewScale(MgmtAttr mgmtAttr, int64_t scale) {
+  return getMgmtAttrWithNewScale(mgmtAttr, APInt(64, scale));
+}
+
+APInt getScaleAsAPInt(MgmtAttr mgmtAttr) {
+  return canonicalizeUnsignedAPInt(mgmtAttr.getScale().getValue());
 }
 
 //===----------------------------------------------------------------------===//

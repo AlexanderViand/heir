@@ -1,7 +1,6 @@
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
 
-#include <cstdint>
-
+#include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
 #include "lib/Dialect/ModArith/IR/ModArithTypes.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
 #include "lib/Dialect/RNS/IR/RNSTypes.h"
@@ -11,6 +10,7 @@
 #include "llvm/include/llvm/Support/Casting.h"          // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"            // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"            // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"            // from @llvm-project
 #include "mlir/include/mlir/IR/Diagnostics.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Types.h"                 // from @llvm-project
@@ -22,61 +22,90 @@ namespace mlir {
 namespace heir {
 namespace lwe {
 
+namespace {
+
+APInt getNominalCkksRescaleFactor(Operation* op, const APInt& dividedModulus) {
+  if (op) {
+    if (auto moduleOp = op->getParentOfType<ModuleOp>()) {
+      if (auto schemeParamAttr = moduleOp->getAttrOfType<ckks::SchemeParamAttr>(
+              ckks::CKKSDialect::kSchemeParamAttrName)) {
+        return getNominalPowerOfTwoScaleFromLog2(
+            schemeParamAttr.getLogDefaultScale());
+      }
+    }
+  }
+  // Type-only callers have no enclosing module from which to recover the
+  // configured CKKS nominal scale. Preserve the historical approximation based
+  // on the dropped modulus in that context.
+  return getNominalPowerOfTwoScaleFromLog2(dividedModulus.nearestLogBase2());
+}
+
+FailureOr<APInt> inferModulusSwitchOrRescaleOpScalingFactor(
+    Attribute xEncoding, APInt dividedModulus, const APInt& plaintextModulus,
+    const APInt& nominalScale) {
+  APInt xScale = getScalingFactorFromEncodingAttr(xEncoding);
+  return llvm::TypeSwitch<Attribute, FailureOr<APInt>>(xEncoding)
+      .Case<FullCRTPackingEncodingAttr>([&](auto attr) -> FailureOr<APInt> {
+        if (xScale.isZero()) return xScale;
+        APInt modulus = canonicalizeUnsignedAPInt(plaintextModulus);
+        unsigned width =
+            std::max(dividedModulus.getBitWidth(), modulus.getBitWidth());
+        APInt wideDividedModulus = dividedModulus.zextOrTrunc(width);
+        APInt wideModulus = modulus.zextOrTrunc(width);
+        APInt qInvT = multiplicativeInverse(
+            wideDividedModulus.urem(wideModulus), wideModulus);
+        if (qInvT.isZero()) return failure();
+        return modularMultiplication(xScale, qInvT, wideModulus);
+      })
+      .Case<InverseCanonicalEncodingAttr>([&](auto attr) -> FailureOr<APInt> {
+        if (xScale.isZero()) return xScale;
+        auto newScale = divideUnsignedAPIntExact(xScale, nominalScale);
+        if (failed(newScale)) return failure();
+        LLVM_DEBUG(llvm::dbgs() << "inferring new scale; dividedModulus="
+                                << dividedModulus << ", xScale=" << xScale
+                                << ", newScale=" << *newScale << "\n");
+        return *newScale;
+      })
+      .Default([](Attribute) -> FailureOr<APInt> { return failure(); });
+}
+
+}  // namespace
+
 //===----------------------------------------------------------------------===//
 // Utils
 //===----------------------------------------------------------------------===//
 
-int64_t getScalingFactorFromEncodingAttr(Attribute encoding) {
-  return llvm::TypeSwitch<Attribute, int64_t>(encoding)
-      .Case<FullCRTPackingEncodingAttr>(
-          [](auto attr) { return attr.getScalingFactor(); })
-      .Case<InverseCanonicalEncodingAttr>(
-          [](auto attr) { return attr.getScalingFactor(); })
-      .Default([](Attribute) { return 0; });
+APInt getScalingFactorFromEncodingAttr(Attribute encoding) {
+  return llvm::TypeSwitch<Attribute, APInt>(encoding)
+      .Case<FullCRTPackingEncodingAttr>([](auto attr) {
+        auto value = attr.getScalingFactor().getValue();
+        assert(!value.isNegative() && "expected non-negative scaling factor");
+        return canonicalizeUnsignedAPInt(value);
+      })
+      .Case<InverseCanonicalEncodingAttr>([](auto attr) {
+        auto value = attr.getScalingFactor().getValue();
+        assert(!value.isNegative() && "expected non-negative scaling factor");
+        return canonicalizeUnsignedAPInt(value);
+      })
+      .Default([](Attribute) { return APInt(64, 0); });
 }
 
-int64_t inferMulOpScalingFactor(Attribute xEncoding, Attribute yEncoding,
-                                int64_t plaintextModulus) {
-  int64_t xScale = getScalingFactorFromEncodingAttr(xEncoding);
-  int64_t yScale = getScalingFactorFromEncodingAttr(yEncoding);
-  return llvm::TypeSwitch<Attribute, int64_t>(xEncoding)
-      .Case<FullCRTPackingEncodingAttr>(
-          // Use 128-bit int in case of large ptm.
-          [&](auto attr) {
-            return (APInt(128, xScale) * APInt(128, yScale))
-                .urem(plaintextModulus);
-          })
-      .Case<InverseCanonicalEncodingAttr>(
-          [&](auto attr) { return xScale + yScale; })
-      .Default([](Attribute) { return 0; });
-}
-
-int64_t inferModulusSwitchOrRescaleOpScalingFactor(Attribute xEncoding,
-                                                   APInt dividedModulus,
-                                                   int64_t plaintextModulus) {
-  int64_t xScale = getScalingFactorFromEncodingAttr(xEncoding);
-  return llvm::TypeSwitch<Attribute, int64_t>(xEncoding)
+APInt inferMulOpScalingFactor(Attribute xEncoding, Attribute yEncoding,
+                              const APInt& plaintextModulus) {
+  APInt xScale = getScalingFactorFromEncodingAttr(xEncoding);
+  APInt yScale = getScalingFactorFromEncodingAttr(yEncoding);
+  return llvm::TypeSwitch<Attribute, APInt>(xEncoding)
       .Case<FullCRTPackingEncodingAttr>([&](auto attr) {
-        // Use 128-bit int in case of large ptm.
-        auto qInvT = multiplicativeInverse(
-            APInt(128, dividedModulus.urem(plaintextModulus)),
-            APInt(128, plaintextModulus));
-        return (APInt(128, xScale) * qInvT).urem(plaintextModulus);
+        return modularMultiplication(
+            xScale, yScale, canonicalizeUnsignedAPInt(plaintextModulus));
       })
-      .Case<InverseCanonicalEncodingAttr>([&](auto attr) {
-        // skip if xScale is 0
-        if (xScale == 0) return xScale;
-        // round to nearest log2 instead of ceil
-        auto logQ = dividedModulus.nearestLogBase2();
-        LLVM_DEBUG(llvm::dbgs() << "inferring new scale; logQ=" << logQ
-                                << ", xScale=" << xScale << "\n");
-        return xScale - logQ;
-      })
-      .Default([](Attribute) { return 0; });
+      .Case<InverseCanonicalEncodingAttr>(
+          [&](auto attr) { return multiplyUnsignedAPIntExact(xScale, yScale); })
+      .Default([](Attribute) { return APInt(64, 0); });
 }
 
 Attribute getEncodingAttrWithNewScalingFactor(Attribute encoding,
-                                              int64_t newScale) {
+                                              const APInt& newScale) {
   return llvm::TypeSwitch<Attribute, Attribute>(encoding)
       .Case<FullCRTPackingEncodingAttr>([&](auto attr) {
         return FullCRTPackingEncodingAttr::get(encoding.getContext(), newScale);
@@ -95,10 +124,11 @@ PlaintextSpaceAttr inferMulOpPlaintextSpaceAttr(MLIRContext* ctx,
   auto xEncoding = x.getEncoding();
   auto yEncoding = y.getEncoding();
 
-  int64_t plaintextModulus = 0;
+  APInt plaintextModulus(64, 0);
   if (auto modArithType =
           llvm::dyn_cast<mod_arith::ModArithType>(xRing.getCoefficientType())) {
-    plaintextModulus = modArithType.getModulus().getValue().getSExtValue();
+    plaintextModulus =
+        canonicalizeUnsignedAPInt(modArithType.getModulus().getValue());
   }
 
   auto newScale =
@@ -107,23 +137,50 @@ PlaintextSpaceAttr inferMulOpPlaintextSpaceAttr(MLIRContext* ctx,
       ctx, xRing, getEncodingAttrWithNewScalingFactor(xEncoding, newScale));
 }
 
-PlaintextSpaceAttr inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
-    MLIRContext* ctx, PlaintextSpaceAttr x, APInt dividedModulus) {
+FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
+    Operation* op, PlaintextSpaceAttr x, APInt dividedModulus) {
+  auto nominalScale = getNominalCkksRescaleFactor(op, dividedModulus);
   auto xRing = x.getRing();
   auto xEncoding = x.getEncoding();
 
-  int64_t plaintextModulus = 0;
+  APInt plaintextModulus(64, 0);
   if (auto modArithType =
           llvm::dyn_cast<mod_arith::ModArithType>(xRing.getCoefficientType())) {
-    plaintextModulus = modArithType.getModulus().getValue().getSExtValue();
+    plaintextModulus =
+        canonicalizeUnsignedAPInt(modArithType.getModulus().getValue());
   }
 
   auto newScale = inferModulusSwitchOrRescaleOpScalingFactor(
-      xEncoding, dividedModulus, plaintextModulus);
+      xEncoding, dividedModulus, plaintextModulus, nominalScale);
+  if (failed(newScale)) return failure();
   LLVM_DEBUG(llvm::dbgs() << "dividedModulus=" << dividedModulus
-                          << " new scale=" << newScale << "\n");
+                          << " new scale=" << *newScale << "\n");
   return PlaintextSpaceAttr::get(
-      ctx, xRing, getEncodingAttrWithNewScalingFactor(xEncoding, newScale));
+      op->getContext(), xRing,
+      getEncodingAttrWithNewScalingFactor(xEncoding, *newScale));
+}
+
+FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
+    MLIRContext* ctx, PlaintextSpaceAttr x, APInt dividedModulus) {
+  auto nominalScale =
+      getNominalCkksRescaleFactor(/*op=*/nullptr, dividedModulus);
+  auto xRing = x.getRing();
+  auto xEncoding = x.getEncoding();
+
+  APInt plaintextModulus(64, 0);
+  if (auto modArithType =
+          llvm::dyn_cast<mod_arith::ModArithType>(xRing.getCoefficientType())) {
+    plaintextModulus =
+        canonicalizeUnsignedAPInt(modArithType.getModulus().getValue());
+  }
+
+  auto newScale = inferModulusSwitchOrRescaleOpScalingFactor(
+      xEncoding, dividedModulus, plaintextModulus, nominalScale);
+  if (failed(newScale)) return failure();
+  LLVM_DEBUG(llvm::dbgs() << "dividedModulus=" << dividedModulus
+                          << " new scale=" << *newScale << "\n");
+  return PlaintextSpaceAttr::get(
+      ctx, xRing, getEncodingAttrWithNewScalingFactor(xEncoding, *newScale));
 }
 
 polynomial::RingAttr getRlweRNSRingWithLevel(polynomial::RingAttr ringAttr,
@@ -154,6 +211,25 @@ polynomial::RingAttr getRingFromModulusChain(
 LogicalResult PlaintextSpaceAttr::verify(
     ::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
     mlir::heir::polynomial::RingAttr ring, Attribute encoding) {
+  auto verifyNonNegativeScalingFactor =
+      [&](Attribute encodingAttr) -> LogicalResult {
+    return llvm::TypeSwitch<Attribute, LogicalResult>(encodingAttr)
+        .Case<FullCRTPackingEncodingAttr, InverseCanonicalEncodingAttr,
+              ConstantCoefficientEncodingAttr, CoefficientEncodingAttr>(
+            [&](auto attr) {
+              if (attr.getScalingFactor().getValue().isNegative()) {
+                emitError() << "scaling_factor must be a non-negative integer";
+                return failure();
+              }
+              return success();
+            })
+        .Default([](Attribute) { return success(); });
+  };
+
+  if (failed(verifyNonNegativeScalingFactor(encoding))) {
+    return failure();
+  }
+
   if (mlir::isa<FullCRTPackingEncodingAttr>(encoding)) {
     // For full CRT packing, the ring must be of the form x^n + 1 and the
     // modulus must be 1 mod n.

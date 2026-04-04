@@ -1,12 +1,13 @@
 #ifndef LIB_DIALECT_LWE_IR_LWEATTRIBUTES_H_
 #define LIB_DIALECT_LWE_IR_LWEATTRIBUTES_H_
 
-#include <cstdint>
-
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEEnums.h.inc"
+#include "lib/Utils/APIntUtils.h"
+#include "llvm/include/llvm/ADT/APInt.h"          // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"      // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"     // from @llvm-project
+#include "mlir/include/mlir/IR/Operation.h"       // from @llvm-project
 #include "mlir/include/mlir/IR/TensorEncoding.h"  // from @llvm-project
 // Required to pull in poly's Ring_Attr
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
@@ -18,17 +19,20 @@ namespace mlir {
 namespace heir {
 namespace lwe {
 
-int64_t getScalingFactorFromEncodingAttr(Attribute encoding);
+APInt getScalingFactorFromEncodingAttr(Attribute encoding);
 
 PlaintextSpaceAttr inferMulOpPlaintextSpaceAttr(MLIRContext* ctx,
                                                 PlaintextSpaceAttr x,
                                                 PlaintextSpaceAttr y);
 
-PlaintextSpaceAttr inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
+FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
+    Operation* op, PlaintextSpaceAttr x, APInt dividedModulus);
+
+FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
     MLIRContext* ctx, PlaintextSpaceAttr x, APInt dividedModulus);
 
 Attribute getEncodingAttrWithNewScalingFactor(Attribute encoding,
-                                              int64_t newScale);
+                                              const APInt& newScale);
 
 polynomial::RingAttr getRlweRNSRingWithLevel(polynomial::RingAttr ringAttr,
                                              int level);

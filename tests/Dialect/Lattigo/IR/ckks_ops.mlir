@@ -77,14 +77,16 @@ module {
   // CHECK: func @test_ckks_encode
   func.func @test_ckks_encode(%encoder: !encoder, %value : !value, %pt: !pt) {
     // CHECK: %[[v1:.*]] = lattigo.ckks.encode
-    %encoded = lattigo.ckks.encode %encoder, %value, %pt : (!encoder, !value, !pt) -> !pt
+    // CHECK-SAME: {scale = 1 : i64}
+    %encoded = lattigo.ckks.encode %encoder, %value, %pt {scale = 1 : i64} : (!encoder, !value, !pt) -> !pt
     return
   }
 
   // CHECK: func @test_ckks_encode_complex
   func.func @test_ckks_encode_complex(%encoder: !encoder, %value : !value_complex, %pt: !pt) {
     // CHECK: %[[v1:.*]] = lattigo.ckks.encode
-    %encoded = lattigo.ckks.encode %encoder, %value, %pt : (!encoder, !value_complex, !pt) -> !pt
+    // CHECK-SAME: {scale = 1 : i64}
+    %encoded = lattigo.ckks.encode %encoder, %value, %pt {scale = 1 : i64} : (!encoder, !value_complex, !pt) -> !pt
     return
   }
 
