@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "lib/Dialect/ModuleAttributes.h"
+#include "lib/Dialect/Polynomial/IR/PolynomialOps.h"
 #include "lib/Dialect/Secret/IR/SecretAttributes.h"
 #include "lib/Dialect/Secret/IR/SecretDialect.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
@@ -2118,6 +2119,11 @@ struct ConvertToCiphertextSemantics
     target.markUnknownOpDynamicallyLegal([&](Operation* op) {
       return isa<ModuleOp>(op) || hasMaterializedAttr(op);
     });
+    if (preserveStructuredOps) {
+      // tensor_ext.diagonal_matvec survives as-is (it uses tensor types
+      // that don't need conversion in ciphertext-semantics).
+      target.addLegalOp<tensor_ext::DiagonalMatvecOp>();
+    }
 
     patterns.add<ConvertAnyAddingMaterializedAttr, ConvertConvertLayout,
                  ConvertFunc, ConvertLinalgMatmul, ConvertLinalgReduce,
@@ -2125,8 +2131,9 @@ struct ConvertToCiphertextSemantics
                  ConvertTensorExpandShape, ConvertTensorExtractLayout,
                  ConvertTensorExtractSlice, ConvertTensorInsertLayout,
                  ConvertTensorInsertSlice>(typeConverter, context);
-    patterns.add<ConvertLinalgMatvecLayout, ConvertLinalgConv2D>(
-        typeConverter, context, unrollKernels);
+    patterns.add<ConvertLinalgMatvecLayout>(typeConverter, context,
+                                            unrollKernels);
+    patterns.add<ConvertLinalgConv2D>(typeConverter, context, unrollKernels);
     patterns.add<ConvertAssignLayout>(typeConverter, context, ciphertextSize);
 
     ConversionConfig config;

@@ -8,6 +8,58 @@ system in the HEIR working group meeting.
 [The video can be found here](https://youtu.be/HHU6rCMxZRc?si=U_ePY5emqs6e4NoV&t=1631)
 and [the slides can be found here](/slides/mgmt-2025-04-17.pdf)
 
+## Pipeline Overview
+
+HEIR's FHE compilation pipeline has four conceptual stages:
+
+### 1. Arithmetization
+
+The arithmetization stage lowers, replaces, or approximates operations that
+cannot be expressed in FHE with FHE-friendly ones. It also handles layout
+assignment and conversion from application-level data tensors to
+ciphertext-semantics tensors.
+
+The output is often called *arith-level IR* or *secret arithmetic IR*, but this
+name is increasingly a simplification. While the core of this IR uses
+`arith.addf`, `arith.mulf`, and `tensor_ext.rotate`, it increasingly includes
+structured ops that survive as atomic units through management:
+
+- `polynomial.eval` for Chebyshev polynomial approximations
+- `tensor_ext.diagonal_matvec` for linear transforms
+- `linalg.matvec` (as a starting point before ciphertext-semantics conversion)
+
+Whether these ops are expanded or preserved through arithmetization depends on
+the `--preserve-structured-ops` flag (see below).
+
+### 2. Management
+
+The management stage introduces ciphertext management ops (`mgmt.modreduce`,
+`mgmt.relinearize`, `mgmt.reconcile`) and performs parameter selection. The
+result is *managed arith IR*, which—like the arith-level IR—is not restricted to
+pure arith ops. Structured ops such as `polynomial.eval` (for Chebyshev
+polynomial evaluation) and `tensor_ext.diagonal_matvec` (for linear transforms)
+can survive through management as atomic ops with a declared
+`orion.level_cost_ub` annotation, and with their input/output (level, scale)
+relationships tracked via explicit transfer laws.
+
+### 3. Scheme-Level IR
+
+The scheme-level IR is a fairly 1:1 lowering from managed arith IR to
+scheme-specific operations: `ckks.*`, `bgv.*`, and Orion structured ops
+(`orion.linear_transform`, `orion.chebyshev`). This level represents operations
+that backends can directly execute. Sometimes the backend needs a small amount
+of runtime support from HEIR (for example, the `OpenFheLinearTransformHelpers`
+header), but conceptually these are backend-native operations.
+
+### 4. Backend Lowering
+
+Backend lowering converts scheme-level IR to a specific library's API
+(`lattigo.*`, `openfhe.*`, `cheddar.*`). This stage should not contain
+conceptually interesting work—such work belongs in arithmetization or
+management. Backend lowering is mostly mechanical scheme-to-backend conversion.
+
+______________________________________________________________________
+
 ## Introduction
 
 To lower from user specified computation to FHE scheme operations, a compiler
@@ -17,9 +69,11 @@ In HEIR, such operations are modeled in a scheme-agnostic way in the `mgmt`
 dialect.
 
 Taking the arithmetic pipeline as example: a program specified in high-level
-MLIR dialects like `arith` and `linalg` is first transformed to an IR with only
-`arith.addi/addf`, `arith.muli/mulf`, and `tensor_ext.rotate` operations. We
-call this form the *secret arithmetic* IR.
+MLIR dialects like `arith` and `linalg` is first transformed to an IR with
+`arith.addi/addf`, `arith.muli/mulf`, `tensor_ext.rotate`, and potentially
+preserved structured ops like `polynomial.eval` and
+`tensor_ext.diagonal_matvec`. We call this form the *secret arithmetic* IR (or
+*arith-level IR*).
 
 Then management passes insert `mgmt` ops to support future lowerings to scheme
 dialects like `bgv` and `ckks`. As different schemes have different management
@@ -165,6 +219,58 @@ providing scheme parameter as an attribute at module level.
 Then `populate-scale-bgv` comes into play by using the scheme parameters to
 instantiate concrete scale, and turn those placeholder operations into concrete
 multiplication operation.
+
+## Compilation Paths
+
+HEIR supports two compilation paths for CKKS programs that use structured ops
+such as linear transforms and polynomial activations. The choice between them is
+controlled by the `--preserve-structured-ops` flag.
+
+### Basic Ops Path
+
+When `--preserve-structured-ops` is **not** set (the default), HEIR expands all
+structured ops into basic CKKS primitives during arithmetization:
+
+- Polynomial activations (e.g., ReLU approximations) are expanded into sequences
+  of `arith.mulf` and `arith.addf` ops.
+- Linear transforms are expanded into sequences of `tensor_ext.rotate` and
+  `arith.mulf` ops via the diagonal algorithm.
+
+The resulting IR uses only basic CKKS ops and can be lowered to any backend
+(Lattigo, OpenFHE, CHEDDAR, etc.).
+
+### Native API Path
+
+When `--preserve-structured-ops=true` is set, `polynomial.eval` and
+`tensor_ext.diagonal_matvec` survive arithmetization and management as atomic
+structured ops. During management they are assigned an `orion.level_cost_ub`
+annotation and their (level, scale) transfer laws are tracked explicitly.
+
+At scheme-level lowering, these are converted to Orion ops (`orion.chebyshev`,
+`orion.linear_transform`), and then to native backend API calls (e.g.,
+`lattigo.ckks.chebyshev`, OpenFHE `EvalChebyshevSeries`). This path is only
+available for backends that expose native structured-op APIs.
+
+### Re-management via `--raise-ckks`
+
+The `--raise-ckks` pass converts CKKS/Orion-level IR back to arith-level secret
+IR. This enables a re-management roundtrip: Orion CKKS-level IR produced by one
+compilation is raised back to arith level and then re-managed through the
+standard CKKS pipeline to target a different backend or to apply different
+management options.
+
+Concrete op conversions performed by `--raise-ckks`:
+
+- `orion.chebyshev` → `polynomial.eval`
+- `orion.linear_transform` → `linalg.matvec`
+- `ckks.add` / `ckks.mul` / `ckks.rotate` → `arith.addf` / `arith.mulf` /
+  `tensor_ext.rotate`
+- `ckks.rescale`, `ckks.relinearize` → stripped
+- `!lwe.lwe_ciphertext<...>` → `!secret.secret<tensor<Nxf64>>`
+- `ckks.schemeParam` → stripped (parameter generation will re-derive it)
+
+After `--raise-ckks`, the raised IR can be re-managed using `--mlir-to-ckks` or
+`--torch-linalg-to-ckks`.
 
 ## CKKS
 

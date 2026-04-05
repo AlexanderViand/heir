@@ -69,6 +69,14 @@ def ConvertToCiphertextSemantics : Pass<"convert-to-ciphertext-semantics"> {
       /*default=*/"true",
       "Unroll kernel implementations."
     >,
+    Option<
+      "preserveStructuredOps",
+      "preserve-structured-ops",
+      "bool",
+      /*default=*/"false",
+      "If true, preserve tensor_ext.diagonal_matvec and polynomial.eval "
+      "as structured ops instead of expanding them."
+    >,
   ];
 }
 

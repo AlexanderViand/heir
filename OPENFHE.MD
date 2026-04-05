@@ -17,12 +17,10 @@ Source files used heavily:
 - `external/openfhe+/src/pke/lib/keyswitch/keyswitch-hybrid.cpp`
 - `external/openfhe+/src/pke/lib/schemebase/base-leveledshe.cpp`
 
-HEIR uses this source law upstream on managed CKKS / Orion IR in:
-
-- [`lib/Transforms/PopulateScale/ResolveOpenfheCKKSMetadata.cpp`](/Users/a.viand/Code/heir/lib/Transforms/PopulateScale/ResolveOpenfheCKKSMetadata.cpp)
-
-That pass runs before `ckks-to-lwe` and before `lwe-to-openfhe`. It is the place
-where OpenFHE-specific CKKS prediction belongs.
+HEIR uses this source law during management and conversion. OpenFHE-specific
+metadata (such as `openfhe.native_plaintext_level`) is set in `SecretToCKKS`
+when creating `orion.linear_transform` ops, derived from the managed level
+assignment in the ciphertext type.
 
 ## 1. Core state variables
 

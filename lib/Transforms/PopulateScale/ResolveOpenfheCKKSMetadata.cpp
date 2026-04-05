@@ -363,11 +363,6 @@ FailureOr<double> deriveOpenfhePredictiveScalingBits(
       return rescaleOp.emitOpError()
              << "expected exactly one secret operand for ckks.rescale";
     }
-    if (!usesExplicitPublicLevelManagement(scalingTechnique) ||
-        resolveScalingTechnique(scalingTechnique) ==
-            kScalingTechniqueNoRescale) {
-      return secretOperandScalingBits[0];
-    }
     return secretOperandScalingBits[0];
   }
 
@@ -375,11 +370,6 @@ FailureOr<double> deriveOpenfhePredictiveScalingBits(
     if (secretOperandScalingBits.size() != 1) {
       return levelReduceOp.emitOpError()
              << "expected exactly one secret operand for ckks.level_reduce";
-    }
-    if (!usesExplicitPublicLevelManagement(scalingTechnique) ||
-        resolveScalingTechnique(scalingTechnique) ==
-            kScalingTechniqueNoRescale) {
-      return secretOperandScalingBits[0];
     }
     return secretOperandScalingBits[0];
   }
@@ -505,9 +495,7 @@ FailureOr<int64_t> deriveOpenfheNoiseScaleDegree(
       return opRescale.emitOpError()
              << "expected exactly one secret operand for ckks.rescale";
     }
-    if (!usesExplicitPublicLevelManagement(scalingTechnique) ||
-        resolveScalingTechnique(scalingTechnique) ==
-            kScalingTechniqueNoRescale) {
+    if (!usesExplicitPublicLevelManagement(scalingTechnique)) {
       return secretOperandDegrees[0];
     }
     return std::max<int64_t>(1, secretOperandDegrees[0] - 1);
@@ -518,9 +506,7 @@ FailureOr<int64_t> deriveOpenfheNoiseScaleDegree(
       return opLevelReduce.emitOpError()
              << "expected exactly one secret operand for ckks.level_reduce";
     }
-    if (!usesExplicitPublicLevelManagement(scalingTechnique) ||
-        resolveScalingTechnique(scalingTechnique) ==
-            kScalingTechniqueNoRescale) {
+    if (!usesExplicitPublicLevelManagement(scalingTechnique)) {
       return secretOperandDegrees[0];
     }
     return std::max<int64_t>(
@@ -586,7 +572,7 @@ FailureOr<int64_t> deriveOpenfheEffectiveHeirLevel(
     ArrayRef<int64_t> secretOperandDegrees, StringRef scalingTechnique) {
   // This models the runtime ciphertext meeting level seen by native OpenFHE
   // operations, not the compiler's predictive CKKS management markers. In the
-  // predictive OpenFHE modes (`fixed-auto`, `flexible-auto`, and
+  // predictive OpenFHE modes (`flexible-auto` and
   // `flexible-auto-ext`), explicit `ckks.rescale` / `ckks.level_reduce`
   // markers are compiler structure only; the runtime Level changes only when
   // OpenFHE's own internal adjustment code drops towers.
@@ -658,9 +644,7 @@ FailureOr<int64_t> deriveOpenfheEffectiveHeirLevel(
     if (failed(level)) {
       return failure();
     }
-    if (!usesExplicitPublicLevelManagement(scalingTechnique) ||
-        resolveScalingTechnique(scalingTechnique) ==
-            kScalingTechniqueNoRescale) {
+    if (!usesExplicitPublicLevelManagement(scalingTechnique)) {
       return *level;
     }
     return *level - 1;
@@ -671,9 +655,7 @@ FailureOr<int64_t> deriveOpenfheEffectiveHeirLevel(
     if (failed(level)) {
       return failure();
     }
-    if (!usesExplicitPublicLevelManagement(scalingTechnique) ||
-        resolveScalingTechnique(scalingTechnique) ==
-            kScalingTechniqueNoRescale) {
+    if (!usesExplicitPublicLevelManagement(scalingTechnique)) {
       return *level;
     }
     return *level - static_cast<int64_t>(opLevelReduce.getLevelToDrop());
@@ -1686,23 +1668,11 @@ FailureOr<lbcrypto::ScalingTechnique> translateScalingTechnique(
   if (scalingTechnique == kScalingTechniqueFixedManual) {
     return lbcrypto::FIXEDMANUAL;
   }
-  if (scalingTechnique == kScalingTechniqueFixedAuto) {
-    return lbcrypto::FIXEDAUTO;
-  }
   if (scalingTechnique == kScalingTechniqueFlexibleAuto) {
     return lbcrypto::FLEXIBLEAUTO;
   }
   if (scalingTechnique == kScalingTechniqueFlexibleAutoExt) {
     return lbcrypto::FLEXIBLEAUTOEXT;
-  }
-  if (scalingTechnique == kScalingTechniqueCompositeAuto) {
-    return lbcrypto::COMPOSITESCALINGAUTO;
-  }
-  if (scalingTechnique == kScalingTechniqueCompositeManual) {
-    return lbcrypto::COMPOSITESCALINGMANUAL;
-  }
-  if (scalingTechnique == kScalingTechniqueNoRescale) {
-    return lbcrypto::NORESCALE;
   }
   module.emitOpError() << "unsupported OpenFHE scaling technique `"
                        << scalingTechnique << "`";

@@ -1,6 +1,9 @@
-// RUN: not heir-opt --annotate-orion="linear-transform-impl-style=opaque" --lwe-to-openfhe %s 2>&1 | FileCheck %s
+// Test that lwe-to-openfhe errors when native_plaintext_level is missing.
+// Note: --annotate-orion now sets this attribute, so we skip it here to test
+// the error path directly. The impl_style is baked into the IR instead.
+// RUN: not heir-opt --lwe-to-openfhe %s 2>&1 | FileCheck %s
 
-// CHECK: error: 'orion.linear_transform' op requires `openfhe.native_plaintext_level`; resolve OpenFHE CKKS management before `--secret-to-ckks` / `--lwe-to-openfhe` for opaque Orion linear transforms
+// CHECK: error: 'orion.linear_transform' op requires `openfhe.native_plaintext_level`; this should be set during secret-to-ckks conversion
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
 !Z66813953_i64 = !mod_arith.int<66813953 : i64>
@@ -19,7 +22,7 @@
 
 module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [536903681, 67043329, 66994177, 67239937, 66961409, 66813953], P = [536952833, 536690689], logDefaultScale = 26>} {
   func.func @linear_transform(%cc: !openfhe.crypto_context, %ct: !ct_L5, %arg0: tensor<2x4096xf64>) -> !ct_L5 {
-    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 1>, orion_level = 5 : i32, slots = 4096 : i32} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
+    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 1>, orion_level = 5 : i32, slots = 4096 : i32, orion.impl_style = "opaque", orion.level_cost_ub = 0 : i64} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
     return %ct_0 : !ct_L5
   }
 }

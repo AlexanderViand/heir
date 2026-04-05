@@ -2019,18 +2019,10 @@ LogicalResult OpenFhePkeEmitter::printOperation(GenParamsOp op) {
     StringRef enumName;
     if (scalingTechnique == "fixed-manual") {
       enumName = "FIXEDMANUAL";
-    } else if (scalingTechnique == "fixed-auto") {
-      enumName = "FIXEDAUTO";
     } else if (scalingTechnique == "flexible-auto") {
       enumName = "FLEXIBLEAUTO";
     } else if (scalingTechnique == "flexible-auto-ext") {
       enumName = "FLEXIBLEAUTOEXT";
-    } else if (scalingTechnique == "composite-auto") {
-      enumName = "COMPOSITESCALINGAUTO";
-    } else if (scalingTechnique == "composite-manual") {
-      enumName = "COMPOSITESCALINGMANUAL";
-    } else if (scalingTechnique == "no-rescale") {
-      enumName = "NORESCALE";
     } else {
       return op.emitError() << "unsupported OpenFHE scaling technique `"
                             << scalingTechnique << "`";

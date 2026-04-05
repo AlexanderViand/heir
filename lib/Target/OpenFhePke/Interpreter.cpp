@@ -1996,18 +1996,10 @@ void Interpreter::visit(GenParamsOp op) {
   if (!scalingTechnique.empty()) {
     if (scalingTechnique == "fixed-manual") {
       params->SetScalingTechnique(FIXEDMANUAL);
-    } else if (scalingTechnique == "fixed-auto") {
-      params->SetScalingTechnique(FIXEDAUTO);
     } else if (scalingTechnique == "flexible-auto") {
       params->SetScalingTechnique(FLEXIBLEAUTO);
     } else if (scalingTechnique == "flexible-auto-ext") {
       params->SetScalingTechnique(FLEXIBLEAUTOEXT);
-    } else if (scalingTechnique == "composite-auto") {
-      params->SetScalingTechnique(COMPOSITESCALINGAUTO);
-    } else if (scalingTechnique == "composite-manual") {
-      params->SetScalingTechnique(COMPOSITESCALINGMANUAL);
-    } else if (scalingTechnique == "no-rescale") {
-      params->SetScalingTechnique(NORESCALE);
     } else {
       op.emitError() << "unsupported OpenFHE scaling technique `"
                      << scalingTechnique << "`";

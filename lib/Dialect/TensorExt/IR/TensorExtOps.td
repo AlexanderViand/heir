@@ -273,5 +273,31 @@ def TensorExt_RotateAndReduceOp : TensorExt_Op<"rotate_and_reduce", [
   // TODO(#2134): Add canonicalization patterns
 }
 
+def TensorExt_DiagonalMatvecOp : TensorExt_Op<"diagonal_matvec", [Pure]> {
+  let summary = "Matrix-vector product using diagonal representation";
+  let description = [{
+    Represents a matrix-vector product where the matrix is given in diagonal
+    form: a 2-D tensor of diagonals and an array of diagonal indices.
+
+    This op exists at the tensor level (before lowering to ciphertext types)
+    to preserve the structured linear transform through the management pipeline.
+    It can be lowered to either:
+    - Basic rotate+multiply+add ops (via ConvertToCiphertextSemantics)
+    - A native backend linear transform op (via SecretToCKKS → orion.linear_transform)
+
+    The `diagonals` tensor has shape `[diagonal_count, slots]` where each row
+    is a non-zero diagonal of the weight matrix. The `diagonal_indices` array
+    maps each row to its diagonal index in the original matrix.
+  }];
+
+  let arguments = (ins
+    AnyRankedTensor:$input,
+    AnyRankedTensor:$diagonals,
+    DenseI32ArrayAttr:$diagonal_indices,
+    Builtin_IntegerAttr:$slots
+  );
+  let results = (outs AnyRankedTensor:$output);
+}
+
 
 #endif  // LIB_DIALECT_TENSOREXT_IR_TENSOREXTOPS_TD_
