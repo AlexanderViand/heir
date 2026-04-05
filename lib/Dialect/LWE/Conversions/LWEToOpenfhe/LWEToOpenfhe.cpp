@@ -4,6 +4,7 @@
 
 #include "lib/Dialect/BGV/IR/BGVDialect.h"
 #include "lib/Dialect/BGV/IR/BGVOps.h"
+#include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/IR/CKKSOps.h"
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
@@ -13,6 +14,11 @@
 #include "lib/Dialect/Openfhe/IR/OpenfheDialect.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
+#include "lib/Dialect/Openfhe/Transforms/ScalingTechniqueUtils.h"
+#include "lib/Dialect/Orion/IR/OrionDialect.h"
+#include "lib/Dialect/Orion/IR/OrionOps.h"
+#include "lib/Dialect/Orion/IR/OrionUtils.h"
+#include "lib/Utils/APIntUtils.h"
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
@@ -71,6 +77,90 @@ FailureOr<Value> getContextualCryptoContext(Operation* op) {
 }
 
 namespace {
+FailureOr<IntegerAttr> inferOpenfheNoiseScaleDegreeAttr(
+    lwe::RLWEEncodeOp op, PatternRewriter& rewriter) {
+  if (auto resolvedNoiseScaleDegree =
+          op->getAttrOfType<IntegerAttr>(openfhe::kNoiseScaleDegreeAttrName)) {
+    if (resolvedNoiseScaleDegree.getInt() < 0) {
+      op.emitOpError()
+          << "requires non-negative OpenFHE noise scale degree, but found "
+          << resolvedNoiseScaleDegree.getInt();
+      return failure();
+    }
+    return resolvedNoiseScaleDegree;
+  }
+
+  auto encoding = dyn_cast<lwe::InverseCanonicalEncodingAttr>(op.getEncoding());
+  if (!encoding) {
+    op.emitOpError()
+        << "expected inverse canonical encoding for OpenFHE CKKS packing";
+    return failure();
+  }
+
+  APInt scale = lwe::getScalingFactorFromEncodingAttr(encoding);
+  if (scale.isZero()) {
+    return IntegerAttr();
+  }
+  if (scale == 1) {
+    return rewriter.getI64IntegerAttr(0);
+  }
+
+  auto module = op->getParentOfType<ModuleOp>();
+  auto schemeParam = module->getAttrOfType<ckks::SchemeParamAttr>(
+      ckks::CKKSDialect::kSchemeParamAttrName);
+  if (!schemeParam) {
+    return IntegerAttr();
+  }
+
+  if (!scale.isPowerOf2()) {
+    llvm::SmallString<32> scaleString;
+    scale.toStringUnsigned(scaleString);
+    op.emitOpError()
+        << "OpenFHE plaintext packing currently requires a power-of-two "
+           "encoding scale, but found "
+        << scaleString.c_str();
+    return failure();
+  }
+
+  uint64_t logDefaultScale = schemeParam.getLogDefaultScale();
+  unsigned logScale = scale.logBase2();
+  if (logDefaultScale == 0 || logScale % logDefaultScale != 0) {
+    op.emitOpError()
+        << "OpenFHE plaintext packing currently requires the encoding "
+           "scale to be an exact power of the default scale 2^"
+        << logDefaultScale << ", but found 2^" << logScale;
+    return failure();
+  }
+  return rewriter.getI64IntegerAttr(
+      static_cast<int64_t>(logScale / logDefaultScale));
+}
+
+FailureOr<IntegerAttr> inferOpenfheLevelAttr(lwe::RLWEEncodeOp op,
+                                             PatternRewriter& rewriter) {
+  if (!op.getLevelAttr()) {
+    return IntegerAttr();
+  }
+
+  auto module = op->getParentOfType<ModuleOp>();
+  auto schemeParam = module->getAttrOfType<ckks::SchemeParamAttr>(
+      ckks::CKKSDialect::kSchemeParamAttrName);
+  if (!schemeParam) {
+    op.emitOpError()
+        << "requires ckks.schemeParam to infer the OpenFHE plaintext level";
+    return failure();
+  }
+
+  int64_t heirLevel = op.getLevelAttr().getInt();
+  int64_t maxHeirLevel = static_cast<int64_t>(schemeParam.getQ().size()) - 1;
+  if (heirLevel < 0 || heirLevel > maxHeirLevel) {
+    return op.emitOpError() << "expected CKKS encode level in [0, "
+                            << maxHeirLevel << "], but found " << heirLevel;
+  }
+
+  int64_t openfheLevel = maxHeirLevel - heirLevel;
+  return rewriter.getI64IntegerAttr(openfheLevel);
+}
+
 // NOTE: we can not use containsDialect
 // for FuncOp declaration, which does not have a body
 template <typename... Dialects>
@@ -265,8 +355,19 @@ struct ConvertEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto plaintextType = openfhe::PlaintextType::get(op.getContext());
     return llvm::TypeSwitch<Attribute, LogicalResult>(op.getEncoding())
         .Case<lwe::InverseCanonicalEncodingAttr>([&](auto encoding) {
+          FailureOr<IntegerAttr> noiseScaleDegree =
+              inferOpenfheNoiseScaleDegreeAttr(op, rewriter);
+          if (failed(noiseScaleDegree)) {
+            return failure();
+          }
+          FailureOr<IntegerAttr> levelAttr =
+              inferOpenfheLevelAttr(op, rewriter);
+          if (failed(levelAttr)) {
+            return failure();
+          }
           rewriter.replaceOpWithNewOp<openfhe::MakeCKKSPackedPlaintextOp>(
-              op, plaintextType, cryptoContext, input);
+              op, plaintextType, cryptoContext, input, noiseScaleDegree.value(),
+              levelAttr.value());
           return success();
         })
         .Case<lwe::CoefficientEncodingAttr>([&](auto encoding) {
@@ -369,6 +470,76 @@ struct ConvertBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
   }
 };
 
+struct ConvertOrionLinearTransformOp
+    : public OpConversionPattern<orion::LinearTransformOp> {
+  using OpConversionPattern<orion::LinearTransformOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      orion::LinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto implStyle = op->getAttrOfType<StringAttr>(orion::kImplStyleAttrName);
+    if (!implStyle) {
+      return op.emitOpError() << "requires Orion implementation style "
+                                 "annotation before OpenFHE lowering";
+    }
+    if (implStyle.getValue() == orion::kDiagonalBasicImplStyle) {
+      return op.emitOpError()
+             << "implementation style `" << orion::kDiagonalBasicImplStyle
+             << "` must be lowered by `--lower-orion` before targeting "
+                "OpenFHE";
+    }
+    if (implStyle.getValue() == orion::kOpaqueImplStyle) {
+      FailureOr<Value> result = getContextualCryptoContext(op.getOperation());
+      if (failed(result)) return result;
+      Value cryptoContext = result.value();
+
+      auto bsgsRatio = op.getBsgsRatioAttr();
+      int64_t logBsgsRatio = static_cast<int64_t>(bsgsRatio.getValueAsDouble());
+      auto plaintextLevel = op->getAttrOfType<IntegerAttr>(
+          openfhe::kNativePlaintextLevelAttrName);
+      if (!plaintextLevel) {
+        return op.emitOpError()
+               << "requires `openfhe.native_plaintext_level`; run "
+                  "`--openfhe-adjust-ckks-scheme-param` before "
+                  "`--lwe-to-openfhe` for opaque Orion linear transforms";
+      }
+
+      rewriter.replaceOpWithNewOp<openfhe::LinearTransformOp>(
+          op, this->typeConverter->convertType(op.getResult().getType()),
+          cryptoContext, adaptor.getInput(), adaptor.getDiagonals(),
+          op.getDiagonalIndicesAttr(), plaintextLevel,
+          rewriter.getI64IntegerAttr(logBsgsRatio));
+      return success();
+    }
+    return op.emitOpError() << "unsupported Orion implementation style `"
+                            << implStyle.getValue() << "`";
+  }
+};
+
+struct ConvertOrionChebyshevOp
+    : public OpConversionPattern<orion::ChebyshevOp> {
+  using OpConversionPattern<orion::ChebyshevOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      orion::ChebyshevOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    if (failed(orion::verifyImplStyle(op, orion::kOpaqueImplStyle))) {
+      return failure();
+    }
+
+    FailureOr<Value> result = getContextualCryptoContext(op.getOperation());
+    if (failed(result)) return result;
+    Value cryptoContext = result.value();
+
+    Type resultType = convertLWEType(op.getResult().getType());
+    rewriter.replaceOpWithNewOp<openfhe::ChebyshevSeriesOp>(
+        op, resultType, cryptoContext, adaptor.getInput(),
+        op.getCoefficientsAttr(), op.getDomainStartAttr(),
+        op.getDomainEndAttr());
+    return success();
+  }
+};
+
 }  // namespace
 
 struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
@@ -416,6 +587,8 @@ struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
     target.addIllegalDialect<bgv::BGVDialect>();
     target.addIllegalDialect<ckks::CKKSDialect>();
     target.addIllegalDialect<lwe::LWEDialect>();
+    target.addIllegalOp<orion::LinearTransformOp>();
+    target.addIllegalOp<orion::ChebyshevOp>();
 
     RewritePatternSet patterns(context);
     addStructuralConversionPatterns(typeConverter, patterns, target);
@@ -506,7 +679,10 @@ struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
         lwe::ConvertLevelReduceOp<bgv::LevelReduceOp>,
         lwe::ConvertLevelReduceOp<ckks::LevelReduceOp>,
         // Bootstrap (CKKS only)
-        ConvertBootstrapOp>(typeConverter, context);
+        ConvertBootstrapOp,
+        // Orion
+        ConvertOrionLinearTransformOp, ConvertOrionChebyshevOp>(typeConverter,
+                                                                context);
 
     ConversionConfig config;
     // We need allowPatternRollback here because failure to legalize an op

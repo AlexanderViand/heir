@@ -15,7 +15,7 @@ heir_opt(
     generated_filename = "loop_cheddar.mlir",
     pass_flags = [
         "--annotate-module=backend=cheddar scheme=ckks",
-        "--mlir-to-ckks=ciphertext-degree=32768 ckks-reconcile-policy=canonical-per-level",
+        "--mlir-to-ckks=ciphertext-degree=32768 ckks-reconcile-policy=default-scale-schedule",
         "--scheme-to-cheddar",
     ],
 )

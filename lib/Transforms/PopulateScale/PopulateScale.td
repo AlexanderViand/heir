@@ -15,7 +15,7 @@ def ResolveReconcileCKKS : Pass<"resolve-reconcile-ckks"> {
   let options = [
     Option<"reconcilePolicy", "reconcile-policy", "std::string",
            /*default=*/"\"local-highest-meeting-point\"",
-           "CKKS reconciliation policy: `local-highest-meeting-point` or `canonical-per-level`">,
+           "CKKS reconciliation policy: `local-highest-meeting-point` or `default-scale-schedule`">,
   ];
 }
 

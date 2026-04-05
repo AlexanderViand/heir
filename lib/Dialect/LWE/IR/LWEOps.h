@@ -95,6 +95,34 @@ inline bool compatiblePlaintextSpacesForModulusSwitchOrRescale(
                                                           rhs.getEncoding());
 }
 
+inline bool compatibleSecretKeyAndCiphertextRingsForDecrypt(
+    polynomial::RingAttr secretKeyRing, polynomial::RingAttr ciphertextRing) {
+  if (secretKeyRing == ciphertextRing) {
+    return true;
+  }
+  if (secretKeyRing.getPolynomialModulus() !=
+      ciphertextRing.getPolynomialModulus()) {
+    return false;
+  }
+
+  auto secretKeyRns =
+      dyn_cast<rns::RNSType>(secretKeyRing.getCoefficientType());
+  auto ciphertextRns =
+      dyn_cast<rns::RNSType>(ciphertextRing.getCoefficientType());
+  if (!secretKeyRns || !ciphertextRns) {
+    return false;
+  }
+
+  auto secretKeyBasis = secretKeyRns.getBasisTypes();
+  auto ciphertextBasis = ciphertextRns.getBasisTypes();
+  if (ciphertextBasis.size() > secretKeyBasis.size()) {
+    return false;
+  }
+  return llvm::equal(
+      ciphertextBasis,
+      ArrayRef<Type>(secretKeyBasis).take_front(ciphertextBasis.size()));
+}
+
 template <typename Op>
 LogicalResult verifyAddOp(Op* op) {
   auto x = getCtTy(op->getLhs());

@@ -203,7 +203,7 @@ module attributes {scheme.bgv} {
     // CHECK: [[PARAMS]].SetEncryptionTechnique(EXTENDED);
     // CHECK: [[PARAMS]].SetKeySwitchTechnique(BV);
     // CHECK: [[PARAMS]].SetScalingTechnique(FIXEDMANUAL);
-    %0 = openfhe.gen_params  {mulDepth = 2 : i64, plainMod = 17 : i64, ringDim = 16384, batchSize = 8, firstModSize = 59, scalingModSize = 59, evalAddCount = 2 : i64, keySwitchCount = 1 : i64, digitSize = 16, numLargeDigits = 2, maxRelinSkDeg = 3, insecure = true, encryptionTechniqueExtended = true, keySwitchingTechniqueBV = true, scalingTechniqueFixedManual = true} : () -> !openfhe.cc_params
+    %0 = openfhe.gen_params  {mulDepth = 2 : i64, plainMod = 17 : i64, ringDim = 16384, batchSize = 8, firstModSize = 59, scalingModSize = 59, evalAddCount = 2 : i64, keySwitchCount = 1 : i64, digitSize = 16, numLargeDigits = 2, maxRelinSkDeg = 3, insecure = true, encryptionTechniqueExtended = true, keySwitchingTechniqueBV = true, scalingTechnique = "fixed-manual"} : () -> !openfhe.cc_params
     return %0 : !openfhe.cc_params
   }
 }
@@ -375,7 +375,7 @@ module attributes {scheme.ckks} {
 // CHECK: CiphertextT test_fast_rot(
 // CHECK-SAME:    CryptoContextT [[CC:[^,]*]],
 // CHECK-SAME:    CiphertextT [[ARG1:[^,]*]]) {
-// CHECK-NEXT:      size_t [[v0:.*]] = 4;
+// CHECK-NEXT:      int64_t [[v0:.*]] = 4;
 // CHECK-NEXT:      const auto& [[v3:.*]] = [[CC]]->EvalFastRotationPrecompute([[ARG1]]);
 // CHECK-NEXT:      const auto& [[v4:.*]] = [[CC]]->EvalFastRotation([[ARG1]], 4, 2 * [[CC]]->GetRingDimension(), [[v3]]);
 // CHECK-NEXT:      return [[v4]];

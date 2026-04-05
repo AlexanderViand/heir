@@ -18,6 +18,7 @@
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Orion/IR/OrionDialect.h"
 #include "lib/Dialect/Orion/IR/OrionOps.h"
+#include "lib/Dialect/Orion/IR/OrionUtils.h"
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
@@ -39,25 +40,6 @@
 #define DEBUG_TYPE "lwe-to-cheddar"
 
 namespace mlir::heir::lwe {
-
-constexpr StringRef kDiagonalBSGSImplStyle = "diagonal-bsgs";
-constexpr StringRef kBSGSImplStyle = "bsgs";
-
-static LogicalResult verifyOrionImplStyle(Operation* op,
-                                          StringRef expectedStyle) {
-  auto implStyle = op->getAttrOfType<StringAttr>(orion::kImplStyleAttrName);
-  if (!implStyle) {
-    return op->emitOpError()
-           << "requires Orion implementation style `" << expectedStyle
-           << "`, but no `orion.impl_style` annotation is present";
-  }
-  if (implStyle.getValue() == expectedStyle) {
-    return success();
-  }
-  return op->emitOpError() << "requires Orion implementation style `"
-                           << expectedStyle << "`, but got `"
-                           << implStyle.getValue() << "`";
-}
 
 static FailureOr<int64_t> getCKKSLogDefaultScale(Operation* op) {
   auto moduleOp = op->getParentOfType<ModuleOp>();
@@ -619,7 +601,7 @@ struct ConvertOrionLinearTransformOp
   LogicalResult matchAndRewrite(
       orion::LinearTransformOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    if (failed(verifyOrionImplStyle(op, kDiagonalBSGSImplStyle))) {
+    if (failed(orion::verifyImplStyle(op, orion::kOpaqueImplStyle))) {
       return failure();
     }
     auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
@@ -652,7 +634,7 @@ struct ConvertOrionChebyshevOp
   LogicalResult matchAndRewrite(
       orion::ChebyshevOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    if (failed(verifyOrionImplStyle(op, kBSGSImplStyle))) {
+    if (failed(orion::verifyImplStyle(op, orion::kOpaqueImplStyle))) {
       return failure();
     }
     auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());

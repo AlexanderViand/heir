@@ -61,7 +61,7 @@ FailureOr<std::string> convertType(Type type, Location loc, bool constant) {
           [&](auto ty) { return std::string("PrivateKeyT"); })
       .Case<openfhe::PublicKeyType>(
           [&](auto ty) { return std::string("PublicKeyT"); })
-      .Case<IndexType>([&](auto ty) { return std::string("size_t"); })
+      .Case<IndexType>([&](auto ty) { return std::string("int64_t"); })
       .Case<IntegerType>([&](auto ty) -> FailureOr<std::string> {
         auto width = ty.getWidth();
         if (width == 1) {

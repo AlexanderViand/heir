@@ -23,15 +23,15 @@ namespace {
 
 enum class CKKSReconcilePolicyKind {
   kLocalHighestMeetingPoint,
-  kCanonicalPerLevel,
+  kDefaultScaleSchedule,
 };
 
 FailureOr<CKKSReconcilePolicyKind> parseCKKSReconcilePolicy(StringRef policy) {
   if (policy == "local-highest-meeting-point") {
     return CKKSReconcilePolicyKind::kLocalHighestMeetingPoint;
   }
-  if (policy == "canonical-per-level") {
-    return CKKSReconcilePolicyKind::kCanonicalPerLevel;
+  if (policy == "default-scale-schedule") {
+    return CKKSReconcilePolicyKind::kDefaultScaleSchedule;
   }
   return failure();
 }
@@ -66,7 +66,7 @@ Value materializeReconcile(IRRewriter& rewriter, Location loc, Value input,
                                               rewriter.getI64IntegerAttr(id));
         managed = mgmt::ModReduceOp::create(rewriter, loc, managed);
         return managed;
-      case CKKSReconcilePolicyKind::kCanonicalPerLevel:
+      case CKKSReconcilePolicyKind::kDefaultScaleSchedule:
         managed = mgmt::LevelReduceOp::create(rewriter, loc, managed,
                                               targetLevel - inputLevel);
         managed = mgmt::AdjustScaleOp::create(rewriter, loc, managed,
@@ -97,7 +97,7 @@ struct ResolveReconcileCKKS
       getOperation()->emitOpError()
           << "unsupported CKKS reconcile policy `" << reconcilePolicy
           << "`; expected `local-highest-meeting-point` or "
-             "`canonical-per-level`";
+             "`default-scale-schedule`";
       signalPassFailure();
       return;
     }

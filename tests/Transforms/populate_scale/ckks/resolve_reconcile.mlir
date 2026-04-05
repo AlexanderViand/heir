@@ -1,5 +1,5 @@
 // RUN: heir-opt %s --secret-insert-mgmt-ckks=before-mul-include-first-mul --resolve-reconcile-ckks | FileCheck %s --check-prefix=LOCAL
-// RUN: heir-opt %s --secret-insert-mgmt-ckks=before-mul-include-first-mul --resolve-reconcile-ckks="reconcile-policy=canonical-per-level" | FileCheck %s --check-prefix=CANONICAL
+// RUN: heir-opt %s --secret-insert-mgmt-ckks=before-mul-include-first-mul --resolve-reconcile-ckks="reconcile-policy=default-scale-schedule" | FileCheck %s --check-prefix=CANONICAL
 
 module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 14, Q = [36028797019389953, 35184372121601, 35184372744193], P = [36028797019488257, 36028797020209153], logDefaultScale = 45>, scheme.ckks} {
   func.func @mul(%arg0: !secret.secret<f32>) -> !secret.secret<f32> {

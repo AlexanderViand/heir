@@ -82,6 +82,8 @@ void __heir_debug(CryptoContextT cc, PrivateKeyT sk, CiphertextT ct,
 
   // print the scale
   std::cout << "  Scale: " << log2(ct->GetScalingFactor()) << std::endl;
+  std::cout << "  Level: " << ct->GetLevel() << std::endl;
+  std::cout << "  NoiseScaleDeg: " << ct->GetNoiseScaleDeg() << std::endl;
 
 #ifdef PRECISION
   if (debugAttrMap.find("secret.execution_result") != debugAttrMap.end()) {

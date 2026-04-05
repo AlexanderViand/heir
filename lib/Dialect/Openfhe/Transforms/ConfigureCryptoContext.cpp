@@ -1,9 +1,8 @@
 #include "lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.h"
 
 #include <cstdint>
-#include <set>
+#include <limits>
 #include <string>
-#include <vector>
 
 #include "lib/Analysis/MulDepthAnalysis/MulDepthAnalysis.h"
 #include "lib/Analysis/RotationAnalysis/RotationAnalysis.h"
@@ -19,9 +18,12 @@
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
+#include "lib/Dialect/Openfhe/Transforms/ScalingTechniqueUtils.h"
+#include "lib/Utils/RotationUtils.h"
 #include "lib/Utils/TransformUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
+#include "llvm/include/llvm/Support/MathExtras.h"          // from @llvm-project
 #include "llvm/include/llvm/Support/raw_ostream.h"         // from @llvm-project
 #include "mlir/include/mlir/Analysis/DataFlow/Utils.h"     // from @llvm-project
 #include "mlir/include/mlir/Analysis/DataFlowFramework.h"  // from @llvm-project
@@ -42,8 +44,6 @@
 #include "mlir/include/mlir/Support/LogicalResult.h"       // from @llvm-project
 #include "mlir/include/mlir/Support/WalkResult.h"          // from @llvm-project
 #include "mlir/include/mlir/Transforms/Passes.h"           // from @llvm-project
-#include "src/core/include/lattice/constants-lattice.h"    // from @openfhe
-#include "src/pke/include/scheme/ckksrns/ckksrns-fhe.h"    // from @openfhe
 
 #define DEBUG_TYPE "openfhe-configure-crypto-context"
 
@@ -55,6 +55,7 @@ struct Config {
   // computed from IR
   bool hasRelinOp;
   bool hasBootstrapOp;
+  bool hasAdvancedSHEOp;
   SmallVector<int64_t> rotIndices;
   // inherited from IR mgmt.openfhe_params
   int64_t evalAddCount;
@@ -69,7 +70,6 @@ struct Config {
   // from pass options
   // directly applies to GenParamsOp
   int ringDim;
-  // TODO(#1441): inherit batch size from IR
   int batchSize;
   int firstModSize;
   int scalingModSize;
@@ -78,7 +78,7 @@ struct Config {
   int maxRelinSkDeg;
   bool insecure;
   bool keySwitchingTechniqueBV;
-  bool scalingTechniqueFixedManual;
+  std::string scalingTechnique;
   // for bootstrapping
   int64_t levelBudgetEncode;
   int64_t levelBudgetDecode;
@@ -120,6 +120,19 @@ struct ConfigureCryptoContext
     return result;
   }
 
+  bool hasAdvancedSHEOp(func::FuncOp op) {
+    bool result = false;
+    walkFuncAndCallees(op, [&](Operation* op) {
+      if (isa<openfhe::ChebyshevSeriesOp, openfhe::LinearTransformOp,
+              openfhe::FastRotationExtOp, openfhe::KeySwitchDownOp>(op)) {
+        result = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+    return result;
+  }
+
   // function that generates the crypto context with proper parameters
   LogicalResult generateGenFunc(func::FuncOp op, const std::string& genFuncName,
                                 ImplicitLocOpBuilder& builder) {
@@ -153,10 +166,11 @@ struct ConfigureCryptoContext
         /*insecure*/ config.insecure,
         /*encryptionTechniqueExtended*/ config.encryptionTechniqueExtended,
         /*keySwitchingTechniqueBV*/ config.keySwitchingTechniqueBV,
-        /*scalingTechniqueFixedManual*/ config.scalingTechniqueFixedManual);
+        /*scalingTechnique*/ builder.getStringAttr(config.scalingTechnique));
     Value cryptoContext = openfhe::GenContextOp::create(
         builder, openfheContextType, ccParams,
-        BoolAttr::get(builder.getContext(), config.hasBootstrapOp));
+        BoolAttr::get(builder.getContext(),
+                      config.hasBootstrapOp || config.hasAdvancedSHEOp));
 
     func::ReturnOp::create(builder, cryptoContext);
     return success();
@@ -186,7 +200,7 @@ struct ConfigureCryptoContext
     Value cryptoContext = configFuncOp.getArgument(0);
     Value privateKey = configFuncOp.getArgument(1);
 
-    if (config.hasRelinOp || config.hasBootstrapOp) {
+    if (config.hasRelinOp || config.hasBootstrapOp || config.hasAdvancedSHEOp) {
       openfhe::GenMulKeyOp::create(builder, cryptoContext, privateKey);
     }
     if (!config.rotIndices.empty()) {
@@ -234,6 +248,23 @@ struct ConfigureCryptoContext
 
   LogicalResult getConfig(func::FuncOp op) {
     auto module = op->getParentOfType<ModuleOp>();
+    int inferredRingDim = 0;
+    int inferredBatchSize = 0;
+    int inferredFirstModSize = 0;
+    int inferredScalingModSize = 0;
+    int inferredMulDepth = 0;
+    std::string inferredScalingTechnique;
+    bool inferredCkksSchemeParam = false;
+
+    if (auto scalingTechniqueAttr =
+            module->getAttrOfType<StringAttr>(kScalingTechniqueAttrName)) {
+      inferredScalingTechnique = scalingTechniqueAttr.getValue().str();
+    }
+    if (auto requestedSlotCountAttr =
+            module->getAttrOfType<IntegerAttr>(kRequestedSlotCountAttrName)) {
+      inferredBatchSize =
+          static_cast<int>(requestedSlotCountAttr.getValue().getSExtValue());
+    }
 
     // remove bgv.schemeParam attribute if present
     // fill encryptionTechniqueExtended and plaintextModulus
@@ -261,59 +292,82 @@ struct ConfigureCryptoContext
     // in CKKS.
     if (auto schemeParamAttr = module->getAttrOfType<ckks::SchemeParamAttr>(
             ckks::CKKSDialect::kSchemeParamAttrName)) {
+      inferredCkksSchemeParam = true;
       if (schemeParamAttr.getEncryptionTechnique() ==
           ckks::CKKSEncryptionTechnique::extended) {
         module->emitError(
             "Extended encryption technique is not supported in OpenFHE CKKS");
         return failure();
       }
+      inferredRingDim =
+          static_cast<int>(int64_t{1} << schemeParamAttr.getLogN());
+      if (inferredBatchSize == 0) {
+        inferredBatchSize =
+            static_cast<int>((int64_t{1} << schemeParamAttr.getLogN()) / 2);
+      }
+      auto q = schemeParamAttr.getQ();
+      if (!q.empty()) {
+        // OpenFHE's GenCryptoContext interprets multiplicative depth as the
+        // number of ct-ct multiply stages and internally allocates one more Q
+        // modulus than that depth. HEIR's ckks.schemeParam stores the actual
+        // Q chain, so the readout mapping is |Q| - 1.
+        inferredMulDepth = static_cast<int>(q.size()) - 1;
+        auto firstQ = static_cast<uint64_t>(q[0]);
+        inferredFirstModSize =
+            std::numeric_limits<uint64_t>::digits - llvm::countl_zero(firstQ);
+      }
+      inferredScalingModSize = schemeParamAttr.getLogDefaultScale();
       module->removeAttr(ckks::CKKSDialect::kSchemeParamAttrName);
     }
 
-    LLVM_DEBUG(llvm::dbgs() << "Recomputing mul depth\n");
-    DataFlowSolver solver;
-    dataflow::loadBaselineAnalyses(solver);
-    solver.load<SecretnessAnalysis>();
-    solver.load<MulDepthAnalysis>();
-
-    if (failed(solver.initializeAndRun(module))) {
-      op->emitOpError() << "Failed to run mul depth analysis.\n";
-      return failure();
-    }
-
     config.mulDepth = 0;
-    walkValues(op, [&](Value value) {
-      auto mulDepthState =
-          solver.lookupState<MulDepthLattice>(value)->getValue();
-      if (!mulDepthState.isInitialized()) {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "mul depth uninitialized at " << value << "\n");
-        return;
+    if (!moduleIsCKKS(module) || !inferredCkksSchemeParam) {
+      LLVM_DEBUG(llvm::dbgs() << "Recomputing mul depth\n");
+      DataFlowSolver solver;
+      dataflow::loadBaselineAnalyses(solver);
+      solver.load<SecretnessAnalysis>();
+      solver.load<MulDepthAnalysis>();
+
+      if (failed(solver.initializeAndRun(module))) {
+        op->emitOpError() << "Failed to run mul depth analysis.\n";
+        return failure();
       }
-      auto mulDepth = mulDepthState.getMulDepth();
-      if (mulDepth > config.mulDepth) {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "Found larger mul depth=" << mulDepth << "\n");
-        config.mulDepth = mulDepth;
-      }
-    });
+
+      walkValues(op, [&](Value value) {
+        auto mulDepthState =
+            solver.lookupState<MulDepthLattice>(value)->getValue();
+        if (!mulDepthState.isInitialized()) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "mul depth uninitialized at " << value << "\n");
+          return;
+        }
+        auto mulDepth = mulDepthState.getMulDepth();
+        if (mulDepth > config.mulDepth) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "Found larger mul depth=" << mulDepth << "\n");
+          config.mulDepth = mulDepth;
+        }
+      });
+    }
 
     config.hasBootstrapOp = hasBootstrapOp(op);
-    // TODO(#1207): determine mulDepth earlier in mgmt level. This solely
-    // depends on the level budgets and secretKeyDist here we use the value for
-    // UNIFORM_TERNARY
-    std::vector<uint32_t> levelBudgets = {
-        static_cast<uint32_t>(levelBudgetEncode),
-        static_cast<uint32_t>(levelBudgetDecode)};
-    int bootstrapDepth = lbcrypto::FHECKKSRNS::GetBootstrapDepth(
-        levelBudgets, lbcrypto::UNIFORM_TERNARY);
-    if (config.hasBootstrapOp) {
-      config.mulDepth += bootstrapDepth;
-    }
+    config.hasAdvancedSHEOp = hasAdvancedSHEOp(op);
 
     // pass option could override mulDepth
     if (mulDepth != 0) {
       config.mulDepth = mulDepth;
+    } else if (inferredMulDepth != 0) {
+      config.mulDepth = inferredMulDepth;
+    }
+
+    if (moduleIsCKKS(module) && !inferredCkksSchemeParam && mulDepth == 0 &&
+        (config.hasBootstrapOp || config.hasAdvancedSHEOp)) {
+      op.emitOpError()
+          << "CKKS OpenFHE configuration for bootstrap, linear_transform, "
+             "and chebyshev_series requires a precomputed `ckks.schemeParam` "
+             "or an explicit `--openfhe-configure-crypto-context=mul-depth=` "
+             "override";
+      return failure();
     }
 
     // relin and rotation
@@ -327,6 +381,18 @@ struct ConfigureCryptoContext
     }
 
     auto setIndices = analysis.getRotationIndices();
+    module.walk([&](openfhe::LinearTransformOp ltOp) {
+      auto diagonalsType =
+          dyn_cast<RankedTensorType>(ltOp.getDiagonals().getType());
+      if (!diagonalsType || diagonalsType.getRank() != 2) {
+        return;
+      }
+      int64_t slots = diagonalsType.getShape()[1];
+      auto ltIndices = lintransRotationIndices(
+          ltOp.getDiagonalIndicesAttr().asArrayRef(), slots,
+          ltOp.getLogBabyStepGiantStepRatioAttr().getInt());
+      setIndices.insert(ltIndices.begin(), ltIndices.end());
+    });
     SmallVector<int64_t> indices(setIndices.begin(), setIndices.end());
     LLVM_DEBUG({
       llvm::dbgs() << "Finished rotation analysis; found " << indices.size()
@@ -350,16 +416,34 @@ struct ConfigureCryptoContext
     }
 
     // fill config with pass options
-    config.ringDim = ringDim;
-    config.batchSize = batchSize;
-    config.firstModSize = firstModSize;
-    config.scalingModSize = scalingModSize;
+    config.ringDim = ringDim != 0 ? ringDim : inferredRingDim;
+    config.batchSize = batchSize != 0 ? batchSize : inferredBatchSize;
+    config.firstModSize =
+        firstModSize != 0 ? firstModSize : inferredFirstModSize;
+    config.scalingModSize =
+        scalingModSize != 0 ? scalingModSize : inferredScalingModSize;
     config.digitSize = digitSize;
     config.numLargeDigits = numLargeDigits;
     config.maxRelinSkDeg = maxRelinSkDeg;
     config.insecure = insecure;
     config.keySwitchingTechniqueBV = keySwitchingTechniqueBV;
-    config.scalingTechniqueFixedManual = scalingTechniqueFixedManual;
+    if (!isSupportedScalingTechnique(scalingTechnique)) {
+      module->emitError() << "unsupported OpenFHE scaling technique `"
+                          << scalingTechnique << "`";
+      return failure();
+    }
+    config.scalingTechnique =
+        scalingTechnique.empty() ? inferredScalingTechnique : scalingTechnique;
+    if (moduleIsCKKS(module) && inferredCkksSchemeParam &&
+        config.scalingTechnique.empty()) {
+      module->emitError()
+          << "CKKS OpenFHE configuration requires the scaling technique to be "
+             "resolved before `openfhe-configure-crypto-context`; run the "
+             "OpenFHE CKKS adjustment pass first or pass an explicit "
+             "`--openfhe-configure-crypto-context=scaling-technique=` "
+             "override";
+      return failure();
+    }
     config.levelBudgetDecode = levelBudgetDecode;
     config.levelBudgetEncode = levelBudgetEncode;
 
@@ -393,7 +477,14 @@ struct ConfigureCryptoContext
 
     auto funcOp =
         detectEntryFunction(cast<ModuleOp>(getOperation()), entryFunction);
-    if (funcOp && succeeded(getConfig(funcOp)) && failed(convertFunc(funcOp))) {
+    if (!funcOp) {
+      return;
+    }
+    if (failed(getConfig(funcOp))) {
+      signalPassFailure();
+      return;
+    }
+    if (failed(convertFunc(funcOp))) {
       funcOp->emitError("Failed to configure the crypto context for func");
       signalPassFailure();
     }

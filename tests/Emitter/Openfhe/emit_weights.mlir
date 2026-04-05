@@ -4,7 +4,7 @@
 
 module attributes {scheme.ckks} {
   // CHECK: test_external_weights
-  // CHECK-SAME: size_t [[v0:.*]]) {
+  // CHECK-SAME: int64_t [[v0:.*]]) {
   // CHECK-NEXT: Weights weights = GetWeightModule("[[FILE:.*]]");
   // CHECK-NEXT: std::vector<int8_t> [[v1:.*]] =
   // CHECK-SAME:    weights.int8_ts["[[v1]]"];

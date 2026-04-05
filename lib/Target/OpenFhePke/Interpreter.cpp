@@ -18,6 +18,8 @@
 #include "lib/Dialect/RNS/IR/RNSDialect.h"
 #include "lib/Dialect/RNS/IR/RNSTypeInterfaces.h"
 #include "lib/Dialect/TensorExt/IR/TensorExtDialect.h"
+#include "lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h"
+#include "lib/Target/OpenFhePke/OpenFheUtils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"        // from @llvm-project
 #include "llvm/include/llvm/ADT/TypeSwitch.h"       // from @llvm-project
 #include "llvm/include/llvm/Support/Casting.h"      // from @llvm-project
@@ -54,7 +56,6 @@
 #include "src/pke/include/key/privatekey-fwd.h"          // from @openfhe
 #include "src/pke/include/key/publickey-fwd.h"           // from @openfhe
 #include "src/pke/include/openfhe.h"                     // from @openfhe
-
 #ifdef OPENFHE_ENABLE_TIMING
 #define TIME_OPERATION_VOID(op_name, code)                  \
   do {                                                      \
@@ -156,6 +157,7 @@ void Interpreter::initializeDispatchTable() {
   REGISTER_OP(AddPlainOp);
   REGISTER_OP(AutomorphOp);
   REGISTER_OP(BootstrapOp);
+  REGISTER_OP(ChebyshevSeriesOp);
   REGISTER_OP(DecodeCKKSOp);
   REGISTER_OP(DecodeOp);
   REGISTER_OP(DecryptOp);
@@ -173,6 +175,7 @@ void Interpreter::initializeDispatchTable() {
   REGISTER_OP(KeySwitchDownOp);
   REGISTER_OP(LevelReduceInPlaceOp);
   REGISTER_OP(LevelReduceOp);
+  REGISTER_OP(LinearTransformOp);
   REGISTER_OP(MakeCKKSPackedPlaintextOp);
   REGISTER_OP(MakePackedPlaintextOp);
   REGISTER_OP(ModReduceInPlaceOp);
@@ -1842,22 +1845,105 @@ void Interpreter::visit(MakeCKKSPackedPlaintextOp op) {
   auto cc = cryptoContexts.at(op.getCryptoContext());
   auto valType = op.getValue().getType();
   auto elemType = cast<RankedTensorType>(valType).getElementType();
+  size_t noiseScaleDeg =
+      op.getNoiseScaleDegreeAttr()
+          ? static_cast<size_t>(op.getNoiseScaleDegreeAttr().getInt())
+          : static_cast<size_t>(1);
+  uint32_t level = op.getLevelAttr()
+                       ? static_cast<uint32_t>(op.getLevelAttr().getInt())
+                       : static_cast<uint32_t>(0);
 
   if (elemType.isF32()) {
     const auto& vec = *floatVectors.at(op.getValue());
     std::vector<double> vecDouble(vec.begin(), vec.end());
-    TIME_OPERATION_NONCT("MakeCKKSPackedPlaintext", op.getPlaintext(),
-                         cc->MakeCKKSPackedPlaintext(vecDouble), plaintexts);
+    TIME_OPERATION_NONCT(
+        "MakeCKKSPackedPlaintext", op.getPlaintext(),
+        cc->MakeCKKSPackedPlaintext(vecDouble, noiseScaleDeg, level),
+        plaintexts);
   } else if (elemType.isF64()) {
     const auto& vec = *doubleVectors.at(op.getValue());
     TIME_OPERATION_NONCT("MakeCKKSPackedPlaintext", op.getPlaintext(),
-                         cc->MakeCKKSPackedPlaintext(vec), plaintexts);
+                         cc->MakeCKKSPackedPlaintext(vec, noiseScaleDeg, level),
+                         plaintexts);
   } else if (elemType.isInteger()) {
     const auto& vec = *intVectors.at(op.getValue());
     std::vector<double> vecDouble(vec.begin(), vec.end());
-    TIME_OPERATION_NONCT("MakeCKKSPackedPlaintext", op.getPlaintext(),
-                         cc->MakeCKKSPackedPlaintext(vecDouble), plaintexts);
+    TIME_OPERATION_NONCT(
+        "MakeCKKSPackedPlaintext", op.getPlaintext(),
+        cc->MakeCKKSPackedPlaintext(vecDouble, noiseScaleDeg, level),
+        plaintexts);
   }
+}
+
+void Interpreter::visit(ChebyshevSeriesOp op) {
+  auto cc = cryptoContexts.at(op.getCryptoContext());
+  auto ciphertext = ciphertexts.at(op.getCiphertext());
+  auto coeffsAttr = op->getAttrOfType<ArrayAttr>("coefficients");
+  if (!coeffsAttr) {
+    llvm::report_fatal_error("ChebyshevSeriesOp missing coefficients");
+  }
+
+  std::vector<double> coeffs;
+  coeffs.reserve(coeffsAttr.size());
+  for (Attribute attr : coeffsAttr) {
+    auto floatAttr = dyn_cast<FloatAttr>(attr);
+    if (!floatAttr) {
+      llvm::report_fatal_error(
+          "ChebyshevSeriesOp expected floating-point coefficients");
+    }
+    coeffs.push_back(floatAttr.getValueAsDouble());
+  }
+
+  TIME_OPERATION(
+      "EvalChebyshevSeries", op.getOutput(),
+      cc->EvalChebyshevSeries(ciphertext, coeffs,
+                              op.getDomainStartAttr().getValueAsDouble(),
+                              op.getDomainEndAttr().getValueAsDouble()));
+}
+
+void Interpreter::visit(LinearTransformOp op) {
+  auto cc = cryptoContexts.at(op.getCryptoContext());
+  auto input = ciphertexts.at(op.getCiphertext());
+
+  auto diagonalsType = dyn_cast<RankedTensorType>(op.getDiagonals().getType());
+  if (!diagonalsType || diagonalsType.getRank() != 2) {
+    llvm::report_fatal_error(
+        "LinearTransformOp expected diagonals operand to be rank-2");
+  }
+  int64_t numDiagonals = diagonalsType.getShape()[0];
+  int64_t slots = diagonalsType.getShape()[1];
+  auto diagonalIndices = op.getDiagonalIndicesAttr().asArrayRef();
+  if (static_cast<int64_t>(diagonalIndices.size()) != numDiagonals) {
+    llvm::report_fatal_error(
+        "LinearTransformOp diagonal count does not match diagonal_indices");
+  }
+
+  const std::vector<double>* diagonalData = nullptr;
+  std::vector<double> diagonalDataStorage;
+  if (auto it = doubleVectors.find(op.getDiagonals());
+      it != doubleVectors.end()) {
+    diagonalData = it->second.get();
+  } else if (auto it = floatVectors.find(op.getDiagonals());
+             it != floatVectors.end()) {
+    diagonalDataStorage.assign(it->second->begin(), it->second->end());
+    diagonalData = &diagonalDataStorage;
+  } else {
+    llvm::report_fatal_error(
+        "LinearTransformOp expected floating-point diagonal tensor storage");
+  }
+
+  TIME_OPERATION(
+      "LinearTransform", op.getOutput(), ([&]() {
+        auto dim1 =
+            findBestBSGSRatio(diagonalIndices, slots,
+                              op.getLogBabyStepGiantStepRatioAttr().getInt());
+        std::vector<int32_t> diagonalIndicesVector(diagonalIndices.begin(),
+                                                   diagonalIndices.end());
+        return evalOpenfheSparseLinearTransform(
+            cc, input, *diagonalData, diagonalIndicesVector,
+            static_cast<uint32_t>(slots), static_cast<uint32_t>(dim1),
+            static_cast<uint32_t>(op.getPlaintextLevelAttr().getInt()));
+      }()));
 }
 
 void Interpreter::visit(GenParamsOp op) {
@@ -1865,6 +1951,9 @@ void Interpreter::visit(GenParamsOp op) {
   int64_t plainMod = op.getPlainModAttr().getValue().getSExtValue();
   int64_t evalAddCount = op.getEvalAddCountAttr().getValue().getSExtValue();
   int64_t keySwitchCount = op.getKeySwitchCountAttr().getValue().getSExtValue();
+  auto scalingTechniqueAttr = op->getAttrOfType<StringAttr>("scalingTechnique");
+  StringRef scalingTechnique =
+      scalingTechniqueAttr ? scalingTechniqueAttr.getValue() : StringRef();
 
   auto params = std::make_shared<CCParamsT>();
   params->SetMultiplicativeDepth(mulDepth);
@@ -1888,8 +1977,27 @@ void Interpreter::visit(GenParamsOp op) {
     params->SetKeySwitchTechnique(HYBRID);
   else
     params->SetKeySwitchTechnique(BV);
-  if (op.getScalingTechniqueFixedManual())
-    params->SetScalingTechnique(FIXEDMANUAL);
+  if (!scalingTechnique.empty()) {
+    if (scalingTechnique == "fixed-manual") {
+      params->SetScalingTechnique(FIXEDMANUAL);
+    } else if (scalingTechnique == "fixed-auto") {
+      params->SetScalingTechnique(FIXEDAUTO);
+    } else if (scalingTechnique == "flexible-auto") {
+      params->SetScalingTechnique(FLEXIBLEAUTO);
+    } else if (scalingTechnique == "flexible-auto-ext") {
+      params->SetScalingTechnique(FLEXIBLEAUTOEXT);
+    } else if (scalingTechnique == "composite-auto") {
+      params->SetScalingTechnique(COMPOSITESCALINGAUTO);
+    } else if (scalingTechnique == "composite-manual") {
+      params->SetScalingTechnique(COMPOSITESCALINGMANUAL);
+    } else if (scalingTechnique == "no-rescale") {
+      params->SetScalingTechnique(NORESCALE);
+    } else {
+      op.emitError() << "unsupported OpenFHE scaling technique `"
+                     << scalingTechnique << "`";
+      return;
+    }
+  }
 
   params_.insert_or_assign(op.getResult(), std::move(params));
 }

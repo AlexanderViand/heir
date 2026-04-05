@@ -155,6 +155,7 @@ cc_binary(
         "@heir//lib/Transforms/LayoutPropagation",
         "@heir//lib/Transforms/LayoutPropagation:InterfaceImpl",
         "@heir//lib/Transforms/LinalgCanonicalizations",
+        "@heir//lib/Transforms/LowerOrion",
         "@heir//lib/Transforms/LowerPolynomialEval",
         "@heir//lib/Transforms/LowerUnpack",
         "@heir//lib/Transforms/MemrefToArith:ExpandCopy",

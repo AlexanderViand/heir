@@ -9,12 +9,15 @@ namespace openfhe {
 
 constexpr std::string_view kSourceRelativeOpenfheImport = R"cpp(
 #include "src/pke/include/openfhe.h"  // from @openfhe
+#include "lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h"  // from @heir
 )cpp";
 constexpr std::string_view kInstallationRelativeOpenfheImport = R"cpp(
 #include "openfhe/pke/openfhe.h"  // from @openfhe
+#include "lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h"  // from @heir
 )cpp";
 constexpr std::string_view kEmbeddedOpenfheImport = R"cpp(
 #include "openfhe.h"
+#include "lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h"  // from @heir
 )cpp";
 
 // clang-format off

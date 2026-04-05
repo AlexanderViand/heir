@@ -1,4 +1,4 @@
-// RUN: heir-opt --annotate-orion --ckks-to-lwe --lwe-to-lattigo %s | FileCheck %s
+// RUN: heir-opt --annotate-orion="linear-transform-impl-style=opaque" --ckks-to-lwe --lwe-to-lattigo %s | FileCheck %s
 
 // CHECK: @linear_transform
 // CHECK-NOT: orion.linear_transform

@@ -15,6 +15,19 @@ inline int64_t normalizeRotation(int64_t rot, int64_t slots) {
   return ((rot % slots) + slots) % slots;
 }
 
+/// Normalize a rotation index into the shortest signed shift. For even slot
+/// counts, the half-turn maps to the positive representative `slots / 2`.
+inline int64_t normalizeRotationSignedMinimal(int64_t rot, int64_t slots) {
+  if (slots <= 0) {
+    return rot;
+  }
+  int64_t normalized = normalizeRotation(rot, slots);
+  if (normalized > slots / 2) {
+    normalized -= slots;
+  }
+  return normalized;
+}
+
 /// Returns the best baby-step size N1 for BSGS
 /// given diagonal indices, slot count, and log2 of the target baby/giant ratio.
 /// Mirrors Lattigo's lintrans.FindBestBSGSRatio.

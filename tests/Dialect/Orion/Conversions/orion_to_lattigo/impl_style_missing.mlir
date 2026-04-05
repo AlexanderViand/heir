@@ -1,6 +1,6 @@
 // RUN: not heir-opt --ckks-to-lwe --lwe-to-lattigo %s 2>&1 | FileCheck %s
 
-// CHECK: error: 'orion.linear_transform' op requires Orion implementation style `diagonal-bsgs`, but no `orion.impl_style` annotation is present
+// CHECK: error: 'orion.linear_transform' op requires Orion implementation style `opaque`, but no `orion.impl_style` annotation is present
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
 !Z66813953_i64 = !mod_arith.int<66813953 : i64>

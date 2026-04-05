@@ -130,7 +130,10 @@ def openfhe_lib(
         name = cc_lib_target,
         srcs = [generated_cc_filename],
         hdrs = [generated_lib_header],
-        deps = deps + ["@openfhe//:pke"],
+        deps = deps + [
+            "@heir//lib/Target/OpenFhePke:OpenFheLinearTransformHelpers",
+            "@openfhe//:pke",
+        ],
         tags = tags,
         data = data,
         copts = OPENMP_COPTS,

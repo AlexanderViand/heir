@@ -7,7 +7,7 @@ module attributes {scheme.ckks} {
   // CHECK: std::vector<float> if(
   // CHECK-SAME: std::vector<float> [[v0:.*]],
   func.func @if(%cc: !cc, %0: tensor<1x1024xf32>, %sk: !sk) -> tensor<1x10xf32> {
-    // CHECK-DAG: size_t [[v2:.*]] = 16;
+    // CHECK-DAG: int64_t [[v2:.*]] = 16;
     %c1024 = arith.constant 1024 : index
     %c16 = arith.constant 16 : index
     %c6 = arith.constant 6 : index
@@ -23,7 +23,7 @@ module attributes {scheme.ckks} {
       %4 = arith.cmpi sge, %3, %c6 : index
       // CHECK: bool [[v12:.*]] = [[v11:.*]] >= [[v3:.*]];
       // CHECK: if ([[v12]]) {
-      // CHECK:  size_t [[v14:.*]] = [[v8]] % [[v2]];
+      // CHECK:  int64_t [[v14:.*]] = [[v8]] % [[v2]];
       // CHECK:  float [[v15:.*]] = [[v0]][[[v8]] + 1024 * (0)];
       // CHECK:  [[v7]][[[v14]] + 10 * (0)] = [[v15]];
       // CHECK: }

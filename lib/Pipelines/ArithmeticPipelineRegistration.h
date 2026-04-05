@@ -89,8 +89,17 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       *this, "ckks-reconcile-policy",
       llvm::cl::desc("CKKS reconciliation policy to use after parameter "
                      "selection (`local-highest-meeting-point` or "
-                     "`canonical-per-level`)"),
+                     "`default-scale-schedule`)"),
       llvm::cl::init("local-highest-meeting-point")};
+  PassOptions::Option<std::string> orionLinearTransformImplStyle{
+      *this, "orion-linear-transform-impl-style",
+      llvm::cl::desc("Implementation style to request for "
+                     "orion.linear_transform"),
+      llvm::cl::init("diagonal-basic")};
+  PassOptions::Option<std::string> orionChebyshevImplStyle{
+      *this, "orion-chebyshev-impl-style",
+      llvm::cl::desc("Implementation style to request for orion.chebyshev"),
+      llvm::cl::init("opaque")};
   PassOptions::Option<int> bfvModBits{
       *this, "bfv-mod-bits",
       llvm::cl::desc("The number of bits for all moduli for B/FV"),
@@ -150,6 +159,13 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       llvm::cl::desc("Fuse sequences of ops into compound GPU kernels "
                      "(CHEDDAR backend only)"),
       llvm::cl::init(false)};
+  PassOptions::Option<std::string> openfheScalingTechnique{
+      *this, "openfhe-scaling-technique",
+      llvm::cl::desc("OpenFHE scaling technique override "
+                     "(`fixed-manual`, `fixed-auto`, `flexible-auto`, "
+                     "`flexible-auto-ext`, `composite-auto`, "
+                     "`composite-manual`, `no-rescale`)"),
+      llvm::cl::init("")};
 };
 
 using RLWEPipelineBuilder =
@@ -205,8 +221,17 @@ struct TorchLinalgToCkksPipelineOptions
       *this, "ckks-reconcile-policy",
       llvm::cl::desc("CKKS reconciliation policy to use after parameter "
                      "selection (`local-highest-meeting-point` or "
-                     "`canonical-per-level`)"),
+                     "`default-scale-schedule`)"),
       llvm::cl::init("local-highest-meeting-point")};
+  PassOptions::Option<std::string> orionLinearTransformImplStyle{
+      *this, "orion-linear-transform-impl-style",
+      llvm::cl::desc("Implementation style to request for "
+                     "orion.linear_transform"),
+      llvm::cl::init("diagonal-basic")};
+  PassOptions::Option<std::string> orionChebyshevImplStyle{
+      *this, "orion-chebyshev-impl-style",
+      llvm::cl::desc("Implementation style to request for orion.chebyshev"),
+      llvm::cl::init("opaque")};
   PassOptions::Option<int> ckksBootstrapWaterline{
       *this, "ckks-bootstrap-waterline",
       llvm::cl::desc("The number of levels to keep until bootstrapping in CKKS "

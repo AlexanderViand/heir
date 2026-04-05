@@ -251,8 +251,7 @@ def LWE_RLWEEncryptOp : LWE_Op<"rlwe_encrypt", [
 }
 
 def LWE_RLWEDecryptOp : LWE_Op<"rlwe_decrypt", [
-    EncodingsMatch<"input", "LWECiphertextType", "output", "LWEPlaintextType">,
-    KeyAndCiphertextMatch<"secret_key", "LWESecretKeyType", "input", "LWECiphertextType">]> {
+    EncodingsMatch<"input", "LWECiphertextType", "output", "LWEPlaintextType">]> {
   let summary = "Decrypt an RLWE ciphertext to a RLWE plaintext";
   let description = [{
     Decrypt an RLWE ciphertext to yield a RLWE plaintext
@@ -263,6 +262,7 @@ def LWE_RLWEDecryptOp : LWE_Op<"rlwe_decrypt", [
     LWESecretKey:$secret_key
   );
   let results = (outs LWEPlaintext:$output);
+  let hasVerifier = 1;
 }
 
 def LWE_ExtractCoeffOp : LWE_Op<"extract_coeff", [Pure, DeclareOpInterfaceMethods<InferTypeOpInterface, ["inferReturnTypes"]>]> {

@@ -1,6 +1,6 @@
 // RUN: not heir-opt --lwe-to-cheddar %s 2>&1 | FileCheck %s
 
-// CHECK: error: 'orion.chebyshev' op requires Orion implementation style `bsgs`, but no `orion.impl_style` annotation is present
+// CHECK: error: 'orion.chebyshev' op requires Orion implementation style `opaque`, but no `orion.impl_style` annotation is present
 
 !Z17_i64 = !mod_arith.int<17 : i64>
 #inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 16 : i64>

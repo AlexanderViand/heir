@@ -1,4 +1,5 @@
 // RUN: heir-opt --split-input-file --annotate-orion %s | FileCheck %s
+// RUN: heir-opt --split-input-file --annotate-orion="linear-transform-impl-style=opaque" %s | FileCheck %s --check-prefix=OPAQUE
 
 // -----
 
@@ -18,7 +19,7 @@
 !ct_L5 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x8192, encoding = #inverse_canonical_encoding>, ciphertext_space = #ciphertext_space_L5, key = #key, modulus_chain = #modulus_chain_L5_C5>
 
 // CHECK: orion.linear_transform
-// CHECK-SAME: orion.impl_style = "diagonal-bsgs"
+// CHECK-SAME: orion.impl_style = "diagonal-basic"
 // CHECK-SAME: orion.level_cost_ub = 0 : i64
 module {
   func.func @linear_transform(%ct: !ct_L5, %arg0: tensor<2x4096xf64>) -> !ct_L5 {
@@ -26,6 +27,9 @@ module {
     return %ct_0 : !ct_L5
   }
 }
+
+// OPAQUE: orion.linear_transform
+// OPAQUE-SAME: orion.impl_style = "opaque"
 
 // -----
 
@@ -50,7 +54,7 @@ module {
 !ct_L10 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x65536, encoding = #inverse_canonical_encoding>, ciphertext_space = #ciphertext_space_L10, key = #key, modulus_chain = #modulus_chain_L10_C10>
 
 // CHECK: orion.chebyshev
-// CHECK-SAME: orion.impl_style = "bsgs"
+// CHECK-SAME: orion.impl_style = "opaque"
 // CHECK-SAME: orion.level_cost_ub = 2 : i64
 module {
   func.func @chebyshev(%ct: !ct_L10) -> !ct_L10 {

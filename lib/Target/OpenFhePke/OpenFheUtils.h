@@ -1,9 +1,13 @@
 #ifndef LIB_TARGET_OPENFHEPKE_OPENFHEUTILS_H_
 #define LIB_TARGET_OPENFHEPKE_OPENFHEUTILS_H_
 
+#include <cstdint>
 #include <string>
 
 #include "lib/Analysis/SelectVariableNames/SelectVariableNames.h"
+#include "lib/Utils/RotationUtils.h"
+#include "llvm/include/llvm/ADT/ArrayRef.h"             // from @llvm-project
+#include "llvm/include/llvm/ADT/SmallVector.h"          // from @llvm-project
 #include "llvm/include/llvm/ADT/StringRef.h"            // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Location.h"              // from @llvm-project

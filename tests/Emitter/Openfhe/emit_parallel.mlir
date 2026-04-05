@@ -6,11 +6,11 @@
 
 // CHECK: CiphertextT test_fast_rot(CryptoContextT [[cc:.*]], CiphertextT [[ct:.*]]) {
 // CHECK:  const auto& [[digit_decomp:.*]] = [[cc]]->EvalFastRotationPrecompute([[ct]]);
-// CHECK:  const std::vector<size_t> [[v4:.*]] =
+// CHECK:  const std::vector<int64_t> [[v4:.*]] =
 // CHECK:  std::vector<CiphertextT> [[v5:.*]](4);
 // CHECK:  #pragma omp parallel for
 // CHECK:  for (auto [[v7:.*]] = 0; [[v7]] < 4; ++[[v7]]) {
-// CHECK:    size_t [[v9:.*]] = [[v4]][[[v7]]];
+// CHECK:    int64_t [[v9:.*]] = [[v4]][[[v7]]];
 // CHECK:    const auto& [[ct1:.*]] = [[cc]]->EvalFastRotation([[ct]], [[v9]], 2 * [[cc]]->GetRingDimension(), [[digit_decomp]]);
 // CHECK:    const std::vector<CiphertextT> [[v10:.*]] = {[[ct]]1};
 // CHECK:    [[v5]][[[v7]]] = [[v10]][0];

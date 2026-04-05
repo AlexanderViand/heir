@@ -17,6 +17,7 @@ cc_library(
     hdrs = [
         "OrionDialect.h",
         "OrionOps.h",
+        "OrionUtils.h",
     ],
     deps = [
         "dialect_inc_gen",
@@ -33,6 +34,7 @@ cc_library(
     hdrs = [
         "OrionDialect.h",
         "OrionOps.h",
+        "OrionUtils.h",
     ],
     deps = [
         ":dialect_inc_gen",
