@@ -25,6 +25,58 @@ using OpenfheCryptoContextT = lbcrypto::CryptoContext<lbcrypto::DCRTPoly>;
 using OpenfheCiphertextT = lbcrypto::Ciphertext<lbcrypto::DCRTPoly>;
 using OpenfheConstCiphertextT = lbcrypto::ConstCiphertext<lbcrypto::DCRTPoly>;
 
+inline lbcrypto::Plaintext makeOpenfheCKKSPackedPlaintextWithScalingBits(
+    const OpenfheCryptoContextT& cryptoContext,
+    const std::vector<double>& value, size_t noiseScaleDeg, uint32_t level,
+    double scalingFactorBits, uint32_t slots = 0) {
+  if (value.empty()) {
+    OPENFHE_THROW("Cannot encode an empty CKKS plaintext vector.");
+  }
+  if (noiseScaleDeg == 0) {
+    OPENFHE_THROW("CKKS plaintext encoding requires noiseScaleDeg >= 1.");
+  }
+  if (!std::isfinite(scalingFactorBits) || scalingFactorBits <= 0.0) {
+    OPENFHE_THROW(
+        "CKKS plaintext encoding requires a positive finite total "
+        "scaling-factor bit count.");
+  }
+
+  auto cryptoParams =
+      std::dynamic_pointer_cast<lbcrypto::CryptoParametersCKKSRNS>(
+          cryptoContext->GetCryptoParameters());
+  if (!cryptoParams) {
+    OPENFHE_THROW("Expected CKKS crypto parameters for plaintext encoding.");
+  }
+
+  std::shared_ptr<lbcrypto::ILDCRTParams<lbcrypto::DCRTPoly::Integer>>
+      elementParamsPtr;
+  if (level != 0) {
+    lbcrypto::ILDCRTParams<lbcrypto::DCRTPoly::Integer> elementParams =
+        *(cryptoParams->GetElementParams());
+    for (uint32_t i = 0; i < level; ++i) {
+      elementParams.PopLastParam();
+    }
+    elementParamsPtr =
+        std::make_shared<lbcrypto::ILDCRTParams<lbcrypto::DCRTPoly::Integer>>(
+            elementParams);
+  } else {
+    elementParamsPtr = cryptoParams->GetElementParams();
+  }
+
+  std::vector<std::complex<double>> complexValue(value.size());
+  std::transform(value.begin(), value.end(), complexValue.begin(),
+                 [](double real) { return std::complex<double>(real, 0.0); });
+
+  double baseScalingFactor =
+      std::exp2(scalingFactorBits / static_cast<double>(noiseScaleDeg));
+  lbcrypto::Plaintext plaintext =
+      lbcrypto::Plaintext(std::make_shared<lbcrypto::CKKSPackedEncoding>(
+          elementParamsPtr, cryptoContext->GetEncodingParams(), complexValue,
+          noiseScaleDeg, level, baseScalingFactor, slots, lbcrypto::REAL));
+  plaintext->Encode();
+  return plaintext;
+}
+
 struct OpenfheSparseLinearTransformTerm {
   uint32_t giantStepIndex;
   uint32_t babyStepIndex;
@@ -271,7 +323,23 @@ inline OpenfheCiphertextT evalOpenfheLinearTransformWithPrecompute(
     auto plain = plaintext->GetElement<lbcrypto::DCRTPoly>();
     plain.SetFormat(Format::EVALUATION);
     auto result = ciphertext->Clone();
+    const auto& plainParams = plain.GetParams()->GetParams();
     for (auto& elem : result->GetElements()) {
+      const auto& elemParams = elem.GetParams()->GetParams();
+      if (elemParams.size() != plainParams.size()) {
+        OPENFHE_THROW(
+            "OpenFHE linear_transform ciphertext/plaintext tower "
+            "count mismatch: ciphertext has " +
+            std::to_string(elemParams.size()) +
+            " towers but aux plaintext has " +
+            std::to_string(plainParams.size()) + " towers (ciphertext level=" +
+            std::to_string(ciphertext->GetLevel()) +
+            ", ciphertext noiseScaleDeg=" +
+            std::to_string(ciphertext->GetNoiseScaleDeg()) +
+            ", plaintext level=" + std::to_string(plaintext->GetLevel()) +
+            ", plaintext noiseScaleDeg=" +
+            std::to_string(plaintext->GetNoiseScaleDeg()) + ")");
+      }
       elem *= plain;
     }
     result->SetNoiseScaleDeg(result->GetNoiseScaleDeg() +

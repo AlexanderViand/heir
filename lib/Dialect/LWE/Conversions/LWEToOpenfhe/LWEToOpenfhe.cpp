@@ -1,5 +1,6 @@
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
 
+#include <cmath>
 #include <utility>
 
 #include "lib/Dialect/BGV/IR/BGVDialect.h"
@@ -159,6 +160,22 @@ FailureOr<IntegerAttr> inferOpenfheLevelAttr(lwe::RLWEEncodeOp op,
 
   int64_t openfheLevel = maxHeirLevel - heirLevel;
   return rewriter.getI64IntegerAttr(openfheLevel);
+}
+
+FailureOr<FloatAttr> inferOpenfheScalingFactorBitsAttr(lwe::RLWEEncodeOp op) {
+  if (auto scalingFactorBits =
+          op->getAttrOfType<FloatAttr>(openfhe::kScalingFactorBitsAttrName)) {
+    double value = scalingFactorBits.getValueAsDouble();
+    if (!std::isfinite(value) || value <= 0.0) {
+      op.emitOpError()
+          << "requires a positive finite OpenFHE scaling-factor-bits attr, "
+             "but found "
+          << value;
+      return failure();
+    }
+    return scalingFactorBits;
+  }
+  return FloatAttr();
 }
 
 // NOTE: we can not use containsDialect
@@ -365,9 +382,19 @@ struct ConvertEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
           if (failed(levelAttr)) {
             return failure();
           }
-          rewriter.replaceOpWithNewOp<openfhe::MakeCKKSPackedPlaintextOp>(
-              op, plaintextType, cryptoContext, input, noiseScaleDegree.value(),
-              levelAttr.value());
+          FailureOr<FloatAttr> scalingFactorBits =
+              inferOpenfheScalingFactorBitsAttr(op);
+          if (failed(scalingFactorBits)) {
+            return failure();
+          }
+          auto newOp =
+              rewriter.replaceOpWithNewOp<openfhe::MakeCKKSPackedPlaintextOp>(
+                  op, plaintextType, cryptoContext, input,
+                  noiseScaleDegree.value(), levelAttr.value());
+          if (scalingFactorBits.value()) {
+            newOp->setAttr(openfhe::kScalingFactorBitsAttrName,
+                           scalingFactorBits.value());
+          }
           return success();
         })
         .Case<lwe::CoefficientEncodingAttr>([&](auto encoding) {
@@ -499,8 +526,8 @@ struct ConvertOrionLinearTransformOp
           openfhe::kNativePlaintextLevelAttrName);
       if (!plaintextLevel) {
         return op.emitOpError()
-               << "requires `openfhe.native_plaintext_level`; run "
-                  "`--openfhe-adjust-ckks-scheme-param` before "
+               << "requires `openfhe.native_plaintext_level`; resolve OpenFHE "
+                  "CKKS management before `--secret-to-ckks` / "
                   "`--lwe-to-openfhe` for opaque Orion linear transforms";
       }
 

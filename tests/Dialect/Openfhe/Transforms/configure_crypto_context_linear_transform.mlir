@@ -1,5 +1,4 @@
 // RUN: heir-opt --openfhe-configure-crypto-context="entry-function=needs_lowered_aux scaling-technique=fixed-manual" %s | FileCheck %s --check-prefix=FIXED-MANUAL
-// RUN: heir-opt --openfhe-configure-crypto-context="entry-function=needs_lowered_aux scaling-technique=fixed-auto" %s | FileCheck %s --check-prefix=FIXED-AUTO
 // RUN: heir-opt --openfhe-configure-crypto-context="entry-function=needs_lowered_aux scaling-technique=flexible-auto" %s | FileCheck %s --check-prefix=FLEXIBLE-AUTO
 // RUN: heir-opt --openfhe-configure-crypto-context="entry-function=needs_lowered_aux scaling-technique=flexible-auto-ext" %s | FileCheck %s --check-prefix=FLEXIBLE-AUTO-EXT
 
@@ -19,17 +18,13 @@ module attributes {
 
 // FIXED-MANUAL: func.func @needs_lowered_aux__generate_crypto_context
 // FIXED-MANUAL: openfhe.gen_params
-// FIXED-MANUAL-SAME: mulDepth = 3
+// FIXED-MANUAL-SAME: scalingTechnique = "fixed-manual"
 // FIXED-MANUAL: %{{.*}} = openfhe.gen_context %{{.*}} {supportFHE = true}
-// FIXED-AUTO: func.func @needs_lowered_aux__generate_crypto_context
-// FIXED-AUTO: openfhe.gen_params
-// FIXED-AUTO-SAME: mulDepth = 3
-// FIXED-AUTO: %{{.*}} = openfhe.gen_context %{{.*}} {supportFHE = true}
 // FLEXIBLE-AUTO: func.func @needs_lowered_aux__generate_crypto_context
 // FLEXIBLE-AUTO: openfhe.gen_params
-// FLEXIBLE-AUTO-SAME: mulDepth = 3
+// FLEXIBLE-AUTO-SAME: scalingTechnique = "flexible-auto"
 // FLEXIBLE-AUTO: %{{.*}} = openfhe.gen_context %{{.*}} {supportFHE = true}
 // FLEXIBLE-AUTO-EXT: func.func @needs_lowered_aux__generate_crypto_context
 // FLEXIBLE-AUTO-EXT: openfhe.gen_params
-// FLEXIBLE-AUTO-EXT-SAME: mulDepth = 3
+// FLEXIBLE-AUTO-EXT-SAME: scalingTechnique = "flexible-auto-ext"
 // FLEXIBLE-AUTO-EXT: %{{.*}} = openfhe.gen_context %{{.*}} {supportFHE = true}

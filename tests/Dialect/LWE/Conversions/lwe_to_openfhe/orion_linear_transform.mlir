@@ -1,16 +1,16 @@
-// RUN: heir-opt --annotate-orion="linear-transform-impl-style=opaque" --openfhe-adjust-ckks-scheme-param="scaling-technique=fixed-manual" --lwe-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --annotate-orion="linear-transform-impl-style=opaque" --lwe-to-openfhe %s | FileCheck %s
 
 // CHECK: func.func @linear_transform_same_level
 // CHECK: openfhe.linear_transform
 // CHECK-SAME: diagonal_indices = array<i32: 0, 4095>
 // CHECK-SAME: logBabyStepGiantStepRatio = 2 : i64
-// CHECK-SAME: plaintextLevel = 6 : i64
+// CHECK-SAME: plaintextLevel = 5 : i64
 
 // CHECK: func.func @linear_transform_lower_level
 // CHECK: openfhe.linear_transform
 // CHECK-SAME: diagonal_indices = array<i32: 0, 4095>
 // CHECK-SAME: logBabyStepGiantStepRatio = 2 : i64
-// CHECK-SAME: plaintextLevel = 6 : i64
+// CHECK-SAME: plaintextLevel = 5 : i64
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
 !Z66813953_i64 = !mod_arith.int<66813953 : i64>
@@ -29,12 +29,12 @@
 
 module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [536903681, 67043329, 66994177, 67239937, 66961409, 66813953], P = [536952833, 536690689], logDefaultScale = 26>} {
   func.func @linear_transform_same_level(%cc: !openfhe.crypto_context, %ct: !ct_L5, %arg0: tensor<2x4096xf64>) -> !ct_L5 {
-    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 4095>, orion_level = 5 : i32, slots = 4096 : i32} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
+    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 4095>, openfhe.native_plaintext_level = 5 : i64, orion_level = 5 : i32, slots = 4096 : i32} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
     return %ct_0 : !ct_L5
   }
 
   func.func @linear_transform_lower_level(%cc: !openfhe.crypto_context, %ct: !ct_L5, %arg0: tensor<2x4096xf64>) -> !ct_L5 {
-    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 4095>, orion_level = 3 : i32, slots = 4096 : i32} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
+    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 4095>, openfhe.native_plaintext_level = 5 : i64, orion_level = 3 : i32, slots = 4096 : i32} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
     return %ct_0 : !ct_L5
   }
 }

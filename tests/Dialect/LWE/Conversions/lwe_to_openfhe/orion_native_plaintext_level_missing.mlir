@@ -1,6 +1,6 @@
 // RUN: not heir-opt --annotate-orion="linear-transform-impl-style=opaque" --lwe-to-openfhe %s 2>&1 | FileCheck %s
 
-// CHECK: error: 'orion.linear_transform' op requires `openfhe.native_plaintext_level`; run `--openfhe-adjust-ckks-scheme-param` before `--lwe-to-openfhe` for opaque Orion linear transforms
+// CHECK: error: 'orion.linear_transform' op requires `openfhe.native_plaintext_level`; resolve OpenFHE CKKS management before `--secret-to-ckks` / `--lwe-to-openfhe` for opaque Orion linear transforms
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
 !Z66813953_i64 = !mod_arith.int<66813953 : i64>

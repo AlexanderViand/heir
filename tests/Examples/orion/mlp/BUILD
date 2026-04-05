@@ -32,42 +32,11 @@ openfhe_end_to_end_test(
     generated_lib_header = "mlp_openfhe_lib.h",
     heir_opt_flags = [
         "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=fixed-manual",
         "--scheme-to-openfhe=openfhe-scaling-technique=fixed-manual",
     ],
     mlir_src = ":mlp.mlir",
     test_src = "mlp_openfhe_test.cpp",
-)
-
-openfhe_end_to_end_test(
-    name = "mlp_openfhe_fixed_auto_test",
-    size = "enormous",
-    timeout = "long",
-    generated_lib_header = "mlp_openfhe_fixed_auto_lib.h",
-    heir_opt_flags = [
-        "--annotate-orion=linear-transform-impl-style=opaque",
-        "--scheme-to-openfhe=openfhe-scaling-technique=fixed-auto",
-    ],
-    mlir_src = ":mlp.mlir",
-    test_src = "mlp_openfhe_fixed_auto_test.cpp",
-)
-
-openfhe_end_to_end_test(
-    name = "mlp_openfhe_fixed_auto_debug_test",
-    size = "enormous",
-    timeout = "long",
-    data = [],
-    generate_debug_helper = False,
-    generated_lib_header = "mlp_openfhe_fixed_auto_debug_lib.h",
-    heir_opt_flags = [
-        "--annotate-orion=linear-transform-impl-style=opaque",
-        "--scheme-to-openfhe=openfhe-scaling-technique=fixed-auto insert-debug-handler-calls=true",
-    ],
-    heir_translate_flags = [
-        "--openfhe-debug-helper-include-path=tests/Examples/openfhe/ckks/debug_helper.h",
-    ],
-    mlir_src = ":mlp.mlir",
-    test_src = "mlp_openfhe_fixed_auto_debug_test.cpp",
-    deps = ["@heir//tests/Examples/openfhe/ckks:debug_helper"],
 )
 
 openfhe_end_to_end_test(
@@ -77,6 +46,7 @@ openfhe_end_to_end_test(
     generated_lib_header = "mlp_openfhe_flexible_auto_lib.h",
     heir_opt_flags = [
         "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=flexible-auto",
         "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto",
     ],
     mlir_src = ":mlp.mlir",
@@ -90,8 +60,27 @@ openfhe_end_to_end_test(
     generated_lib_header = "mlp_openfhe_flexible_auto_ext_lib.h",
     heir_opt_flags = [
         "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=flexible-auto-ext",
         "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto-ext",
     ],
     mlir_src = ":mlp.mlir",
     test_src = "mlp_openfhe_flexible_auto_ext_test.cpp",
+)
+
+openfhe_end_to_end_test(
+    name = "mlp_openfhe_flexible_auto_ext_debug_test",
+    size = "enormous",
+    timeout = "long",
+    generated_lib_header = "mlp_openfhe_flexible_auto_ext_debug_lib.h",
+    heir_opt_flags = [
+        "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=flexible-auto-ext",
+        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto-ext insert-debug-handler-calls=true",
+    ],
+    heir_translate_flags = [
+        "--openfhe-debug-helper-include-path=tests/Examples/openfhe/ckks/debug_helper.h",
+    ],
+    mlir_src = ":mlp.mlir",
+    test_src = "mlp_openfhe_flexible_auto_ext_debug_test.cpp",
+    deps = ["@heir//tests/Examples/openfhe/ckks:debug_helper"],
 )

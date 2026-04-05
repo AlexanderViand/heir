@@ -28,6 +28,7 @@ openfhe_end_to_end_test(
     generated_lib_header = "linear_transform_openfhe_lib.h",
     heir_opt_flags = [
         "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=fixed-manual",
         "--scheme-to-openfhe=openfhe-scaling-technique=fixed-manual",
     ],
     mlir_src = ":linear_transform.mlir",
@@ -35,21 +36,11 @@ openfhe_end_to_end_test(
 )
 
 openfhe_end_to_end_test(
-    name = "linear_transform_openfhe_fixed_auto_test",
-    generated_lib_header = "linear_transform_openfhe_fixed_auto_lib.h",
-    heir_opt_flags = [
-        "--annotate-orion=linear-transform-impl-style=opaque",
-        "--scheme-to-openfhe=openfhe-scaling-technique=fixed-auto",
-    ],
-    mlir_src = ":linear_transform.mlir",
-    test_src = "linear_transform_openfhe_fixed_auto_test.cpp",
-)
-
-openfhe_end_to_end_test(
     name = "linear_transform_openfhe_flexible_auto_test",
     generated_lib_header = "linear_transform_openfhe_flexible_auto_lib.h",
     heir_opt_flags = [
         "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=flexible-auto",
         "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto",
     ],
     mlir_src = ":linear_transform.mlir",
@@ -61,6 +52,7 @@ openfhe_end_to_end_test(
     generated_lib_header = "linear_transform_openfhe_flexible_auto_ext_lib.h",
     heir_opt_flags = [
         "--annotate-orion=linear-transform-impl-style=opaque",
+        "--populate-scale-ckks=openfhe-scaling-technique=flexible-auto-ext",
         "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto-ext",
     ],
     mlir_src = ":linear_transform.mlir",

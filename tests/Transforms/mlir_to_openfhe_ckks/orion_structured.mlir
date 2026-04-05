@@ -1,13 +1,22 @@
+// RUN: heir-opt --annotate-orion='linear-transform-impl-style=opaque' --populate-scale-ckks='openfhe-scaling-technique=fixed-manual' --split-input-file %s | FileCheck %s --check-prefix=MGMT-LINEAR
+// RUN: heir-opt --annotate-orion='linear-transform-impl-style=opaque' --populate-scale-ckks='openfhe-scaling-technique=fixed-manual' --split-input-file %s | FileCheck %s --check-prefix=MGMT-CHEB
 // RUN: heir-opt --annotate-orion='linear-transform-impl-style=opaque' --scheme-to-openfhe='entry-function=linear_transform openfhe-scaling-technique=fixed-manual' --split-input-file %s | FileCheck %s --check-prefix=LINEAR
 // RUN: heir-opt --annotate-orion='linear-transform-impl-style=opaque' --scheme-to-openfhe='entry-function=chebyshev openfhe-scaling-technique=fixed-manual' --split-input-file %s | FileCheck %s --check-prefix=CHEB
+
+// MGMT-LINEAR: module attributes {ckks.reduced_error = false
+// MGMT-LINEAR-SAME: ckks.schemeParam = #ckks.scheme_param<logN = 14
+// MGMT-LINEAR-SAME: openfhe.scaling_technique = "fixed-manual"
+// MGMT-LINEAR-SAME: scheme.actual_slot_count = 8192 : i64
+// MGMT-LINEAR: orion.linear_transform
+// MGMT-LINEAR-SAME: openfhe.native_plaintext_level = 5 : i64
 
 // LINEAR: @linear_transform
 // LINEAR-NOT: orion.linear_transform
 // LINEAR: openfhe.linear_transform
-// LINEAR-SAME: plaintextLevel = 6 : i64
+// LINEAR-SAME: plaintextLevel = 5 : i64
 // LINEAR: func.func @linear_transform__generate_crypto_context
 // LINEAR: openfhe.gen_params
-// LINEAR-SAME: mulDepth = 6
+// LINEAR-SAME: mulDepth = 5
 // LINEAR-SAME: scalingTechnique = "fixed-manual"
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
@@ -26,7 +35,7 @@
 !ct_L5 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x8192, encoding = #inverse_canonical_encoding>, ciphertext_space = #ciphertext_space_L5, key = #key, modulus_chain = #modulus_chain_L5_C5>
 module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [536903681, 67043329, 66994177, 67239937, 66961409, 66813953], P = [536952833, 536690689], logDefaultScale = 26>} {
   func.func @linear_transform(%ct: !ct_L5, %arg0: tensor<2x4096xf64> {orion.block_col = 0 : i64, orion.block_row = 0 : i64, orion.layer_name = "fc1", orion.layer_role = "weights", orion.level = 5 : i64}) -> !ct_L5 {
-    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, orion_level = 5 : i32, slots = 4096 : i32, diagonal_indices = array<i32: 0, 1>} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
+    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, orion_level = 5 : i32, slots = 4096 : i32, diagonal_indices = array<i32: 0, 1>, openfhe.native_plaintext_level = 5 : i64} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
     return %ct_0 : !ct_L5
   }
 }
@@ -40,6 +49,11 @@ module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 13,
 // CHEB: openfhe.gen_params
 // CHEB-SAME: mulDepth = 10
 // CHEB-SAME: scalingTechnique = "fixed-manual"
+
+// MGMT-CHEB: module attributes {ckks.reduced_error = false, ckks.scale_policy = "nominal", ckks.schemeParam = #ckks.scheme_param<logN = 16
+// MGMT-CHEB-SAME: openfhe.scaling_technique = "fixed-manual"
+// MGMT-CHEB: orion.chebyshev
+// MGMT-CHEB-SAME: orion.level_cost_ub = 2 : i64
 
 !Z1099502714881_i64 = !mod_arith.int<1099502714881 : i64>
 !Z1099503370241_i64 = !mod_arith.int<1099503370241 : i64>

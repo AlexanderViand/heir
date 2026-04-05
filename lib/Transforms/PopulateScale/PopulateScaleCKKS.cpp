@@ -8,9 +8,11 @@
 #include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
+#include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Mgmt/Transforms/AnnotateMgmt.h"
 #include "lib/Transforms/PopulateScale/PopulateScalePatterns.h"
+#include "lib/Transforms/PopulateScale/ResolveOpenfheCKKSMetadata.h"
 #include "lib/Utils/APIntUtils.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
 #include "llvm/include/llvm/Support/DebugLog.h"            // from @llvm-project
@@ -309,12 +311,14 @@ LogicalResult runPopulateScaleCKKSImpl(Operation* top, MLIRContext& context,
                                        bool beforeMulIncludeFirstMul,
                                        StringRef scalePolicy,
                                        std::optional<StringRef> reconcilePolicy,
-                                       std::optional<int> preciseIterationCap) {
+                                       std::optional<int> preciseIterationCap,
+                                       StringRef openfheScalingTechnique) {
   auto module = dyn_cast<ModuleOp>(top);
   if (!module) {
     top->emitOpError() << "expected module op";
     return failure();
   }
+  context.getOrLoadDialect<mgmt::MgmtDialect>();
   auto parsedScalePolicy = parseCKKSScalePolicy(scalePolicy);
   if (failed(parsedScalePolicy)) {
     top->emitOpError() << "unsupported CKKS scale policy `" << scalePolicy
@@ -544,7 +548,21 @@ LogicalResult runPopulateScaleCKKSImpl(Operation* top, MLIRContext& context,
   }
 
   annotateScale(top, &solverFinal);
-  return runAnnotateMgmt();
+  if (failed(runAnnotateMgmt())) {
+    return failure();
+  }
+
+  if (!openfheScalingTechnique.empty()) {
+    if (failed(openfhe::resolveOpenfheCKKSMetadata(module,
+                                                   openfheScalingTechnique))) {
+      return failure();
+    }
+    if (failed(runAnnotateMgmt())) {
+      return failure();
+    }
+  }
+
+  return success();
 }
 
 #define GEN_PASS_DEF_POPULATESCALECKKS
@@ -554,9 +572,9 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
   using PopulateScaleCKKSBase::PopulateScaleCKKSBase;
 
   void runOnOperation() override {
-    if (failed(runPopulateScaleCKKSImpl(getOperation(), getContext(),
-                                        beforeMulIncludeFirstMul, scalePolicy,
-                                        reconcilePolicy, std::nullopt))) {
+    if (failed(runPopulateScaleCKKSImpl(
+            getOperation(), getContext(), beforeMulIncludeFirstMul, scalePolicy,
+            reconcilePolicy, std::nullopt, openfheScalingTechnique))) {
       signalPassFailure();
     }
   }
@@ -572,7 +590,8 @@ struct ResolveScaleCKKSBMPH20
   void runOnOperation() override {
     if (failed(runPopulateScaleCKKSImpl(
             getOperation(), getContext(), beforeMulIncludeFirstMul,
-            kCKKSPreciseScalePolicyValue, std::nullopt, maxIterations))) {
+            kCKKSPreciseScalePolicyValue, std::nullopt, maxIterations,
+            openfheScalingTechnique))) {
       signalPassFailure();
     }
   }

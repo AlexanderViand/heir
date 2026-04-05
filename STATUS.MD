@@ -1,509 +1,290 @@
-# HEIR CKKS / Orion Backend Status
+# HEIR CKKS / Orion Status
 
 Last updated: 2026-04-05
 
-## Scope
+## Current architecture
 
-This document records the current implementation status of the CKKS / Orion
-management and backend-lowering work across:
+### Generic CKKS management
 
-- Lattigo
-- OpenFHE
-- CHEDDAR
+The generic CKKS management pipeline now owns the scheme-agnostic work:
 
-It also records the current known blocker for OpenFHE auto-scaling modes on the
-Orion MLP example, with the relevant source-backed findings.
+- annotate structured Orion ops with coarse intrinsic level cost
+- insert mul-side management structure
+- insert `mgmt.reconcile` markers at secret `add` / `sub`
+- generate an initial `ckks.schemeParam`
+- resolve exact scale / reconcile decisions for the selected management law
 
-## Main architectural decisions already landed
+This runs before `secret-to-ckks`.
 
-### 1. Coarse management is now separated from backend-specific resolution
+### OpenFHE predictive resolution
 
-The CKKS pipeline now has a coarse management phase that:
+OpenFHE needs one more upstream stage on managed CKKS / Orion IR:
 
-- annotates structured Orion ops with coarse intrinsic level cost
-- inserts ordinary mul-management structure
-- inserts explicit merge/reconcile markers at `add` / `sub`
-- produces a first candidate `ckks.schemeParam`
+- [`lib/Transforms/PopulateScale/ResolveOpenfheCKKSMetadata.cpp`](/Users/a.viand/Code/heir/lib/Transforms/PopulateScale/ResolveOpenfheCKKSMetadata.cpp)
 
-This phase does not choose exact target scales or exact add/sub repair.
+That pass is part of management. It runs before `ckks-to-lwe` and before
+`lwe-to-openfhe`. It does three jobs:
 
-### 2. Reconcile policy is resolved later
+1. Read the current `ckks.schemeParam`, materialize the actual OpenFHE
+   parameters for the selected scaling technique, and update the HEIR module to
+   match the chain OpenFHE will actually use.
+1. Predict the OpenFHE-specific metadata laws that the generic CKKS pipeline
+   does not model directly, including native linear-transform plaintext levels
+   and plaintext encoding metadata for `add_plain`.
+1. Rewrite CKKS / LWE types and module attrs so later passes see the final
+   OpenFHE-compatible chain rather than the provisional generic one.
 
-The old early decision point for nominal-vs-CHEDDAR-style cross-level handling
-moved out of the coarse insertion pass.
+This pass is not a post-lowering repair. It is the OpenFHE-specific part of
+management.
 
-Current policy families:
+### `ConfigureCryptoContext`
 
-- local power-of-two compatibility
-- canonical-per-level compatibility
-- q-aware / BMPH20-style resolution
+For CKKS,
+[`lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.cpp`](/Users/a.viand/Code/heir/lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.cpp)
+is now just a readout/configuration stage.
 
-### 3. Orion impl-style is now an explicit contract
+It should:
 
-Orion ops carry `orion.impl_style`, and later lowerings must either honor it or
-fail loudly.
+- read the finalized `ckks.schemeParam`
+- read the selected OpenFHE scaling technique
+- read which features require evaluation keys
+- emit OpenFHE parameter/context/keygen helpers
 
-This is already enforced in:
+It should not:
 
-- `lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.cpp`
-- `lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.cpp`
-- `lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.cpp`
+- recompute CKKS chain length
+- redo CKKS / Orion management analysis
+- silently paper over upstream management mistakes
 
-Shared verification and impl-style constants now live in:
+The CKKS path now mostly follows that rule. Any remaining CKKS-specific logic
+there should keep moving out, not grow.
 
-- `lib/Dialect/Orion/IR/OrionUtils.h`
+### OpenFHE linear transform helper
 
-### 4. OpenFHE CKKS parameter adjustment moved upstream
+[`lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h`](/Users/a.viand/Code/heir/lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h)
+is runtime code, not a second management pass.
 
-OpenFHE-specific CKKS chain-length adjustment is no longer supposed to be
-rediscovered from lowered OpenFHE IR.
+It exists because generated code targets the public `CryptoContext` API, while
+OpenFHE’s higher-level linear-transform entry points are not exposed through
+that surface. The helper rebuilds the OpenFHE linear-transform kernel from the
+public pieces that are exposed:
 
-The pass:
+- `EvalFastRotationPrecompute`
+- `EvalFastRotationExt`
+- `KeySwitchExt`
+- `KeySwitchDown`
 
-- `lib/Dialect/Openfhe/Transforms/AdjustCKKSSchemeParam.cpp`
+The helper consumes the already-resolved `openfhe.native_plaintext_level`. It
+does not choose levels, scales, or parameters.
 
-runs before `ckks-to-lwe` / `lwe-to-openfhe` and:
+### What changed from the old design
 
-- reads the current managed CKKS / Orion IR
-- models OpenFHE-native CKKS semantics
-- enlarges `ckks.schemeParam` if OpenFHE needs a longer chain
-- retargets CKKS/LWE types to the final chain
-- resolves native Orion linear-transform plaintext levels
-- resolves OpenFHE plaintext-encode requirements for `add_plain`
+The old downstream `AdjustCKKSSchemeParam` pass no longer belongs in the
+pipeline. Its logic has been moved upstream into
+`ResolveOpenfheCKKSMetadata.cpp`, where it can still see managed CKKS / Orion IR
+and make the final OpenFHE prediction before backend lowering.
 
-### 4a. Why `AdjustCKKSSchemeParam` currently runs after `secret-to-ckks`
+That is the right split:
 
-Current placement:
+- generic mgmt computes the scheme-agnostic skeleton
+- OpenFHE-specific mgmt predicts OpenFHE’s actual chain and metadata
+- backend lowering consumes those decisions
 
-- after the generic CKKS management pipeline has produced managed CKKS / Orion
-  IR
-- before `ckks-to-lwe`, `lwe-to-openfhe`, and `openfhe-configure-crypto-context`
-
-This is not because the logic belongs in `ConfigureCryptoContext`. It does not.
-
-The current pass sits here because this is the first point in the pipeline where
-all of the following are simultaneously true:
-
-- generic CKKS management has already fixed the coarse mgmt structure
-- explicit CKKS ops such as `mul`, `rescale`, `level_reduce`, and `add_plain`
-  are present in the IR
-- opaque Orion ops that will stay opaque for OpenFHE are still visible
-- the chosen OpenFHE scaling mode is known
-- `ckks.schemeParam` already exists and can be enlarged/retargeted before
-  backend lowering
-
-Before `secret-to-ckks`, that information is not all available in one place:
-
-- the IR does not yet contain the actual managed CKKS operations whose OpenFHE
-  semantics differ from generic CKKS
-- the later bias-encode and native-linear-transform level requirements cannot be
-  read off exactly yet
-
-After `lwe-to-openfhe`, it is already too late:
-
-- the scheme parameter has already been committed to lowering
-- the CKKS/Orion structure that explains the required OpenFHE state evolution is
-  less visible
-
-So the current placement is a principled staging point, not a
-`ConfigureCryptoContext` fallback.
-
-However, it is also not the final ideal architecture.
-
-The cleaner long-term solution is:
-
-- generic mgmt computes the backend-agnostic CKKS structure
-- an OpenFHE-aware mgmt/populate-style phase models the exact OpenFHE state law
-  for the chosen scaling mode
-- backend lowering then only reads out that decision
-
-So the current pass should be understood as:
-
-- upstream enough to be in the management part of the pipeline
-- but still a compensation layer for functionality that the generic mgmt
-  infrastructure does not yet express directly
-
-### 5. ConfigureCryptoContext is now supposed to be dumb for CKKS
-
-For CKKS with `ckks.schemeParam` already present,
-`openfhe-configure-crypto-context` should read the scheme parameters and emit
-OpenFHE helper functions. It should not silently rediscover CKKS structured-op
-depth and take the max.
-
-That cleanup is partially landed already. The remaining issue is not in
-`ConfigureCryptoContext`; it is in the upstream OpenFHE CKKS semantics modeled
-by `AdjustCKKSSchemeParam`.
-
-## Current backend state
+## Backend status
 
 ### Lattigo
 
-Current practical state:
+Current state:
 
-- generic CKKS still defaults to nominal management
-- Orion `linear_transform` and `chebyshev` lower natively
-- BMPH20-style precise handling is the best natural fit for Lattigo, because its
-  native polynomial evaluator accepts an explicit target scale
-
-Important source-backed facts:
-
-- ordinary Lattigo CKKS does exact tracked scale management with explicit
-  `Rescale`, `SetScale`, and scale matching at add/sub
-- native polynomial evaluation accepts an explicit target scale
-- native linear-transform support includes stronger reuse contracts for multiple
-  transforms on the same ciphertext
+- ordinary CKKS uses explicit tracked scales
+- Orion `linear_transform` lowering works
+- Orion `chebyshev` lowering works
+- the precise/BMPH20-style path is the natural fit for opaque polynomial
+  evaluation because Lattigo lets HEIR choose target output scale directly
 
 ### CHEDDAR
 
-Current practical state:
+Current state:
 
-- CHEDDAR uses the canonical-per-level schedule
-- Orion `linear_transform` and `chebyshev` lower natively
-- CHEDDAR emits/consumes a compiled or canonical-level style for structured ops
-
-Important source-backed facts:
-
-- canonical scale is a function of the chosen level
-- native polynomial evaluation is compiled against a fixed target level/scale
-- native linear transform carries its own hoisting/BSGS machinery
+- ordinary CKKS follows the backend canonical scale schedule
+- Orion `linear_transform` lowering works
+- Orion `chebyshev` lowering works
+- CHEDDAR configuration reads the chain chosen by management
 
 ### OpenFHE
 
-Current practical state:
+Current state:
 
-- `fixed-manual` works on the Orion examples and MLP
-- `fixed-auto`, `flexible-auto`, and `flexible-auto-ext` work on smaller Orion
-  structured examples
-- the remaining failing end-to-end case is the Orion MLP in the auto/flexible
-  modes
+- Orion `linear_transform` lowering works
+- Orion `chebyshev` lowering works
+- lowering Orion to ordinary CKKS also exists through
+  [`lib/Transforms/LowerOrion/LowerOrion.cpp`](/Users/a.viand/Code/heir/lib/Transforms/LowerOrion/LowerOrion.cpp)
+- OpenFHE-specific chain / metadata prediction now happens upstream in
+  `ResolveOpenfheCKKSMetadata.cpp`
 
-OpenFHE scaling modes currently in scope:
+Scaling techniques currently in active use:
 
 - `fixed-manual`
-- `fixed-auto`
 - `flexible-auto`
 - `flexible-auto-ext`
 
-The pass / lowering / emitter stack already supports native OpenFHE lowering
-for:
+`fixed-auto` is still present in some code paths, but it is no longer the target
+design. The meaningful split is:
 
-- `orion.linear_transform`
-- `orion.chebyshev`
+- prescriptive: `fixed-manual`
+- predictive: `flexible-auto`, `flexible-auto-ext`
 
-There is also explicit Orion lowering to CKKS primitives via:
+## Local test status
 
-- `lib/Transforms/LowerOrion/LowerOrion.cpp`
-
-Current Orion impl styles:
-
-- `opaque`
-- `diagonal-basic`
-
-## What is currently passing
-
-Local passing coverage already includes:
+Passing locally:
 
 - `//tests/Dialect/LWE/Conversions/lwe_to_openfhe:all`
 - `//tests/Transforms/mlir_to_openfhe_ckks:all`
 - `//tests/Examples/orion/linear_transform:all`
 - `//tests/Examples/orion/chebyshev:all`
 - `//tests/Examples/orion/mlp:mlp_openfhe_test`
-
-The passing OpenFHE MLP target above is the `fixed-manual` one.
-
-The failing OpenFHE MLP targets are:
-
-- `//tests/Examples/orion/mlp:mlp_openfhe_fixed_auto_test`
 - `//tests/Examples/orion/mlp:mlp_openfhe_flexible_auto_test`
+
+Current failing end-to-end target:
+
 - `//tests/Examples/orion/mlp:mlp_openfhe_flexible_auto_ext_test`
 
-## Current blocker: OpenFHE auto/flexible MLP
+## Current OpenFHE blocker
 
-### Symptom
+### Failing case
 
-The failing MLP variants throw at runtime with:
+The only remaining OpenFHE end-to-end failure is the Orion MLP under
+`flexible-auto-ext`.
 
-`external/openfhe+/src/core/include/lattice/hal/default/poly.h:l.274:operator*=(): Modulus mismatch`
+The failure is no longer:
 
-### Exact failing operation
+- wrong chain length
+- wrong native linear-transform plaintext level
+- tower mismatch in native linear transform
 
-Using a temporary debug build with `insert-debug-handler-calls=true`, the last
-successful operation is:
+What remains is one wrong top-of-chain plaintext-add prediction.
 
-- the second explicit `openfhe.mod_reduce_inplace`
+### Observed runtime behavior
 
-The failure happens at the next operation:
+The current debug trace shows:
 
-- the third native `openfhe.linear_transform`
+- first native linear transform: correct
+- first bias add: correct
+- second native linear transform: correct
+- second bias add: correct
+- third native linear transform: correct
+- final bias add: wrong
 
-### What the debug trace showed
+Observed state at the failing point:
 
-For `fixed-auto`, the runtime state before the failing third native linear
-transform is:
+- after the third native linear transform:
+  - value about `0.125`
+  - `Level = 0`
+  - `NoiseScaleDeg = 15`
+  - `Scale ~= 2^319`
+- after the final `add_plain` with bias `0.25`:
+  - the result stays at the transform output instead of adding the bias
 
-- ciphertext scale `2^208`
-- ciphertext `Level = 1`
-- ciphertext `NoiseScaleDeg = 8`
+So the current upstream predictor still gets the final `flexible-auto-ext`
+plaintext encoding wrong.
 
-The emitted native linear-transform plaintext level at that point is:
+### Source-backed law behind the bug
 
-- `plaintextLevel = 9`
+From OpenFHE source:
 
-That mismatch is fatal: the native auxiliary plaintexts are encoded against a
-different modulus prefix than the ciphertext actually has, and the helper fails
-while multiplying them together.
+- `MakeCKKSPackedPlaintext(..., level = 0)` in `FLEXIBLEAUTOEXT` does not behave
+  like a general-level encode.
+- It uses `GetScalingFactorRealBig(0)`.
+- It ignores the requested `noiseScaleDeg` during encoding.
+- It always produces runtime plaintext `NoiseScaleDeg = 2`.
 
-### Why the pass predicted the wrong level
+From the add/sub alignment code:
 
-The current upstream OpenFHE CKKS analysis still assumes generic CKKS-style
-explicit rescale semantics in places where OpenFHE auto modes do something
-different.
+- same-level depth equalization can only promote the lower-depth side by one
+  step with `EvalMultCoreInPlace(..., 1.0)`
+- that promotion uses `GetScalingFactorReal(level)`, not
+  `GetScalingFactorRealBig(level)`
 
-The critical source fact is:
+The combination matters at the top pair:
 
-- in OpenFHE, generic `ModReduceInPlace` only does work for `FIXEDMANUAL`
+- a level-0 `flexible-auto-ext` plaintext encode is special
+- copying the ciphertext degree into the plaintext request is not enough
+- the final MLP bias add exposes exactly that missing law
 
-Source:
+Relevant sources:
 
-- `external/openfhe+/src/pke/lib/schemerns/rns-leveledshe.cpp`
-
-So for `fixed-auto` / `flexible-auto` / `flexible-auto-ext`:
-
-- lowering `ckks.rescale` to `openfhe.mod_reduce_inplace` does not reduce the
-  runtime ciphertext level
-
-The current OpenFHE CKKS adjustment pass still treated those CKKS rescale points
-as level-dropping steps in parts of its analysis, so by the time it reached the
-third native linear transform it had predicted a lower remaining-Q level than
-the runtime actually had.
-
-## What the real OpenFHE law looks like
-
-### 1. `fixed-manual`
-
-This is the only mode where the ordinary explicit `ModReduceInPlace` and
-`LevelReduceInPlace` APIs actually implement the expected external level drop.
-
-For this mode:
-
-- explicit CKKS `rescale` / `level_reduce` map naturally to the lowered OpenFHE
-  ops
-
-### 2. `fixed-auto`, `flexible-auto`, `flexible-auto-ext`
-
-These modes use OpenFHE’s internal multiply/add alignment logic instead of the
-explicit generic `ModReduceInPlace` / `LevelReduceInPlace` path.
-
-Important source-backed behavior:
-
-- `AdjustForMultInPlace` routes non-manual CKKS modes through
-  `AdjustLevelsAndDepthToOneInPlace`
-- `AdjustLevelsAndDepthToOneInPlace` may do internal reductions before a
-  multiply, depending on the current level/depth state
-- generic `ModReduceInPlace` itself is a no-op for these modes
-
-Relevant source files:
-
+- `external/openfhe+/src/pke/include/cryptocontext.h`
 - `external/openfhe+/src/pke/lib/schemerns/rns-leveledshe.cpp`
 - `external/openfhe+/src/pke/lib/scheme/ckksrns/ckksrns-leveledshe.cpp`
 
-### Consequence for HEIR
+## Important OpenFHE findings already established
 
-The OpenFHE-specific CKKS adjustment pass must model the actual OpenFHE
-recurrence on the managed CKKS / Orion IR. It cannot reuse the generic CKKS
-interpretation of:
+### Public mod-reduce / level-reduce are not the predictive law
 
-- `mul`
-- `rescale`
-- `level_reduce`
+For OpenFHE CKKS:
 
-for the auto/flexible modes.
+- `ModReduceInPlace` does real public work only in `fixed-manual`
+- `LevelReduceInPlace` does real public work only in `fixed-manual`
 
-## Concrete source-backed runtime observations from the failing `fixed-auto` MLP
+In predictive modes, real level/depth changes happen inside:
 
-The debug trace produced the following sequence:
+- `AdjustLevelsAndDepthInPlace`
+- `AdjustLevelsAndDepthToOneInPlace`
+- native structured-op internals
 
-- input ciphertext:
-  - `Scale = 2^26`
-  - `Level = 0`
-  - `NoiseScaleDeg = 1`
-- after first native linear transform:
-  - `Scale = 2^52`
-  - `Level = 0`
-  - `NoiseScaleDeg = 2`
-- after first square and explicit `mod_reduce_inplace`:
-  - `Scale = 2^52`
-  - `Level = 1`
-  - `NoiseScaleDeg = 2`
-- after second native linear transform:
-  - `Scale = 2^78`
-  - `Level = 1`
-  - `NoiseScaleDeg = 3`
-- after second bias add:
-  - `Scale = 2^104`
-  - `Level = 1`
-  - `NoiseScaleDeg = 4`
-- after second square and explicit `mod_reduce_inplace`:
-  - `Scale = 2^208`
-  - `Level = 1`
-  - `NoiseScaleDeg = 8`
-- third native linear transform then fails immediately
+### Native linear-transform plaintext level
 
-This confirms:
+The native linear-transform precompute contract is:
 
-- the first explicit `mod_reduce_inplace` in `fixed-auto` did not behave like a
-  generic CKKS level-drop
-- the second explicit `mod_reduce_inplace` also did not behave like a generic
-  CKKS level-drop
-- the OpenFHE-native state reaching the third linear transform is materially
-  different from the one predicted by the current adjustment pass
+- `towersToDrop = sizeQ - L - compositeDegree`
 
-## Why the initial parameter selection gets it wrong
+For the common `compositeDegree = 1` case:
 
-The coarse CKKS management pipeline computes a modulus chain under HEIR’s
-generic CKKS semantics.
+- `L = remainingQ - 1`
+- equivalently `L = sizeQ - Level - 1`
 
-That is enough for:
+That is the quantity HEIR resolves into `openfhe.native_plaintext_level`.
 
-- nominal / power-of-two style management
-- CHEDDAR canonical-per-level management
-- OpenFHE `fixed-manual`
+### Generic CKKS budgeting is not sufficient by itself
 
-It is not enough for OpenFHE auto/flexible modes, because those modes do not
-realize the generic CKKS `mul + rescale` pattern the same way.
+Generic CKKS management budgets from:
 
-So the first parameter set can be wrong for two separate reasons:
+- ct-ct multiply depth
+- explicit rescale / level-reduce structure
+- structured-op coarse level cost
 
-- chain-length demand is different under OpenFHE’s real native state evolution
-- native linear-transform auxiliary plaintext levels are different under that
-  real state evolution
+OpenFHE also depends on metadata laws that are specific to the selected scaling
+technique and to native structured ops. Those laws must be predicted upstream on
+managed CKKS / Orion IR before backend lowering.
 
-This is exactly why the OpenFHE-specific adjustment pass exists.
+## Immediate next steps
 
-## Current code cleanups already landed
+1. Finish the upstream `flexible-auto-ext` plaintext-add predictor.
+   - Extend `ResolveOpenfheCKKSMetadata.cpp` with the missing top-pair state.
+   - Stop treating `NoiseScaleDeg + effective HEIR level` as sufficient for the
+     final EXT encode choice.
+1. Keep all CKKS/OpenFHE management logic upstream.
+   - No new post-`secret-to-ckks` repair pass.
+   - No new CKKS chain/depth fallback in `ConfigureCryptoContext`.
+1. Rerun the focused OpenFHE suites after the EXT fix:
+   - `//tests/Examples/orion/mlp:mlp_openfhe_test`
+   - `//tests/Examples/orion/mlp:mlp_openfhe_flexible_auto_test`
+   - `//tests/Examples/orion/mlp:mlp_openfhe_flexible_auto_ext_test`
+   - `//tests/Dialect/LWE/Conversions/lwe_to_openfhe:all`
+   - `//tests/Transforms/mlir_to_openfhe_ckks:all`
+1. Tighten the docs:
+   - `management.md` should describe the intended final management design
+     directly
+   - `OPENFHE.MD` should remain the source-backed OpenFHE law reference
+1. After the local OpenFHE work is stable:
+   - run broader local CKKS/OpenFHE coverage
+   - run the full Sky suite on `heir-cheddar`
+   - get one final independent review on the completed tree
 
-### Shared Orion helpers
+## Known cleanup still worth doing
 
-Shared in:
-
-- `lib/Dialect/Orion/IR/OrionUtils.h`
-
-This already covers:
-
-- `kOpaqueImplStyle`
-- `kDiagonalBasicImplStyle`
-- `verifyImplStyle(...)`
-
-### Shared OpenFHE linear-transform helpers
-
-Shared in:
-
-- `lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h`
-
-This already removed the duplicated linear-transform term grouping logic from:
-
-- `OpenFhePkeEmitter.cpp`
-- `Interpreter.cpp`
-
-### Rotation normalization cleanup
-
-`LowerOrion` now uses the shared signed-minimal rotation helper in:
-
-- `lib/Utils/RotationUtils.h`
-
-## Remaining cleanup items
-
-### 1. OpenFHE CKKS analysis state needs to be unified
-
-The current pass still keeps:
-
-- effective level
-- noise-scale degree
-
-in separate dataflow analyses.
-
-For OpenFHE auto/flexible multiply semantics, those quantities are coupled.
-
-The next implementation step should be one combined OpenFHE CKKS state lattice
-over:
-
-- effective remaining-Q level
-- effective noise-scale degree
-
-### 2. OpenFHE auto/flexible recurrence must live in the upstream adjustment pass
-
-The logic belongs in:
-
-- `lib/Dialect/Openfhe/Transforms/AdjustCKKSSchemeParam.cpp`
-
-It does not belong in:
-
-- `ConfigureCryptoContext`
-
-### 3. `ConfigureCryptoContext` should stay a reader/emitter
-
-For CKKS, `ConfigureCryptoContext` should:
-
-- read the finalized `ckks.schemeParam`
-- read backend-specific feature requirements already attached to the IR
-- emit context/keygen helpers
-
-It should not:
-
-- recompute CKKS structured-op depth
-- silently take `max` with a second analysis result
-- repair wrong upstream mgmt decisions
-
-### 4. `management.md` still needs a full rewrite pass
-
-The design doc should describe the final intended HEIR management model in one
-common language across:
-
-- Lattigo
-- OpenFHE fixed/manual/auto/flexible variants
-- CHEDDAR
-
-and then describe how HEIR management handles each one.
-
-The current doc has useful content, but it still mixes:
-
-- final architecture
-- historical/current implementation details
-- transitional explanations
-
-## Immediate next code changes
-
-1. Replace the split OpenFHE level/degree analyses with one combined state.
-
-1. Encode OpenFHE mode-specific multiply/rescale behavior in that analysis.
-
-1. Recompute:
-
-- chain-length requirement
-- native linear-transform plaintext level
-- `add_plain` encode depth/level requirements
-
-from that combined state.
-
-4. Re-run:
-
-- `//tests/Examples/orion/mlp:mlp_openfhe_fixed_auto_test`
-- `//tests/Examples/orion/mlp:mlp_openfhe_flexible_auto_test`
-- `//tests/Examples/orion/mlp:mlp_openfhe_flexible_auto_ext_test`
-
-5. Remove the temporary debug-only MLP target once the bug is fixed.
-
-## Verification status
-
-Local verification completed so far:
-
-- OpenFHE CKKS conversion and transform suites pass
-- Orion structured OpenFHE examples pass except for the three MLP auto/flexible
-  targets above
-
-Still outstanding before this branch is finished:
-
-- fix the OpenFHE auto/flexible MLP bug
-- rewrite `management.md` in its final intended form
-- run the full local suite expected for the touched areas
-- run the full Sky `heir-cheddar` suite
+- move any remaining duplicate Orion impl-style helpers to shared utilities
+- move any remaining duplicate linear-transform grouping helpers to a shared
+  header
+- review whether any low-level OpenFHE tests now only check copied metadata and
+  should be replaced or supplemented with higher-level mgmt tests

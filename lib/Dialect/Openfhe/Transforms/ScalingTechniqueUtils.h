@@ -7,6 +7,8 @@ namespace mlir::heir::openfhe {
 
 inline constexpr llvm::StringLiteral kNoiseScaleDegreeAttrName =
     "openfhe.noise_scale_degree";
+inline constexpr llvm::StringLiteral kScalingFactorBitsAttrName =
+    "openfhe.scaling_factor_bits";
 inline constexpr llvm::StringLiteral kScalingTechniqueAttrName =
     "openfhe.scaling_technique";
 inline constexpr llvm::StringLiteral kNativePlaintextLevelAttrName =
@@ -45,6 +47,20 @@ inline llvm::StringRef resolveScalingTechnique(StringRef scalingTechnique) {
   return scalingTechnique.empty()
              ? llvm::StringRef(kScalingTechniqueFixedManual)
              : scalingTechnique;
+}
+
+inline bool usesExplicitPublicLevelManagement(StringRef scalingTechnique) {
+  return resolveScalingTechnique(scalingTechnique) ==
+         kScalingTechniqueFixedManual;
+}
+
+inline bool usesPredictiveLevelState(StringRef scalingTechnique) {
+  StringRef resolved = resolveScalingTechnique(scalingTechnique);
+  return resolved == kScalingTechniqueFixedAuto ||
+         resolved == kScalingTechniqueFlexibleAuto ||
+         resolved == kScalingTechniqueFlexibleAutoExt ||
+         resolved == kScalingTechniqueCompositeAuto ||
+         resolved == kScalingTechniqueCompositeManual;
 }
 
 }  // namespace mlir::heir::openfhe

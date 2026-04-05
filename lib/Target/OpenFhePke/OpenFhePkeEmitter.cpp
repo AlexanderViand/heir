@@ -20,6 +20,7 @@
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
+#include "lib/Dialect/Openfhe/Transforms/ScalingTechniqueUtils.h"
 #include "lib/Target/OpenFhePke/OpenFheUtils.h"
 #include "lib/Utils/TargetUtils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"           // from @llvm-project
@@ -1783,12 +1784,35 @@ LogicalResult OpenFhePkeEmitter::printOperation(
     inputVarName += "_d";
   }
 
-  if (skipVectorResizing_) {
+  auto emitMakeCKKSPackedPlaintext = [&](StringRef inputName) -> LogicalResult {
+    auto scalingFactorBitsAttr =
+        op->getAttrOfType<FloatAttr>(openfhe::kScalingFactorBitsAttrName);
     // Cannot use const auto& here:
     // https://github.com/openfheorg/openfhe-development/issues/1046
     os << "auto " << variableNames->getNameForValue(op.getResult()) << " = ";
+    if (scalingFactorBitsAttr) {
+      FailureOr<std::string> scalingFactorBits =
+          printFloatAttr(scalingFactorBitsAttr);
+      if (failed(scalingFactorBits)) {
+        return op.emitError(
+            "expected a floating-point scaling-factor-bits attr");
+      }
+      os << "::mlir::heir::openfhe::"
+            "makeOpenfheCKKSPackedPlaintextWithScalingBits("
+         << variableNames->getNameForValue(resultCC.value()) << ", "
+         << inputName << ", "
+         << (op.getNoiseScaleDegreeAttr()
+                 ? std::to_string(op.getNoiseScaleDegreeAttr().getInt())
+                 : "1")
+         << ", "
+         << (op.getLevelAttr() ? std::to_string(op.getLevelAttr().getInt())
+                               : "0")
+         << ", " << *scalingFactorBits << ");\n";
+      return success();
+    }
+
     os << variableNames->getNameForValue(resultCC.value())
-       << "->MakeCKKSPackedPlaintext(" << inputVarName;
+       << "->MakeCKKSPackedPlaintext(" << inputName;
     if (op.getNoiseScaleDegreeAttr() || op.getLevelAttr()) {
       os << ", "
          << (op.getNoiseScaleDegreeAttr()
@@ -1800,6 +1824,10 @@ LogicalResult OpenFhePkeEmitter::printOperation(
     }
     os << ");\n";
     return success();
+  };
+
+  if (skipVectorResizing_) {
+    return emitMakeCKKSPackedPlaintext(inputVarName);
   }
   // cyclic repetition to mitigate openfhe zero-padding (#645)
   std::string filledPrefix =
@@ -1815,23 +1843,7 @@ LogicalResult OpenFhePkeEmitter::printOperation(
      << inputVarName << ".size()]);\n";
   os << "}\n";
 
-  // Cannot use const auto& here:
-  // https://github.com/openfheorg/openfhe-development/issues/1046
-  os << "auto " << variableNames->getNameForValue(op.getResult()) << " = ";
-  os << variableNames->getNameForValue(resultCC.value())
-     << "->MakeCKKSPackedPlaintext(" << inputVarFilledName;
-  if (op.getNoiseScaleDegreeAttr() || op.getLevelAttr()) {
-    os << ", "
-       << (op.getNoiseScaleDegreeAttr()
-               ? std::to_string(op.getNoiseScaleDegreeAttr().getInt())
-               : "1")
-       << ", "
-       << (op.getLevelAttr() ? std::to_string(op.getLevelAttr().getInt())
-                             : "0");
-  }
-  os << ");\n";
-
-  return success();
+  return emitMakeCKKSPackedPlaintext(inputVarFilledName);
 }
 
 // Returns the unique non-unit dimension of a tensor and its rank.

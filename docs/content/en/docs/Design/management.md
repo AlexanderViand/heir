@@ -325,6 +325,47 @@ The output-scale law is one of:
 
 ### Management procedure
 
+HEIR uses two different semantic modes for CKKS management after parameters are
+known.
+
+#### Prescriptive resolution
+
+In a prescriptive backend law, HEIR decides the management schedule and the
+backend realizes that schedule directly.
+
+This is the right model for:
+
+- exact tracked law
+- fixed-delta law when the backend exposes literal public rescale / level-drop
+  semantics
+- rescale-prime-product law
+
+In these laws, `mgmt.modreduce`, `mgmt.level_reduce`, and `mgmt.adjust_scale`
+mean:
+
+- perform this management action here
+
+#### Predictive resolution
+
+In a predictive backend law, HEIR does not choose the internal scale-management
+mechanism. The backend already chose it. HEIR predicts the backend runtime state
+law well enough to:
+
+- size the modulus chain correctly
+- encode plaintexts at the correct level and scale
+- configure native structured ops with the correct auxiliary plaintext level and
+  auxiliary plaintext scale
+- ensure that later additions and subtractions remain legal
+
+This is the right model for:
+
+- OpenFHE fixed-auto
+- OpenFHE q-derived recurrence law
+- OpenFHE q-derived recurrence law with explicit top pair
+
+In these laws, management ops describe required state transitions, not
+necessarily literal backend API calls.
+
 Managed CKKS compilation proceeds in five stages:
 
 1. structured-op annotation
