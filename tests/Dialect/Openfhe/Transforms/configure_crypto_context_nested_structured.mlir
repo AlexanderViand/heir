@@ -22,7 +22,7 @@ module attributes {
 
 // LINEAR: func.func @nested_linear_transform__generate_crypto_context
 // LINEAR: openfhe.gen_params
-// LINEAR-SAME: mulDepth = 3
+// LINEAR-SAME: mulDepth = 2
 
 // -----
 
@@ -47,4 +47,4 @@ module attributes {
 
 // CHEB: func.func @nested_chebyshev__generate_crypto_context
 // CHEB: openfhe.gen_params
-// CHEB-SAME: mulDepth = 2
+// CHEB-SAME: mulDepth = 1

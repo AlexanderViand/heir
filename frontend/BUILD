@@ -9,6 +9,7 @@ package(
 
 DATA_DEPS = [
     "@cereal//:headers",
+    "@heir//lib/Target/OpenFhePke:OpenFheLinearTransformHelpers.h",
     "@heir//tools:heir-opt",
     "@heir//tools:heir-translate",
     "@openfhe//:libopenfhe",

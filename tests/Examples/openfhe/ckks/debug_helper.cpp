@@ -118,10 +118,11 @@ void __heir_debug(CryptoContextT cc, PrivateKeyT sk, CiphertextT ct,
     // Note that packing behavior is different in OpenfhePkeEmitter
     // and plaintext backend, care should be taken...
     std::vector<double> packed;
-    for (size_t i = 0;
-         i <
-         cc->GetCryptoParameters()->GetElementParams()->GetRingDimension() / 2;
-         i++) {
+    size_t numSlots = cc->GetEncodingParams()->GetBatchSize();
+    if (numSlots == 0)
+      numSlots =
+          cc->GetCryptoParameters()->GetElementParams()->GetRingDimension() / 2;
+    for (size_t i = 0; i < numSlots; i++) {
       packed.push_back(plaintextResult[i % plaintextResult.size()]);
     }
     auto packedPt = cc->MakeCKKSPackedPlaintext(packed);

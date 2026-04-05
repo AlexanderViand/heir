@@ -100,7 +100,10 @@ def openfhe_lib(
             name = debug_lib_target,
             srcs = [generated_debug_cc_filename],
             hdrs = [generated_debug_h_filename],
-            deps = deps + ["@openfhe//:pke"],
+            deps = deps + [
+                "@heir//lib/Target/OpenFhePke:OpenFheLinearTransformHelpers",
+                "@openfhe//:pke",
+            ],
             tags = tags,
             data = data,
             copts = OPENMP_COPTS,
