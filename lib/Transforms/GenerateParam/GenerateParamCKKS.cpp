@@ -8,9 +8,11 @@
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/IR/CKKSEnums.h"
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
+#include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Parameters/CKKS/Params.h"
 #include "lib/Utils/LogArithmetic.h"
+#include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
 #include "llvm/include/llvm/Support/DebugLog.h"            // from @llvm-project
 #include "mlir/include/mlir/Analysis/DataFlow/Utils.h"     // from @llvm-project
@@ -147,11 +149,42 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
       LDBG() << "For lattigo, fixing extended encryption technique";
     }
 
+    // Ensure the chain is long enough for:
+    // 1. The target backend's overhead (e.g., OpenFHE's flexible-auto-ext
+    //    needs 2 extra levels beyond the circuit's multiplicative depth).
+    // 2. Any minimum level hint from the raise pass (preserves noise headroom
+    //    from the original Orion parameters).
+    int effectiveMaxLevel =
+        maxLevel.value_or(0) + static_cast<int>(minLevelOverhead);
+    if (auto minLevelHint =
+            getOperation()->getAttrOfType<IntegerAttr>("heir.min_level_hint")) {
+      effectiveMaxLevel =
+          std::max(effectiveMaxLevel,
+                   static_cast<int>(minLevelHint.getValue().getSExtValue()));
+      getOperation()->removeAttr("heir.min_level_hint");
+    }
+    // Use OpenFHE's security bounds when targeting OpenFHE, to ensure
+    // generated parameters are accepted by OpenFHE's runtime validation.
+    // OpenFHE's ternary secret key bounds are slightly more generous than
+    // the standard HE security guidelines.
+    bool useOpenFHEBounds = moduleIsOpenfhe(getOperation());
     auto schemeParam = ckks::SchemeParam::getConcreteSchemeParam(
-        firstModBits, scalingModBits, maxLevel.value_or(0), slotNumber,
-        usePublicKey, encryptionTechniqueExtended, reducedError);
+        firstModBits, scalingModBits, effectiveMaxLevel, slotNumber,
+        usePublicKey, encryptionTechniqueExtended, reducedError,
+        useOpenFHEBounds);
 
     LDBG() << "Scheme Param:\n" << schemeParam;
+
+    // If the effective chain is longer than the circuit requires (due to
+    // backend overhead or noise headroom hints), shift all mgmt level
+    // annotations so they reference the correct position in the actual chain.
+    int delta = effectiveMaxLevel - maxLevel.value_or(0);
+    if (delta > 0) {
+      // Store the level offset so downstream passes (populate-scale-ckks,
+      // AnnotateMgmt) shift levels to match the actual chain length.
+      getOperation()->setAttr("heir.level_offset",
+                              builder.getI64IntegerAttr(delta));
+    }
 
     auto* context = &getContext();
     getOperation()->setAttr(kRequestedSlotCountAttrName,

@@ -11,8 +11,11 @@ struct RLWESecurityParam {
   int logMaxQ;
 };
 
-// compute ringDim given logPQ under 128-bit classic security
-int computeRingDim(int logPQ, int minRingDim);
+// compute ringDim given logPQ under 128-bit classic security.
+// When useOpenFHEBounds is true, uses OpenFHE's ternary secret key
+// distribution bounds (slightly more generous) to ensure generated
+// parameters are accepted by OpenFHE's runtime validation.
+int computeRingDim(int logPQ, int minRingDim, bool useOpenFHEBounds = false);
 
 }  // namespace heir
 }  // namespace mlir

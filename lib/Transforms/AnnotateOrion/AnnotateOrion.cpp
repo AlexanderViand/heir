@@ -87,8 +87,11 @@ struct AnnotateOrion : impl::AnnotateOrionBase<AnnotateOrion> {
                   builder.getI64IntegerAttr(*levelCost));
       return WalkResult::advance();
     });
-    // Annotate tensor_ext.diagonal_matvec ops with level cost = 0
-    // (linear transforms don't consume levels).
+    // Annotate tensor_ext.diagonal_matvec ops with level cost = 0.
+    // The native-API linear transform implementations (OpenFHE's EXT-based
+    // helper, Lattigo's lintrans) operate in the extended QP basis and
+    // do not consume Q levels. For the diagonal-basic expansion to
+    // rotate+multiply+add, the individual ops handle their own levels.
     module.walk([&](tensor_ext::DiagonalMatvecOp op) {
       if (!op->hasAttr(orion::kLevelCostUpperBoundAttrName)) {
         op->setAttr(orion::kLevelCostUpperBoundAttrName,

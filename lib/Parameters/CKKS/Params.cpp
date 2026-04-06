@@ -158,10 +158,14 @@ static std::vector<int64_t> moduliQGenerationReducedError(int logFirstMod,
   return moduliQ;
 }
 
+// Minimum bits for a P prime before we give up reducing further.
+constexpr int kMinPPrimeBits = 20;
+
 // numScaleMod is L
 SchemeParam SchemeParam::getConcreteSchemeParam(
     int logFirstMod, int logDefaultScale, int numScaleMod, int slotNumber,
-    bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError) {
+    bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError,
+    bool useOpenFHESecurityBounds) {
   // CKKS slot number = ringDim / 2
   auto minRingDim = 2 * slotNumber;
 
@@ -180,8 +184,9 @@ SchemeParam SchemeParam::getConcreteSchemeParam(
 
   auto logPQ = logQ + logP;
 
-  // ringDim will change if newLogPQ is too large
-  auto ringDim = computeRingDim(logPQ, minRingDim);
+  // Start with the minimum ring dimension that fits the slot count.
+  // The loop below will only bump ringDim if absolutely necessary.
+  auto ringDim = computeRingDim(logPQ, minRingDim, useOpenFHESecurityBounds);
   bool redo = false;
   std::vector<int64_t> qiImpl;
   std::vector<int64_t> piImpl;
@@ -204,7 +209,7 @@ SchemeParam SchemeParam::getConcreteSchemeParam(
       existingPrimes.push_back(prime);
     }
 
-    // if generated primes are too large, increase ringDim
+    // Check actual logPQ with real generated primes against security bound.
     double newLogPQ = 0;
     for (auto qi : qiImpl) {
       newLogPQ += log2(qi);
@@ -212,9 +217,26 @@ SchemeParam SchemeParam::getConcreteSchemeParam(
     for (auto pi : piImpl) {
       newLogPQ += log2(pi);
     }
-    auto newRingDim = computeRingDim(newLogPQ, minRingDim);
+    auto newRingDim =
+        computeRingDim(newLogPQ, minRingDim, useOpenFHESecurityBounds);
     if (newRingDim != ringDim) {
+      // Before bumping ringDim, try reducing P prime size to fit within the
+      // security bound. This trades off key-switching accuracy for keeping
+      // the ring dimension small (and thus performance high).
+      // Keep numPi fixed so that reducing sizePi monotonically decreases
+      // total logP (recalculating numPi could cause it to jump up).
+      if (sizePi > kMinPPrimeBits) {
+        sizePi -= 1;
+        redo = true;
+        continue;
+      }
+      // P primes already at minimum — must increase ring dimension.
       ringDim = newRingDim;
+      // Reset P prime size since larger ring relaxes the security bound.
+      sizePi = 60;
+      logP = ceil(logQ / dnum);
+      numPi = ceil(logP / sizePi);
+      logP = numPi * sizePi;
       redo = true;
     }
   } while (redo);

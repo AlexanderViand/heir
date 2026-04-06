@@ -6,6 +6,9 @@
 // LINEAR: @linear_transform
 // LINEAR-NOT: orion.linear_transform
 // LINEAR: openfhe.linear_transform
+// LINEAR: func.func @linear_transform__generate_crypto_context
+// LINEAR: openfhe.gen_params
+// LINEAR-SAME: scalingTechnique = "fixed-manual"
 
 !Z536903681_i64 = !mod_arith.int<536903681 : i64>
 !Z66813953_i64 = !mod_arith.int<66813953 : i64>
@@ -33,6 +36,9 @@ module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 13,
 // CHEB: @chebyshev
 // CHEB-NOT: orion.chebyshev
 // CHEB: openfhe.chebyshev_series
+// CHEB: func.func @chebyshev__generate_crypto_context
+// CHEB: openfhe.gen_params
+// CHEB-SAME: scalingTechnique = "fixed-manual"
 
 !Z1099502714881_i64 = !mod_arith.int<1099502714881 : i64>
 !Z1099503370241_i64 = !mod_arith.int<1099503370241 : i64>

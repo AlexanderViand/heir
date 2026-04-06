@@ -29,8 +29,6 @@ cc_library(
         "@heir//lib/Dialect/LWE/IR:Dialect",
         "@heir//lib/Dialect/Mgmt/IR:Dialect",
         "@heir//lib/Dialect/Mgmt/Transforms:AnnotateMgmt",
-        "@heir//lib/Dialect/Openfhe/Transforms:ScalingTechniqueUtils",
-        "@heir//lib/Dialect/Orion/IR:Dialect",
         "@heir//lib/Parameters/BGV:Params",
         "@heir//lib/Parameters/CKKS:Params",
         "@heir//lib/Utils",

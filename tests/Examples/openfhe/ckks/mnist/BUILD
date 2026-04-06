@@ -42,3 +42,85 @@ py_test(
         "@heir_pip_deps//torch",
     ],
 )
+
+openfhe_lib(
+    name = "mnist_openfhe_flexible_auto",
+    # ensure CppCompile has enough memory to compile this large, unrolled program
+    exec_properties = {"mem": "28g"},
+    generated_lib_header = "mnist_openfhe_flexible_auto_lib.inc.h",
+    heir_opt_flags = [
+        "--annotate-module=backend=openfhe scheme=ckks",
+        "--torch-linalg-to-ckks=ciphertext-degree=1024 openfhe-scaling-technique=flexible-auto",
+        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto",
+    ],
+    mlir_src = "@heir//tests/Examples/common/mnist:mnist.mlir",
+    pybind_target_name = "mnist_openfhe_flexible_auto_pybind",
+    tags = [
+        "nofastbuild",
+        "notap",
+    ],
+)
+
+py_test(
+    name = "mnist_openfhe_flexible_auto_test",
+    size = "enormous",
+    srcs = ["mnist_flexible_auto_test.py"],
+    data = [
+        "@heir//tests/Examples/common/mnist/data:t10k-images-idx3-ubyte",
+        "@heir//tests/Examples/common/mnist/data:t10k-labels-idx1-ubyte",
+        "@heir//tests/Examples/common/mnist/data:traced_model.pt",
+    ],
+    main = "mnist_flexible_auto_test.py",
+    tags = [
+        "nofastbuild",
+        "notap",
+        "requires-mem:28g",
+    ],
+    deps = [
+        ":mnist_openfhe_flexible_auto_pybind",
+        "@abseil-py//absl/testing:absltest",
+        "@heir_pip_deps//numpy",
+        "@heir_pip_deps//torch",
+    ],
+)
+
+openfhe_lib(
+    name = "mnist_openfhe_flexible_auto_ext",
+    # ensure CppCompile has enough memory to compile this large, unrolled program
+    exec_properties = {"mem": "28g"},
+    generated_lib_header = "mnist_openfhe_flexible_auto_ext_lib.inc.h",
+    heir_opt_flags = [
+        "--annotate-module=backend=openfhe scheme=ckks",
+        "--torch-linalg-to-ckks=ciphertext-degree=1024 openfhe-scaling-technique=flexible-auto-ext",
+        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto-ext",
+    ],
+    mlir_src = "@heir//tests/Examples/common/mnist:mnist.mlir",
+    pybind_target_name = "mnist_openfhe_flexible_auto_ext_pybind",
+    tags = [
+        "nofastbuild",
+        "notap",
+    ],
+)
+
+py_test(
+    name = "mnist_openfhe_flexible_auto_ext_test",
+    size = "enormous",
+    srcs = ["mnist_flexible_auto_ext_test.py"],
+    data = [
+        "@heir//tests/Examples/common/mnist/data:t10k-images-idx3-ubyte",
+        "@heir//tests/Examples/common/mnist/data:t10k-labels-idx1-ubyte",
+        "@heir//tests/Examples/common/mnist/data:traced_model.pt",
+    ],
+    main = "mnist_flexible_auto_ext_test.py",
+    tags = [
+        "nofastbuild",
+        "notap",
+        "requires-mem:28g",
+    ],
+    deps = [
+        ":mnist_openfhe_flexible_auto_ext_pybind",
+        "@abseil-py//absl/testing:absltest",
+        "@heir_pip_deps//numpy",
+        "@heir_pip_deps//torch",
+    ],
+)

@@ -33,7 +33,7 @@ openfhe_end_to_end_test(
     heir_opt_flags = [
         "--raise-ckks",
         "--mlir-to-ckks=ciphertext-degree=32768 enable-arithmetization=false preserve-structured-ops=true scaling-mod-bits=40 first-mod-bits=55 openfhe-scaling-technique=fixed-manual",
-        "--scheme-to-openfhe=openfhe-scaling-technique=fixed-manual insecure=true",
+        "--scheme-to-openfhe=openfhe-scaling-technique=fixed-manual",
     ],
     mlir_src = ":chebyshev.mlir",
     test_src = "chebyshev_openfhe_test.cpp",
@@ -47,7 +47,7 @@ openfhe_end_to_end_test(
     heir_opt_flags = [
         "--raise-ckks",
         "--mlir-to-ckks=ciphertext-degree=32768 enable-arithmetization=false preserve-structured-ops=true scaling-mod-bits=40 first-mod-bits=55 openfhe-scaling-technique=flexible-auto",
-        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto insecure=true",
+        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto",
     ],
     mlir_src = ":chebyshev.mlir",
     test_src = "chebyshev_openfhe_flexible_auto_test.cpp",
@@ -61,7 +61,7 @@ openfhe_end_to_end_test(
     heir_opt_flags = [
         "--raise-ckks",
         "--mlir-to-ckks=ciphertext-degree=32768 enable-arithmetization=false preserve-structured-ops=true scaling-mod-bits=40 first-mod-bits=55 openfhe-scaling-technique=flexible-auto-ext",
-        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto-ext insecure=true",
+        "--scheme-to-openfhe=openfhe-scaling-technique=flexible-auto-ext",
     ],
     mlir_src = ":chebyshev.mlir",
     test_src = "chebyshev_openfhe_flexible_auto_ext_test.cpp",

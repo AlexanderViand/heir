@@ -17,6 +17,7 @@
 #include "lib/Dialect/Lattigo/Transforms/AllocToInPlace.h"
 #include "lib/Dialect/Lattigo/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Openfhe/Transforms/Passes.h"
+#include "lib/Dialect/Openfhe/Transforms/ScalingTechniqueUtils.h"
 #include "lib/Dialect/Secret/Conversions/SecretToBGV/SecretToBGV.h"
 #include "lib/Dialect/Secret/Conversions/SecretToCKKS/SecretToCKKS.h"
 #include "lib/Dialect/Secret/Conversions/SecretToModArith/SecretToModArith.h"
@@ -416,6 +417,15 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       generateParamOptions.scalingModBits = options.scalingModBits;
       generateParamOptions.slotNumber = options.ciphertextDegree;
       generateParamOptions.usePublicKey = options.usePublicKey;
+      // OpenFHE's predictive scaling techniques need extra levels beyond
+      // the circuit's multiplicative depth.
+      if (options.openfheScalingTechnique ==
+          openfhe::kScalingTechniqueFlexibleAutoExt) {
+        generateParamOptions.minLevelOverhead = 2;
+      } else if (options.openfheScalingTechnique ==
+                 openfhe::kScalingTechniqueFlexibleAuto) {
+        generateParamOptions.minLevelOverhead = 1;
+      }
       pm.addPass(createGenerateParamCKKS(generateParamOptions));
 
       ResolveReconcileCKKSOptions resolveReconcileCKKSOptions;

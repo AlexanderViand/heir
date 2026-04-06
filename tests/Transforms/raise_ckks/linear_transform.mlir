@@ -22,7 +22,8 @@ module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 3, 
   }
 }
 
-// CHECK: module attributes {scheme.ckks}
+// CHECK: module attributes
+// CHECK-SAME: scheme.ckks
 // CHECK-NOT: ckks.schemeParam
 // CHECK: func.func @linear_transform(%[[ARG:.*]]: tensor<4xf64> {secret.secret})
 // CHECK: arith.constant dense
