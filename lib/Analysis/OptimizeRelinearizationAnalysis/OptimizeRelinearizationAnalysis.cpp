@@ -223,28 +223,28 @@ LogicalResult OptimizeRelinearizationAnalysis::solve() {
   // TODO(#1398): determine whether we need linear key basis for modreduce.
   opToRunOn->walk([&](Operation* op) {
     llvm::TypeSwitch<Operation&>(*op)
-        .Case<tensor_ext::RotateOp, secret::YieldOp, mgmt::ModReduceOp>(
-            [&](auto op) {
-              for (OpOperand& operand : op->getOpOperands()) {
-                // skip non secret argument
-                if (!isSecret(operand.get(), solver)) {
-                  continue;
-                }
-                if (!keyBasisVars.contains(operand.get())) {
-                  // This could happen if you return a block argument without
-                  // doing anything to it. No variables are created, but it does
-                  // not necessarily need to be constrained.
-                  if (isa<secret::YieldOp>(op)) return;
+        .Case<tensor_ext::RotateOp, secret::YieldOp, mgmt::ModReduceOp,
+              tensor_ext::DiagonalMatvecOp>([&](auto op) {
+          for (OpOperand& operand : op->getOpOperands()) {
+            // skip non secret argument
+            if (!isSecret(operand.get(), solver)) {
+              continue;
+            }
+            if (!keyBasisVars.contains(operand.get())) {
+              // This could happen if you return a block argument without
+              // doing anything to it. No variables are created, but it does
+              // not necessarily need to be constrained.
+              if (isa<secret::YieldOp>(op)) return;
 
-                  assert(false && "Operand not found in keyBasisVars");
-                }
-                auto operandDegreeVar = keyBasisVars.at(operand.get());
-                std::stringstream ss;
-                ss << "RequireLinearized_" << uniqueName(op) << "_"
-                   << operand.getOperandNumber();
-                model.AddLinearConstraint(operandDegreeVar == 1, ss.str());
-              }
-            });
+              assert(false && "Operand not found in keyBasisVars");
+            }
+            auto operandDegreeVar = keyBasisVars.at(operand.get());
+            std::stringstream ss;
+            ss << "RequireLinearized_" << uniqueName(op) << "_"
+               << operand.getOperandNumber();
+            model.AddLinearConstraint(operandDegreeVar == 1, ss.str());
+          }
+        });
   });
 
   // When mixed-degree ops are enabled, the default result degree of an op is
