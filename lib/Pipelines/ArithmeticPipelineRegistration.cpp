@@ -426,16 +426,12 @@ void mlirToRLWEPipeline(OpPassManager& pm,
         ResolveScaleCKKSBMPH20Options resolveScaleCKKSBMPH20Options;
         resolveScaleCKKSBMPH20Options.beforeMulIncludeFirstMul =
             options.modulusSwitchBeforeFirstMul;
-        resolveScaleCKKSBMPH20Options.openfheScalingTechnique =
-            options.openfheScalingTechnique;
         pm.addPass(createResolveScaleCKKSBMPH20(resolveScaleCKKSBMPH20Options));
       } else {
         PopulateScaleCKKSOptions populateScaleCKKSOptions;
         populateScaleCKKSOptions.beforeMulIncludeFirstMul =
             options.modulusSwitchBeforeFirstMul;
         populateScaleCKKSOptions.scalePolicy = options.ckksScalePolicy;
-        populateScaleCKKSOptions.openfheScalingTechnique =
-            options.openfheScalingTechnique;
         pm.addPass(createPopulateScaleCKKS(populateScaleCKKSOptions));
       }
       break;
