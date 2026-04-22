@@ -9,6 +9,8 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+exports_files(["OpenFheLinearTransformHelpers.h"])
+
 cc_library(
     name = "OpenFheLinearTransformHelpers",
     hdrs = ["OpenFheLinearTransformHelpers.h"],

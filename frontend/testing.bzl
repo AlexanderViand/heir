@@ -6,6 +6,7 @@ def frontend_test(name, srcs, deps = [], data = [], tags = []):
     """A py_test replacement with an env including all backend dependencies.
     """
     include_dirs = [
+        "_main/",
         "openfhe+/",
         "openfhe+/src/binfhe/include",
         "openfhe+/src/core/include",

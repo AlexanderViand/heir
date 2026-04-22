@@ -435,7 +435,11 @@ struct ConfigureCryptoContext
 
     // fill config with pass options
     config.ringDim = ringDim != 0 ? ringDim : inferredRingDim;
-    config.batchSize = batchSize != 0 ? batchSize : inferredBatchSize;
+    if (moduleIsCKKS(module)) {
+      config.batchSize = batchSize != 0 ? batchSize : inferredBatchSize;
+    } else {
+      config.batchSize = batchSize;
+    }
     config.firstModSize =
         firstModSize != 0 ? firstModSize : inferredFirstModSize;
     config.scalingModSize =
@@ -454,13 +458,10 @@ struct ConfigureCryptoContext
         scalingTechnique.empty() ? inferredScalingTechnique : scalingTechnique;
     if (moduleIsCKKS(module) && inferredCkksSchemeParam &&
         config.scalingTechnique.empty()) {
-      module->emitError()
-          << "CKKS OpenFHE configuration requires the scaling technique to be "
-             "resolved before `openfhe-configure-crypto-context`; run the "
-             "OpenFHE-aware CKKS management pipeline first or pass an explicit "
-             "`--openfhe-configure-crypto-context=scaling-technique=` "
-             "override";
-      return failure();
+      config.scalingTechnique = kScalingTechniqueFixedManual.str();
+      LLVM_DEBUG(llvm::dbgs()
+                 << "No OpenFHE scaling technique specified for CKKS; "
+                    "defaulting to fixed-manual\n");
     }
     config.levelBudgetDecode = levelBudgetDecode;
     config.levelBudgetEncode = levelBudgetEncode;

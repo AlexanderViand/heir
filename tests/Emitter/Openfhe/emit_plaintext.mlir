@@ -13,8 +13,9 @@ module attributes {scheme.bgv} {
   // CHECK-SAME: CryptoContextT [[cc:.*]], int64_t [[v0:.*]], int64_t [[v1:.*]], CiphertextT [[ct:.*]]
   func.func @cond(%cc: !cc, %arg0: i64, %arg1: i64, %ct: !ct) -> !ct {
     // CHECK: std::vector<int64_t> [[v2:.*]](1024, 1);
-    // CHECK-NEXT: auto [[pt:.*]]_filled_n = [[cc]]->GetCryptoParameters()->GetElementParams()->GetRingDimension() / 2;
-    // CHECK-NEXT: auto [[pt]]_filled = [[v2]]
+    // CHECK-NEXT: auto [[pt:.*]]_filled_n = [[cc]]->GetEncodingParams()->GetBatchSize();
+    // CHECK: [[pt]]_filled_n = [[cc]]->GetCryptoParameters()->GetElementParams()->GetRingDimension() / 2;
+    // CHECK: auto [[pt]]_filled = [[v2]]
     // CHECK: auto [[pt]] = [[cc]]->MakePackedPlaintext
     %cst = arith.constant dense<1> : tensor<1024xi64>
     %pt = openfhe.make_packed_plaintext %cc, %cst : (!cc, tensor<1024xi64>) -> !pt

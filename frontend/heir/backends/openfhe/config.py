@@ -50,6 +50,7 @@ def development_openfhe_config() -> OpenFHEConfig:
 
   return OpenFHEConfig(
       include_dirs=[
+          str(repo_root),
           str(repo_root / "bazel-heir" / "external" / "openfhe+"),
           str(
               repo_root

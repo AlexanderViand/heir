@@ -412,10 +412,36 @@ FailureOr<double> deriveOpenfhePredictiveScalingBits(
     return secretOperandScalingBits.front() + realScalingBits[towersToDrop];
   }
 
-  if (isa<orion::ChebyshevOp>(op)) {
-    return op->emitOpError()
-           << "OpenFHE exact scaling prediction for opaque `orion.chebyshev` "
-              "is not implemented yet";
+  if (auto chebyshev = dyn_cast<orion::ChebyshevOp>(op)) {
+    if (failed(orion::verifyImplStyle(chebyshev, orion::kOpaqueImplStyle))) {
+      return failure();
+    }
+    if (secretOperandScalingBits.size() != 1 ||
+        secretOperandLevels.size() != 1 || secretOperandDegrees.size() != 1) {
+      return chebyshev.emitOpError()
+             << "expected exactly one secret operand for orion.chebyshev";
+    }
+    auto levelCostAttr = chebyshev->getAttrOfType<IntegerAttr>(
+        orion::kLevelCostUpperBoundAttrName);
+    if (!levelCostAttr) {
+      return chebyshev.emitOpError()
+             << "requires `orion.level_cost_ub` before OpenFHE scaling "
+                "analysis";
+    }
+    int64_t levelCost = levelCostAttr.getInt();
+    int64_t inputOpenFHELevel = maxHeirLevel - secretOperandLevels.front();
+    double accumulated = secretOperandScalingBits.front();
+    for (int64_t i = 0; i < levelCost; ++i) {
+      int64_t stepLevel = inputOpenFHELevel + i;
+      if (stepLevel < 0 ||
+          stepLevel >= static_cast<int64_t>(realScalingBits.size())) {
+        return chebyshev.emitOpError()
+               << "computed invalid OpenFHE chebyshev step level=" << stepLevel
+               << " at internal step " << i;
+      }
+      accumulated += realScalingBits[stepLevel];
+    }
+    return accumulated;
   }
 
   return maxSecretOperandBits();
