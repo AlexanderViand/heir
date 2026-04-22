@@ -1,0 +1,39 @@
+# SkyPilot config for running CHEDDAR backend tests on an H100 GPU instance.
+# Usage: sky launch -c heir-cheddar-h100 -i 10 sky/cheddar_test_h100.yaml
+
+name: heir-cheddar-h100
+
+workdir: .
+
+resources:
+  accelerators: H100:8
+  cpus: 64+
+  memory: 128+
+  disk_size: 200
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+  autostop:
+    idle_minutes: 10
+
+setup: |
+  set -ex
+
+  apt-get update -qq
+  apt-get install -y -qq \
+    clang lld libomp-dev llvm \
+    zlib1g-dev \
+    libtommath-dev libjsoncpp-dev \
+    libcusparselt0 \
+    git wget pip
+
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
+  fi
+
+run: |
+  set -ex
+  bazel fetch -c opt //... --//:enable_cheddar=1
+  CC=clang bazel test -c opt \
+    //tests/Examples/orion/mlp:mlp_test \
+    //tests/Examples/cheddar/ckks/orion_mlp:mlp_test \
+    --//:enable_cheddar=1 --test_output=all

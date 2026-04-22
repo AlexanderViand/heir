@@ -211,6 +211,16 @@ LogicalResult LattigoEmitter::printOperation(func::FuncOp funcOp) {
   os << "{\n";
   os.indent();
 
+  bool isMainFunc = !funcName.empty() &&
+                    funcName.find("__") == std::string::npos &&
+                    funcName != "__configure";
+  if (isMainFunc) {
+    imports.insert("\"time\"");
+    imports.insert("\"fmt\"");
+    os << "var _preprocDur, _computeDur time.Duration\n";
+    os << "_t0 := time.Now()\n";
+  }
+
   // body
   for (Block& block : funcOp.getBlocks()) {
     for (Operation& op : block.getOperations()) {
@@ -227,6 +237,21 @@ LogicalResult LattigoEmitter::printOperation(func::FuncOp funcOp) {
 }
 
 LogicalResult LattigoEmitter::printOperation(func::ReturnOp op) {
+  // Emit timing summary before return in main (non-helper) functions.
+  if (auto funcOp = op->getParentOfType<func::FuncOp>()) {
+    std::string fname = funcOp.getName().str();
+    if (fname.find("__") == std::string::npos && fname != "__configure") {
+      os << "_totalDur := time.Since(_t0)\n";
+      os << "fmt.Printf(\"[heir-lattigo-timing] preproc=%.2fms "
+            "lt_compute=%.2fms "
+            "other_compute=%.2fms total=%.2fms\\n\", "
+            "float64(_preprocDur.Microseconds())/1000.0, "
+            "float64(_computeDur.Microseconds())/1000.0, "
+            "float64((_totalDur - _preprocDur - "
+            "_computeDur).Microseconds())/1000.0, "
+            "float64(_totalDur.Microseconds())/1000.0)\n";
+    }
+  }
   os << "return ";
   os << getCommaSeparatedNames(op.getOperands());
   os << "\n";
@@ -2028,18 +2053,23 @@ LogicalResult LattigoEmitter::printOperation(CKKSLinearTransformOp op) {
   os.unindent();
   os << "}\n";
 
+  std::string ppVar = "_pp_" + outputName;
+  std::string ccVar = "_cc_" + outputName;
+  os << ppVar << " := time.Now()\n";
   os << ltName << " := lintrans.NewTransformation(" << evaluatorName
      << ".GetRLWEParameters(), " << ltParamsName << ")\n";
   os << errName << " := lintrans.Encode[float64](" << encoderName << ", "
      << diagonalsMapName << ", " << ltName << ")\n";
   printErrPanic(errName);
-  os << "\n";
+  os << "_preprocDur += time.Since(" << ppVar << ")\n\n";
 
+  os << ccVar << " := time.Now()\n";
   os << ltEvalName << " := lintrans.NewEvaluator(" << evaluatorName << ")\n";
   os << outputName << ", " << errName << " := " << ltEvalName
      << ".EvaluateNew(";
   os << inputName << ", " << ltName << ")\n";
   printErrPanic(errName);
+  os << "_computeDur += time.Since(" << ccVar << ")\n";
 
   return success();
 }
