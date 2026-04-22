@@ -1,6 +1,7 @@
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -610,9 +611,13 @@ struct ConvertOrionLinearTransformOp
     }
     Value encoder = encoderResult.value();
 
-    auto bsgsRatio = op.getBsgsRatioAttr();
+    // bsgs_ratio is the ratio bs:gs (e.g., 2.0 means bs is twice gs).
+    // Lattigo's CKKSLinearTransform expects the log2 of that ratio.
+    double bsgsRatio =
+        cast<FloatAttr>(op.getBsgsRatioAttr()).getValue().convertToDouble();
     int64_t logBsgsRatio =
-        static_cast<int64_t>(cast<FloatAttr>(bsgsRatio).getValueAsDouble());
+        bsgsRatio > 0 ? static_cast<int64_t>(std::round(std::log2(bsgsRatio)))
+                      : 0;
     auto logBsgsRatioAttr = rewriter.getI64IntegerAttr(logBsgsRatio);
 
     // When the chain is longer than the circuit needs (heir.level_offset > 0),

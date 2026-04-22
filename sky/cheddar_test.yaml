@@ -37,5 +37,5 @@ setup: |
 # Note: if we don't fetch first, we might see random timeouts from things such as python wheel extraction/etc
 run: |
   set -ex
-  bazel fetch //... --//:enable_cheddar=1
-  CC=clang bazel test //... --//:enable_cheddar=1
+  bazel fetch -c opt //... --//:enable_cheddar=1
+  CC=clang bazel test -c opt //... --//:enable_cheddar=1
