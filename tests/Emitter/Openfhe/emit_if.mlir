@@ -25,7 +25,11 @@ module attributes {scheme.ckks} {
       // CHECK: if ([[v12]]) {
       // CHECK:  int64_t [[v14:.*]] = [[v8]] % [[v2]];
       // CHECK:  float [[v15:.*]] = [[v0]][[[v8]] + 1024 * (0)];
-      // CHECK:  [[v7]][[[v14]] + 10 * (0)] = [[v15]];
+      // CHECK:  {
+      // CHECK:   std::vector<float> [[v16:.*]]([[v7]]);
+      // CHECK:   [[v16]][[[v14]] + 10 * (0)] = [[v15]];
+      // CHECK:   [[v7]] = [[v16]];
+      // CHECK:  }
       // CHECK: }
       %5 = scf.if %4 -> (tensor<1x10xf32>) {
         %6 = arith.remsi %arg1, %c16 : index

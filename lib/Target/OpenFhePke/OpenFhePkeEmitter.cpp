@@ -516,6 +516,10 @@ LogicalResult OpenFhePkeEmitter::printOperation(affine::AffineYieldOp op) {
     affine::AffineForOp loop = op->getParentOfType<affine::AffineForOp>();
     Value operand = op->getOperand(i);
     Value iterArg = loop.getRegionIterArgs()[i];
+    if (variableNames->getNameForValue(operand) ==
+        variableNames->getNameForValue(iterArg)) {
+      continue;
+    }
     if (failed(emitTypedAssignPrefix(iterArg, op.getLoc(),
                                      /*constant=*/false))) {
       return emitError(
@@ -689,6 +693,10 @@ LogicalResult OpenFhePkeEmitter::printOperation(scf::YieldOp op) {
       Value operand = op.getOperands()[i];
       Value result = ifOp.getResults()[i];
       if (!isa<ShapedType>(result.getType())) {
+        if (variableNames->getNameForValue(operand) ==
+            variableNames->getNameForValue(result)) {
+          continue;
+        }
         emitAutoAssignPrefix(result);
         os << variableNames->getNameForValue(operand) << ";\n";
       }
@@ -1688,11 +1696,22 @@ LogicalResult OpenFhePkeEmitter::printOperation(tensor::InsertOp op) {
   auto result = op.getResult();
   std::string destName = variableNames->getNameForValue(op.getDest());
   std::string resultName = variableNames->getNameForValue(result);
+  bool reusesMutableResultName = llvm::any_of(mutableValues, [&](Value value) {
+    return value != result && variableNames->contains(value) &&
+           variableNames->getNameForValue(value) == resultName;
+  });
+  bool needsTempResult = resultName == destName || reusesMutableResultName;
+  std::string insertTargetName = resultName;
+  if (needsTempResult) {
+    insertTargetName += "_insert";
+    os << "{\n";
+    os.indent();
+  }
   if (failed(emitType(result.getType(), op->getLoc()))) {
     return failure();
   }
-  os << " " << resultName << "(" << destName << ");\n";
-  os << resultName << "[";
+  os << " " << insertTargetName << "(" << destName << ");\n";
+  os << insertTargetName << "[";
   os << flattenIndexExpression(
       result.getType(), op.getIndices(), [&](Value value) {
         auto constantStr = getStringForConstant(value);
@@ -1700,6 +1719,11 @@ LogicalResult OpenFhePkeEmitter::printOperation(tensor::InsertOp op) {
       });
   os << "]";
   os << " = " << variableNames->getNameForValue(op.getScalar()) << ";\n";
+  if (needsTempResult) {
+    os << resultName << " = " << insertTargetName << ";\n";
+    os.unindent();
+    os << "}\n";
+  }
   return success();
 }
 

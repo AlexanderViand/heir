@@ -14,7 +14,11 @@ module attributes {scheme.ckks} {
     // CHECK: std::vector<float> [[v5:.*]] = [[v1]]
     // CHECK: for (auto [[v6:.*]] = 0; [[v6]] < 784; ++[[v6]])
     // CHECK:  float [[v8:.*]] = [[v0]][[[v6]] + 784 * (0)];
-    // CHECK:  [[v5]][[[v6]] + 1024 * (0)] = [[v8]];
+    // CHECK:  {
+    // CHECK:   std::vector<float> [[v9:.*]]([[v5]]);
+    // CHECK:   [[v9]][[[v6]] + 1024 * (0)] = [[v8]];
+    // CHECK:   [[v5]] = [[v9]];
+    // CHECK:  }
     // CHECK: }
     // CHECK: return [[v5]];
     %0 = scf.for %arg1 = %c0 to %c784 step %c1 iter_args(%arg2 = %cst) -> (tensor<1x1024xf32>) {
