@@ -70,6 +70,24 @@ class ToLattigoTypeConverter : public TypeConverter {
 };
 
 namespace {
+constexpr StringRef kDiagonalBSGSImplStyle = "diagonal-bsgs";
+constexpr StringRef kBSGSImplStyle = "bsgs";
+
+LogicalResult verifyOrionImplStyle(Operation* op, StringRef expectedStyle) {
+  auto implStyle = op->getAttrOfType<StringAttr>(orion::kImplStyleAttrName);
+  if (!implStyle) {
+    return op->emitOpError()
+           << "requires Orion implementation style `" << expectedStyle
+           << "`, but no `orion.impl_style` annotation is present";
+  }
+  if (implStyle.getValue() == expectedStyle) {
+    return success();
+  }
+  return op->emitOpError() << "requires Orion implementation style `"
+                           << expectedStyle << "`, but got `"
+                           << implStyle.getValue() << "`";
+}
+
 template <typename EvaluatorType>
 FailureOr<Value> getContextualEvaluator(Operation* op) {
   auto result = getContextualArgFromFunc<EvaluatorType>(op);
@@ -591,6 +609,9 @@ struct ConvertOrionLinearTransformOp
   LogicalResult matchAndRewrite(
       orion::LinearTransformOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
+    if (failed(verifyOrionImplStyle(op, kDiagonalBSGSImplStyle))) {
+      return failure();
+    }
     FailureOr<Value> evaluatorResult =
         getContextualEvaluator<lattigo::CKKSEvaluatorType>(op.getOperation());
     if (failed(evaluatorResult)) {
@@ -626,6 +647,9 @@ struct ConvertOrionChebyshevOp
   LogicalResult matchAndRewrite(
       orion::ChebyshevOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
+    if (failed(verifyOrionImplStyle(op, kBSGSImplStyle))) {
+      return failure();
+    }
     LLVM_DEBUG(llvm::dbgs() << "Lowering Orion ChebyshevOp\n");
     // Get or create the polynomial evaluator from the function context
     FailureOr<Value> evaluatorResult =

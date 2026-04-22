@@ -327,6 +327,47 @@ LogicalResult MatchCrossMulDepth<Op>::matchAndRewrite(
   return solver->initializeAndRun(top);
 }
 
+template <typename Op>
+LogicalResult InsertReconcileMarker<Op>::matchAndRewrite(
+    Op op, PatternRewriter& rewriter) const {
+  Value result = op.getResult();
+  if (!isSecret(result, solver)) {
+    return rewriter.notifyMatchFailure(op, "result must be secret");
+  }
+
+  SmallVector<OpOperand*, 2> secretOperands;
+  getSecretOperands(op, secretOperands, solver);
+  if (secretOperands.size() < 2) {
+    return rewriter.notifyMatchFailure(op,
+                                       "requires at least two secret operands");
+  }
+
+  SmallVector<std::pair<unsigned, Value>, 2> secretOperandUses;
+  secretOperandUses.reserve(secretOperands.size());
+  for (auto* operand : secretOperands) {
+    secretOperandUses.emplace_back(operand->getOperandNumber(), operand->get());
+  }
+
+  bool changed = false;
+  for (auto [operandNumber, value] : secretOperandUses) {
+    if (auto reconcileOp =
+            dyn_cast_if_present<mgmt::ReconcileOp>(value.getDefiningOp())) {
+      if (reconcileOp->hasOneUse() && *reconcileOp->user_begin() == op) {
+        continue;
+      }
+    }
+    rewriter.setInsertionPoint(op);
+    auto reconciled = mgmt::ReconcileOp::create(rewriter, op.getLoc(), value);
+    op->setOperand(operandNumber, reconciled.getResult());
+    changed = true;
+  }
+
+  if (!changed) {
+    return rewriter.notifyMatchFailure(op, "operands already reconciled");
+  }
+  return success();
+}
+
 LogicalResult UseInitForPlaintextBranchTerminators::matchAndRewrite(
     RegionBranchTerminatorOpInterface op, PatternRewriter& rewriter) const {
   auto regionBranchOp = dyn_cast<RegionBranchOpInterface>(op->getParentOp());
@@ -463,6 +504,8 @@ template struct MatchCrossLevel<arith::SubIOp>;
 template struct MatchCrossMulDepth<arith::AddIOp>;
 template struct MatchCrossMulDepth<arith::MulIOp>;
 template struct MatchCrossMulDepth<arith::SubIOp>;
+template struct InsertReconcileMarker<arith::AddIOp>;
+template struct InsertReconcileMarker<arith::SubIOp>;
 template struct ModReduceAfterMult<arith::MulIOp>;
 template struct ModReduceBefore<arith::MulIOp>;
 template struct MultRelinearize<arith::MulIOp>;
@@ -477,6 +520,8 @@ template struct MatchCrossLevel<arith::SubFOp>;
 template struct MatchCrossMulDepth<arith::AddFOp>;
 template struct MatchCrossMulDepth<arith::MulFOp>;
 template struct MatchCrossMulDepth<arith::SubFOp>;
+template struct InsertReconcileMarker<arith::AddFOp>;
+template struct InsertReconcileMarker<arith::SubFOp>;
 template struct ModReduceAfterMult<arith::MulFOp>;
 template struct ModReduceBefore<arith::MulFOp>;
 template struct MultRelinearize<arith::MulFOp>;

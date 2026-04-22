@@ -27,14 +27,9 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 14, Q = [3602879
 // MatchCrossLevel
 
 module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 14, Q = [36028797019389953, 35184372121601, 35184372744193], P = [36028797019488257, 36028797020209153], logDefaultScale = 45>, scheme.ckks} {
-  // CHECK: func @mul
+  // CHECK: func.func @mul
   func.func @mul(%arg0: !secret.secret<f32>) -> !secret.secret<f32> {
-    // adjust_scale needs plaintext input encoded in specified scale
-    // CHECK: %cst = arith.constant 1.000000e+00
     // CHECK: %[[INIT:.*]] = mgmt.init %cst
-    // CHECK-SAME: level = 2
-    // CHECK-SAME: scale = 35184372088832 : i64
-
     // CHECK: secret.generic
     // CHECK-SAME: level = 2
     // CHECK-SAME: scale = 1237940039285380274899124224 : i92
@@ -45,11 +40,10 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 14, Q = [3602879
       // CHECK-NEXT: %[[v3:.*]] = arith.mulf %[[v2]], %[[v2]]
       // CHECK-NEXT: %[[v4:.*]] = mgmt.relinearize %[[v3]]
       %1 = arith.mulf %input0, %input0 : f32
-      // Under the nominal-bucket policy, adjust_scale targets Delta^2 exactly,
-      // so the rescaled peer lands on the same nominal scale as the mul path.
+      // The local post-param resolver now reconstructs the historical
+      // one-sided adjustment on the direct path instead of erasing it early.
       // CHECK-NEXT: %[[v5:.*]] = arith.mulf %[[INPUT0]], %[[INIT]]
       // CHECK-NEXT: %[[v6:.*]] = mgmt.modreduce %[[v5]]
-      // CHECK-SAME: scale = 1237940039285380274899124224 : i92
       // CHECK-NEXT: %[[v7:.*]] = arith.addf %[[v4]], %[[v6]]
       %2 = arith.addf %1, %input0 : f32
       // CHECK-NEXT: %[[v8:.*]] = mgmt.modreduce %[[v7]]

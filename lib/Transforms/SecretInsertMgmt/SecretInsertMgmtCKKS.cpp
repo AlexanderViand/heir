@@ -34,6 +34,7 @@ struct SecretInsertMgmtCKKS
     options.modReduceAfterMul = afterMul;
     options.modReduceBeforeMulIncludeFirstMul = beforeMulIncludeFirstMul;
     options.bootstrapWaterline = bootstrapWaterline;
+    options.deferReconcile = true;
     LogicalResult result = runInsertMgmtPipeline(getOperation(), options);
 
     if (failed(result)) {

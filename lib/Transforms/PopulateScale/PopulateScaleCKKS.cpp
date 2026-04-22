@@ -1,4 +1,5 @@
 #include <cmath>
+#include <optional>
 #include <utility>
 
 #include "lib/Analysis/LevelAnalysis/LevelAnalysis.h"
@@ -16,6 +17,7 @@
 #include "mlir/include/mlir/Analysis/DataFlow/Utils.h"     // from @llvm-project
 #include "mlir/include/mlir/Analysis/DataFlowFramework.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"      // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"                // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/SymbolTable.h"              // from @llvm-project
@@ -108,9 +110,6 @@ class CKKSAdjustScaleMaterializer : public AdjustScaleMaterializer {
   ckks::SchemeParamAttr schemeParamAttr;
   CKKSScalePolicyKind scalePolicy;
 };
-
-#define GEN_PASS_DEF_POPULATESCALECKKS
-#include "lib/Transforms/PopulateScale/PopulateScale.h.inc"
 
 template <typename ScaleModelT>
 LogicalResult createAndRunDataflowForPolicy(
@@ -306,243 +305,275 @@ FailureOr<bool> refinePreciseAdjustScales(
   return false;
 }
 
+LogicalResult runPopulateScaleCKKSImpl(Operation* top, MLIRContext& context,
+                                       bool beforeMulIncludeFirstMul,
+                                       StringRef scalePolicy,
+                                       std::optional<StringRef> reconcilePolicy,
+                                       std::optional<int> preciseIterationCap) {
+  auto module = dyn_cast<ModuleOp>(top);
+  if (!module) {
+    top->emitOpError() << "expected module op";
+    return failure();
+  }
+  auto parsedScalePolicy = parseCKKSScalePolicy(scalePolicy);
+  if (failed(parsedScalePolicy)) {
+    top->emitOpError() << "unsupported CKKS scale policy `" << scalePolicy
+                       << "`; expected `nominal` or `precise`";
+    return failure();
+  }
+  moduleSetCKKSScalePolicy(top, scalePolicy);
+  bool useQAwarePreciseScalePolicy =
+      moduleUsesQAwarePreciseCKKSScalePolicy(top);
+  CKKSScalePolicyKind effectiveScalePolicyKind =
+      useQAwarePreciseScalePolicy ? CKKSScalePolicyKind::kPrecise
+                                  : CKKSScalePolicyKind::kNominal;
+
+  auto ckksSchemeParamAttr = mlir::dyn_cast<ckks::SchemeParamAttr>(
+      top->getAttr(ckks::CKKSDialect::kSchemeParamAttrName));
+  if (!ckksSchemeParamAttr) {
+    top->emitOpError() << "missing CKKS scheme parameters";
+    return failure();
+  }
+  auto logDefaultScale = ckksSchemeParamAttr.getLogDefaultScale();
+
+  auto maybeResolveReconcileMarkers = [&]() -> LogicalResult {
+    if (!reconcilePolicy.has_value()) {
+      return success();
+    }
+    bool hasReconcileMarkers = false;
+    top->walk([&](mgmt::ReconcileOp) { hasReconcileMarkers = true; });
+    if (!hasReconcileMarkers) {
+      return success();
+    }
+    PassManager pm(top->getContext());
+    ResolveReconcileCKKSOptions options;
+    options.reconcilePolicy = reconcilePolicy->str();
+    pm.addPass(createResolveReconcileCKKS(options));
+    return pm.run(module);
+  };
+
+  if (failed(maybeResolveReconcileMarkers())) {
+    return failure();
+  }
+
+  auto runAnnotateMgmt = [&]() -> LogicalResult {
+    PassManager pm(top->getContext());
+    pm.addPass(mgmt::createAnnotateMgmt());
+    return pm.run(module);
+  };
+
+  auto validateAdjustScaleResolution =
+      [&](DataFlowSolver& solver,
+          SmallVectorImpl<mgmt::AdjustScaleOp>& noOpAdjustScales)
+      -> LogicalResult {
+    bool scaleConflict = false;
+    top->walk([&](mgmt::AdjustScaleOp op) {
+      auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
+      if (!lattice) {
+        op.emitOpError() << "dataflow analysis failed to populate scale "
+                            "lattice for result";
+        scaleConflict = true;
+        return WalkResult::interrupt();
+      }
+      if (lattice->getValue().hasConflict()) {
+        op.emitOpError() << "dataflow analysis found conflicting exact "
+                            "scales for result";
+        scaleConflict = true;
+        return WalkResult::interrupt();
+      }
+      if (!lattice->getValue().isInitialized()) {
+        auto* inputLattice = solver.lookupState<ScaleLattice>(op.getInput());
+        if (inputLattice && inputLattice->getValue().isInitialized() &&
+            !inputLattice->getValue().hasConflict()) {
+          noOpAdjustScales.push_back(op);
+          return WalkResult::advance();
+        }
+        op.emitOpError() << "dataflow analysis did not resolve a target scale";
+        scaleConflict = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+    return failure(scaleConflict);
+  };
+
+  SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
+  bool refinementConverged = false;
+  int maxScaleRefinementIterations = 1;
+  if (useQAwarePreciseScalePolicy) {
+    int adjustScaleCount = 0;
+    top->walk([&](mgmt::AdjustScaleOp) { ++adjustScaleCount; });
+    auto maxLevel = getMaxLevel(top).value_or(0);
+    int monotoneRewriteBound =
+        std::max(1, adjustScaleCount * (maxLevel + 1) + 1);
+    maxScaleRefinementIterations =
+        preciseIterationCap.value_or(monotoneRewriteBound);
+  }
+
+  for (int refinementIteration = 0;
+       refinementIteration < maxScaleRefinementIterations;
+       ++refinementIteration) {
+    if (failed(runAnnotateMgmt())) {
+      return failure();
+    }
+
+    if (useQAwarePreciseScalePolicy) {
+      auto regeneratedSchemeParam =
+          maybeRegeneratePreciseSchemeParam(top, ckksSchemeParamAttr);
+      if (failed(regeneratedSchemeParam)) {
+        top->emitOpError()
+            << "failed to regenerate CKKS parameters for precise scale "
+               "refinement";
+        return failure();
+      }
+      ckksSchemeParamAttr = *regeneratedSchemeParam;
+    }
+    CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
+                                             effectiveScalePolicyKind);
+
+    DataFlowSolver solver;
+    if (failed(createAndRunDataflow(
+            top, solver, logDefaultScale, ckksSchemeParamAttr,
+            beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
+      return failure();
+    }
+
+    SmallVector<mgmt::AdjustScaleOp> candidateNoOpAdjustScales;
+    if (failed(
+            validateAdjustScaleResolution(solver, candidateNoOpAdjustScales))) {
+      return failure();
+    }
+
+    annotateScale(top, &solver);
+    if (failed(runAnnotateMgmt())) {
+      return failure();
+    }
+
+    if (useQAwarePreciseScalePolicy) {
+      auto repaired = refinePreciseAdjustScales(top, materializer);
+      if (failed(repaired)) {
+        return failure();
+      }
+      if (*repaired) {
+        continue;
+      }
+    }
+
+    noOpAdjustScales = std::move(candidateNoOpAdjustScales);
+    refinementConverged = true;
+    break;
+  }
+  if (!refinementConverged) {
+    top->emitOpError()
+        << "precise scale refinement exceeded its monotone rewrite bound; "
+           "this likely indicates a non-converging adjust_scale repair loop";
+    return failure();
+  }
+
+  for (auto op : noOpAdjustScales) {
+    op->replaceAllUsesWith(ValueRange{op.getInput()});
+    op->erase();
+  }
+
+  DataFlowSolver activeSolver;
+  if (failed(createAndRunDataflow(top, activeSolver, logDefaultScale,
+                                  ckksSchemeParamAttr, beforeMulIncludeFirstMul,
+                                  effectiveScalePolicyKind))) {
+    return failure();
+  }
+
+  bool initScaleFailure = false;
+  top->walk([&](mgmt::InitOp op) {
+    auto* lattice = activeSolver.lookupState<ScaleLattice>(op.getResult());
+    if (!lattice || lattice->getValue().hasConflict() ||
+        !lattice->getValue().isInitialized()) {
+      op.emitOpError()
+          << "Dataflow analysis failed to populate scale lattice for result\n";
+      initScaleFailure = true;
+    }
+  });
+  if (initScaleFailure) {
+    return failure();
+  }
+
+  annotateScale(top, &activeSolver);
+  if (failed(runAnnotateMgmt())) {
+    return failure();
+  }
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "Dumping op after annotate-mgmt pass:\n";
+    top->dump();
+  });
+
+  LDBG() << "convert adjust_scale to mul_plain";
+  CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
+                                           effectiveScalePolicyKind);
+  RewritePatternSet patterns(&context);
+  patterns.add<ConvertAdjustScaleToMulPlain<arith::MulFOp>>(&context,
+                                                            &materializer);
+  (void)walkAndApplyPatterns(top, std::move(patterns));
+
+  bool materializationFailure = false;
+  top->walk([&](mgmt::AdjustScaleOp op) {
+    op.emitOpError() << "failed to materialize scale adjustment";
+    materializationFailure = true;
+  });
+  if (materializationFailure) {
+    return failure();
+  }
+
+  PassManager cleanup(top->getContext());
+  if (!useQAwarePreciseScalePolicy) {
+    cleanup.addPass(createCanonicalizerPass());
+  }
+  cleanup.addPass(createCSEPass());
+  if (failed(cleanup.run(module))) {
+    return failure();
+  }
+
+  if (failed(runAnnotateMgmt())) {
+    return failure();
+  }
+
+  DataFlowSolver solverFinal;
+  if (failed(createAndRunDataflow(top, solverFinal, logDefaultScale,
+                                  ckksSchemeParamAttr, beforeMulIncludeFirstMul,
+                                  effectiveScalePolicyKind))) {
+    return failure();
+  }
+
+  annotateScale(top, &solverFinal);
+  return runAnnotateMgmt();
+}
+
+#define GEN_PASS_DEF_POPULATESCALECKKS
+#include "lib/Transforms/PopulateScale/PopulateScale.h.inc"
+
 struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
   using PopulateScaleCKKSBase::PopulateScaleCKKSBase;
 
   void runOnOperation() override {
-    auto parsedScalePolicy = parseCKKSScalePolicy(scalePolicy);
-    if (failed(parsedScalePolicy)) {
-      getOperation()->emitOpError()
-          << "unsupported CKKS scale policy `" << scalePolicy
-          << "`; expected `nominal` or `precise`";
+    if (failed(runPopulateScaleCKKSImpl(getOperation(), getContext(),
+                                        beforeMulIncludeFirstMul, scalePolicy,
+                                        reconcilePolicy, std::nullopt))) {
       signalPassFailure();
-      return;
     }
-    moduleSetCKKSScalePolicy(getOperation(), scalePolicy);
-    bool useQAwarePreciseScalePolicy =
-        moduleUsesQAwarePreciseCKKSScalePolicy(getOperation());
-    CKKSScalePolicyKind effectiveScalePolicyKind =
-        useQAwarePreciseScalePolicy ? CKKSScalePolicyKind::kPrecise
-                                    : CKKSScalePolicyKind::kNominal;
+  }
+};
 
-    auto ckksSchemeParamAttr = mlir::dyn_cast<ckks::SchemeParamAttr>(
-        getOperation()->getAttr(ckks::CKKSDialect::kSchemeParamAttrName));
-    auto logDefaultScale = ckksSchemeParamAttr.getLogDefaultScale();
+#define GEN_PASS_DEF_RESOLVESCALECKKSBMPH20
+#include "lib/Transforms/PopulateScale/PopulateScale.h.inc"
 
-    auto runAnnotateMgmt = [&]() -> LogicalResult {
-      OpPassManager normalizeMgmt("builtin.module");
-      normalizeMgmt.addPass(mgmt::createAnnotateMgmt());
-      return runPipeline(normalizeMgmt, getOperation());
-    };
+struct ResolveScaleCKKSBMPH20
+    : impl::ResolveScaleCKKSBMPH20Base<ResolveScaleCKKSBMPH20> {
+  using ResolveScaleCKKSBMPH20Base::ResolveScaleCKKSBMPH20Base;
 
-    auto validateAdjustScaleResolution =
-        [&](DataFlowSolver& solver,
-            SmallVectorImpl<mgmt::AdjustScaleOp>& noOpAdjustScales)
-        -> LogicalResult {
-      bool scaleConflict = false;
-      getOperation()->walk([&](mgmt::AdjustScaleOp op) {
-        auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
-        if (!lattice) {
-          op.emitOpError() << "dataflow analysis failed to populate scale "
-                              "lattice for result";
-          scaleConflict = true;
-          return WalkResult::interrupt();
-        }
-        if (lattice->getValue().hasConflict()) {
-          op.emitOpError() << "dataflow analysis found conflicting exact "
-                              "scales for result";
-          scaleConflict = true;
-          return WalkResult::interrupt();
-        }
-        if (!lattice->getValue().isInitialized()) {
-          auto* inputLattice = solver.lookupState<ScaleLattice>(op.getInput());
-          if (inputLattice && inputLattice->getValue().isInitialized() &&
-              !inputLattice->getValue().hasConflict()) {
-            noOpAdjustScales.push_back(op);
-            return WalkResult::advance();
-          }
-          op.emitOpError() << "dataflow analysis did not resolve a target "
-                              "scale";
-          scaleConflict = true;
-          return WalkResult::interrupt();
-        }
-        return WalkResult::advance();
-      });
-      return failure(scaleConflict);
-    };
-
-    SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
-    bool refinementConverged = false;
-    int maxScaleRefinementIterations = 1;
-    if (useQAwarePreciseScalePolicy) {
-      int adjustScaleCount = 0;
-      getOperation()->walk([&](mgmt::AdjustScaleOp) { ++adjustScaleCount; });
-      auto maxLevel = getMaxLevel(getOperation()).value_or(0);
-      // Each successful refinement lowers at least one adjust_scale meeting
-      // point by one level, so the total number of meaningful rewrites is
-      // bounded by the number of adjust_scale sites times the available levels
-      // below them. Add a small cushion for the final fixed-point iteration.
-      maxScaleRefinementIterations =
-          std::max(1, adjustScaleCount * (maxLevel + 1) + 1);
-    }
-
-    for (int refinementIteration = 0;
-         refinementIteration < maxScaleRefinementIterations;
-         ++refinementIteration) {
-      if (failed(runAnnotateMgmt())) {
-        signalPassFailure();
-        return;
-      }
-
-      if (useQAwarePreciseScalePolicy) {
-        auto regeneratedSchemeParam = maybeRegeneratePreciseSchemeParam(
-            getOperation(), ckksSchemeParamAttr);
-        if (failed(regeneratedSchemeParam)) {
-          getOperation()->emitOpError()
-              << "failed to regenerate CKKS parameters for precise scale "
-                 "refinement";
-          signalPassFailure();
-          return;
-        }
-        ckksSchemeParamAttr = *regeneratedSchemeParam;
-      }
-      CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
-                                               effectiveScalePolicyKind);
-
-      DataFlowSolver solver;
-      if (failed(createAndRunDataflow(
-              getOperation(), solver, logDefaultScale, ckksSchemeParamAttr,
-              beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
-        signalPassFailure();
-        return;
-      }
-
-      SmallVector<mgmt::AdjustScaleOp> candidateNoOpAdjustScales;
-      if (failed(validateAdjustScaleResolution(solver,
-                                               candidateNoOpAdjustScales))) {
-        signalPassFailure();
-        return;
-      }
-
-      annotateScale(getOperation(), &solver);
-      if (failed(runAnnotateMgmt())) {
-        signalPassFailure();
-        return;
-      }
-
-      if (useQAwarePreciseScalePolicy) {
-        auto repaired = refinePreciseAdjustScales(getOperation(), materializer);
-        if (failed(repaired)) {
-          signalPassFailure();
-          return;
-        }
-        if (*repaired) {
-          continue;
-        }
-      }
-
-      noOpAdjustScales = std::move(candidateNoOpAdjustScales);
-      refinementConverged = true;
-      break;
-    }
-    if (!refinementConverged) {
-      getOperation()->emitOpError()
-          << "precise scale refinement exceeded its monotone rewrite bound; "
-             "this likely indicates a non-converging adjust_scale repair loop";
+  void runOnOperation() override {
+    if (failed(runPopulateScaleCKKSImpl(
+            getOperation(), getContext(), beforeMulIncludeFirstMul,
+            kCKKSPreciseScalePolicyValue, std::nullopt, maxIterations))) {
       signalPassFailure();
-      return;
-    }
-
-    for (auto op : noOpAdjustScales) {
-      op->replaceAllUsesWith(ValueRange{op.getInput()});
-      op->erase();
-    }
-
-    DataFlowSolver activeSolver;
-    if (failed(createAndRunDataflow(
-            getOperation(), activeSolver, logDefaultScale, ckksSchemeParamAttr,
-            beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
-      signalPassFailure();
-      return;
-    }
-
-    bool initScaleFailure = false;
-    getOperation()->walk([&](mgmt::InitOp op) {
-      auto* lattice = activeSolver.lookupState<ScaleLattice>(op.getResult());
-      if (!lattice || lattice->getValue().hasConflict() ||
-          !lattice->getValue().isInitialized()) {
-        op.emitOpError() << "Dataflow analysis failed to populate scale "
-                            "lattice for result\n";
-        initScaleFailure = true;
-      }
-    });
-    if (initScaleFailure) {
-      signalPassFailure();
-      return;
-    }
-
-    annotateScale(getOperation(), &activeSolver);
-    if (failed(runAnnotateMgmt())) {
-      signalPassFailure();
-      return;
-    }
-
-    LLVM_DEBUG({
-      llvm::dbgs() << "Dumping op after annotate-mgmt pass:\n";
-      getOperation()->dump();
-    });
-
-    LDBG() << "convert adjust_scale to mul_plain";
-    CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
-                                             effectiveScalePolicyKind);
-    RewritePatternSet patterns(&getContext());
-    // TODO(#1641): handle arith.muli in CKKS
-    patterns.add<ConvertAdjustScaleToMulPlain<arith::MulFOp>>(&getContext(),
-                                                              &materializer);
-    (void)walkAndApplyPatterns(getOperation(), std::move(patterns));
-
-    bool materializationFailure = false;
-    getOperation()->walk([&](mgmt::AdjustScaleOp op) {
-      op.emitOpError() << "failed to materialize scale adjustment";
-      materializationFailure = true;
-    });
-    if (materializationFailure) {
-      signalPassFailure();
-      return;
-    }
-
-    // In precise mode, mgmt.modreduce chains are semantically significant for
-    // exact scale tracking and must not be folded into level_reduce forms by
-    // generic canonicalization.
-    // TODO(#2364): replace this coarse skip with a targeted precise-safe
-    // canonicalization strategy once the offending folds are isolated.
-    OpPassManager cleanup("builtin.module");
-    if (!useQAwarePreciseScalePolicy) {
-      cleanup.addPass(createCanonicalizerPass());
-    }
-    cleanup.addPass(createCSEPass());
-    if (failed(runPipeline(cleanup, getOperation()))) {
-      signalPassFailure();
-      return;
-    }
-
-    if (failed(runAnnotateMgmt())) {
-      signalPassFailure();
-      return;
-    }
-
-    DataFlowSolver solverFinal;
-    if (failed(createAndRunDataflow(
-            getOperation(), solverFinal, logDefaultScale, ckksSchemeParamAttr,
-            beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
-      signalPassFailure();
-      return;
-    }
-
-    annotateScale(getOperation(), &solverFinal);
-    if (failed(runAnnotateMgmt())) {
-      signalPassFailure();
-      return;
     }
   }
 };

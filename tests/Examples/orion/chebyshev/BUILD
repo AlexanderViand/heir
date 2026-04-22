@@ -7,6 +7,7 @@ heir_lattigo_lib(
     name = "chebyshev",
     go_library_name = "chebyshev",
     heir_opt_flags = [
+        "--annotate-orion",
         "--scheme-to-lattigo",
     ],
     mlir_src = ":chebyshev.mlir",

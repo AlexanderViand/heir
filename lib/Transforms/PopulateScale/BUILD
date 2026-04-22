@@ -11,12 +11,14 @@ cc_library(
     srcs = [
         "PopulateScaleBGV.cpp",
         "PopulateScaleCKKS.cpp",
+        "ResolveReconcileCKKS.cpp",
     ],
     hdrs = ["PopulateScale.h"],
     deps = [
         ":PopulateScalePatterns",
         ":pass_inc_gen",
         "@heir//lib/Analysis/LevelAnalysis",
+        "@heir//lib/Analysis/MulDepthAnalysis",
         "@heir//lib/Analysis/ScaleAnalysis",
         "@heir//lib/Analysis/SecretnessAnalysis",
         "@heir//lib/Dialect:ModuleAttributes",

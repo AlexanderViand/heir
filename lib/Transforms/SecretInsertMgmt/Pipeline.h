@@ -13,6 +13,7 @@ struct InsertMgmtPipelineOptions {
   bool modReduceBeforeMulIncludeFirstMul;
   std::optional<int64_t> bootstrapWaterline;
   int64_t levelBudget;
+  bool deferReconcile = false;
 };
 
 // Run the secret-insert-mgmt pipeline.
@@ -34,10 +35,13 @@ void insertModReduceBeforeOrAfterMult(Operation* top, bool afterMul,
 void insertRelinearizeAfterMult(Operation* top, bool includeFloats);
 
 void adjustLevelsForRegionBranchOps(Operation* top);
+void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
+                         bool includeAddSub = true);
 
-void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats);
+void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats,
+                            bool includeAddSub = true);
 
-void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats);
+void insertReconcileMarkers(Operation* top, bool includeFloats);
 
 void insertBootstrapWaterLine(Operation* top, int bootstrapWaterline);
 

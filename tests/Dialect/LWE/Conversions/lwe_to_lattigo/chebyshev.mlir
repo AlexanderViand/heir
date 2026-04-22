@@ -1,4 +1,4 @@
-// RUN: heir-opt --lwe-to-lattigo --split-input-file %s | FileCheck %s
+// RUN: heir-opt --annotate-orion --lwe-to-lattigo --split-input-file %s | FileCheck %s
 
 // CHECK: func.func @chebyshev_nominal
 // CHECK: lattigo.ckks.chebyshev

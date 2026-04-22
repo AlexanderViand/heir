@@ -148,6 +148,24 @@ def Mgmt_AdjustScaleOp : Mgmt_Op<"adjust_scale", [IncreasesMulDepthOpInterface]>
   let hasCanonicalizer = 1;
 }
 
+def Mgmt_ReconcileOp : Mgmt_Op<"reconcile"> {
+  let summary = "Mark an operand that must be reconciled with its peer later";
+
+  let description = [{
+    This is a scheme-agnostic marker operation used by coarse management
+    planning. It indicates that the wrapped operand participates in a secret
+    binary operation whose operands may need level and/or scale reconciliation,
+    but it deliberately does not commit to a concrete repair strategy yet.
+
+    Later post-parameter resolution passes replace this marker with the actual
+    management sequence required by the chosen reconciliation policy.
+  }];
+
+  let arguments = (ins AnyType:$input);
+  let results = (outs AnyType:$output);
+  let assemblyFormat = "operands attr-dict `:` type($output)";
+}
+
 def Mgmt_InitOp : Mgmt_Op<"init",
     [MemoryEffects<[MemWrite]>, ElementwiseMappable, SameOperandsAndResultType, ConditionallySpeculatable]> {
   let summary = "Init the plaintext with mgmt attributes";

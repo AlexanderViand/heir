@@ -9,6 +9,7 @@ heir_lattigo_lib(
     name = "mlp",
     go_library_name = "mlp",
     heir_opt_flags = [
+        "--annotate-orion",
         "--scheme-to-lattigo",
     ],
     mlir_src = ":mlp.mlir",

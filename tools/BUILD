@@ -127,6 +127,7 @@ cc_binary(
         "@heir//lib/Transforms/AddClientInterface",
         "@heir//lib/Transforms/AnnotateModule",
         "@heir//lib/Transforms/AnnotateMulDepth",
+        "@heir//lib/Transforms/AnnotateOrion",
         "@heir//lib/Transforms/AnnotateSecretness",
         "@heir//lib/Transforms/ApplyFolders",
         "@heir//lib/Transforms/BooleanVectorizer",

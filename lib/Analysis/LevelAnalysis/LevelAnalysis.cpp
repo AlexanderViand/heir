@@ -10,6 +10,7 @@
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/ModuleAttributes.h"
+#include "lib/Dialect/Orion/IR/OrionDialect.h"
 #include "lib/Dialect/Secret/IR/SecretTypes.h"
 #include "lib/Utils/AttributeUtils.h"
 #include "lib/Utils/Utils.h"
@@ -120,6 +121,15 @@ LevelState deriveResultLevel(Operation* op,
         LevelState result;
         for (auto* operandState : operands) {
           result = LevelState::join(result, operandState->getValue());
+        }
+        if (auto levelCostAttr = op.template getAttrOfType<IntegerAttr>(
+                orion::kLevelCostUpperBoundAttrName)) {
+          if (result.isInt()) {
+            result = LevelState(result.getInt() +
+                                static_cast<int>(levelCostAttr.getInt()));
+          } else if (result.isMaxLevel()) {
+            result = LevelState(Invalid{});
+          }
         }
         LLVM_DEBUG(debugLog(op.getName().getStringRef(), operands, result));
         return result;
@@ -240,6 +250,30 @@ int getMaxLevel(Operation* top, DataFlowSolver* solver) {
         maxLevel = std::max(maxLevel, level);
       }
     }
+  });
+  top->walk([&](Operation* op) {
+    auto levelCostAttr =
+        op->getAttrOfType<IntegerAttr>(orion::kLevelCostUpperBoundAttrName);
+    if (!levelCostAttr) {
+      return;
+    }
+
+    LevelState operandLevel;
+    for (Value operand : op->getOperands()) {
+      if (!mgmt::shouldHaveMgmtAttribute(operand, solver)) {
+        continue;
+      }
+      operandLevel = LevelState::join(
+          operandLevel, solver->lookupState<LevelLattice>(operand)->getValue());
+    }
+
+    if (!operandLevel.isInt()) {
+      return;
+    }
+
+    int opResultLevel =
+        operandLevel.getInt() + static_cast<int>(levelCostAttr.getInt());
+    maxLevel = std::max(maxLevel, opResultLevel);
   });
   return maxLevel;
 }

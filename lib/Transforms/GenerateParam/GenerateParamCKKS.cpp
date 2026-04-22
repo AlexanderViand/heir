@@ -129,7 +129,17 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     }
     LDBG() << "First modulus finalized as having " << firstModBits << " bits";
 
-    std::optional<int> maxLevel = getMaxLevel(getOperation());
+    DataFlowSolver solver;
+    dataflow::loadBaselineAnalyses(solver);
+    solver.load<SecretnessAnalysis>();
+    solver.load<LevelAnalysis>();
+    if (failed(solver.initializeAndRun(getOperation()))) {
+      getOperation()->emitOpError() << "Failed to run level analysis.\n";
+      signalPassFailure();
+      return;
+    }
+
+    std::optional<int> maxLevel = getMaxLevel(getOperation(), &solver);
     LDBG() << "Max level identified as " << maxLevel;
 
     if (auto schemeParamAttr =

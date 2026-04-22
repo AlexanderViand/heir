@@ -132,6 +132,7 @@ cc_library(
         "@heir//lib/Dialect/TensorExt/Transforms:RotateAndReduce",
         "@heir//lib/Transforms/ActivationCanonicalizations",
         "@heir//lib/Transforms/AddClientInterface",
+        "@heir//lib/Transforms/AnnotateOrion",
         "@heir//lib/Transforms/ApplyFolders",
         "@heir//lib/Transforms/BooleanVectorizer",
         "@heir//lib/Transforms/CompareToSignRewrite",

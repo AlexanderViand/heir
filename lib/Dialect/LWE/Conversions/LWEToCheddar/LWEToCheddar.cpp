@@ -40,6 +40,25 @@
 
 namespace mlir::heir::lwe {
 
+constexpr StringRef kDiagonalBSGSImplStyle = "diagonal-bsgs";
+constexpr StringRef kBSGSImplStyle = "bsgs";
+
+static LogicalResult verifyOrionImplStyle(Operation* op,
+                                          StringRef expectedStyle) {
+  auto implStyle = op->getAttrOfType<StringAttr>(orion::kImplStyleAttrName);
+  if (!implStyle) {
+    return op->emitOpError()
+           << "requires Orion implementation style `" << expectedStyle
+           << "`, but no `orion.impl_style` annotation is present";
+  }
+  if (implStyle.getValue() == expectedStyle) {
+    return success();
+  }
+  return op->emitOpError() << "requires Orion implementation style `"
+                           << expectedStyle << "`, but got `"
+                           << implStyle.getValue() << "`";
+}
+
 static FailureOr<int64_t> getCKKSLogDefaultScale(Operation* op) {
   auto moduleOp = op->getParentOfType<ModuleOp>();
   if (!moduleOp) {
@@ -594,6 +613,9 @@ struct ConvertOrionLinearTransformOp
   LogicalResult matchAndRewrite(
       orion::LinearTransformOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
+    if (failed(verifyOrionImplStyle(op, kDiagonalBSGSImplStyle))) {
+      return failure();
+    }
     auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
     if (failed(ctx)) return ctx;
     auto ui = getContextualArg<cheddar::UserInterfaceType>(op.getOperation());
@@ -624,6 +646,9 @@ struct ConvertOrionChebyshevOp
   LogicalResult matchAndRewrite(
       orion::ChebyshevOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
+    if (failed(verifyOrionImplStyle(op, kBSGSImplStyle))) {
+      return failure();
+    }
     auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
     if (failed(ctx)) return ctx;
     auto ui = getContextualArg<cheddar::UserInterfaceType>(op.getOperation());
