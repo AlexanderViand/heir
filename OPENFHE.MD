@@ -859,3 +859,76 @@ Not currently supported. To add:
 
 Composite scaling is useful for 32-bit hardware targets and for achieving very
 high-precision CKKS with narrow-word NTT implementations.
+
+## 11. `heir.level_offset` and chain length management
+
+When the raise path (`--raise-ckks`) re-derives parameters, the management
+pipeline assigns circuit-relative levels (0 through `maxLevel`). However, the
+actual Q chain may be longer than the circuit needs due to:
+
+- `heir.min_level_hint` (preserving noise headroom from the original scheme)
+- `minLevelOverhead` (backend scaling technique overhead)
+
+The difference `delta = effectiveMaxLevel - maxLevel` is stored as
+`heir.level_offset` on the module. Downstream passes apply this offset when
+converting circuit-level indices to actual chain positions:
+
+- `SecretToCKKS`: adjusts `openfhe.native_plaintext_level` on linear_transform
+- `LWEToOpenfhe`: adjusts encode level in `inferOpenfheLevelAttr`
+- `LWEToLattigo`: adjusts `levelQ` for Lattigo linear_transform
+
+The offset is NOT applied in the type converter. Ciphertext types use
+circuit-relative levels; the offset is applied at the boundary where HEIR levels
+map to backend-specific concepts.
+
+## 12. noiseScaleDeg accumulation in linear_transform
+
+Both HEIR's custom EXT helper (`OpenFheLinearTransformHelpers.h`) and OpenFHE's
+native `FHECKKSRNS::EvalMultExt` accumulate `noiseScaleDeg`:
+
+```
+NoiseScaleDeg(out) = NoiseScaleDeg(ct) + NoiseScaleDeg(pt)
+```
+
+With auxiliary plaintext `noiseScaleDeg = 1`, each `linear_transform` adds 1 to
+the ciphertext's nsd. Combined with `mul` (which ADDS operand nsds:
+`nsd_out = nsd_lhs + nsd_rhs`), the nsd grows through `mul -> linear_transform`
+chains:
+
+```
+fresh:  nsd=1
+lt:     nsd=2  (1+1)
+mul:    nsd=4  (2+2)
+lt:     nsd=5  (4+1)
+mul:    nsd=10 (5+5)
+```
+
+OpenFHE's `SetLevel()` check (in `ciphertext-impl.cpp:48`) validates
+`limbNum >= noiseScaleDeg` at every `ModReduceInternalInPlace`. With 6 Q primes,
+after 2 `mod_reduce`s the remaining limbs (4) cannot keep up with the
+accumulated nsd (7+).
+
+### Current status
+
+For circuits with multiple `mul -> linear_transform` layers (e.g., MLP), the
+OpenFHE EXT-based tests are tagged `manual`. Single-layer circuits (chebyshev,
+single linear_transform) work because nsd stays bounded.
+
+### Possible fixes
+
+1. **nsd-aware noise management**: Track nsd through the management pipeline and
+   insert extra `modreduce` ops (or multiple modreduces per cycle) to keep nsd
+   bounded. Requires the precise scale policy (incompatible with FIXEDMANUAL
+   power-of-two encoding).
+
+1. **Significantly more Q primes**: With 10+ primes, the limb count stays above
+   the accumulated nsd. Impractical for a mulDepth=2 circuit.
+
+1. **OpenFHE native `EvalLinearTransform` API**: Uses the same `EvalMultExt`
+   internally (same nsd accumulation), but is designed for bootstrap contexts
+   where the chain is longer. Not a direct fix.
+
+1. **Restructure the EXT helper**: Instead of accumulating into a single
+   ciphertext (which inherits the input's nsd), decompose into sub-computations
+   that reset nsd. Requires careful analysis of the BSGS algorithm's nsd
+   invariants.

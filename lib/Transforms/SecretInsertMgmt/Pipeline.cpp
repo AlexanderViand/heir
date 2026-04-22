@@ -7,6 +7,7 @@
 #include "lib/Analysis/SecretnessAnalysis/SecretnessAnalysis.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "lib/Transforms/Halo/Patterns.h"
 #include "lib/Transforms/SecretInsertMgmt/SecretInsertMgmtPatterns.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
@@ -185,6 +186,10 @@ void insertModReduceBeforeOrAfterMult(Operation* top, bool afterMul,
     // as before yield we only want mulResult to be mod reduced
     patterns.add<ModReduceBefore<secret::YieldOp>>(
         ctx, /*includeFirstMul*/ false, top, &solver);
+    // Note: structured ops (diagonal_matvec) also accumulate noiseScaleDeg.
+    // Rather than inserting extra modreduces here (which conflicts with the
+    // nominal scale model), generate-param-ckks adds extra levels to the chain
+    // to keep limbs > nsd at every modreduce point.
   }
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }

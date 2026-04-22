@@ -39,6 +39,7 @@
 #include "mlir/include/mlir/IR/Attributes.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/Builders.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Diagnostics.h"            // from @llvm-project
@@ -364,11 +365,18 @@ struct ConvertDiagonalMatvecToLinearTransform
                                rewriter.getStringAttr(orion::kOpaqueImplStyle));
     linearTransformOp->setAttr(orion::kLevelCostUpperBoundAttrName,
                                rewriter.getI64IntegerAttr(0));
-    // Set OpenFHE native plaintext level derived from the managed level
-    // assignment (= HEIR level from the output ciphertext type's modulus
-    // chain). Set here during conversion rather than in backend lowering.
-    linearTransformOp->setAttr(openfhe::kNativePlaintextLevelAttrName,
-                               rewriter.getI64IntegerAttr(orionLevel));
+    // Set OpenFHE native plaintext level. When the chain is longer than
+    // the circuit needs (heir.level_offset > 0), shift the level so the
+    // plaintext is encoded with the correct number of towers.
+    int64_t nativePlaintextLevel = orionLevel;
+    if (auto levelOffsetAttr =
+            op->getParentOfType<ModuleOp>()->getAttrOfType<IntegerAttr>(
+                "heir.level_offset")) {
+      nativePlaintextLevel += levelOffsetAttr.getInt();
+    }
+    linearTransformOp->setAttr(
+        openfhe::kNativePlaintextLevelAttrName,
+        rewriter.getI64IntegerAttr(nativePlaintextLevel));
     return linearTransformOp;
   }
 };

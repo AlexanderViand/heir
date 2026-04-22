@@ -179,14 +179,18 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     // 1. The target backend's overhead (e.g., OpenFHE's flexible-auto-ext
     //    needs 2 extra levels beyond the circuit's multiplicative depth).
     // 2. Any minimum level hint from the raise pass (preserves noise headroom
-    //    from the original Orion parameters).
+    //    from the original Orion parameters), capped at circuitDepth + margin
+    //    to avoid over-provisioning simple circuits.
     int effectiveMaxLevel =
         maxLevel.value_or(0) + static_cast<int>(minLevelOverhead);
     if (auto minLevelHint =
             getOperation()->getAttrOfType<IntegerAttr>("heir.min_level_hint")) {
-      effectiveMaxLevel =
-          std::max(effectiveMaxLevel,
-                   static_cast<int>(minLevelHint.getValue().getSExtValue()));
+      // Cap the hint at circuitDepth + 3 to avoid over-provisioning simple
+      // circuits. The original Orion scheme may have had many more levels
+      // than the circuit needs (e.g., 6 primes for a mulDepth=0 circuit).
+      int hint = static_cast<int>(minLevelHint.getValue().getSExtValue());
+      int cap = maxLevel.value_or(0) + 3;
+      effectiveMaxLevel = std::max(effectiveMaxLevel, std::min(hint, cap));
       getOperation()->removeAttr("heir.min_level_hint");
     }
     // Use OpenFHE's security bounds when targeting OpenFHE, to ensure
@@ -202,12 +206,10 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     LDBG() << "Scheme Param:\n" << schemeParam;
 
     // If the effective chain is longer than the circuit requires (due to
-    // backend overhead or noise headroom hints), shift all mgmt level
-    // annotations so they reference the correct position in the actual chain.
+    // backend overhead or noise headroom hints), record the delta so
+    // downstream passes (secret-to-ckks) can shift type levels to match.
     int delta = effectiveMaxLevel - maxLevel.value_or(0);
     if (delta > 0) {
-      // Store the level offset so downstream passes (populate-scale-ckks,
-      // AnnotateMgmt) shift levels to match the actual chain length.
       getOperation()->setAttr("heir.level_offset",
                               builder.getI64IntegerAttr(delta));
     }

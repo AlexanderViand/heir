@@ -32,6 +32,7 @@
 #include "mlir/include/mlir/IR/Attributes.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/Builders.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
@@ -614,10 +615,21 @@ struct ConvertOrionLinearTransformOp
         static_cast<int64_t>(cast<FloatAttr>(bsgsRatio).getValueAsDouble());
     auto logBsgsRatioAttr = rewriter.getI64IntegerAttr(logBsgsRatio);
 
+    // When the chain is longer than the circuit needs (heir.level_offset > 0),
+    // shift the levelQ to the actual chain position so Lattigo encodes
+    // diagonal plaintexts at the correct scale.
+    int64_t levelQ = op.getOrionLevelAttr().getInt();
+    if (auto levelOffset =
+            op->getParentOfType<ModuleOp>()->getAttrOfType<IntegerAttr>(
+                "heir.level_offset")) {
+      levelQ += levelOffset.getInt();
+    }
+    auto levelQAttr = rewriter.getI64IntegerAttr(levelQ);
+
     rewriter.replaceOpWithNewOp<lattigo::CKKSLinearTransformOp>(
         op, this->typeConverter->convertType(op.getResult().getType()),
         evaluator, encoder, adaptor.getInput(), adaptor.getDiagonals(),
-        adaptor.getDiagonalIndices(), op.getOrionLevelAttr(), logBsgsRatioAttr);
+        adaptor.getDiagonalIndices(), levelQAttr, logBsgsRatioAttr);
 
     return success();
   }

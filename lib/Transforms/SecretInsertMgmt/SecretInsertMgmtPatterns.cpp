@@ -9,6 +9,7 @@
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"           // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"             // from @llvm-project
@@ -528,6 +529,11 @@ template struct MultRelinearize<arith::MulFOp>;
 template struct UseInitOpForPlaintextOperand<arith::AddFOp>;
 template struct UseInitOpForPlaintextOperand<arith::MulFOp>;
 template struct UseInitOpForPlaintextOperand<arith::SubFOp>;
+
+// Structured ops that need rescaled inputs to keep noiseScaleDeg bounded.
+// Without this, the EXT-based linear_transform helper accumulates nsd through
+// mul → linear_transform chains, exceeding the CRT limb count.
+template struct ModReduceBefore<tensor_ext::DiagonalMatvecOp>;
 
 }  // namespace heir
 }  // namespace mlir

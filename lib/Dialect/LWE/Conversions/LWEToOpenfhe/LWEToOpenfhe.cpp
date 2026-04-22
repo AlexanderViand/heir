@@ -152,6 +152,12 @@ FailureOr<IntegerAttr> inferOpenfheLevelAttr(lwe::RLWEEncodeOp op,
   }
 
   int64_t heirLevel = op.getLevelAttr().getInt();
+  // When the chain is longer than the circuit needs (heir.level_offset > 0),
+  // the circuit-relative level must be shifted to the actual chain position.
+  if (auto levelOffset =
+          module->getAttrOfType<IntegerAttr>("heir.level_offset")) {
+    heirLevel += levelOffset.getInt();
+  }
   int64_t maxHeirLevel = static_cast<int64_t>(schemeParam.getQ().size()) - 1;
   if (heirLevel < 0 || heirLevel > maxHeirLevel) {
     return op.emitOpError() << "expected CKKS encode level in [0, "

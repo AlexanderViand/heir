@@ -600,4 +600,24 @@ The CKKS IR remains strict:
 Temporary off-schedule scales are allowed between operations. Exact resolution
 eliminates them before any addition or subtraction survives to the CKKS IR.
 
+### Future: noiseScaleDeg-aware management
+
+OpenFHE tracks a `noiseScaleDeg` (nsd) metadata field on each ciphertext. The
+nsd accumulates through multiplications (`nsd_out = nsd_lhs + nsd_rhs`) and
+plaintext multiplies (`nsd_out = nsd_ct + nsd_pt`). Each `ModReduce` subtracts
+1\.
+
+For circuits with `mul -> linear_transform` chains, the nsd grows quadratically
+while `ModReduce` only provides linear reduction. This causes OpenFHE's runtime
+`SetLevel()` check (`limbNum >= noiseScaleDeg`) to fail when the CRT limb count
+drops below the accumulated nsd.
+
+The current management pipeline does not track nsd. A future enhancement could
+add nsd tracking alongside level/scale analysis, allowing the pipeline to insert
+extra `modreduce` ops specifically to keep nsd bounded. This would require the
+precise scale policy (to handle non-standard modreduce placement) and relaxing
+the power-of-two encoding constraint for FIXEDMANUAL mode.
+
+See OPENFHE.MD section 12 for the detailed nsd accumulation analysis.
+
 <!-- mdformat global-off -->

@@ -84,6 +84,10 @@ ciphertext type's modulus chain level), not in a separate metadata pass.
 - Scaling techniques tested: `fixed-manual`, `flexible-auto`,
   `flexible-auto-ext`
 - Raise path tested: raise → re-manage → OpenFHE native APIs
+- Known limitation: multi-layer MLP (2+ muls with linear_transforms) triggers
+  `noiseScaleDeg` accumulation in the EXT-based linear_transform helper, causing
+  `SetLevel` failure at runtime. Single-layer circuits work. See OPENFHE.MD
+  section 12 for details and possible fixes.
 
 ## Compilation paths
 
