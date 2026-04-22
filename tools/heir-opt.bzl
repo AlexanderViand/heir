@@ -12,6 +12,7 @@ def executable_attr(label):
     )
 
 _HEIR_OPT = "@heir//tools:heir-opt"
+_LLVM_SYMBOLIZER = "@llvm-project//llvm:llvm-symbolizer"
 
 def _heir_opt_impl(ctx):
     generated_file = ctx.outputs.generated_filename
@@ -20,7 +21,9 @@ def _heir_opt_impl(ctx):
     args.add_all(pass_flags_location_expanded)
     args.add_all(["-o", generated_file.path])
     args.add(ctx.file.src)
-    env_vars = {}
+    env_vars = {
+        "LLVM_SYMBOLIZER_PATH": ctx.executable._llvm_symbolizer.path,
+    }
     if ctx.attr.HEIR_YOSYS:
         # https://bazel.build/remote/output-directories#layout-diagram
         HEIR_BASE_PATH = "_main/"
@@ -33,7 +36,7 @@ def _heir_opt_impl(ctx):
     ctx.actions.run(
         inputs = ctx.attr.src.files,
         mnemonic = "HeirOpt",
-        tools = ctx.files.data,
+        tools = ctx.files.data + [ctx.executable._llvm_symbolizer],
         outputs = [generated_file],
         arguments = [args],
         env = env_vars,
@@ -77,5 +80,6 @@ heir_opt = rule(
             default = False,
         ),
         "_heir_opt_binary": executable_attr(_HEIR_OPT),
+        "_llvm_symbolizer": executable_attr(_LLVM_SYMBOLIZER),
     },
 )

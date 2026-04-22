@@ -34,10 +34,6 @@ setup: |
     chmod +x /usr/local/bin/bazel
   fi
 
-
-envs:
-  LLVM_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer
-
 # Note: if we don't fetch first, we might see random timeouts from things such as python wheel extraction/etc
 run: |
   set -ex

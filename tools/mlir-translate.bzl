@@ -13,6 +13,7 @@ def executable_attr(label):
     )
 
 _MLIR_TRANSLATE = "@llvm-project//mlir:mlir-translate"
+_LLVM_SYMBOLIZER = "@llvm-project//llvm:llvm-symbolizer"
 
 def _mlir_translate_impl(ctx):
     generated_file = ctx.outputs.generated_filename
@@ -25,7 +26,11 @@ def _mlir_translate_impl(ctx):
         mnemonic = "MLIRTranslateRule",
         inputs = ctx.attr.src.files,
         outputs = [generated_file],
+        tools = [ctx.executable._llvm_symbolizer],
         arguments = [args],
+        env = {
+            "LLVM_SYMBOLIZER_PATH": ctx.executable._llvm_symbolizer.path,
+        },
         executable = ctx.executable._mlir_translate_binary,
         toolchain = None,
     )
@@ -57,5 +62,6 @@ mlir_translate = rule(
             mandatory = True,
         ),
         "_mlir_translate_binary": executable_attr(_MLIR_TRANSLATE),
+        "_llvm_symbolizer": executable_attr(_LLVM_SYMBOLIZER),
     },
 )

@@ -13,6 +13,7 @@ def executable_attr(label):
     )
 
 _llc = "@llvm-project//llvm:llc"
+_LLVM_SYMBOLIZER = "@llvm-project//llvm:llvm-symbolizer"
 
 def _llc_impl(ctx):
     generated_file = ctx.outputs.generated_filename
@@ -25,7 +26,11 @@ def _llc_impl(ctx):
         mnemonic = "LLCRule",
         inputs = ctx.attr.src.files,
         outputs = [generated_file],
+        tools = [ctx.executable._llvm_symbolizer],
         arguments = [args],
+        env = {
+            "LLVM_SYMBOLIZER_PATH": ctx.executable._llvm_symbolizer.path,
+        },
         executable = ctx.executable._llc_binary,
         toolchain = None,
     )
@@ -57,5 +62,6 @@ llc = rule(
             mandatory = True,
         ),
         "_llc_binary": executable_attr(_llc),
+        "_llvm_symbolizer": executable_attr(_LLVM_SYMBOLIZER),
     },
 )

@@ -16,6 +16,7 @@ def executable_attr(label):
     )
 
 _HEIR_TRANSLATE = "@heir//tools:heir-translate"
+_LLVM_SYMBOLIZER = "@llvm-project//llvm:llvm-symbolizer"
 
 def _heir_translate_impl(ctx):
     generated_file = ctx.outputs.generated_filename
@@ -28,7 +29,11 @@ def _heir_translate_impl(ctx):
         inputs = ctx.attr.src.files,
         outputs = [generated_file],
         mnemonic = "HeirTranslate",
+        tools = [ctx.executable._llvm_symbolizer],
         arguments = [args],
+        env = {
+            "LLVM_SYMBOLIZER_PATH": ctx.executable._llvm_symbolizer.path,
+        },
         executable = ctx.executable._heir_translate_binary,
         toolchain = None,
     )
@@ -68,6 +73,7 @@ heir_translate = rule(
             mandatory = True,
         ),
         "_heir_translate_binary": executable_attr(_HEIR_TRANSLATE),
+        "_llvm_symbolizer": executable_attr(_LLVM_SYMBOLIZER),
     },
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
