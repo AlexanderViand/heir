@@ -53,6 +53,7 @@
 #include "lib/Transforms/LowerOrion/LowerOrion.h"
 #include "lib/Transforms/OperationBalancer/OperationBalancer.h"
 #include "lib/Transforms/OptimizeRelinearization/OptimizeRelinearization.h"
+#include "lib/Transforms/PolynomialApproximation/PolynomialApproximation.h"
 #include "lib/Transforms/PopulateScale/PopulateScale.h"
 #include "lib/Transforms/PropagateAnnotation/PropagateAnnotation.h"
 #include "lib/Transforms/ReductionCanonicalizations/ReductionCanonicalizations.h"
@@ -189,7 +190,16 @@ void mlirToSecretArithmeticPipelineBuilder(
   // Vectorize and optimize rotations
   // TODO(#2320): figure out where this fits in the new pipeline
   hecoSIMDVectorizerPipelineBuilder(pm, options.experimentalDisableLoopUnroll);
-  mathToPolynomialApproximationBuilder(pm);
+  if (options.preserveStructuredOps) {
+    // Only approximate math ops to polynomial.eval but don't lower them.
+    // polynomial.eval ops survive through mgmt as atomic structured ops
+    // and are converted to orion.chebyshev at secret-to-ckks time.
+    pm.addPass(createPolynomialApproximation());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+  } else {
+    mathToPolynomialApproximationBuilder(pm);
+  }
 
   // Layout assignment and optimization
   LayoutPropagationOptions layoutPropagationOptions;
@@ -204,6 +214,8 @@ void mlirToSecretArithmeticPipelineBuilder(
   convertToCiphertextSemanticsOptions.ciphertextSize = options.ciphertextDegree;
   convertToCiphertextSemanticsOptions.unrollKernels =
       !options.experimentalDisableLoopUnroll;
+  convertToCiphertextSemanticsOptions.preserveStructuredOps =
+      options.preserveStructuredOps;
   pm.addPass(
       createConvertToCiphertextSemantics(convertToCiphertextSemanticsOptions));
 
@@ -648,6 +660,7 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.experimentalDisableLoopUnroll =
       options.experimentalDisableLoopUnroll;
   suboptions.openfheScalingTechnique = options.openfheScalingTechnique;
+  suboptions.preserveStructuredOps = options.preserveStructuredOps;
 
   mlirToRLWEPipelineBuilder(mlir::heir::RLWEScheme::ckksScheme)(manager,
                                                                 suboptions);

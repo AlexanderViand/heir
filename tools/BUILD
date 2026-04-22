@@ -166,6 +166,7 @@ cc_binary(
         "@heir//lib/Transforms/PolynomialApproximation",
         "@heir//lib/Transforms/PopulateScale",
         "@heir//lib/Transforms/PropagateAnnotation",
+        "@heir//lib/Transforms/RaiseCKKS",
         "@heir//lib/Transforms/ReductionCanonicalizations",
         "@heir//lib/Transforms/RemoveUnusedPureCall",
         "@heir//lib/Transforms/RotationAnalysis",

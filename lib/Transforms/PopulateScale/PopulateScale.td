@@ -81,7 +81,7 @@ def PopulateScaleCKKS : Pass<"populate-scale-ckks"> {
            "CKKS scale policy: `nominal` or `precise` (the latter is superseded by `resolve-scale-ckks-bmph20`)">,
     Option<"openfheScalingTechnique", "openfhe-scaling-technique", "std::string",
            /*default=*/"\"\"",
-           "If set, resolve CKKS management with OpenFHE-compatible state semantics using the given scaling technique (`fixed-manual`, `flexible-auto`, `flexible-auto-ext`, `composite-auto`, `composite-manual`, `no-rescale`)">,
+           "If set, resolve CKKS management with OpenFHE-compatible state semantics using the given scaling technique (`fixed-manual`, `flexible-auto`, `flexible-auto-ext`)">,
   ];
 }
 
@@ -105,7 +105,7 @@ def ResolveScaleCKKSBMPH20 : Pass<"resolve-scale-ckks-bmph20"> {
            /*default=*/"8", "Maximum number of precise refinement iterations before failing hard">,
     Option<"openfheScalingTechnique", "openfhe-scaling-technique", "std::string",
            /*default=*/"\"\"",
-           "If set, resolve CKKS management with OpenFHE-compatible state semantics using the given scaling technique (`fixed-manual`, `flexible-auto`, `flexible-auto-ext`, `composite-auto`, `composite-manual`, `no-rescale`)">,
+           "If set, resolve CKKS management with OpenFHE-compatible state semantics using the given scaling technique (`fixed-manual`, `flexible-auto`, `flexible-auto-ext`)">,
   ];
 }
 

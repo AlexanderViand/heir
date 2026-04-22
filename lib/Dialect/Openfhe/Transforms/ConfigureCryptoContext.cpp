@@ -459,9 +459,11 @@ struct ConfigureCryptoContext
     if (moduleIsCKKS(module) && inferredCkksSchemeParam &&
         config.scalingTechnique.empty()) {
       config.scalingTechnique = kScalingTechniqueFixedManual.str();
-      LLVM_DEBUG(llvm::dbgs()
-                 << "No OpenFHE scaling technique specified for CKKS; "
-                    "defaulting to fixed-manual\n");
+      module->emitRemark()
+          << "No OpenFHE scaling technique specified for CKKS; "
+             "defaulting to fixed-manual. Pass "
+             "`--openfhe-configure-crypto-context=scaling-technique=...` "
+             "or use the OpenFHE-aware CKKS management pipeline to set it.";
     }
     config.levelBudgetDecode = levelBudgetDecode;
     config.levelBudgetEncode = levelBudgetEncode;

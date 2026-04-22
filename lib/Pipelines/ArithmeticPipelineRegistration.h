@@ -118,8 +118,7 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       *this, "openfhe-scaling-technique",
       llvm::cl::desc("If set, resolve CKKS management with OpenFHE-aware "
                      "state semantics using the given scaling technique "
-                     "(`fixed-manual`, `flexible-auto`, `flexible-auto-ext`, "
-                     "`composite-auto`, `composite-manual`, `no-rescale`)"),
+                     "(`fixed-manual`, `flexible-auto`, `flexible-auto-ext`)"),
       llvm::cl::init("")};
   PassOptions::Option<std::string> plaintextExecutionResultFileName{
       *this, "plaintext-execution-result-file-name",
@@ -131,6 +130,13 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       llvm::cl::desc("Split preprocessing into separate function with N return "
                      "values (default to no split)"),
       llvm::cl::init(0)};
+  PassOptions::Option<bool> preserveStructuredOps{
+      *this, "preserve-structured-ops",
+      llvm::cl::desc(
+          "If true, preserve polynomial.eval and linalg.matvec as structured "
+          "ops through management instead of lowering to basic arithmetic. "
+          "Enables native backend APIs for linear_transform and chebyshev."),
+      llvm::cl::init(false)};
 };
 
 struct PlaintextBackendOptions
@@ -170,8 +176,7 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       *this, "openfhe-scaling-technique",
       llvm::cl::desc("OpenFHE scaling technique override "
                      "(`fixed-manual`, `flexible-auto`, "
-                     "`flexible-auto-ext`, `composite-auto`, "
-                     "`composite-manual`, `no-rescale`)"),
+                     "`flexible-auto-ext`)"),
       llvm::cl::init("")};
 };
 
@@ -247,14 +252,20 @@ struct TorchLinalgToCkksPipelineOptions : public LoopOptions {
       *this, "openfhe-scaling-technique",
       llvm::cl::desc("If set, resolve CKKS management with OpenFHE-aware "
                      "state semantics using the given scaling technique "
-                     "(`fixed-manual`, `flexible-auto`, `flexible-auto-ext`, "
-                     "`composite-auto`, `composite-manual`, `no-rescale`)"),
+                     "(`fixed-manual`, `flexible-auto`, `flexible-auto-ext`)"),
       llvm::cl::init("")};
   PassOptions::Option<int> splitPreprocessing{
       *this, "split-preprocessing",
       llvm::cl::desc("Split preprocessing into separate function with N return "
                      "values (default to no split)"),
       llvm::cl::init(0)};
+  PassOptions::Option<bool> preserveStructuredOps{
+      *this, "preserve-structured-ops",
+      llvm::cl::desc(
+          "If true, preserve polynomial.eval and linalg.matvec as structured "
+          "ops through management instead of lowering to basic arithmetic. "
+          "Enables native backend APIs for linear_transform and chebyshev."),
+      llvm::cl::init(false)};
 };
 void torchLinalgToCkksBuilder(OpPassManager& manager,
                               const TorchLinalgToCkksPipelineOptions& options);

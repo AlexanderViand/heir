@@ -526,9 +526,8 @@ struct ConvertOrionLinearTransformOp
           openfhe::kNativePlaintextLevelAttrName);
       if (!plaintextLevel) {
         return op.emitOpError()
-               << "requires `openfhe.native_plaintext_level`; resolve OpenFHE "
-                  "CKKS management before `--secret-to-ckks` / "
-                  "`--lwe-to-openfhe` for opaque Orion linear transforms";
+               << "requires `openfhe.native_plaintext_level`; this should "
+                  "be set during secret-to-ckks conversion";
       }
 
       rewriter.replaceOpWithNewOp<openfhe::LinearTransformOp>(

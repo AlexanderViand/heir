@@ -16,11 +16,17 @@
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/ModArith/IR/ModArithTypes.h"
+#include "lib/Dialect/Openfhe/Transforms/ScalingTechniqueUtils.h"
+#include "lib/Dialect/Orion/IR/OrionDialect.h"
+#include "lib/Dialect/Orion/IR/OrionOps.h"
+#include "lib/Dialect/Orion/IR/OrionUtils.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
+#include "lib/Dialect/Polynomial/IR/PolynomialOps.h"
 #include "lib/Dialect/RNS/IR/RNSTypes.h"
 #include "lib/Dialect/Secret/Conversions/Patterns.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
 #include "lib/Dialect/Secret/IR/SecretTypes.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "lib/Utils/AttributeUtils.h"
 #include "lib/Utils/ContextAwareConversionUtils.h"
 #include "lib/Utils/ContextAwareDialectConversion.h"
@@ -243,6 +249,130 @@ class SecretGenericPlaintextDivision
   }
 };
 
+struct ConvertPolynomialEvalToChebyshev
+    : public SecretGenericOpConversion<polynomial::EvalOp, orion::ChebyshevOp> {
+  using SecretGenericOpConversion::SecretGenericOpConversion;
+
+  FailureOr<Operation*> matchAndRewriteInner(
+      secret::GenericOp op, TypeRange outputTypes, ValueRange inputs,
+      ArrayRef<NamedAttribute> attributes,
+      ContextAwareConversionPatternRewriter& rewriter) const override {
+    auto& innerOp = op.getBody()->getOperations().front();
+    auto evalOp = cast<polynomial::EvalOp>(innerOp);
+    auto chebAttr = dyn_cast<polynomial::TypedChebyshevPolynomialAttr>(
+        evalOp.getPolynomialAttr());
+    if (!chebAttr) {
+      return rewriter.notifyMatchFailure(
+          op, "polynomial.eval is not a Chebyshev polynomial");
+    }
+
+    auto domainStartAttr = evalOp->getAttrOfType<FloatAttr>("domain_lower");
+    auto domainEndAttr = evalOp->getAttrOfType<FloatAttr>("domain_upper");
+    if (!domainStartAttr || !domainEndAttr) {
+      return rewriter.notifyMatchFailure(
+          op, "polynomial.eval missing domain_lower/domain_upper");
+    }
+
+    // Convert Chebyshev coefficients to ArrayAttr of FloatAttr
+    auto chebCoeffs = chebAttr.getValue().getCoefficients();
+    SmallVector<Attribute> coeffAttrs;
+    for (auto coeff : chebCoeffs) {
+      coeffAttrs.push_back(cast<Attribute>(coeff));
+    }
+    auto coefficientsAttr = rewriter.getArrayAttr(coeffAttrs);
+
+    Value input = inputs.front();
+    Type resultType = outputTypes.front();
+
+    // If the input is a tensor of ciphertexts (e.g., tensor<1x!lwe.ct>),
+    // extract the single ciphertext, apply chebyshev, and reinsert.
+    auto inputTensorType = dyn_cast<RankedTensorType>(input.getType());
+    if (inputTensorType &&
+        isa<lwe::LWECiphertextType>(inputTensorType.getElementType())) {
+      auto ctType = inputTensorType.getElementType();
+      auto resultTensorType = dyn_cast<RankedTensorType>(resultType);
+      auto resultCtType =
+          resultTensorType ? resultTensorType.getElementType() : resultType;
+      Value zero = arith::ConstantIndexOp::create(rewriter, op.getLoc(), 0);
+      Value extracted = tensor::ExtractOp::create(rewriter, op.getLoc(), ctType,
+                                                  input, ValueRange{zero});
+      auto chebyshevResult = orion::ChebyshevOp::create(
+          rewriter, op.getLoc(), resultCtType, extracted, coefficientsAttr,
+          domainStartAttr, domainEndAttr);
+      chebyshevResult->setAttr(orion::kImplStyleAttrName,
+                               rewriter.getStringAttr(orion::kOpaqueImplStyle));
+      if (auto levelCostAttr = evalOp->getAttrOfType<IntegerAttr>(
+              orion::kLevelCostUpperBoundAttrName)) {
+        chebyshevResult->setAttr(orion::kLevelCostUpperBoundAttrName,
+                                 levelCostAttr);
+      }
+      auto result = tensor::FromElementsOp::create(
+          rewriter, op.getLoc(), resultType, ValueRange{chebyshevResult});
+      rewriter.replaceOp(op, result);
+      return result.getOperation();
+    }
+
+    auto* chebyshevOp = rewriter
+                            .replaceOpWithNewOp<orion::ChebyshevOp>(
+                                op, resultType, input, coefficientsAttr,
+                                domainStartAttr, domainEndAttr)
+                            .getOperation();
+    chebyshevOp->setAttr(orion::kImplStyleAttrName,
+                         rewriter.getStringAttr(orion::kOpaqueImplStyle));
+    if (auto levelCostAttr = evalOp->getAttrOfType<IntegerAttr>(
+            orion::kLevelCostUpperBoundAttrName)) {
+      chebyshevOp->setAttr(orion::kLevelCostUpperBoundAttrName, levelCostAttr);
+    }
+    return chebyshevOp;
+  }
+};
+
+struct ConvertDiagonalMatvecToLinearTransform
+    : public SecretGenericOpConversion<tensor_ext::DiagonalMatvecOp,
+                                       orion::LinearTransformOp> {
+  using SecretGenericOpConversion::SecretGenericOpConversion;
+
+  FailureOr<Operation*> matchAndRewriteInner(
+      secret::GenericOp op, TypeRange outputTypes, ValueRange inputs,
+      ArrayRef<NamedAttribute> attributes,
+      ContextAwareConversionPatternRewriter& rewriter) const override {
+    auto& innerOp = op.getBody()->getOperations().front();
+    auto diagMatvecOp = cast<tensor_ext::DiagonalMatvecOp>(innerOp);
+
+    Value ciphertextInput = inputs[0];
+    Value diagonals = inputs[1];
+    int64_t slots = diagMatvecOp.getSlots().getValue().getSExtValue();
+    auto diagIndices = diagMatvecOp.getDiagonalIndices();
+
+    // Get the modulus chain level from the output ciphertext type
+    auto outCtType = dyn_cast<lwe::LWECiphertextType>(
+        getElementTypeOrSelf(outputTypes.front()));
+    int64_t orionLevel = 0;
+    if (outCtType && outCtType.getModulusChain()) {
+      orionLevel = outCtType.getModulusChain().getCurrent();
+    }
+
+    auto* linearTransformOp =
+        rewriter
+            .replaceOpWithNewOp<orion::LinearTransformOp>(
+                op, outputTypes.front(), ciphertextInput, diagonals,
+                diagIndices, rewriter.getI64IntegerAttr(orionLevel),
+                rewriter.getF64FloatAttr(0.0),  // bsgs_ratio
+                rewriter.getI64IntegerAttr(slots))
+            .getOperation();
+    linearTransformOp->setAttr(orion::kImplStyleAttrName,
+                               rewriter.getStringAttr(orion::kOpaqueImplStyle));
+    linearTransformOp->setAttr(orion::kLevelCostUpperBoundAttrName,
+                               rewriter.getI64IntegerAttr(0));
+    // Set OpenFHE native plaintext level derived from the managed level
+    // assignment (= HEIR level from the output ciphertext type's modulus
+    // chain). Set here during conversion rather than in backend lowering.
+    linearTransformOp->setAttr(openfhe::kNativePlaintextLevelAttrName,
+                               rewriter.getI64IntegerAttr(orionLevel));
+    return linearTransformOp;
+  }
+};
+
 struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
   using SecretToCKKSBase::SecretToCKKSBase;
 
@@ -286,6 +416,7 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
                                                          typeConverter);
 
     target.addLegalDialect<ckks::CKKSDialect>();
+    target.addLegalDialect<orion::OrionDialect>();
     patterns.add<
         SecretGenericOpCipherPlainConversion<arith::AddFOp, ckks::AddPlainOp>,
         SecretGenericOpCipherPlainConversion<arith::AddIOp, ckks::AddPlainOp>,
@@ -308,6 +439,9 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
         SecretGenericOpLevelReduceConversion<ckks::LevelReduceOp>>(
         typeConverter, context);
 
+    patterns.add<ConvertPolynomialEvalToChebyshev>(typeConverter, context);
+    patterns.add<ConvertDiagonalMatvecToLinearTransform>(typeConverter,
+                                                         context);
     patterns.add<ConvertClientConceal>(typeConverter, context, usePublicKey,
                                        rlweRing.value());
     patterns.add<ConvertClientReveal>(typeConverter, context, rlweRing.value());
