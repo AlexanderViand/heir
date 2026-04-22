@@ -475,13 +475,7 @@ LogicalResult CheddarEmitter::printOperation(func::FuncOp funcOp) {
     }
   }
 
-  if (isMainFunc) {
-    os << "auto _total_ms = _Dur(_Clock::now() - _t0).count();\n";
-    os << "std::cerr << \"[heir-cheddar-timing] preproc=\" << _preproc_ms "
-          "<< \"ms lt_compute=\" << _compute_ms << \"ms other_compute=\" "
-          "<< (_total_ms - _preproc_ms - _compute_ms) "
-          "<< \"ms total=\" << _total_ms << \"ms\" << std::endl;\n";
-  }
+  // (timing summary is emitted in printOperation(func::ReturnOp))
 
   os.unindent();
   os << "}\n\n";
@@ -489,6 +483,16 @@ LogicalResult CheddarEmitter::printOperation(func::FuncOp funcOp) {
 }
 
 LogicalResult CheddarEmitter::printOperation(func::ReturnOp op) {
+  // Emit timing summary before return in main (non-helper) functions.
+  if (auto funcOp = op->getParentOfType<func::FuncOp>()) {
+    if (!funcOp.getName().contains("__")) {
+      os << "auto _total_ms = _Dur(_Clock::now() - _t0).count();\n";
+      os << "std::cout << \"[heir-cheddar-timing] preproc=\" << _preproc_ms "
+            "<< \"ms lt_compute=\" << _compute_ms << \"ms other_compute=\" "
+            "<< (_total_ms - _preproc_ms - _compute_ms) "
+            "<< \"ms total=\" << _total_ms << \"ms\" << std::endl;\n";
+    }
+  }
   if (op.getNumOperands() == 0) {
     os << "return;\n";
   } else if (op.getNumOperands() == 1) {
@@ -714,7 +718,11 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   }
 
   os << "Pt " << name << ";\n";
-  os << "{ auto _ep = _Clock::now();\n";
+  // Only emit timing in non-helper functions (where _Clock/_preproc_ms exist)
+  bool inMainFunc = false;
+  if (auto funcOp = op->getParentOfType<func::FuncOp>())
+    inMainFunc = !funcOp.getName().contains("__");
+  if (inMainFunc) os << "{ auto _ep = _Clock::now();\n";
   if (needsComplexConversion) {
     std::string complexMsgName = name + "_complex";
     os << "std::vector<Complex> " << complexMsgName << "(" << msgName
@@ -725,7 +733,7 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
     os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
        << ", " << scaleExpr << ", " << msgName << ");\n";
   }
-  os << "_preproc_ms += _Dur(_Clock::now() - _ep).count(); }\n";
+  if (inMainFunc) os << "_preproc_ms += _Dur(_Clock::now() - _ep).count(); }\n";
   return success();
 }
 
