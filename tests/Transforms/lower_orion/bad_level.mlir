@@ -1,0 +1,26 @@
+// RUN: not heir-opt --annotate-orion --lower-orion %s 2>&1 | FileCheck %s
+
+// CHECK-DAG: error: 'orion.linear_transform' op expected `orion_level` to be between 0 and the input ciphertext level 5, but got 6
+
+!Z536903681_i64 = !mod_arith.int<536903681 : i64>
+!Z66813953_i64 = !mod_arith.int<66813953 : i64>
+!Z66961409_i64 = !mod_arith.int<66961409 : i64>
+!Z66994177_i64 = !mod_arith.int<66994177 : i64>
+!Z67043329_i64 = !mod_arith.int<67043329 : i64>
+!Z67239937_i64 = !mod_arith.int<67239937 : i64>
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 67108864>
+#key = #lwe.key<>
+#modulus_chain_L5_C5 = #lwe.modulus_chain<elements = <536903681 : i64, 67043329 : i64, 66994177 : i64, 67239937 : i64, 66961409 : i64, 66813953 : i64>, current = 5>
+#ring_f64_1_x8192 = #polynomial.ring<coefficientType = f64, polynomialModulus = <1 + x**8192>>
+!rns_L5 = !rns.rns<!Z536903681_i64, !Z67043329_i64, !Z66994177_i64, !Z67239937_i64, !Z66961409_i64, !Z66813953_i64>
+#ring_rns_L5_1_x8192 = #polynomial.ring<coefficientType = !rns_L5, polynomialModulus = <1 + x**8192>>
+#ciphertext_space_L5 = #lwe.ciphertext_space<ring = #ring_rns_L5_1_x8192, encryption_type = mix>
+!ct_L5 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x8192, encoding = #inverse_canonical_encoding>, ciphertext_space = #ciphertext_space_L5, key = #key, modulus_chain = #modulus_chain_L5_C5>
+
+module {
+  func.func @linear_transform_bad_level(%ct: !ct_L5, %arg0: tensor<2x4096xf64>) -> !ct_L5 {
+    %ct_0 = orion.linear_transform %ct, %arg0 {block_col = 0 : i32, block_row = 0 : i32, bsgs_ratio = 2.000000e+00 : f64, diagonal_count = 2 : i32, diagonal_indices = array<i32: 0, 4095>, orion_level = 6 : i32, slots = 4096 : i32} : (!ct_L5, tensor<2x4096xf64>) -> !ct_L5
+    return %ct_0 : !ct_L5
+  }
+
+}

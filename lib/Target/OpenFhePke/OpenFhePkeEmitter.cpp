@@ -57,6 +57,17 @@ namespace openfhe {
 
 namespace {
 
+void emitOpenfhePlaintextSlotCount(raw_indented_ostream& os, StringRef ccName,
+                                   StringRef slotCountVarName) {
+  os << "auto " << slotCountVarName << " = " << ccName
+     << "->GetEncodingParams()->GetBatchSize();\n";
+  os << "if (" << slotCountVarName << " == 0) {\n";
+  os << "  " << slotCountVarName << " = " << ccName
+     << "->GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
+        "2;\n";
+  os << "}\n";
+}
+
 FailureOr<std::string> printFloatAttr(FloatAttr floatAttr) {
   if (!floatAttr.getType().isF32() && !floatAttr.getType().isF64()) {
     return failure();
@@ -265,12 +276,13 @@ LogicalResult OpenFhePkeEmitter::translate(Operation& op) {
                 FastRotationExtOp, FastRotationPrecomputeOp, GenBootstrapKeyOp,
                 GenContextOp, GenMulKeyOp, GenParamsOp, GenRotKeyOp,
                 KeySwitchDownOp, KeySwitchInPlaceOp, KeySwitchOp,
-                LevelReduceInPlaceOp, LevelReduceOp, MakeCKKSPackedPlaintextOp,
-                MakePackedPlaintextOp, ModReduceInPlaceOp, ModReduceOp,
-                MulConstInPlaceOp, MulConstOp, MulNoRelinOp, MulOp, MulPlainOp,
-                NegateInPlaceOp, NegateOp, RelinInPlaceOp, RelinOp, RotOp,
-                SetupBootstrapOp, SquareInPlaceOp, SquareOp, SubInPlaceOp,
-                SubOp, SubPlainInPlaceOp, SubPlainOp>(
+                LevelReduceInPlaceOp, LevelReduceOp, LinearTransformOp,
+                MakeCKKSPackedPlaintextOp, MakePackedPlaintextOp,
+                ModReduceInPlaceOp, ModReduceOp, MulConstInPlaceOp, MulConstOp,
+                MulNoRelinOp, MulOp, MulPlainOp, NegateInPlaceOp, NegateOp,
+                RelinInPlaceOp, RelinOp, RotOp, SetupBootstrapOp,
+                SquareInPlaceOp, SquareOp, SubInPlaceOp, SubOp,
+                SubPlainInPlaceOp, SubPlainOp, ChebyshevSeriesOp>(
               [&](auto op) { return printOperation(op); })
           .Default([&](Operation&) {
             return emitError(op.getLoc(), "unable to find printer for op");
@@ -823,6 +835,45 @@ LogicalResult OpenFhePkeEmitter::printOperation(LevelReduceOp op) {
   return success();
 }
 
+LogicalResult OpenFhePkeEmitter::printOperation(LinearTransformOp op) {
+  auto diagonalsType = dyn_cast<RankedTensorType>(op.getDiagonals().getType());
+  if (!diagonalsType || diagonalsType.getRank() != 2) {
+    return op.emitError("expected diagonals operand to be a rank-2 tensor");
+  }
+  int64_t numDiagonals = diagonalsType.getShape()[0];
+  int64_t slots = diagonalsType.getShape()[1];
+  auto diagonalIndices = op.getDiagonalIndicesAttr().asArrayRef();
+  if (static_cast<int64_t>(diagonalIndices.size()) != numDiagonals) {
+    return op.emitError("diagonal count does not match diagonal_indices size");
+  }
+
+  auto resultName = variableNames->getNameForValue(op.getOutput());
+  auto cryptoContextName =
+      variableNames->getNameForValue(op.getCryptoContext());
+  auto inputName = variableNames->getNameForValue(op.getCiphertext());
+  auto diagonalsName = variableNames->getNameForValue(op.getDiagonals());
+  int64_t dim1 = findBestBSGSRatio(
+      diagonalIndices, slots, op.getLogBabyStepGiantStepRatioAttr().getInt());
+  std::string diagonalIndicesName = resultName + "_diagonal_indices";
+  os << "std::vector<int32_t> " << diagonalIndicesName << " = {";
+  for (auto [idx, diagonalIndex] : llvm::enumerate(diagonalIndices)) {
+    if (idx != 0) {
+      os << ", ";
+    }
+    os << diagonalIndex;
+  }
+  os << "};\n";
+
+  emitAutoAssignPrefix(op.getOutput());
+  os << "::mlir::heir::openfhe::evalOpenfheSparseLinearTransform("
+     << cryptoContextName << ", " << inputName << ", " << diagonalsName << ", "
+     << diagonalIndicesName << ", " << static_cast<uint32_t>(slots) << ", "
+     << static_cast<uint32_t>(dim1) << ", "
+     << static_cast<uint32_t>(op.getPlaintextLevelAttr().getInt()) << ");\n";
+
+  return success();
+}
+
 LogicalResult OpenFhePkeEmitter::printOperation(RotOp op) {
   emitAutoAssignPrefix(op.getResult());
 
@@ -918,6 +969,48 @@ LogicalResult OpenFhePkeEmitter::printOperation(KeySwitchOp op) {
 LogicalResult OpenFhePkeEmitter::printOperation(BootstrapOp op) {
   return printEvalMethod(op.getResult(), op.getCryptoContext(),
                          {op.getCiphertext()}, "EvalBootstrap");
+}
+
+LogicalResult OpenFhePkeEmitter::printOperation(ChebyshevSeriesOp op) {
+  auto coeffsAttr = op->getAttrOfType<ArrayAttr>("coefficients");
+  if (!coeffsAttr) {
+    return op.emitError("missing coefficients attribute");
+  }
+
+  std::string coeffsName =
+      variableNames->getNameForValue(op.getResult()) + "_coeffs";
+  os << "std::vector<double> " << coeffsName << " = {";
+  bool first = true;
+  for (Attribute attr : coeffsAttr) {
+    auto floatAttr = dyn_cast<FloatAttr>(attr);
+    if (!floatAttr) {
+      return op.emitError("expected floating-point Chebyshev coefficients");
+    }
+    auto printed = printFloatAttr(floatAttr);
+    if (failed(printed)) {
+      return op.emitError("failed to print Chebyshev coefficient");
+    }
+    if (!first) os << ", ";
+    first = false;
+    os << *printed;
+  }
+  os << "};\n";
+
+  auto domainStart = printFloatAttr(op.getDomainStartAttr());
+  if (failed(domainStart)) {
+    return op.emitError("failed to print domainStart");
+  }
+  auto domainEnd = printFloatAttr(op.getDomainEndAttr());
+  if (failed(domainEnd)) {
+    return op.emitError("failed to print domainEnd");
+  }
+
+  emitAutoAssignPrefix(op.getResult());
+  os << variableNames->getNameForValue(op.getCryptoContext())
+     << "->EvalChebyshevSeries("
+     << variableNames->getNameForValue(op.getCiphertext()) << ", " << coeffsName
+     << ", " << *domainStart << ", " << *domainEnd << ");\n";
+  return success();
 }
 
 // InPlace methods
@@ -1651,10 +1744,7 @@ LogicalResult OpenFhePkeEmitter::printOperation(
       variableNames->getNameForValue(op.getResult()) + "_filled";
   std::string& inputVarFilledName = filledPrefix;
   std::string inputVarFilledLengthName = filledPrefix + "_n";
-
-  os << "auto " << inputVarFilledLengthName << " = " << cc
-     << "->GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
-        "2;\n";
+  emitOpenfhePlaintextSlotCount(os, cc, inputVarFilledLengthName);
   os << "auto " << inputVarFilledName << " = " << inputVarName << ";\n";
   os << inputVarFilledName << ".clear();\n";
   os << inputVarFilledName << ".reserve(" << inputVarFilledLengthName << ");\n";
@@ -1698,7 +1788,17 @@ LogicalResult OpenFhePkeEmitter::printOperation(
     // https://github.com/openfheorg/openfhe-development/issues/1046
     os << "auto " << variableNames->getNameForValue(op.getResult()) << " = ";
     os << variableNames->getNameForValue(resultCC.value())
-       << "->MakeCKKSPackedPlaintext(" << inputVarName << ");\n";
+       << "->MakeCKKSPackedPlaintext(" << inputVarName;
+    if (op.getNoiseScaleDegreeAttr() || op.getLevelAttr()) {
+      os << ", "
+         << (op.getNoiseScaleDegreeAttr()
+                 ? std::to_string(op.getNoiseScaleDegreeAttr().getInt())
+                 : "1")
+         << ", "
+         << (op.getLevelAttr() ? std::to_string(op.getLevelAttr().getInt())
+                               : "0");
+    }
+    os << ");\n";
     return success();
   }
   // cyclic repetition to mitigate openfhe zero-padding (#645)
@@ -1706,9 +1806,7 @@ LogicalResult OpenFhePkeEmitter::printOperation(
       variableNames->getNameForValue(op.getResult()) + "_filled";
   std::string inputVarFilledName = filledPrefix;
   std::string inputVarFilledLengthName = filledPrefix + "_n";
-  os << "auto " << inputVarFilledLengthName << " = " << cc
-     << "->GetCryptoParameters()->GetElementParams()->GetRingDimension() / "
-        "2;\n";
+  emitOpenfhePlaintextSlotCount(os, cc, inputVarFilledLengthName);
   os << "auto " << inputVarFilledName << " = " << inputVarName << ";\n";
   os << inputVarFilledName << ".clear();\n";
   os << inputVarFilledName << ".reserve(" << inputVarFilledLengthName << ");\n";
@@ -1721,7 +1819,17 @@ LogicalResult OpenFhePkeEmitter::printOperation(
   // https://github.com/openfheorg/openfhe-development/issues/1046
   os << "auto " << variableNames->getNameForValue(op.getResult()) << " = ";
   os << variableNames->getNameForValue(resultCC.value())
-     << "->MakeCKKSPackedPlaintext(" << inputVarFilledName << ");\n";
+     << "->MakeCKKSPackedPlaintext(" << inputVarFilledName;
+  if (op.getNoiseScaleDegreeAttr() || op.getLevelAttr()) {
+    os << ", "
+       << (op.getNoiseScaleDegreeAttr()
+               ? std::to_string(op.getNoiseScaleDegreeAttr().getInt())
+               : "1")
+       << ", "
+       << (op.getLevelAttr() ? std::to_string(op.getLevelAttr().getInt())
+                             : "0");
+  }
+  os << ");\n";
 
   return success();
 }
@@ -1836,6 +1944,9 @@ LogicalResult OpenFhePkeEmitter::printOperation(GenParamsOp op) {
   int64_t plainMod = op.getPlainModAttr().getValue().getSExtValue();
   int64_t evalAddCount = op.getEvalAddCountAttr().getValue().getSExtValue();
   int64_t keySwitchCount = op.getKeySwitchCountAttr().getValue().getSExtValue();
+  auto scalingTechniqueAttr = op->getAttrOfType<StringAttr>("scalingTechnique");
+  StringRef scalingTechnique =
+      scalingTechniqueAttr ? scalingTechniqueAttr.getValue() : StringRef();
 
   os << "CCParamsT " << paramsName << ";\n";
   // Essential parameters
@@ -1892,8 +2003,27 @@ LogicalResult OpenFhePkeEmitter::printOperation(GenParamsOp op) {
   } else {
     os << paramsName << ".SetKeySwitchTechnique(BV);\n";
   }
-  if (op.getScalingTechniqueFixedManual()) {
-    os << paramsName << ".SetScalingTechnique(FIXEDMANUAL);\n";
+  if (!scalingTechnique.empty()) {
+    StringRef enumName;
+    if (scalingTechnique == "fixed-manual") {
+      enumName = "FIXEDMANUAL";
+    } else if (scalingTechnique == "fixed-auto") {
+      enumName = "FIXEDAUTO";
+    } else if (scalingTechnique == "flexible-auto") {
+      enumName = "FLEXIBLEAUTO";
+    } else if (scalingTechnique == "flexible-auto-ext") {
+      enumName = "FLEXIBLEAUTOEXT";
+    } else if (scalingTechnique == "composite-auto") {
+      enumName = "COMPOSITESCALINGAUTO";
+    } else if (scalingTechnique == "composite-manual") {
+      enumName = "COMPOSITESCALINGMANUAL";
+    } else if (scalingTechnique == "no-rescale") {
+      enumName = "NORESCALE";
+    } else {
+      return op.emitError() << "unsupported OpenFHE scaling technique `"
+                            << scalingTechnique << "`";
+    }
+    os << paramsName << ".SetScalingTechnique(" << enumName << ");\n";
   }
   return success();
 }

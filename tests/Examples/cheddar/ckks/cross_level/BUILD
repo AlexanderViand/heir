@@ -14,7 +14,7 @@ heir_opt(
     src = "cross_level.mlir",
     generated_filename = "cross_level_cheddar.mlir",
     pass_flags = [
-        "--mlir-to-ckks=ciphertext-degree=4 modulus-switch-before-first-mul=true first-mod-bits=59 scaling-mod-bits=45 ckks-reconcile-policy=canonical-per-level",
+        "--mlir-to-ckks=ciphertext-degree=4 modulus-switch-before-first-mul=true first-mod-bits=59 scaling-mod-bits=45 ckks-reconcile-policy=default-scale-schedule",
         "--scheme-to-cheddar",
     ],
 )

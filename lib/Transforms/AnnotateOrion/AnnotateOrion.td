@@ -16,10 +16,10 @@ def AnnotateOrion : Pass<"annotate-orion"> {
 
   let options = [
     Option<"linearTransformImplStyle", "linear-transform-impl-style",
-           "std::string", /*default=*/"\"diagonal-bsgs\"",
+           "std::string", /*default=*/"\"diagonal-basic\"",
            "Implementation style to request for orion.linear_transform">,
     Option<"chebyshevImplStyle", "chebyshev-impl-style", "std::string",
-           /*default=*/"\"bsgs\"",
+           /*default=*/"\"opaque\"",
            "Implementation style to request for orion.chebyshev">,
   ];
 }

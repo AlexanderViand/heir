@@ -16,10 +16,7 @@
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
 #include "lib/Dialect/Lattigo/Transforms/AllocToInPlace.h"
 #include "lib/Dialect/Lattigo/Transforms/ConfigureCryptoContext.h"
-#include "lib/Dialect/Openfhe/Transforms/AllocToInPlace.h"
-#include "lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.h"
-#include "lib/Dialect/Openfhe/Transforms/CountAddAndKeySwitch.h"
-#include "lib/Dialect/Openfhe/Transforms/FastRotationPrecompute.h"
+#include "lib/Dialect/Openfhe/Transforms/Passes.h"
 #include "lib/Dialect/Secret/Conversions/SecretToBGV/SecretToBGV.h"
 #include "lib/Dialect/Secret/Conversions/SecretToCKKS/SecretToCKKS.h"
 #include "lib/Dialect/Secret/Conversions/SecretToModArith/SecretToModArith.h"
@@ -53,6 +50,7 @@
 #include "lib/Transforms/LayoutOptimization/LayoutOptimization.h"
 #include "lib/Transforms/LayoutPropagation/LayoutPropagation.h"
 #include "lib/Transforms/LinalgCanonicalizations/LinalgCanonicalizations.h"
+#include "lib/Transforms/LowerOrion/LowerOrion.h"
 #include "lib/Transforms/OperationBalancer/OperationBalancer.h"
 #include "lib/Transforms/OptimizeRelinearization/OptimizeRelinearization.h"
 #include "lib/Transforms/PopulateScale/PopulateScale.h"
@@ -82,7 +80,7 @@ bool isValidCKKSScalePolicy(StringRef policy) {
 
 bool isValidCKKSReconcilePolicy(StringRef policy) {
   return policy == "local-highest-meeting-point" ||
-         policy == "canonical-per-level";
+         policy == "default-scale-schedule";
 }
 
 }  // namespace
@@ -272,7 +270,7 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       llvm::errs() << "Unsupported CKKS reconcile policy: `"
                    << options.ckksReconcilePolicy
                    << "`. Expected `local-highest-meeting-point` or "
-                      "`canonical-per-level`.\n";
+                      "`default-scale-schedule`.\n";
       exit(EXIT_FAILURE);
     }
   }
@@ -316,7 +314,12 @@ void mlirToRLWEPipeline(OpPassManager& pm,
       break;
     }
     case RLWEScheme::ckksScheme: {
-      pm.addPass(createAnnotateOrion());
+      AnnotateOrionOptions annotateOrionOptions;
+      annotateOrionOptions.linearTransformImplStyle =
+          options.orionLinearTransformImplStyle;
+      annotateOrionOptions.chebyshevImplStyle = options.orionChebyshevImplStyle;
+      pm.addPass(createAnnotateOrion(annotateOrionOptions));
+      pm.addPass(createLowerOrion());
 
       auto secretInsertMgmtCKKSOptions = SecretInsertMgmtCKKSOptions{};
       secretInsertMgmtCKKSOptions.afterMul = options.modulusSwitchAfterMul;
@@ -493,6 +496,12 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(const RLWEScheme scheme) {
 
 BackendPipelineBuilder toOpenFhePipelineBuilder() {
   return [=](OpPassManager& pm, const BackendOptions& options) {
+    auto adjustCkksSchemeParamOptions = openfhe::AdjustCKKSSchemeParamOptions{};
+    adjustCkksSchemeParamOptions.scalingTechnique =
+        options.openfheScalingTechnique;
+    pm.addPass(
+        openfhe::createAdjustCKKSSchemeParam(adjustCkksSchemeParamOptions));
+
     // Canonicalize to ensure the ciphertext operands are in the first operand
     // of ct-pt ops.
     pm.addPass(createCanonicalizerPass());
@@ -513,11 +522,11 @@ BackendPipelineBuilder toOpenFhePipelineBuilder() {
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
 
-    // TODO (#1145): OpenFHE context configuration should NOT do its own
-    // analysis but instead use information put into the IR by previous passes
     auto configureCryptoContextOptions =
         openfhe::ConfigureCryptoContextOptions{};
     configureCryptoContextOptions.entryFunction = options.entryFunction;
+    configureCryptoContextOptions.scalingTechnique =
+        options.openfheScalingTechnique;
     pm.addPass(
         openfhe::createConfigureCryptoContext(configureCryptoContextOptions));
 
@@ -634,6 +643,9 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.firstModBits = options.firstModBits;
   suboptions.ckksScalePolicy = options.ckksScalePolicy;
   suboptions.ckksReconcilePolicy = options.ckksReconcilePolicy;
+  suboptions.orionLinearTransformImplStyle =
+      options.orionLinearTransformImplStyle;
+  suboptions.orionChebyshevImplStyle = options.orionChebyshevImplStyle;
   suboptions.splitPreprocessing = options.splitPreprocessing;
   suboptions.experimentalDisableLoopUnroll =
       options.experimentalDisableLoopUnroll;

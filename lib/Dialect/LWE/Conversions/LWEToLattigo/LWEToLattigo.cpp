@@ -20,6 +20,7 @@
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Orion/IR/OrionDialect.h"
 #include "lib/Dialect/Orion/IR/OrionOps.h"
+#include "lib/Dialect/Orion/IR/OrionUtils.h"
 #include "lib/Utils/APIntUtils.h"
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
@@ -70,24 +71,6 @@ class ToLattigoTypeConverter : public TypeConverter {
 };
 
 namespace {
-constexpr StringRef kDiagonalBSGSImplStyle = "diagonal-bsgs";
-constexpr StringRef kBSGSImplStyle = "bsgs";
-
-LogicalResult verifyOrionImplStyle(Operation* op, StringRef expectedStyle) {
-  auto implStyle = op->getAttrOfType<StringAttr>(orion::kImplStyleAttrName);
-  if (!implStyle) {
-    return op->emitOpError()
-           << "requires Orion implementation style `" << expectedStyle
-           << "`, but no `orion.impl_style` annotation is present";
-  }
-  if (implStyle.getValue() == expectedStyle) {
-    return success();
-  }
-  return op->emitOpError() << "requires Orion implementation style `"
-                           << expectedStyle << "`, but got `"
-                           << implStyle.getValue() << "`";
-}
-
 template <typename EvaluatorType>
 FailureOr<Value> getContextualEvaluator(Operation* op) {
   auto result = getContextualArgFromFunc<EvaluatorType>(op);
@@ -609,7 +592,7 @@ struct ConvertOrionLinearTransformOp
   LogicalResult matchAndRewrite(
       orion::LinearTransformOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    if (failed(verifyOrionImplStyle(op, kDiagonalBSGSImplStyle))) {
+    if (failed(orion::verifyImplStyle(op, orion::kOpaqueImplStyle))) {
       return failure();
     }
     FailureOr<Value> evaluatorResult =
@@ -647,7 +630,7 @@ struct ConvertOrionChebyshevOp
   LogicalResult matchAndRewrite(
       orion::ChebyshevOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    if (failed(verifyOrionImplStyle(op, kBSGSImplStyle))) {
+    if (failed(orion::verifyImplStyle(op, orion::kOpaqueImplStyle))) {
       return failure();
     }
     LLVM_DEBUG(llvm::dbgs() << "Lowering Orion ChebyshevOp\n");

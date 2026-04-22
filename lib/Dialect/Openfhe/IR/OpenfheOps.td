@@ -201,7 +201,7 @@ def GenParamsOp : Openfhe_Op<"gen_params"> {
     DefaultValuedAttr<BoolAttr, "false">:$insecure,
     DefaultValuedAttr<BoolAttr, "false">:$encryptionTechniqueExtended,
     DefaultValuedAttr<BoolAttr, "false">:$keySwitchingTechniqueBV,
-    DefaultValuedAttr<BoolAttr, "false">:$scalingTechniqueFixedManual
+    DefaultValuedAttr<StrAttr, "\"\"">:$scalingTechnique
   );
   let results = (outs Openfhe_CCParams:$params);
 }
@@ -255,7 +255,9 @@ def MakePackedPlaintextOp : Openfhe_Op<"make_packed_plaintext", [Pure]> {
 def MakeCKKSPackedPlaintextOp : Openfhe_Op<"make_ckks_packed_plaintext", [Pure]> {
   let arguments = (ins
     Openfhe_CryptoContext:$cryptoContext,
-    RankedTensorOf<[AnyFloat, AnyInteger]>:$value
+    RankedTensorOf<[AnyFloat, AnyInteger]>:$value,
+    OptionalAttr<I64Attr>:$noiseScaleDegree,
+    OptionalAttr<I64Attr>:$level
   );
   let results = (outs Openfhe_Plaintext:$plaintext);
 }
@@ -453,6 +455,51 @@ def KeySwitchDownOp : Openfhe_Op<"key_switch_down", [Pure,
 // No in-place bootstrap variant
 def BootstrapOp : Openfhe_UnaryOp<"bootstrap", [Pure, ResetsMulDepthOpInterface]> {
   let summary = "OpenFHE bootstrap operation of a ciphertext. (For CKKS)";
+}
+
+def ChebyshevSeriesOp : Openfhe_Op<"chebyshev_series", [Pure,
+  AllTypesMatch<["ciphertext", "output"]>
+]> {
+  let summary = "Evaluate a Chebyshev series on a ciphertext.";
+  let arguments = (ins
+    Openfhe_CryptoContext:$cryptoContext,
+    Openfhe_Ciphertext:$ciphertext,
+    ArrayAttr:$coefficients,
+    F64Attr:$domainStart,
+    F64Attr:$domainEnd
+  );
+  let results = (outs Openfhe_Ciphertext:$output);
+}
+
+def LinearTransformOp : Openfhe_Op<"linear_transform", [Pure,
+  AllTypesMatch<["ciphertext", "output"]>
+]> {
+  let summary = "Apply a diagonal linear transform using OpenFHE fast rotations.";
+  let description = [{
+    Applies a matrix-vector product represented by its non-zero diagonals.
+
+    The `diagonals` operand stores one non-zero diagonal per row. The
+    `diagonal_indices` attribute identifies which matrix diagonal each row
+    represents. The plaintext diagonals are encoded at OpenFHE aux-plaintext
+    level `L = plaintextLevel` with `noiseScaleDeg = 1`, matching
+    `EvalLinearTransformPrecompute`. This is the remaining-Q level used by the
+    aux-plaintext precompute API, not the number of already dropped moduli. In
+    particular, OpenFHE materializes `multiplicativeDepth + 1` Q primes when it
+    builds the runtime context, so this native aux-plaintext level is one
+    larger than the corresponding HEIR ciphertext level.
+
+    The implementation uses a baby-step/giant-step decomposition controlled by
+    `logBabyStepGiantStepRatio`, together with hoisted fast rotations.
+  }];
+  let arguments = (ins
+    Openfhe_CryptoContext:$cryptoContext,
+    Openfhe_Ciphertext:$ciphertext,
+    2DTensorOf<[AnyFloat]>:$diagonals,
+    DenseI32ArrayAttr:$diagonal_indices,
+    Builtin_IntegerAttr:$plaintextLevel,
+    Builtin_IntegerAttr:$logBabyStepGiantStepRatio
+  );
+  let results = (outs Openfhe_Ciphertext:$output);
 }
 
 // No in-place fast rotation variants

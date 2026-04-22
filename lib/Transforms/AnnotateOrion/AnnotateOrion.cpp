@@ -5,6 +5,7 @@
 
 #include "lib/Dialect/Orion/IR/OrionDialect.h"
 #include "lib/Dialect/Orion/IR/OrionOps.h"
+#include "lib/Dialect/Orion/IR/OrionUtils.h"
 #include "llvm/include/llvm/Support/MathExtras.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinOps.h"       // from @llvm-project
 
@@ -13,12 +14,9 @@ namespace heir {
 
 namespace {
 
-constexpr StringRef kDiagonalBSGSImplStyle = "diagonal-bsgs";
-constexpr StringRef kBSGSImplStyle = "bsgs";
-
 std::optional<int64_t> getChebyshevLevelCost(orion::ChebyshevOp op,
                                              StringRef implStyle) {
-  if (implStyle != kBSGSImplStyle) {
+  if (implStyle != orion::kOpaqueImplStyle) {
     return std::nullopt;
   }
   auto coeffs = op.getCoefficients();
@@ -43,15 +41,16 @@ struct AnnotateOrion : impl::AnnotateOrionBase<AnnotateOrion> {
   void runOnOperation() override {
     ModuleOp module = cast<ModuleOp>(getOperation());
 
-    if (linearTransformImplStyle != kDiagonalBSGSImplStyle) {
+    if (!orion::isSupportedLinearTransformImplStyle(linearTransformImplStyle)) {
       module.emitOpError()
           << "unsupported Orion linear_transform implementation style `"
-          << linearTransformImplStyle << "`";
+          << linearTransformImplStyle
+          << "`, expected `opaque` or `diagonal-basic`";
       signalPassFailure();
       return;
     }
 
-    if (chebyshevImplStyle != kBSGSImplStyle) {
+    if (chebyshevImplStyle != orion::kOpaqueImplStyle) {
       module.emitOpError()
           << "unsupported Orion chebyshev implementation style `"
           << chebyshevImplStyle << "`";

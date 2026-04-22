@@ -39,13 +39,13 @@ void processFunc(func::FuncOp funcOp, Value cryptoContext) {
     // an attribute, use it
     std::optional<int64_t> rotationAmount;
     if (op.getStaticShift().has_value()) {
-      rotationAmount = op.getStaticShift()->getValue().getZExtValue();
+      rotationAmount = op.getStaticShift()->getValue().getSExtValue();
     } else if (op.getDynamicShift()) {
       // Try to get constant value from dynamic_shift SSA value
       if (auto constOp =
               op.getDynamicShift().getDefiningOp<arith::ConstantOp>()) {
         if (auto intAttr = dyn_cast<IntegerAttr>(constOp.getValue())) {
-          rotationAmount = intAttr.getValue().getZExtValue();
+          rotationAmount = intAttr.getValue().getSExtValue();
         }
       }
     }

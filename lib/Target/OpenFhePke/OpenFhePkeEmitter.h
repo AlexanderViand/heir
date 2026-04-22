@@ -143,6 +143,7 @@ class OpenFhePkeEmitter {
   LogicalResult printOperation(AddPlainOp op);
   LogicalResult printOperation(AutomorphOp op);
   LogicalResult printOperation(BootstrapOp op);
+  LogicalResult printOperation(ChebyshevSeriesOp op);
   LogicalResult printOperation(DecodeCKKSOp op);
   LogicalResult printOperation(DecodeOp op);
   LogicalResult printOperation(DecryptOp op);
@@ -160,6 +161,7 @@ class OpenFhePkeEmitter {
   LogicalResult printOperation(KeySwitchDownOp op);
   LogicalResult printOperation(LevelReduceInPlaceOp op);
   LogicalResult printOperation(LevelReduceOp op);
+  LogicalResult printOperation(LinearTransformOp op);
   LogicalResult printOperation(MakeCKKSPackedPlaintextOp op);
   LogicalResult printOperation(MakePackedPlaintextOp op);
   LogicalResult printOperation(ModReduceInPlaceOp op);

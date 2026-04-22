@@ -12,6 +12,7 @@ cc_library(
         "Passes.h",
     ],
     deps = [
+        ":AdjustCKKSSchemeParam",
         ":AllocToInPlace",
         ":ConfigureCryptoContext",
         ":ConvertToExtendedBasis",
@@ -20,6 +21,32 @@ cc_library(
         ":HoistKeySwitchDown",
         ":pass_inc_gen",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",
+    ],
+)
+
+cc_library(
+    name = "AdjustCKKSSchemeParam",
+    srcs = ["AdjustCKKSSchemeParam.cpp"],
+    hdrs = [
+        "AdjustCKKSSchemeParam.h",
+        "ScalingTechniqueUtils.h",
+    ],
+    deps = [
+        ":pass_inc_gen",
+        "@heir//lib/Analysis:Utils",
+        "@heir//lib/Analysis/LevelAnalysis",
+        "@heir//lib/Analysis/SecretnessAnalysis",
+        "@heir//lib/Dialect:ModuleAttributes",
+        "@heir//lib/Dialect/CKKS/IR:Dialect",
+        "@heir//lib/Dialect/LWE/IR:Dialect",
+        "@heir//lib/Dialect/Orion/IR:Dialect",
+        "@heir//lib/Parameters/CKKS:Params",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:Analysis",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@openfhe",
     ],
 )
 
@@ -48,6 +75,7 @@ cc_library(
         "ConfigureCryptoContext.h",
     ],
     deps = [
+        ":ScalingTechniqueUtils",
         ":pass_inc_gen",
         "@heir//lib/Analysis/MulDepthAnalysis",
         "@heir//lib/Analysis/RotationAnalysis",
@@ -59,6 +87,7 @@ cc_library(
         "@heir//lib/Dialect/Mgmt/IR:Dialect",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",
         "@heir//lib/Utils",
+        "@heir//lib/Utils:RotationUtils",
         "@heir//lib/Utils:TransformUtils",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:Analysis",
@@ -68,9 +97,12 @@ cc_library(
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:Transforms",
-        "@openfhe//:core",
-        "@openfhe//:pke",
     ],
+)
+
+cc_library(
+    name = "ScalingTechniqueUtils",
+    hdrs = ["ScalingTechniqueUtils.h"],
 )
 
 cc_library(

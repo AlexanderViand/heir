@@ -1,10 +1,12 @@
-// RUN: heir-opt --openfhe-configure-crypto-context=entry-function=bootstrap %s | FileCheck %s
+// RUN: heir-opt --openfhe-configure-crypto-context="entry-function=bootstrap mul-depth=20" %s | FileCheck %s
 
 !ct = !openfhe.ciphertext
 
-func.func @bootstrap(%arg0: !openfhe.crypto_context, %arg1: !ct) -> !ct {
-  %0 = openfhe.bootstrap %arg0, %arg1 : (!openfhe.crypto_context, !ct) -> !ct
-  return %0 : !ct
+module attributes {backend.openfhe, scheme.ckks} {
+  func.func @bootstrap(%arg0: !openfhe.crypto_context, %arg1: !ct) -> !ct {
+    %0 = openfhe.bootstrap %arg0, %arg1 : (!openfhe.crypto_context, !ct) -> !ct
+    return %0 : !ct
+  }
 }
 
 // CHECK: @bootstrap

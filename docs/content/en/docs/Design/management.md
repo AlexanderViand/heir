@@ -168,430 +168,289 @@ multiplication operation.
 
 ## CKKS
 
-CKKS is a leveled scheme where each level has a modulus $q_i$. The level is
+CKKS is a leveled scheme where each level has a modulus $q_l$. The level is
 numbered from $0$ to $L$ where $L$ is the input level and $0$ is the output
 level. CKKS ciphertext contains a scaled message $\\Delta m$ where $\\Delta$
 takes some value like $2^40$ or $2^80$. After multiplication of two messages,
 the scaling factor $\\Delta'$ will become larger, hence some kind of management
 policy is needed in case it blows up. Contrary to BGV where modulus switching is
-used for noise management, in CKKS modulus switching from level $i$ to level
-$i-1$ can divide the scaling factor $\\Delta$ by the modulus $q_i$.
-
-The management of CKKS is similar to BGV above in the sense that their strategy
-are the similar and uses similar code base. However, BGV scale management is
-internal and users are not required to concern about it, while CKKS scale
-management is visible to user as it affects the precision. One notable
-difference is that, for "Before multiplication (including the first
-multiplication)" modulus switching policy, the user input should be encoded at
-$\\Delta^2$ or higher, as otherwise the first modulus switching (or rescaling in
-CKKS term) will rescale $\\Delta$ to $1$, rendering full precision loss.
+used for noise management, in CKKS modulus switching from level $l$ to level
+$l-1$ can divide the scaling factor $\\Delta$ by the modulus $q_l$.
 
-### Current CKKS pipeline
+HEIR treats CKKS management as one system over:
 
-The old "insert management, generate parameters, populate scales" story is now
-too coarse to describe the CKKS implementation accurately. The current CKKS path
-is better understood as the following sequence:
+- ordinary CKKS arithmetic
+- opaque structured ops such as `orion.linear_transform` and `orion.chebyshev`
+- explicit CKKS expansions of those structured ops
 
-1. `annotate-orion` selects an implementation style for high-level Orion ops and
-   attaches a coarse intrinsic level-cost upper bound to each of them.
-1. `secret-insert-mgmt-ckks` performs a coarse forward structural pass. It still
-   inserts ordinary multiply-driven management such as `mgmt.modreduce` and
-   `mgmt.relinearize`. Secret `add`/`sub` sites receive `mgmt.reconcile` markers
-   rather than an early hard-coded repair sequence, although multiply
-   preparation is still handled eagerly where needed so that `mul` remains
-   well-formed.
-1. `generate-param-ckks` chooses a first candidate modulus chain from that
-   coarse managed IR.
-1. `resolve-reconcile-ckks` resolves coarse reconciliation sites for the local
-   and canonical-per-level policies, and the current q-aware path still runs it
-   first as a preliminary local reconciliation step.
-1. `resolve-scale-ckks-bmph20` is the current q-aware iterative refinement pass.
-   It starts from the candidate parameters and previously resolved local
-   reconciliation shape, then may refine scales and grow the modulus chain if
-   the q-aware plan needs more levels.
-1. Exact scale analysis then annotates the achieved scales and materializes any
-   remaining `mgmt.adjust_scale` placeholders.
+### Common notation
 
-`secret-to-ckks` lowers this resolved IR to CKKS/LWE ops afterwards, and
-`scheme-to-<backend>` lowerings are expected to honor the implementation-style
-contracts attached to any remaining high-level Orion ops.
+HEIR uses the following notation throughout CKKS management:
 
-### Implementation-style annotation for high-level ops
+- `q_l`: the modulus dropped by an ordinary RNS rescale from level `l` to level
+  `l-1`
+- `R_l`: the divisor used by a backend when its ordinary rescale at level `l` is
+  not division by `q_l`
+- `Delta`: one fixed global CKKS scale
+- `S_l`: the on-schedule scale at level `l`
+- `meet(a, b) = min(level(a), level(b))`: the highest level at which `a` and `b`
+  can meet before `add` or `sub`
 
-High-level ops such as `orion.linear_transform` and `orion.chebyshev` now carry
-two generic, policy-independent annotations:
+When ordinary rescale divides by the dropped modulus directly, `R_l = q_l`.
 
-- `orion.impl_style`, naming the requested implementation family;
-- `orion.level_cost_ub`, a coarse intrinsic upper bound on level consumption.
+### Backend scale laws
 
-These annotations are selected by `annotate-orion`. They are intentionally not
-backend-named. Instead, later lowerings such as `scheme-to-lattigo` or
-`scheme-to-cheddar` must either:
+Every CKKS backend presents one ordinary-arithmetic scale law to management.
 
-- recognize and honor the requested implementation style; or
-- fail loudly if that style is not available for that backend.
+#### Exact tracked law
 
-Today the built-in styles are:
+There is no per-level scale schedule.
 
-- `orion.linear_transform`: `diagonal-bsgs`, with coarse level cost `0`;
-- `orion.chebyshev`: `bsgs`, with coarse level cost $\\lceil
-  \\log_2(\\mathsf{degree}) \\rceil$.
+- `add` and `sub` run at `meet(a, b)`
+- both operands are brought to one common scale `T` at that level
+- the result is `(level, scale) = (meet(a, b), T)`
+- `mul` produces `scale_out = scale_a * scale_b`
+- rescale from level `l` to level `l-1` produces `scale_out = scale_in / q_l`
+- dropping several levels divides by the product of the dropped moduli
 
-The important design point is that these are *intrinsic* coarse facts about the
-chosen high-level realization. They are not themselves reconciliation or
-target-scale policies.
+This is the ordinary Lattigo CKKS law. Ordinary cross-level addition under this
+law means:
 
-### Coarse `insert-mgmt`: mul structure plus reconciliation constraints
+1. drop both operands to `meet(a, b)`
+1. choose one common scale at that level
+1. multiply one operand by the exact integer ratio if the two scales differ
 
-`secret-insert-mgmt-ckks` is now deliberately less opinionated about
-addition/subtraction repair.
+#### Fixed-delta law
 
-It still chooses the broad multiply-driven modulus-switching family:
+One global scale `Delta` is fixed by the parameters.
 
-- `after-mul`;
-- `before-mul`;
-- `before-mul-include-first-mul`.
+- every on-schedule ciphertext at every level has scale `Delta`
+- ordinary auxiliary plaintexts are encoded at scale `Delta`
+- ordinary rescale returns to `Delta`
 
-It also still inserts the ordinary multiply-side management implied by that
-choice, such as `mgmt.modreduce` and `mgmt.relinearize`.
+This is the OpenFHE fixed-scale law. It covers both `FIXEDMANUAL` and
+`FIXEDAUTO`: they share the same outer scale schedule even though the library
+realizes that schedule differently internally.
 
-But at secret `add` and `sub` sites it no longer commits early to one specific
-cross-level repair sequence. Instead it inserts `mgmt.reconcile` markers on the
-secret operands of the binary op. Those markers mean only:
+#### Q-derived recurrence law
 
-- this merge site will need level/scale reconciliation later;
-- the coarse forward pass has *not yet* decided which side to lower, what exact
-  meeting level to use, or what exact scale target to request.
+One on-schedule scale `S_l` is attached to each level.
 
-This makes the coarse pass simpler and keeps the early IR compatible with both
-local canonical policies and later q-aware refinement.
+- `S_L` is fixed directly by the parameters
+- for `0 < l <= L`, `S_{l-1} = S_l^2 / q_l`
+- ordinary rescale from level `l` to level `l-1` returns to `S_{l-1}`
 
-### Candidate parameter generation
+This is the OpenFHE flexible law.
 
-`generate-param-ckks` still runs on the coarse managed IR.
+#### Q-derived recurrence law with explicit top pair
 
-At this stage HEIR knows:
-
-- the chosen multiply/rescale family;
-- the coarse management skeleton inserted around multiplies;
-- the coarse intrinsic level cost of any high-level Orion ops;
-- that each secret `add`/`sub` may need later reconciliation.
-
-That is enough to produce a first candidate modulus chain. For the local
-power-of-two and canonical-per-level policies, this candidate parameter set is
-normally final. For the q-aware iterative policy described below, it is only a
-starting point.
-
-### Reconciliation policies after parameters are known
-
-Once parameters are known, HEIR resolves `mgmt.reconcile` markers according to
-an explicit reconciliation policy.
+This law differs from the previous one only at the top of the chain.
 
-#### `local-highest-meeting-point`
+- `S_L` and `S_{L-1}` are fixed directly
+- below the top pair, `S_{l-1} = S_l^2 / q_l`
 
-This is the generic local policy. At each merge site it tries to reconcile the
-operands at the highest available meeting level and materializes the familiar
-sequence built from:
+This is the OpenFHE extended flexible law.
 
-- `mgmt.level_reduce`;
-- `mgmt.adjust_scale`;
-- `mgmt.modreduce`.
-
-This is the best match for HEIR's historical power-of-two behavior.
+#### Rescale-prime-product law
 
-#### `canonical-per-level`
+One on-schedule scale `S_l` is attached to each level, but ordinary rescale at
+level `l` divides by the backend rescale-prime product `R_l`.
 
-This is the policy currently used by CHEDDAR-oriented examples. It still
-resolves each merge locally, but it assumes that values should be brought onto a
-canonical per-level schedule instead of immediately forcing the generic
-`adjust_scale + modreduce` shape. In practice this produces the right symbolic
-shape for later CHEDDAR lowering, where `scheme-to-cheddar` can realize the
-chosen per-level schedule with backend-specific operations such as level-down.
+- `S_0` is fixed directly by the backend configuration
+- for `0 < l <= L`, `S_{l-1} = S_l^2 / R_l`
+- equivalently, `S_l = sqrt(S_{l-1} * R_l)`
+- ordinary rescale from level `l` to level `l-1` returns to `S_{l-1}`
 
-The important distinction is that both policies use the same coarse
-`mgmt.reconcile` markers. They differ only in the *post-parameter resolution*
-step.
+This is the CHEDDAR law.
 
-### Exact scale population for the power-of-two compatibility policy
+### Structured-op transfer laws
 
-After reconciliation markers are resolved, `populate-scale-ckks` performs exact
-integer scale analysis and materialization.
+Before coarse management, HEIR chooses one realization style for each Orion op
+and records its coarse intrinsic level cost.
 
-The default CKKS scale policy remains `nominal`. It preserves HEIR's historical
-power-of-two scale model:
-
-- fresh inputs start at $2^{\\mathsf{logDefaultScale}}$;
-- with `before-mul-include-first-mul`, fresh inputs start at $2^{2 \\cdot
-  \\mathsf{logDefaultScale}}$;
-- multiplication multiplies scales exactly;
-- rescale/modreduce divides by the nominal power-of-two
-  $2^{\\mathsf{logDefaultScale}}$, not by the concrete dropped prime $q_i$.
+- `orion.impl_style`
+- `orion.level_cost_ub`
 
-The upgrade is that these scales are now stored as exact integer factors
-(`APInt`) such as $2^{45}$ or $2^{90}$ rather than as exponent-like placeholders
-such as `45` or `90`.
+Explicit styles are lowered to ordinary CKKS arithmetic before further CKKS
+management. Opaque styles remain in the IR and contribute exact transfer laws to
+management.
 
-`populate-scale-ckks` then resolves `mgmt.adjust_scale` by computing an exact
-integer plaintext scale `delta`, encoding the constant one at that scale, and
-replacing the placeholder with a `mul_plain`-style pattern. If an adjustment is
-already satisfied, it is erased as a no-op.
+#### `linear_transform`
 
-For backwards compatibility, standalone `populate-scale-ckks` will also resolve
-any remaining `mgmt.reconcile` markers first if the caller did not run
-`resolve-reconcile-ckks` explicitly.
-
-There is one small legacy exception: module-aware CKKS scale analysis uses the
-nominal power-of-two policy described here, but a type-only LWE fallback still
-approximates its rescale factor from the modulus when no CKKS scheme parameter
-attribute is available.
+An opaque `linear_transform` contributes:
 
-### Q-aware iterative mode and the current BMPH20-shaped pass
+- its intrinsic level cost
+- one exact input-to-output transfer law on `(level, scale)`
+- any auxiliary plaintext level or auxiliary plaintext scale choices required by
+  that law
 
-HEIR also has an opt-in q-aware mode, exposed today through
-`resolve-scale-ckks-bmph20`.
+Representative transfer laws are:
 
-This mode:
-
-- keeps the same coarse forward `insert-mgmt` structure;
-- starts from the candidate parameters chosen by `generate-param-ckks`;
-- runs q-aware scale analysis where modreduce divides by the actual dropped
-  prime $q_i$, rounded to the nearest integer;
-- uses a bounded repair loop to refine the management structure when the
-  original local meeting point is not exactly reachable;
-- and can regenerate a larger CKKS modulus chain if the refined plan requires
-  more levels than the current candidate parameters provide.
-
-The current implementation is intentionally narrower than the full
-[BMPH20](https://eprint.iacr.org/2020/1203) Algorithm 2. It is best understood
-as q-aware forward scale evolution plus iterative local repair, not yet as a
-global tree-wide target-scale solver. In particular:
-
-- the repair loop currently rewrites existing `mgmt.adjust_scale` sites and
-  lowers meeting points when necessary;
-- it is bounded and fails hard if it does not converge within the configured
-  iteration cap;
-- it is the one policy in the current tree that may invalidate the first
-  candidate parameter set and ask the CKKS parameter construction logic for a
-  longer modulus chain.
-
-This is why candidate parameters are only provisional for the q-aware path.
-Unlike the local power-of-two and canonical-per-level policies, the q-aware
-planner may discover that an honest exact realization needs extra level drops.
-
-There is one important backend caveat today: CHEDDAR deliberately does **not**
-use the generic q-aware exact rescale model yet. Requesting `ckks-scale-policy`
-`precise` on a CHEDDAR module keeps the symbolic choice recorded on the module,
-but the active exact scale model falls back to the nominal one there until
-CHEDDAR grows its own dedicated q-aware or canonical-schedule realization.
-
-### Scale-matching invariant and `SameOperandsAndResultType`
-
-The core CKKS invariant does not change:
-
-- by the time CKKS addition or subtraction is emitted, both operands should have
-  the same managed scale and level;
-- `ckks.add` and `ckks.sub` keep `SameOperandsAndResultType`.
-
-Temporary non-add-safe scales are still expected between operations. For
-example, a ciphertext can temporarily live at $\\Delta^2$ after multiplication
-and before the following rescale. The management pipeline is responsible for
-ensuring those transient states do not reach addition or subtraction sites.
-
-This is why HEIR models more sophisticated behavior with management policy and
-resolution passes rather than by weakening the generic CKKS IR.
-
-### Why richer policies still matter later
-
-The local power-of-two and canonical-per-level policies are stable because each
-level has an obvious target family:
-
-- the nominal power-of-two bucket for that level;
-- or the backend-defined canonical scale for that level.
-
-The q-aware/BMPH20-shaped path is harder because real full-RNS CKKS does not
-rescale by a symbolic $\\Delta$; it rescales by the concrete dropped prime
-$q_i$. Since NTT-friendly primes are not exactly
-$2^{\\mathsf{logDefaultScale}}$, real full-RNS CKKS has scale drift that the
-nominal model intentionally ignores.
-
-That is why Algorithm 2 of BMPH20 remains the right long-term mental model for
-structured polynomial evaluation: it back-propagates target scales through the
-evaluation tree so that additions are correct by construction. Its main benefit
-is better precision, and in some cases it also improves level usage. It is not
-primarily an operation-count optimization.
-
-The current q-aware iterative pass is a useful intermediate step. It
-demonstrates that HEIR can already:
-
-- keep strict CKKS IR invariants;
-- use exact integer scales and real dropped primes when desired;
-- refine management locally when the coarse plan is not physically reachable;
-- and preserve compatibility with arithmetic IR that the historical nominal
-  pipeline could already lower.
-
-It is not yet the final global planner for all CKKS policies, but it is now a
-separate stage with a cleaner contract than the old "everything interesting
-happens inside populate-scale" design.
-
-### Backend capability notes for structured CKKS ops
-
-For high-level ops such as `orion.linear_transform` and `orion.chebyshev`, the
-interesting backend differences are not captured well by high-level algorithm
-names alone. Two implementations may both be described as "BSGS" or
-"Paterson-Stockmeyer" while still exposing very different contracts to the
-compiler.
-
-#### Linear transform
-
-The intrinsic level cost of a linear transform remains `0`: it is built from
-rotations, plaintext multiplication, and addition. The important differences are
-instead about *reuse* and *what the backend API lets the compiler express*.
-
-- Lattigo exposes a reusable linear-transform evaluator that can evaluate many
-  transforms on the same ciphertext while sharing one decomposition of the input
-  and a cache of pre-rotated ciphertexts.
-- OpenFHE has a strong native single-transform implementation that already uses
-  a two-stage hoisted baby-step/giant-step algorithm internally, but it does not
-  expose the same many-transform reusable contract directly.
-- CHEDDAR has a native hoisting-based linear-transform object with persistent
-  hoist state, but again not the same "many sibling transforms on one input"
-  contract that Lattigo exposes.
-
-This distinction matters for larger models more than for small MLP examples. A
-plain MLP often has one linear transform per activation, so Lattigo's stronger
-reuse API is only weakly exercised. The difference becomes much more important
-for workloads that apply multiple related transforms to the same ciphertext, for
-example:
-
-- multi-block linear layers;
-- attention-style Q/K/V projections;
-- any pipeline stage that fans one activation out into many sibling transforms.
-
-In those cases, the Lattigo contract can reduce repeated decomposition and
-rotation work. That is primarily a *runtime* advantage. It does not by itself
-reduce intrinsic level consumption, and there is no strong reason to expect a
-large inherent *noise* advantage from the linear-transform API alone.
-
-#### Polynomial evaluation and Chebyshev
-
-For polynomial evaluation, the important differences are about *who controls the
-target scale*, *who owns basis/domain conversion*, and *what precomputation is
-reusable*.
-
-- Lattigo's native evaluator is target-scale-driven. The compiler supplies a
-  desired target scale, and the evaluator performs a structured decomposition
-  against that target.
-- OpenFHE exposes a rich native menu of power-basis and Chebyshev-series
-  evaluators, including precomputation objects for reusable powers/polynomials,
-  but much of the level/scale reconciliation remains internal to the library
-  algorithm itself.
-- CHEDDAR's native polynomial evaluation path behaves like a compiled
-  evaluation-tree engine with a canonical per-level schedule: it is given an
-  input level/scale contract and a target scale, then compiles and evaluates
-  against that schedule.
-
-This is why Lattigo is currently the best fit for HEIR's q-aware/BMPH20-shaped
-planner. The main expected benefit is *accuracy* and *scale discipline*, not
-fewer arithmetic operations. OpenFHE can still support strong native polynomial
-evaluation, but its contract is less "compiler chooses the exact target scale"
-and more "compiler chooses the evaluation family and lets the library manage
-more of the internal scale/level details."
-
-For polynomial evaluation, the likely benefits of richer HEIR management are:
-
-- better accuracy or more predictable achieved scale;
-- in some cases, better level usage;
-- not necessarily a large reduction in operation count relative to native
-  structured evaluators that are already asymptotically good.
-
-#### Why current implementation-style names are still too coarse
-
-The current built-in styles:
-
-- `orion.linear_transform = diagonal-bsgs`
-- `orion.chebyshev = bsgs`
-
-are therefore only placeholders. They are good enough to select one currently
-implemented lowering family, but they are not yet precise enough to describe the
-real implementation contracts above.
-
-In particular, future implementation styles will need to distinguish details
-such as:
-
-- one-shot versus reusable-many linear transforms;
-- whether hoisting state can be shared across many sibling transforms;
-- explicit target-scale control versus library-managed scale reconciliation;
-- explicit HEIR CKKS expansion versus opaque native backend evaluator calls.
-
-### Roadmap toward cross-backend parity
-
-The long-term goal is not merely to make every program lower to every backend.
-The goal is to make structured models such as MLPs, and later larger Orion
-models, run on Lattigo, OpenFHE, and CHEDDAR with nearly the same algorithmic
-quality, accuracy, and performance whenever the underlying backend APIs make
-that possible.
-
-The cleanup plan is therefore:
-
-1. Keep the current coarse-management architecture.
-
-   - `annotate-orion` chooses an implementation style and coarse intrinsic level
-     cost.
-   - coarse `secret-insert-mgmt-ckks` inserts multiply-side management and
-     `mgmt.reconcile` constraints.
-   - candidate parameters are generated from that coarse IR.
-
-1. Split the post-parameter world cleanly by policy.
-
-   - the local power-of-two compatibility path remains the default for generic
-     arithmetic and OpenFHE-style nominal lowering;
-   - the canonical-per-level path remains the natural fit for CHEDDAR;
-   - the q-aware/BMPH20-shaped path becomes the preferred precise path for
-     structured polynomial evaluation on backends that can honor explicit target
-     scales well, especially Lattigo.
-
-1. Grow implementation-style annotations into real backend contracts.
-
-   - The current placeholder style names must be refined so they encode the
-     actual reusable contract that later lowering expects, not just a loose
-     algorithm name.
-   - Later `scheme-to-<backend>` passes must keep treating those style
-     annotations as hard contracts and fail loudly when the requested contract
-     is unavailable.
-
-1. Add explicit OpenFHE manual-mode targeting.
-
-   - OpenFHE's automatic scaling modes can silently repair mistakes and hide
-     compiler-management bugs.
-   - A strict manual-mode path is therefore important both for test confidence
-     and for understanding how far HEIR's own management can go without backend
-     rescue logic.
-
-1. Support both native and explicit-CKKS realizations of structured ops.
-
-   - When a backend has a strong native implementation that matches the
-     requested style contract, HEIR should be able to use it.
-   - When that contract is unavailable, HEIR should instead lower the op to
-     explicit CKKS operations, or to a slightly richer CKKS layer if new
-     scheme-mechanical ops are needed to capture reusable patterns such as
-     hoisting.
-
-1. Expand tests around both policy and backend dimensions.
-
-   - small focused tests for reconcile policy differences;
-   - focused tests for implementation-style mismatch failures;
-   - structured-op tests that exercise native versus explicit realizations;
-   - end-to-end tests for the same model under multiple management policies and
-     backends;
-   - OpenFHE manual-mode end-to-end tests to make sure HEIR is not relying on
-     hidden automatic repair.
-
-1. Use larger structured examples as capability tests.
-
-   - Small MLPs are useful smoke tests but are often too simple to expose the
-     real value of reusable-many linear-transform contracts.
-   - Larger blocked layers, attention-like shapes, and deeper polynomial-heavy
-     models are better capability tests for deciding whether two backends are
-     truly on par for a requested implementation style.
+- exact tracked:
+  - `out.level = in.level`
+  - `out.scale = in.scale * P`
+  - `P` is the chosen auxiliary plaintext scale
+- fixed-delta:
+  - `out.level = in.level`
+  - `out.scale = in.scale * Delta`
+- q-derived recurrence:
+  - `out.level = in.level`
+  - `out.scale = in.scale * S_aux`
+  - `S_aux` is the on-schedule auxiliary plaintext scale chosen for the
+    transform
+- rescale-prime-product:
+  - `out.level = pt_level - 1`
+  - `out.scale = in.scale * P / R_{pt_level}`
+  - `pt_level` and `P` are fixed by exact resolution
+
+#### `chebyshev`
+
+An opaque `chebyshev` contributes:
+
+- its intrinsic upper bound on level consumption
+- one exact output-scale law at the chosen output level
+
+The output-scale law is one of:
+
+- explicit target-scale:
+  - exact resolution chooses the output scale explicitly
+- fixed-delta:
+  - the output scale is `Delta`
+- q-derived recurrence:
+  - the output scale is `S_l` at the chosen output level
+- q-derived recurrence with explicit top pair:
+  - the output scale is `S_l` under that schedule
+- rescale-prime-product:
+  - the output scale is `S_l` under the backend rescale-prime-product schedule
+
+### Management procedure
+
+Managed CKKS compilation proceeds in five stages:
+
+1. structured-op annotation
+1. coarse management insertion
+1. parameter selection
+1. exact resolution
+1. materialization and backend lowering
+
+#### Structured-op annotation
+
+Structured-op annotation chooses the realization style and records the coarse
+intrinsic level cost.
+
+- opaque styles stay in the IR and expose exact transfer laws
+- explicit styles are lowered to ordinary CKKS arithmetic before further CKKS
+  management
+
+#### Coarse management insertion
+
+Coarse insertion chooses the multiply-driven rescale family:
+
+1. after multiplication
+1. before multiplication
+1. before multiplication, including the first multiplication
+
+It inserts the multiply-side management implied by that choice, including
+`mgmt.modreduce`, `mgmt.relinearize`, and any bootstrap placements.
+
+At every secret `add` or `sub`, it inserts `mgmt.reconcile` markers on the
+secret operands. A `mgmt.reconcile` marker records only that the merge must be
+made level-safe and scale-safe later. It does not choose:
+
+- which side to lower
+- the final meeting level
+- the final output scale
+
+For each marked merge, coarse insertion records the highest possible meeting
+level:
+
+- `highest_meeting_level(add(a, b)) = meet(a, b)`
+
+This is an upper bound, not a final decision.
+
+#### Parameter selection
+
+Parameter selection uses:
+
+- the chosen multiply-driven rescale family
+- the coarse multiply-side management skeleton
+- the intrinsic level cost of every remaining opaque structured op
+- the highest possible meeting level of every marked merge
+- the ordinary backend scale law
+- the transfer-law family of every remaining opaque structured op
+
+It produces a modulus chain that is large enough for the selected backend scale
+law and the selected structured-op realizations.
+
+#### Exact resolution
+
+Exact resolution runs after the parameters are known. At that point HEIR knows:
+
+- the exact ordinary-arithmetic scale law of the selected backend
+- the exact per-level schedule implied by that law, when the law is
+  schedule-based
+- the transfer law of every remaining opaque `linear_transform`
+- the output-scale law of every remaining opaque `chebyshev`
+
+Exact resolution assigns a concrete level and a concrete scale to every
+remaining value and resolves every `mgmt.reconcile` marker.
+
+For each merge, exact resolution starts from `highest_meeting_level(add(a, b))`
+and chooses the final meeting level and final scale plan that are legal under
+the active scale law.
+
+- under the fixed-delta law, the legal on-schedule scale at every level is
+  `Delta`
+- under a schedule law, the legal on-schedule scale at level `m` is `S_m`
+- under the exact tracked law, exact resolution chooses the common merge scale
+  explicitly
+
+When an opaque `chebyshev` exposes an explicit target-scale law, exact
+resolution seeds the backward solve from the required downstream output scale
+and applies the op transfer law during that solve.
+
+When an opaque `linear_transform` uses auxiliary plaintexts, exact resolution
+also fixes the auxiliary plaintext level and the auxiliary plaintext scale
+required by the selected backend law.
+
+For OpenFHE-targeted CKKS pipelines, exact resolution additionally fixes:
+
+- the OpenFHE noise-scale degree required for every encoded plaintext
+- the OpenFHE auxiliary plaintext level required by every opaque
+  `linear_transform`
+- any extra modulus-chain growth required by the selected OpenFHE scale law
+  before lowering to the OpenFHE dialect
+
+#### Materialization and backend lowering
+
+After exact resolution:
+
+- every CKKS value has an exact level and exact scale
+- every `add` and `sub` is level-safe and scale-safe
+- every remaining opaque structured op has fully instantiated level and scale
+  parameters under its transfer law
+
+At that point `mgmt.adjust_scale`, `mgmt.level_reduce`, and `mgmt.modreduce` are
+fully materialized, and only then does HEIR lower to backend-specific scheme
+ops.
+
+For CKKS, backend crypto-context configuration is a readout stage:
+
+- it reads the chosen modulus chain from `ckks.schemeParam`
+- it reads the selected backend scale law
+- it reads the feature set that determines which evaluation keys to generate
+- it does not choose a new CKKS modulus chain
+- it does not redo CKKS level or scale analysis
+
+### Scale-matching invariant
+
+The CKKS IR remains strict:
+
+- by the time `ckks.add` or `ckks.sub` is emitted, both operands have the same
+  level and the same managed scale
+- `ckks.add` and `ckks.sub` keep `SameOperandsAndResultType`
+
+Temporary off-schedule scales are allowed between operations. Exact resolution
+eliminates them before any addition or subtraction survives to the CKKS IR.
 
 <!-- mdformat global-off -->

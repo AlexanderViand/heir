@@ -1,5 +1,5 @@
-// RUN: heir-opt %s "--mlir-to-ckks=ciphertext-degree=4 modulus-switch-before-first-mul=true first-mod-bits=59 scaling-mod-bits=45 ckks-reconcile-policy=canonical-per-level" --scheme-to-cheddar | FileCheck %s
-// RUN: heir-opt %s "--mlir-to-ckks=ciphertext-degree=4 modulus-switch-before-first-mul=true first-mod-bits=59 scaling-mod-bits=45 ckks-reconcile-policy=canonical-per-level ckks-scale-policy=precise" --scheme-to-cheddar | FileCheck %s
+// RUN: heir-opt %s "--mlir-to-ckks=ciphertext-degree=4 modulus-switch-before-first-mul=true first-mod-bits=59 scaling-mod-bits=45 ckks-reconcile-policy=default-scale-schedule" --scheme-to-cheddar | FileCheck %s
+// RUN: heir-opt %s "--mlir-to-ckks=ciphertext-degree=4 modulus-switch-before-first-mul=true first-mod-bits=59 scaling-mod-bits=45 ckks-reconcile-policy=default-scale-schedule ckks-scale-policy=precise" --scheme-to-cheddar | FileCheck %s
 
 module attributes {backend.cheddar, ckks.schemeParam = #ckks.scheme_param<logN = 14, Q = [36028797019389953, 35184372121601, 35184372744193, 35184373006337, 35184373989377], P = [36028797019488257, 36028797020209153], logDefaultScale = 45>, scheme.ckks} {
   func.func @cross_level(%base: tensor<4xf32> {secret.secret}, %add: tensor<4xf32> {secret.secret}) -> tensor<4xf32> {

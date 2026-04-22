@@ -10,6 +10,15 @@ package(
 )
 
 cc_library(
+    name = "OpenFheLinearTransformHelpers",
+    hdrs = ["OpenFheLinearTransformHelpers.h"],
+    deps = [
+        "@openfhe//:core",
+        "@openfhe//:pke",
+    ],
+)
+
+cc_library(
     name = "OpenFheRegistration",
     srcs = [
         "OpenFheTranslateRegistration.cpp",
@@ -18,6 +27,7 @@ cc_library(
         "OpenFheTranslateRegistration.h",
     ],
     deps = [
+        ":OpenFheLinearTransformHelpers",
         ":OpenFhePkeDebugEmitter",
         ":OpenFhePkeDebugHeaderEmitter",
         ":OpenFhePkeEmitter",
@@ -50,8 +60,10 @@ cc_library(
         "OpenFheUtils.h",
     ],
     deps = [
+        ":OpenFheLinearTransformHelpers",
         "@heir//lib/Analysis/SelectVariableNames",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",
+        "@heir//lib/Utils:RotationUtils",
         "@heir//lib/Utils:TargetUtils",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:FuncDialect",
@@ -67,12 +79,14 @@ cc_library(
         "OpenFhePkeEmitter.h",
     ],
     deps = [
+        ":OpenFheLinearTransformHelpers",
         ":OpenFheUtils",
         "@cereal",
         "@heir//lib/Analysis/Cpp:ConstQualifierAnalysis",
         "@heir//lib/Analysis/SelectVariableNames",
         "@heir//lib/Dialect:ModuleAttributes",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",
+        "@heir//lib/Utils:RotationUtils",
         "@heir//lib/Utils:TargetUtils",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:AffineDialect",
@@ -93,6 +107,7 @@ cc_library(
         "OpenFhePkeTemplates.h",
     ],
     deps = [
+        ":OpenFheLinearTransformHelpers",
         ":OpenFheUtils",
         "@heir//lib/Analysis/SelectVariableNames",
         "@heir//lib/Dialect:ModuleAttributes",
@@ -130,6 +145,8 @@ cc_library(
     }) + OPENMP_COPTS,
     linkopts = OPENMP_LINKOPTS,
     deps = [
+        ":OpenFheLinearTransformHelpers",
+        ":OpenFheUtils",
         "@heir//lib/Dialect/Mgmt/IR:Dialect",
         "@heir//lib/Dialect/ModArith/IR:Dialect",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",

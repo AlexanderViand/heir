@@ -111,6 +111,20 @@ LogicalResult RLWEEncryptOp::verify() {
   return success();
 }
 
+LogicalResult RLWEDecryptOp::verify() {
+  auto secretKeyRing = getSecretKey().getType().getRing();
+  auto ciphertextRing = getInput().getType().getCiphertextSpace().getRing();
+  if (!compatibleSecretKeyAndCiphertextRingsForDecrypt(secretKeyRing,
+                                                       ciphertextRing)) {
+    return emitOpError()
+           << "RLWEDecryptOp secret key ring is incompatible with ciphertext "
+              "ring. Secret key ring: "
+           << secretKeyRing << ". Input ciphertext ring: " << ciphertextRing
+           << ".";
+  }
+  return success();
+}
+
 // Verify Encoding and Type match
 LogicalResult verifyEncodingAndTypeMatch(mlir::Type type,
                                          mlir::Attribute encoding) {
