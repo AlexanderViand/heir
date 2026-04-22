@@ -1679,21 +1679,27 @@ LogicalResult OpenFhePkeEmitter::printOperation(
 }
 
 LogicalResult OpenFhePkeEmitter::printOperation(tensor::InsertOp op) {
-  // For a tensor.insert MLIR statement, we assign the destination vector and
-  // then map the result value to the destination value.
+  // tensor.insert returns a new tensor value. Emit a copy of the destination
+  // tensor before assigning the inserted element so multiple inserts from the
+  // same source tensor do not alias each other.
   // %result = tensor.insert %scalar into %dest[%idx]
-  // dest[idx] = scalar;
-  os << variableNames->getNameForValue(op.getDest());
-  os << "[";
+  // result(dest);
+  // result[idx] = scalar;
+  auto result = op.getResult();
+  std::string destName = variableNames->getNameForValue(op.getDest());
+  std::string resultName = variableNames->getNameForValue(result);
+  if (failed(emitType(result.getType(), op->getLoc()))) {
+    return failure();
+  }
+  os << " " << resultName << "(" << destName << ");\n";
+  os << resultName << "[";
   os << flattenIndexExpression(
-      op.getResult().getType(), op.getIndices(), [&](Value value) {
+      result.getType(), op.getIndices(), [&](Value value) {
         auto constantStr = getStringForConstant(value);
         return constantStr.value_or(variableNames->getNameForValue(value));
       });
   os << "]";
   os << " = " << variableNames->getNameForValue(op.getScalar()) << ";\n";
-
-  variableNames->mapValueNameToValue(op.getResult(), op.getDest());
   return success();
 }
 
