@@ -24,6 +24,9 @@ namespace lwe {
 
 namespace {
 
+constexpr llvm::StringLiteral kCKKSScalePolicyAttrName = "ckks.scale_policy";
+constexpr llvm::StringLiteral kCKKSPreciseScalePolicyValue = "precise";
+
 APInt getNominalCkksRescaleFactor(Operation* op, const APInt& dividedModulus) {
   if (op) {
     if (auto moduleOp = op->getParentOfType<ModuleOp>()) {
@@ -42,7 +45,7 @@ APInt getNominalCkksRescaleFactor(Operation* op, const APInt& dividedModulus) {
 
 FailureOr<APInt> inferModulusSwitchOrRescaleOpScalingFactor(
     Attribute xEncoding, APInt dividedModulus, const APInt& plaintextModulus,
-    const APInt& nominalScale) {
+    const APInt& nominalScale, bool preciseCkksScalePolicy) {
   APInt xScale = getScalingFactorFromEncodingAttr(xEncoding);
   return llvm::TypeSwitch<Attribute, FailureOr<APInt>>(xEncoding)
       .Case<FullCRTPackingEncodingAttr>([&](auto attr) -> FailureOr<APInt> {
@@ -59,6 +62,9 @@ FailureOr<APInt> inferModulusSwitchOrRescaleOpScalingFactor(
       })
       .Case<InverseCanonicalEncodingAttr>([&](auto attr) -> FailureOr<APInt> {
         if (xScale.isZero()) return xScale;
+        if (preciseCkksScalePolicy) {
+          return divideUnsignedAPIntNearest(xScale, dividedModulus);
+        }
         auto newScale = divideUnsignedAPIntExact(xScale, nominalScale);
         if (failed(newScale)) return failure();
         LLVM_DEBUG(llvm::dbgs() << "inferring new scale; dividedModulus="
@@ -140,6 +146,16 @@ PlaintextSpaceAttr inferMulOpPlaintextSpaceAttr(MLIRContext* ctx,
 FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
     Operation* op, PlaintextSpaceAttr x, APInt dividedModulus) {
   auto nominalScale = getNominalCkksRescaleFactor(op, dividedModulus);
+  bool preciseCkksScalePolicy = false;
+  if (op) {
+    if (auto moduleOp = op->getParentOfType<ModuleOp>()) {
+      if (auto policy =
+              moduleOp->getAttrOfType<StringAttr>(kCKKSScalePolicyAttrName)) {
+        preciseCkksScalePolicy =
+            policy.getValue() == kCKKSPreciseScalePolicyValue;
+      }
+    }
+  }
   auto xRing = x.getRing();
   auto xEncoding = x.getEncoding();
 
@@ -151,7 +167,8 @@ FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
   }
 
   auto newScale = inferModulusSwitchOrRescaleOpScalingFactor(
-      xEncoding, dividedModulus, plaintextModulus, nominalScale);
+      xEncoding, dividedModulus, plaintextModulus, nominalScale,
+      preciseCkksScalePolicy);
   if (failed(newScale)) return failure();
   LLVM_DEBUG(llvm::dbgs() << "dividedModulus=" << dividedModulus
                           << " new scale=" << *newScale << "\n");
@@ -175,7 +192,8 @@ FailureOr<PlaintextSpaceAttr> inferModulusSwitchOrRescaleOpPlaintextSpaceAttr(
   }
 
   auto newScale = inferModulusSwitchOrRescaleOpScalingFactor(
-      xEncoding, dividedModulus, plaintextModulus, nominalScale);
+      xEncoding, dividedModulus, plaintextModulus, nominalScale,
+      /*preciseCkksScalePolicy=*/false);
   if (failed(newScale)) return failure();
   LLVM_DEBUG(llvm::dbgs() << "dividedModulus=" << dividedModulus
                           << " new scale=" << *newScale << "\n");

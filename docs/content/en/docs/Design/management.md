@@ -205,10 +205,20 @@ This split is intentional. It preserves the current management structure used by
 mainline HEIR while leaving room for future scale-target policies that need more
 information than the structural pass has.
 
-### Current mainline policy: nominal powers of two, represented exactly
+### Current policies
 
-The current mainline CKKS policy deliberately preserves the behavior that HEIR
-already supported before high-precision scale tracking. The change is in the
+HEIR now has two CKKS target-scale policies:
+
+- `nominal` is the default compatibility policy;
+- `precise` is an opt-in policy that uses the real dropped primes $q_i$.
+
+Both policies use the same three-stage pipeline above. The difference is in what
+`populate-scale-ckks` does after parameters are known.
+
+#### `nominal`: powers of two, represented exactly
+
+The `nominal` policy deliberately preserves the behavior that HEIR already
+supported before high-precision scale tracking. The change is in the
 representation, not in the policy:
 
 - fresh CKKS inputs start at the nominal scale $2^{\\mathsf{logDefaultScale}}$;
@@ -218,17 +228,11 @@ representation, not in the policy:
 - rescale/modreduce divides by the nominal power-of-two scale
   $2^{\\mathsf{logDefaultScale}}$, not by the concrete dropped prime $q_i$.
 
-The important upgrade is that these values are now stored as exact integers
+The important upgrade is that these values are stored as exact integers
 (`APInt`) representing the scaling factor itself, rather than as exponent-like
-`int64_t` placeholders such as `45` or `90`. In other words, the current policy
-is still the old nominal HEIR model, but expressed as exact integer scales like
+`int64_t` placeholders such as `45` or `90`. In other words, the `nominal`
+policy is still the old HEIR model, but expressed as exact integer scales like
 $2^{45}$ and $2^{90}$.
-
-This is why `populate-scale-ckks` still runs after parameter generation even
-though the current policy does not divide by the actual $q_i$: the pipeline is
-already structured so that post-parameter scale resolution is the place where
-scale targets are chosen and materialized, and future policies will need the
-concrete modulus chain there.
 
 There is one small legacy exception worth calling out: module-aware CKKS scale
 analysis uses the nominal power-of-two policy described here, but a type-only
@@ -236,19 +240,49 @@ LWE fallback still approximates its nominal rescale factor from the modulus when
 no CKKS scheme parameter attribute is available. That fallback is retained for
 compatibility and is not the intended long-term CKKS scale model.
 
-### Why `APInt` still matters even under the nominal policy
+#### `precise`: real-$q_i$ scale evolution with local mgmt refinement
+
+The `precise` policy is the first opt-in mode that makes nontrivial use of those
+exact integer scales.
+
+In this mode:
+
+- fresh inputs still start from the configured encode scale;
+- multiplication uses exact integer products;
+- rescale/modreduce divides by the actual dropped prime $q_i$, rounded to the
+  nearest integer;
+- `populate-scale-ckks` is allowed to refine the existing mgmt skeleton by
+  inserting extra `mgmt.modreduce` and related level adjustments so that
+  addition and subtraction sites still see matching exact scales.
+
+This refinement happens *after* parameters are known. `secret-insert-mgmt-ckks`
+still decides the structural shape early; `populate-scale-ckks` is the place
+where HEIR decides whether the current meeting point is really achievable under
+the precise policy and, if not, lowers both sides to a later common meeting
+point.
+
+When those extra repairs require more levels than the current modulus chain
+provides, `populate-scale-ckks` regenerates a compatible CKKS scheme parameter
+attribute with a larger level budget and reruns the precise analysis. The goal
+is to keep the precise policy total on arithmetic IR that the historical nominal
+pipeline could already lower, even if the precise path needs more management ops
+to do so honestly.
+
+### Why `APInt` still matters even before the full BMPH20 design
 
 Moving from exponent-like `int64_t` values to exact integer scale factors is
-useful even before introducing more advanced CKKS policies:
+useful in both policies:
 
 - powers such as $2^{90}$ do not fit in `int64_t`;
 - exact multiplication and exact integer ratios are needed when materializing
   `mgmt.adjust_scale` as "multiply by an encoded one";
-- the IR now records the actual nominal scaling factor rather than an informal
+- the IR records the actual chosen scaling factor rather than an informal
   shorthand for its base-2 logarithm.
 
-So the current change should be viewed as "exact representation of the existing
-nominal policy", not yet as "full-RNS exact scale planning".
+The `nominal` policy should be viewed as "exact representation of the existing
+nominal model." The `precise` policy goes further by making rescale use the real
+$q_i$, but it is still intentionally a conservative first step rather than the
+full general BMPH20-style planner.
 
 ### Scale-matching invariant and `SameOperandsAndResultType`
 
@@ -267,7 +301,7 @@ example, a ciphertext can temporarily live at $\\Delta^2$ after multiplication
 and before the following rescale. The management pipeline is responsible for
 ensuring those transient states do not reach addition or subtraction sites.
 
-### Resolving `mgmt.adjust_scale`: pluggable target-scale policies
+### Resolving `mgmt.adjust_scale`
 
 The `secret-insert-mgmt-ckks` pass inserts cross-level adjustment as a sequence
 of up to three operations: `mgmt.level_reduce` (drop extra RNS limbs),
@@ -276,49 +310,73 @@ of up to three operations: `mgmt.level_reduce` (drop extra RNS limbs),
 level and scale as the computation result. See the BGV section above for details
 on the cross-level procedure.
 
-In the current mainline policy, `populate-scale-ckks` resolves
-`mgmt.adjust_scale` using the nominal power-of-two model and then materializes
-it with the existing generic pattern:
+In the `nominal` policy, `populate-scale-ckks` resolves `mgmt.adjust_scale`
+using the nominal power-of-two model and then materializes it with the existing
+generic pattern:
 
 1. compute the desired nominal target scale;
 1. compute an exact integer ratio `delta = target / input`;
 1. encode the constant one at scale `delta`;
 1. replace `mgmt.adjust_scale(x)` with `x * 1_delta`.
 
-This keeps the current behavior working, but it does so using exact integer
-scale factors instead of the older exponent shorthand. It also preserves a
-useful architectural seam: future policies can reuse the same abstract
-`mgmt.adjust_scale` op while choosing different target scales or different
-materializations. If an `adjust_scale` ends up unconstrained, or if its target
-scale is already equal to its input scale, `populate-scale-ckks` erases it as a
-no-op instead of forcing a redundant materialization.
+In the `precise` policy, the same abstract op is kept longer. First,
+`populate-scale-ckks` reruns exact dataflow with the real $q_i$ and checks
+whether the current `adjust_scale` plus following rescale chain can land on the
+intended exact target. If not, it lowers the meeting point by inserting more
+management before the add/sub and tries again. Only after that repair loop
+stabilizes does it materialize `mgmt.adjust_scale` using the same generic
+"multiply by an encoded one" idea, but with an exact integer `delta` chosen so
+that the *post-rescale* result lands on the repaired exact target.
 
-### Why this is not yet the full BMPH20 / backend-specific design
+This preserves a useful architectural seam:
+
+- the abstract `mgmt.adjust_scale` op still means "this value needs scale
+  reconciliation";
+- the policy decides what exact target to ask for;
+- the materializer only runs once that target is known to be reachable.
+
+If an `adjust_scale` ends up unconstrained, or if its target scale is already
+equal to its input scale, `populate-scale-ckks` erases it as a no-op instead of
+forcing a redundant materialization.
+
+### Why this is still not the full BMPH20 / backend-specific design
 
 Standard RNS CKKS does not actually rescale by a symbolic $\\Delta$; it rescales
 by the concrete dropped prime $q_i$. Since NTT-friendly primes are not exactly
 $2^{\\mathsf{logDefaultScale}}$, real full-RNS CKKS has scale drift that the
 nominal power-of-two model intentionally ignores.
 
-This PR does **not** change HEIR to that fuller model, because it is important
-that programs previously supported by HEIR keep working. A literal
-"divide-by-the-real-$q_i$ everywhere" policy changes which exact targets are
-reachable and can invalidate examples that were valid under the nominal model.
-The current implementation therefore takes the smaller step first:
+That fuller reality now appears in HEIR's optional `precise` policy, but only in
+a deliberately local form. The current implementation does **not** yet try to do
+global tree-wide scale planning. Instead it takes a smaller and safer step:
 
-- keep the old nominal behavior;
-- represent it exactly with `APInt`;
-- preserve strong CKKS IR invariants;
-- and leave room for future target-scale policies.
+- keep the old nominal behavior as the default;
+- add a precise mode that repairs the mismatch shapes current mgmt insertion
+  already creates;
+- preserve strong CKKS IR invariants in both modes;
+- and leave room for more global target-scale policies.
 
-### Why future policies still matter
+### What the current precise mode does and does not do
 
-The nominal power-of-two policy is a useful compatibility baseline, but it is
-not the end of the CKKS story.
+The current `precise` mode is intentionally useful but still local.
+
+It already gives HEIR two real improvements:
+
+- generic arithmetic IR can be re-repaired with extra management so that exact
+  real-$q_i$ scales still meet at add/sub sites;
+- on the Orion-to-Lattigo polynomial-evaluation path, HEIR can keep the
+  Chebyshev target scale tied to the ciphertext's incoming exact scale instead
+  of always resetting it to the nominal default.
+
+This is enough to demonstrate a real benefit from exact post-parameter scale
+tracking on the existing BSGS/Paterson-Stockmeyer style path without changing
+the polynomial decomposition algorithm itself.
+
+But future policies still matter.
 
 Algorithm 2 of [BMPH20](https://eprint.iacr.org/2020/1203) is the right mental
-model for a more advanced post-parameter policy. It back-propagates target
-scales through a polynomial-evaluation tree so that each addition happens
+model for a more advanced global post-parameter policy. It back-propagates
+target scales through a polynomial-evaluation tree so that each addition happens
 between operands at exactly the same planned scale. Its main benefit is better
 precision, and in some cases it also improves level usage. It is not primarily
 an operation-count optimization; the paper explicitly allows a small increase in
@@ -333,10 +391,11 @@ management framework, not a reason to relax the generic CKKS IR.
 
 ### Example: why richer policies are still needed later
 
-The following synthetic example illustrates why the nominal model is not the
-last word on CKKS scale planning. Let $\\Delta = 2^{40}$ and let a real rescale
-prime be $q_i = \\Delta + 17$. If both operands of a multiplication start at
-scale $\\Delta$, then the exact post-rescale scale is
+The following synthetic example illustrates why neither the nominal model nor
+the current local precise repairs are the last word on CKKS scale planning. Let
+$\\Delta = 2^{40}$ and let a real rescale prime be $q_i = \\Delta + 17$. If both
+operands of a multiplication start at scale $\\Delta$, then the exact
+post-rescale scale is
 
 $$ \\operatorname{round}\\left(\\frac{\\Delta^2}{\\Delta + 17}\\right) = \\Delta
 \- 17 $$
@@ -349,10 +408,10 @@ into targets that the simple generic equalization pattern cannot realize.
 
 This does not mean CKKS addition must accept mismatched scales. It means the
 compiler needs a better target-scale policy when it wants to model real CKKS
-physics more closely. BMPH20-style back-propagation and backend-specific
-per-level schedules are two examples of such policies. The current mainline
-implementation intentionally stops one step earlier: it keeps HEIR's existing
-nominal behavior, but now represents it exactly and cleanly enough that those
-future policies can be added later.
+physics more closely. The current precise mode can repair many such sites by
+lowering the meeting point and recomputing an exact reachable `adjust_scale`
+delta, but it is still not a global planner. BMPH20-style back-propagation and
+backend-specific per-level schedules are two examples of the richer policies
+that can be layered on top of the same three-stage management framework.
 
 <!-- mdformat global-off -->

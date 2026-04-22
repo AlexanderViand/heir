@@ -664,18 +664,34 @@ struct ConvertOrionChebyshevOp
       polyEvaluator = evaluatorResult.value();
     }
 
-    // Orion always uses the logDefaultScale for the target scale
+    // By default Orion uses the configured nominal default scale for the
+    // target. In precise CKKS mode, keep the evaluation scale-preserving by
+    // targeting the ciphertext's actual incoming scale instead.
     ckks::SchemeParamAttr schemeParams =
         cast<ckks::SchemeParamAttr>(getSchemeParamAttr(op));
-    APInt defaultScale =
+    APInt targetScale =
         APInt::getOneBitSet(std::max(64, schemeParams.getLogDefaultScale() + 1),
                             schemeParams.getLogDefaultScale());
-    LLVM_DEBUG(llvm::dbgs() << "Using default scale: " << defaultScale << "\n");
+    if (moduleUsesPreciseCKKSScalePolicy(op->getParentOfType<ModuleOp>())) {
+      auto ciphertextType = dyn_cast<lwe::LWECiphertextType>(
+          getElementTypeOrSelf(op.getInput().getType()));
+      if (!ciphertextType) {
+        return rewriter.notifyMatchFailure(
+            op, "expected Orion Chebyshev input to be an LWE ciphertext");
+      }
+      APInt preciseInputScale = lwe::getScalingFactorFromEncodingAttr(
+          ciphertextType.getPlaintextSpace().getEncoding());
+      if (!preciseInputScale.isZero()) {
+        targetScale = preciseInputScale;
+      }
+    }
+    LLVM_DEBUG(llvm::dbgs()
+               << "Using Chebyshev target scale: " << targetScale << "\n");
 
     auto chebyshevOp = lattigo::CKKSChebyshevOp::create(
         rewriter, op.getLoc(), adaptor.getInput().getType(), polyEvaluator,
         adaptor.getInput(), adaptor.getCoefficients(),
-        getSignlessIntegerAttr(rewriter.getContext(), defaultScale));
+        getSignlessIntegerAttr(rewriter.getContext(), targetScale));
     rewriter.replaceOp(op, chebyshevOp.getResult());
 
     return success();

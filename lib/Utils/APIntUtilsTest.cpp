@@ -72,6 +72,39 @@ TEST(APIntUtilsTest, FactorizePrime) {
   EXPECT_EQ(factors[0], 53);
 }
 
+TEST(APIntUtilsTest, DivideUnsignedAPIntNearest) {
+  auto result = divideUnsignedAPIntNearest(APInt(64, 10), APInt(64, 3));
+  ASSERT_TRUE(succeeded(result));
+  EXPECT_EQ(*result, APInt(64, 3));
+
+  result = divideUnsignedAPIntNearest(APInt(64, 11), APInt(64, 3));
+  ASSERT_TRUE(succeeded(result));
+  EXPECT_EQ(*result, APInt(64, 4));
+}
+
+TEST(APIntUtilsTest, SolveUnsignedPostRescaleScaleDelta) {
+  auto delta = solveUnsignedPostRescaleScaleDelta(APInt(64, 8), APInt(64, 3),
+                                                  APInt(64, 11));
+  ASSERT_TRUE(succeeded(delta));
+  EXPECT_EQ(*delta, APInt(64, 4));
+
+  auto impossible = solveUnsignedPostRescaleScaleDelta(
+      APInt(64, 8), APInt(64, 1), APInt(64, 3));
+  EXPECT_TRUE(failed(impossible));
+}
+
+TEST(APIntUtilsTest, SolveUnsignedPostRescaleScaleDeltaChain) {
+  SmallVector<APInt> moduli = {APInt(64, 11), APInt(64, 5)};
+  auto delta = solveUnsignedPostRescaleScaleDeltaChain(APInt(64, 8),
+                                                       APInt(64, 1), moduli);
+  ASSERT_TRUE(succeeded(delta));
+  EXPECT_EQ(*delta, APInt(64, 4));
+
+  auto impossible = solveUnsignedPostRescaleScaleDeltaChain(
+      APInt(64, 8), APInt(64, 0), moduli);
+  EXPECT_TRUE(failed(impossible));
+}
+
 }  // namespace
 }  // namespace heir
 }  // namespace mlir
