@@ -148,23 +148,33 @@ void CheddarEmitter::emitScaleMismatchDebugCheck(StringRef opKind,
   os << "}\n";
 }
 
-void CheddarEmitter::emitVectorDeepCopy(Operation *op, StringRef destName,
-                                        StringRef srcName, Type elemType,
-                                        Type tensorType) {
+LogicalResult CheddarEmitter::emitVectorDeepCopy(Operation *op,
+                                                 StringRef destName,
+                                                 StringRef srcName,
+                                                 Type elemType,
+                                                 Type tensorType) {
   if (!isContextCopyableMoveOnlyType(elemType)) {
-    op->emitError("cannot deep-copy non-ciphertext CHEDDAR tensor elements");
-    return;
+    return op->emitOpError(
+        "cannot deep-copy non-ciphertext CHEDDAR tensor elements");
   }
   auto typeStr = convertType(elemType);
+  if (failed(typeStr)) {
+    return op->emitOpError("failed to convert CHEDDAR tensor element type");
+  }
   auto tensorTy = cast<RankedTensorType>(tensorType);
   int64_t numElements = tensorTy.getNumElements();
   auto ctxName = getContextName(op);
+  if (ctxName.empty()) {
+    return op->emitOpError(
+        "missing CHEDDAR context argument for deep-copying tensor elements");
+  }
   os << "std::vector<" << *typeStr << "> " << destName << "(" << numElements
      << ");\n";
   os << "for (size_t i = 0; i < " << numElements << "; ++i)\n";
   os.indent();
   os << ctxName << "->Copy(" << destName << "[i], " << srcName << "[i]);\n";
   os.unindent();
+  return success();
 }
 
 FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
@@ -581,9 +591,9 @@ LogicalResult CheddarEmitter::printOperation(GetMultKeyOp op) {
 
 LogicalResult CheddarEmitter::printOperation(GetRotKeyOp op) {
   auto dist = op.getDistanceAttr().getInt();
-  if (dist == -1) {
-    // Sentinel for dynamic rotation: key lookup is inlined in HRotOp emitter.
-    // Emit nothing; the HRotOp emitter traces back to the UI.
+  if (dist == cheddar::kDynamicRotationKeyDistanceSentinel) {
+    // Dynamic rotation keys are looked up at the HRot call site, since the
+    // actual rotation distance is only available there at runtime.
     return success();
   }
   os << "const auto& " << getName(op.getKey()) << " = " << getName(op.getUi())
@@ -615,6 +625,11 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   auto name = getName(op.getPlaintext());
   auto msgName = getName(op.getMessage());
 
+  if (logDefaultScale <= 0) {
+    return op.emitOpError(
+        "requires module attribute `cheddar.logDefaultScale`");
+  }
+
   // Encode expects Complex; convert real inputs.
   auto msgType = op.getMessage().getType();
   bool needsComplexConversion = false;
@@ -634,8 +649,12 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   if (!ctxName.empty()) {
     std::string baseScale =
         ctxName + "->param_.GetScale(" + std::to_string(level) + ")";
+    if (logScale < logDefaultScale || logScale % logDefaultScale != 0) {
+      return op.emitOpError()
+             << "requires CHEDDAR scale to be a positive integer multiple of "
+                "the module logDefaultScale";
+    }
     if (logScale > logDefaultScale) {
-      // Doubled (or higher) scale: square the base scale per doubling
       int multiplier = logScale / logDefaultScale;
       scaleExpr = baseScale;
       for (int i = 1; i < multiplier; ++i) scaleExpr += " * " + baseScale;
@@ -666,6 +685,11 @@ LogicalResult CheddarEmitter::printOperation(EncodeConstantOp op) {
   auto logScale = op.getScaleAttr().getInt();
   auto name = getName(op.getConstant());
 
+  if (logDefaultScale <= 0) {
+    return op.emitOpError(
+        "requires module attribute `cheddar.logDefaultScale`");
+  }
+
   std::string ctxName;
   if (auto funcOp = op->getParentOfType<func::FuncOp>()) {
     if (funcOp.getNumArguments() > 0) ctxName = getName(funcOp.getArgument(0));
@@ -675,6 +699,11 @@ LogicalResult CheddarEmitter::printOperation(EncodeConstantOp op) {
   if (!ctxName.empty()) {
     std::string baseScale =
         ctxName + "->param_.GetScale(" + std::to_string(level) + ")";
+    if (logScale < logDefaultScale || logScale % logDefaultScale != 0) {
+      return op.emitOpError()
+             << "requires CHEDDAR scale to be a positive integer multiple of "
+                "the module logDefaultScale";
+    }
     if (logScale > logDefaultScale) {
       int multiplier = logScale / logDefaultScale;
       scaleExpr = baseScale;
@@ -893,6 +922,11 @@ LogicalResult CheddarEmitter::printOperation(HRotOp op) {
     // Find the UserInterface from the GetRotKeyOp's operand
     auto getRotKeyOp = op.getRotKey().getDefiningOp<GetRotKeyOp>();
     if (getRotKeyOp) {
+      if (getRotKeyOp.getDistanceAttr().getInt() !=
+          cheddar::kDynamicRotationKeyDistanceSentinel) {
+        return op.emitOpError(
+            "dynamic rotation requires a sentinel GetRotKeyOp placeholder");
+      }
       os << getName(op.getCtx()) << "->HRot(" << name << ", "
          << getName(op.getInput()) << ", " << getName(getRotKeyOp.getUi())
          << ".GetRotationKey(" << shiftName << "), " << shiftName << ");\n";
@@ -1026,7 +1060,11 @@ LogicalResult CheddarEmitter::printOperation(EvalPolyOp op) {
   os << "std::vector<double> " << coeffsName << " = {";
   for (unsigned i = 0; i < coeffsAttr.size(); ++i) {
     if (i > 0) os << ", ";
-    auto floatAttr = cast<FloatAttr>(coeffsAttr[i]);
+    auto floatAttr = dyn_cast<FloatAttr>(coeffsAttr[i]);
+    if (!floatAttr) {
+      return op.emitOpError()
+             << "requires all polynomial coefficients to be FloatAttr";
+    }
     SmallString<16> str;
     floatAttr.getValue().toString(str, /*FormatPrecision=*/15);
     os << str;
@@ -1224,8 +1262,10 @@ LogicalResult CheddarEmitter::printOperation(tensor::InsertOp op) {
         os << "auto " << resultName << " = std::move(" << getName(op.getDest())
            << ");\n";
       } else if (isContextCopyableMoveOnlyType(elemType)) {
-        emitVectorDeepCopy(op, resultName, getName(op.getDest()), elemType,
-                           op.getDest().getType());
+        if (failed(emitVectorDeepCopy(op, resultName, getName(op.getDest()),
+                                      elemType, op.getDest().getType()))) {
+          return failure();
+        }
       } else {
         return op.emitOpError(
             "cannot duplicate move-only plaintext/constant tensor destination");
@@ -1255,9 +1295,16 @@ LogicalResult CheddarEmitter::printOperation(tensor::InsertOp op) {
     if (isContextCopyableMoveOnlyType(elemType)) {
       auto copyName = scalarName + "_c" + std::to_string(tempVarCounter++);
       auto typeResult = convertType(elemType);
+      if (failed(typeResult)) {
+        return op.emitOpError("failed to convert CHEDDAR tensor element type");
+      }
+      auto ctxName = getContextName(op);
+      if (ctxName.empty()) {
+        return op.emitOpError(
+            "missing CHEDDAR context argument for tensor.insert copy");
+      }
       os << *typeResult << " " << copyName << ";\n";
-      os << getContextName(op) << "->Copy(" << copyName << ", " << scalarName
-         << ");\n";
+      os << ctxName << "->Copy(" << copyName << ", " << scalarName << ");\n";
       os << resultName << "[" << idxExpr << "] = std::move(" << copyName
          << ");\n";
     } else if (canMoveValueIntoConsumer(op.getScalar())) {
@@ -1285,6 +1332,10 @@ LogicalResult CheddarEmitter::printOperation(tensor::FromElementsOp op) {
     os << getName(op.getResult()) << ".reserve(" << op.getNumOperands()
        << ");\n";
     auto ctxName = getContextName(op);
+    if (ctxName.empty() && isContextCopyableMoveOnlyType(elemType)) {
+      return op.emitOpError(
+          "missing CHEDDAR context argument for tensor.from_elements copy");
+    }
     for (unsigned i = 0; i < op.getNumOperands(); ++i) {
       auto operandName = getName(op.getOperand(i));
       if (isContextCopyableMoveOnlyType(elemType)) {
@@ -1399,8 +1450,10 @@ LogicalResult CheddarEmitter::printOperation(tensor::InsertSliceOp op) {
         os << "auto " << resultName << " = std::move(" << getName(op.getDest())
            << ");\n";
       } else if (isContextCopyableMoveOnlyType(elemType)) {
-        emitVectorDeepCopy(op, resultName, getName(op.getDest()), elemType,
-                           op.getDest().getType());
+        if (failed(emitVectorDeepCopy(op, resultName, getName(op.getDest()),
+                                      elemType, op.getDest().getType()))) {
+          return failure();
+        }
       } else {
         return op.emitOpError(
             "cannot duplicate move-only plaintext/constant tensor destination");

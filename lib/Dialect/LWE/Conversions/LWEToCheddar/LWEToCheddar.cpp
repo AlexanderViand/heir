@@ -411,7 +411,9 @@ struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
       // the UserInterface for the key lookup.
       auto rotKey = cheddar::GetRotKeyOp::create(
           rewriter, op.getLoc(), cheddar::EvalKeyType::get(getContext()),
-          ui.value(), rewriter.getI64IntegerAttr(-1));  // sentinel
+          ui.value(),
+          rewriter.getI64IntegerAttr(
+              cheddar::kDynamicRotationKeyDistanceSentinel));
       rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
           op, this->typeConverter->convertType(op.getOutput().getType()),
           ctx.value(), adaptor.getInput(), rotKey, dynamicShift,
@@ -478,6 +480,11 @@ struct ConvertCKKSLevelReduceOp
     }
 
     int64_t currentLevel = inputCtType.getModulusChain().getCurrent();
+    if (targetLevelVal < 0 || targetLevelVal > currentLevel) {
+      return op.emitOpError()
+             << "cannot level_reduce from level " << currentLevel
+             << " to incompatible target level " << targetLevelVal;
+    }
     Value current = adaptor.getInput();
     auto one = arith::ConstantOp::create(rewriter, op.getLoc(),
                                          rewriter.getF64FloatAttr(1.0));
@@ -532,18 +539,17 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto encoder = getContextualArg<cheddar::EncoderType>(op.getOperation());
     if (failed(encoder)) return encoder;
 
-    int64_t logScale = 45;  // default
-    auto ptType = dyn_cast<lwe::LWEPlaintextType>(op.getOutput().getType());
-    if (ptType) {
-      auto encoding = ptType.getPlaintextSpace().getEncoding();
-      if (auto invEncoding =
-              dyn_cast<lwe::InverseCanonicalEncodingAttr>(encoding)) {
-        auto scale = invEncoding.getScalingFactor().getValue();
-        logScale = scale.isPowerOf2()
-                       ? static_cast<int64_t>(scale.exactLogBase2())
-                       : static_cast<int64_t>(scale.nearestLogBase2());
-      }
+    auto invEncoding =
+        dyn_cast<lwe::InverseCanonicalEncodingAttr>(op.getEncoding());
+    if (!invEncoding) {
+      return op.emitOpError()
+             << "requires inverse-canonical CKKS plaintext encoding for "
+                "CHEDDAR lowering";
     }
+    auto scale = invEncoding.getScalingFactor().getValue();
+    int64_t logScale = scale.isPowerOf2()
+                           ? static_cast<int64_t>(scale.exactLogBase2())
+                           : static_cast<int64_t>(scale.nearestLogBase2());
 
     int64_t level = op.getLevel() ? op.getLevel().value() : 0;
     auto ptTy = cheddar::PlaintextType::get(getContext());

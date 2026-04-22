@@ -50,7 +50,7 @@ class CheddarEmitter {
   int tempVarCounter = 0;
 
   // Module-level scheme params (read from cheddar.* attrs)
-  int64_t logDefaultScale = 45;  // fallback
+  int64_t logDefaultScale = -1;
   int64_t logN = 0;
   std::vector<int64_t> qPrimes;
   std::vector<int64_t> pPrimes;
@@ -141,8 +141,9 @@ class CheddarEmitter {
   std::string getContextName(Operation *op);
   void emitScaleMismatchDebugCheck(StringRef opKind, StringRef resultName,
                                    Value lhs, Value rhs);
-  void emitVectorDeepCopy(Operation *op, StringRef destName, StringRef srcName,
-                          Type elemType, Type tensorType);
+  LogicalResult emitVectorDeepCopy(Operation *op, StringRef destName,
+                                   StringRef srcName, Type elemType,
+                                   Type tensorType);
 };
 
 /// Free functions for translation registration
