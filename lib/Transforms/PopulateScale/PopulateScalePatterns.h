@@ -1,9 +1,8 @@
 #ifndef LIB_TRANSFORMS_POPULATESCALE_POPULATESCALEPATTERNS_H_
 #define LIB_TRANSFORMS_POPULATESCALE_POPULATESCALEPATTERNS_H_
 
-#include <cstdint>
-
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
+#include "llvm/include/llvm/ADT/APInt.h"        // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"   // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"  // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"     // from @llvm-project
@@ -13,7 +12,9 @@ namespace heir {
 
 class AdjustScaleMaterializer {
  public:
-  virtual int64_t deltaScale(int64_t scale, int64_t inputScale) const = 0;
+  virtual FailureOr<APInt> deltaScale(mgmt::AdjustScaleOp op,
+                                      const APInt& scale,
+                                      const APInt& inputScale) const = 0;
 };
 
 template <typename MulOp>

@@ -21,6 +21,7 @@
 #include "lib/Dialect/RNS/IR/RNSDialect.h"
 #include "lib/Dialect/TensorExt/IR/TensorExtDialect.h"
 #include "lib/Target/Lattigo/LattigoTemplates.h"
+#include "lib/Utils/APIntUtils.h"
 #include "lib/Utils/TargetUtils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"           // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"         // from @llvm-project
@@ -1819,11 +1820,11 @@ LogicalResult LattigoEmitter::printOperation(CKKSEncodeOp op) {
   }
 
   // set the scale of plaintext
-  imports.insert(std::string(kMathImport));
   auto scale = op.getScale();
+  auto scaleLiteral = emitScaleLiteral(scale, "ckksScale");
   os << plaintextName << ".Scale = ";
-  os << getName(newPlaintextOp.getParams()) << ".NewScale(math.Pow(2, ";
-  os << scale << "))\n";
+  os << getName(newPlaintextOp.getParams()) << ".NewScale(" << scaleLiteral
+     << ")\n";
 
   os << getName(op.getEncoder()) << ".Encode(";
   os << packedName << ", ";
@@ -2140,9 +2141,30 @@ LogicalResult LattigoEmitter::printOperation(CKKSChebyshevOp op) {
   os << getName(op.getEvaluator()) << ".Evaluate(";
   os << getName(op.getCiphertext()) << ", ";
   os << bignumPoly << ", ";
-  os << "rlwe.NewScale(" << op.getTargetScale().getInt() << "))\n";
+  os << "rlwe.NewScale(" << emitScaleLiteral(op.getTargetScale(), "targetScale")
+     << "))\n";
   printErrPanic(errName);
   return success();
+}
+
+std::string LattigoEmitter::emitScaleLiteral(IntegerAttr scale,
+                                             std::string_view prefix) {
+  APInt value = canonicalizeUnsignedAPInt(scale.getValue());
+  if (value.getActiveBits() <= 63) {
+    return llvm::toString(value, 10, /*Signed=*/false);
+  }
+
+  imports.insert(std::string(kMathBigImport));
+  std::string scaleName = std::string(prefix) + std::to_string(scaleCount++);
+  std::string scaleValue = llvm::toString(value, 10, /*Signed=*/false);
+  os << scaleName << " := new(big.Int)\n";
+  os << "if _, ok := " << scaleName << ".SetString(\"" << scaleValue
+     << "\", 10); !ok {\n";
+  os.indent();
+  os << "panic(\"failed to parse scale\")\n";
+  os.unindent();
+  os << "}\n";
+  return scaleName;
 }
 
 void LattigoEmitter::printErrPanic(std::string_view errName) {

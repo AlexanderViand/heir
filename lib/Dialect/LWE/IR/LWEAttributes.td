@@ -62,8 +62,21 @@ class LWE_EncodingAttrWithScalingParam<string attrName, string attrMnemonic, lis
   let assemblyFormat = "`<` struct(params) `>`";
 
   let parameters = (ins
-    "int64_t":$scaling_factor
+    "IntegerAttr":$scaling_factor
   );
+
+  let builders = [
+    AttrBuilder<(ins "const APInt&":$scalingFactor), [{
+      return $_get($_ctxt, ::mlir::heir::getSignlessIntegerAttr($_ctxt, scalingFactor));
+    }]>,
+    AttrBuilder<(ins "int64_t":$scalingFactor), [{
+      return $_get(
+        $_ctxt,
+        ::mlir::heir::getSignlessIntegerAttr(
+          $_ctxt,
+          llvm::APInt(64, scalingFactor, /*isSigned=*/true)));
+    }]>
+  ];
 }
 
 def LWE_ConstantCoefficientEncoding

@@ -1,5 +1,6 @@
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -19,6 +20,7 @@
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Orion/IR/OrionDialect.h"
 #include "lib/Dialect/Orion/IR/OrionOps.h"
+#include "lib/Utils/APIntUtils.h"
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
@@ -534,13 +536,14 @@ struct ConvertRlweEncodeOp : public OpConversionPattern<EncodeOp> {
         this->typeConverter->convertType(op.getOutput().getType()), params);
 
     auto encoding = op.getEncoding();
-    int64_t scale = lwe::getScalingFactorFromEncodingAttr(encoding);
+    APInt scale = lwe::getScalingFactorFromEncodingAttr(encoding);
 
     SmallVector<NamedAttribute> dialectAttrs(op->getDialectAttrs());
     rewriter
         .replaceOpWithNewOp<LattigoEncodeOp>(
             op, this->typeConverter->convertType(op.getOutput().getType()),
-            evaluator, input, alloc, rewriter.getI64IntegerAttr(scale))
+            evaluator, input, alloc,
+            getSignlessIntegerAttr(rewriter.getContext(), scale))
         ->setDialectAttrs(dialectAttrs);
     return success();
   }
@@ -664,14 +667,15 @@ struct ConvertOrionChebyshevOp
     // Orion always uses the logDefaultScale for the target scale
     ckks::SchemeParamAttr schemeParams =
         cast<ckks::SchemeParamAttr>(getSchemeParamAttr(op));
-    IntegerAttr defaultScale = rewriter.getIntegerAttr(
-        rewriter.getI64Type(), 1L << schemeParams.getLogDefaultScale());
-    LLVM_DEBUG(llvm::dbgs()
-               << "Using default scale: " << defaultScale.getInt() << "\n");
+    APInt defaultScale =
+        APInt::getOneBitSet(std::max(64, schemeParams.getLogDefaultScale() + 1),
+                            schemeParams.getLogDefaultScale());
+    LLVM_DEBUG(llvm::dbgs() << "Using default scale: " << defaultScale << "\n");
 
     auto chebyshevOp = lattigo::CKKSChebyshevOp::create(
         rewriter, op.getLoc(), adaptor.getInput().getType(), polyEvaluator,
-        adaptor.getInput(), adaptor.getCoefficients(), defaultScale);
+        adaptor.getInput(), adaptor.getCoefficients(),
+        getSignlessIntegerAttr(rewriter.getContext(), defaultScale));
     rewriter.replaceOp(op, chebyshevOp.getResult());
 
     return success();

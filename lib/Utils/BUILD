@@ -49,6 +49,7 @@ cc_library(
     hdrs = ["APIntUtils.h"],
     deps = [
         "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Support",
     ],
 )

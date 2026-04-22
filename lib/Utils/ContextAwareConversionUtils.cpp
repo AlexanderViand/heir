@@ -46,7 +46,7 @@ FailureOr<Value> encodeCleartextAsPlaintext(
       ciphertextElementType.getPlaintextSpace();
   Attribute ciphertextEncoding = plaintextSpace.getEncoding();
   Attribute plaintextEncoding = lwe::getEncodingAttrWithNewScalingFactor(
-      ciphertextEncoding, mgmtAttr.getScale());
+      ciphertextEncoding, mgmt::getScaleAsAPInt(mgmtAttr));
 
   if (!plaintextEncoding) {
     errStr << "failed to compute plaintext encoding";

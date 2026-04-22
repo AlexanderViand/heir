@@ -11,8 +11,8 @@
 !Z1099515691009_i64 = !mod_arith.int<1099515691009 : i64>
 !Z1099516870657_i64 = !mod_arith.int<1099516870657 : i64>
 !Z36028797019488257_i64 = !mod_arith.int<36028797019488257 : i64>
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 40>
-#inverse_canonical_encoding1 = #lwe.inverse_canonical_encoding<scaling_factor = 80>
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 1099511627776>
+#inverse_canonical_encoding1 = #lwe.inverse_canonical_encoding<scaling_factor = 1208925819614629174706176 : i82>
 #key = #lwe.key<>
 #modulus_chain_L10_C10 = #lwe.modulus_chain<elements = <36028797019488257 : i64, 1099512938497 : i64, 1099510054913 : i64, 1099507695617 : i64, 1099515691009 : i64, 1099516870657 : i64, 1099506515969 : i64, 1099504549889 : i64, 1099503894529 : i64, 1099503370241 : i64, 1099502714881 : i64>, current = 10>
 #modulus_chain_L8_C8 = #lwe.modulus_chain<elements = <36028797019488257 : i64, 1099512938497 : i64, 1099510054913 : i64, 1099507695617 : i64, 1099515691009 : i64, 1099516870657 : i64, 1099506515969 : i64, 1099504549889 : i64, 1099503894529 : i64>, current = 8>

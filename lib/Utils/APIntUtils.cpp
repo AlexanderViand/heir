@@ -5,8 +5,9 @@
 #include <utility>
 #include <vector>
 
-#include "llvm/include/llvm/ADT/APInt.h"     // from @llvm-project
-#include "mlir/include/mlir/Support/LLVM.h"  // from @llvm-project
+#include "llvm/include/llvm/ADT/APInt.h"        // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinTypes.h"  // from @llvm-project
+#include "mlir/include/mlir/Support/LLVM.h"     // from @llvm-project
 
 namespace mlir {
 namespace heir {
@@ -133,6 +134,45 @@ std::vector<APInt> factorize(APInt n) {
     factors.push_back(n);
   }
   return factors;
+}
+
+APInt canonicalizeUnsignedAPInt(const APInt& value, unsigned minWidth) {
+  unsigned activeBits = value.getActiveBits();
+  unsigned width = std::max(minWidth, activeBits == 0 ? 1U : activeBits + 1);
+  return value.zextOrTrunc(width);
+}
+
+IntegerAttr getSignlessIntegerAttr(MLIRContext* context, const APInt& value,
+                                   unsigned minWidth) {
+  APInt canonical = canonicalizeUnsignedAPInt(value, minWidth);
+  auto type = IntegerType::get(context, canonical.getBitWidth());
+  return IntegerAttr::get(type, canonical);
+}
+
+APInt getNominalPowerOfTwoScaleFromLog2(uint64_t logScale, unsigned minWidth) {
+  return canonicalizeUnsignedAPInt(APInt::getOneBitSet(logScale + 1, logScale),
+                                   minWidth);
+}
+
+APInt multiplyUnsignedAPIntExact(const APInt& lhs, const APInt& rhs,
+                                 unsigned minWidth) {
+  unsigned width = std::max(lhs.getBitWidth(), rhs.getBitWidth());
+  APInt wideLhs = lhs.zext(width);
+  APInt wideRhs = rhs.zext(width);
+  return canonicalizeUnsignedAPInt(
+      llvm::APIntOps::muluExtended(wideLhs, wideRhs), minWidth);
+}
+
+FailureOr<APInt> divideUnsignedAPIntExact(const APInt& dividend,
+                                          const APInt& divisor,
+                                          unsigned minWidth) {
+  if (divisor.isZero()) return failure();
+
+  unsigned width = std::max(dividend.getBitWidth(), divisor.getBitWidth());
+  APInt wideDividend = dividend.zext(width);
+  APInt wideDivisor = divisor.zext(width);
+  if (!wideDividend.urem(wideDivisor).isZero()) return failure();
+  return canonicalizeUnsignedAPInt(wideDividend.udiv(wideDivisor), minWidth);
 }
 
 }  // namespace heir
