@@ -101,21 +101,22 @@ LogicalResult HoistArgLayouts::matchAndRewrite(
     // conversion. Otherwise, hoisting may not produce a benefit; it would
     // require duplicating the function argument or updating the layout
     // conversions of other uses.
-    auto maybeLayoutOps =
-        llvm::map_range(blockArg.getUses(), getFirstLayoutConversionOp);
+    // Materialize the optional convert_layout ops before mapping over them.
+    // Using a lazy range here can leave iterators pointing into a temporary.
+    auto maybeLayoutOps = llvm::to_vector(
+        llvm::map_range(blockArg.getUses(), getFirstLayoutConversionOp));
     if (maybeLayoutOps.empty()) continue;
-    auto maybeLayouts = llvm::map_range(
-        llvm::to_vector(maybeLayoutOps),
-        [](auto& maybeLayoutOp) -> std::optional<Attribute> {
+    auto maybeLayouts = llvm::to_vector(llvm::map_range(
+        maybeLayoutOps, [](auto& maybeLayoutOp) -> std::optional<Attribute> {
           if (!maybeLayoutOp.has_value()) return std::nullopt;
           auto toLayout = maybeLayoutOp.value().getToLayoutAttr();
           if (!toLayout) return std::nullopt;
           return toLayout;
-        });
+        }));
     if (!llvm::all_equal(maybeLayouts)) continue;
 
     // If there was no layout conversion, there is nothing to hoist.
-    auto maybeLayoutOp = *maybeLayoutOps.begin();
+    auto maybeLayoutOp = maybeLayoutOps.front();
     if (!maybeLayoutOp.has_value()) continue;
 
     Attribute toLayout = maybeLayoutOp.value().getToLayoutAttr();
