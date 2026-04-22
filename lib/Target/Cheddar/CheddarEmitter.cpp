@@ -324,8 +324,13 @@ LogicalResult CheddarEmitter::printOperation(ModuleOp moduleOp) {
       }
     } else if (auto hrotAddOp = dyn_cast<HRotAddOp>(op)) {
       rotationDistances.insert(hrotAddOp.getDistanceAttr().getInt());
+    } else if (auto linTransOp = dyn_cast<LinearTransformOp>(op)) {
+      for (auto rot : linTransOp.getRotationIndices()) {
+        if (auto attr = dyn_cast<Attribute>(rot)) {
+          rotationDistances.insert(cast<IntegerAttr>(attr).getInt());
+        }
+      }
     }
-    // TODO: collect BSGS rotation set from LinearTransformOp
   });
 
   for (Operation &op : moduleOp) {
