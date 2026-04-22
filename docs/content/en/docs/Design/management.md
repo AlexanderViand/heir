@@ -433,4 +433,165 @@ It is not yet the final global planner for all CKKS policies, but it is now a
 separate stage with a cleaner contract than the old "everything interesting
 happens inside populate-scale" design.
 
+### Backend capability notes for structured CKKS ops
+
+For high-level ops such as `orion.linear_transform` and `orion.chebyshev`, the
+interesting backend differences are not captured well by high-level algorithm
+names alone. Two implementations may both be described as "BSGS" or
+"Paterson-Stockmeyer" while still exposing very different contracts to the
+compiler.
+
+#### Linear transform
+
+The intrinsic level cost of a linear transform remains `0`: it is built from
+rotations, plaintext multiplication, and addition. The important differences are
+instead about *reuse* and *what the backend API lets the compiler express*.
+
+- Lattigo exposes a reusable linear-transform evaluator that can evaluate many
+  transforms on the same ciphertext while sharing one decomposition of the input
+  and a cache of pre-rotated ciphertexts.
+- OpenFHE has a strong native single-transform implementation that already uses
+  a two-stage hoisted baby-step/giant-step algorithm internally, but it does not
+  expose the same many-transform reusable contract directly.
+- CHEDDAR has a native hoisting-based linear-transform object with persistent
+  hoist state, but again not the same "many sibling transforms on one input"
+  contract that Lattigo exposes.
+
+This distinction matters for larger models more than for small MLP examples. A
+plain MLP often has one linear transform per activation, so Lattigo's stronger
+reuse API is only weakly exercised. The difference becomes much more important
+for workloads that apply multiple related transforms to the same ciphertext, for
+example:
+
+- multi-block linear layers;
+- attention-style Q/K/V projections;
+- any pipeline stage that fans one activation out into many sibling transforms.
+
+In those cases, the Lattigo contract can reduce repeated decomposition and
+rotation work. That is primarily a *runtime* advantage. It does not by itself
+reduce intrinsic level consumption, and there is no strong reason to expect a
+large inherent *noise* advantage from the linear-transform API alone.
+
+#### Polynomial evaluation and Chebyshev
+
+For polynomial evaluation, the important differences are about *who controls the
+target scale*, *who owns basis/domain conversion*, and *what precomputation is
+reusable*.
+
+- Lattigo's native evaluator is target-scale-driven. The compiler supplies a
+  desired target scale, and the evaluator performs a structured decomposition
+  against that target.
+- OpenFHE exposes a rich native menu of power-basis and Chebyshev-series
+  evaluators, including precomputation objects for reusable powers/polynomials,
+  but much of the level/scale reconciliation remains internal to the library
+  algorithm itself.
+- CHEDDAR's native polynomial evaluation path behaves like a compiled
+  evaluation-tree engine with a canonical per-level schedule: it is given an
+  input level/scale contract and a target scale, then compiles and evaluates
+  against that schedule.
+
+This is why Lattigo is currently the best fit for HEIR's q-aware/BMPH20-shaped
+planner. The main expected benefit is *accuracy* and *scale discipline*, not
+fewer arithmetic operations. OpenFHE can still support strong native polynomial
+evaluation, but its contract is less "compiler chooses the exact target scale"
+and more "compiler chooses the evaluation family and lets the library manage
+more of the internal scale/level details."
+
+For polynomial evaluation, the likely benefits of richer HEIR management are:
+
+- better accuracy or more predictable achieved scale;
+- in some cases, better level usage;
+- not necessarily a large reduction in operation count relative to native
+  structured evaluators that are already asymptotically good.
+
+#### Why current implementation-style names are still too coarse
+
+The current built-in styles:
+
+- `orion.linear_transform = diagonal-bsgs`
+- `orion.chebyshev = bsgs`
+
+are therefore only placeholders. They are good enough to select one currently
+implemented lowering family, but they are not yet precise enough to describe the
+real implementation contracts above.
+
+In particular, future implementation styles will need to distinguish details
+such as:
+
+- one-shot versus reusable-many linear transforms;
+- whether hoisting state can be shared across many sibling transforms;
+- explicit target-scale control versus library-managed scale reconciliation;
+- explicit HEIR CKKS expansion versus opaque native backend evaluator calls.
+
+### Roadmap toward cross-backend parity
+
+The long-term goal is not merely to make every program lower to every backend.
+The goal is to make structured models such as MLPs, and later larger Orion
+models, run on Lattigo, OpenFHE, and CHEDDAR with nearly the same algorithmic
+quality, accuracy, and performance whenever the underlying backend APIs make
+that possible.
+
+The cleanup plan is therefore:
+
+1. Keep the current coarse-management architecture.
+
+   - `annotate-orion` chooses an implementation style and coarse intrinsic level
+     cost.
+   - coarse `secret-insert-mgmt-ckks` inserts multiply-side management and
+     `mgmt.reconcile` constraints.
+   - candidate parameters are generated from that coarse IR.
+
+1. Split the post-parameter world cleanly by policy.
+
+   - the local power-of-two compatibility path remains the default for generic
+     arithmetic and OpenFHE-style nominal lowering;
+   - the canonical-per-level path remains the natural fit for CHEDDAR;
+   - the q-aware/BMPH20-shaped path becomes the preferred precise path for
+     structured polynomial evaluation on backends that can honor explicit target
+     scales well, especially Lattigo.
+
+1. Grow implementation-style annotations into real backend contracts.
+
+   - The current placeholder style names must be refined so they encode the
+     actual reusable contract that later lowering expects, not just a loose
+     algorithm name.
+   - Later `scheme-to-<backend>` passes must keep treating those style
+     annotations as hard contracts and fail loudly when the requested contract
+     is unavailable.
+
+1. Add explicit OpenFHE manual-mode targeting.
+
+   - OpenFHE's automatic scaling modes can silently repair mistakes and hide
+     compiler-management bugs.
+   - A strict manual-mode path is therefore important both for test confidence
+     and for understanding how far HEIR's own management can go without backend
+     rescue logic.
+
+1. Support both native and explicit-CKKS realizations of structured ops.
+
+   - When a backend has a strong native implementation that matches the
+     requested style contract, HEIR should be able to use it.
+   - When that contract is unavailable, HEIR should instead lower the op to
+     explicit CKKS operations, or to a slightly richer CKKS layer if new
+     scheme-mechanical ops are needed to capture reusable patterns such as
+     hoisting.
+
+1. Expand tests around both policy and backend dimensions.
+
+   - small focused tests for reconcile policy differences;
+   - focused tests for implementation-style mismatch failures;
+   - structured-op tests that exercise native versus explicit realizations;
+   - end-to-end tests for the same model under multiple management policies and
+     backends;
+   - OpenFHE manual-mode end-to-end tests to make sure HEIR is not relying on
+     hidden automatic repair.
+
+1. Use larger structured examples as capability tests.
+
+   - Small MLPs are useful smoke tests but are often too simple to expose the
+     real value of reusable-many linear-transform contracts.
+   - Larger blocked layers, attention-like shapes, and deeper polynomial-heavy
+     models are better capability tests for deciding whether two backends are
+     truly on par for a requested implementation style.
+
 <!-- mdformat global-off -->
