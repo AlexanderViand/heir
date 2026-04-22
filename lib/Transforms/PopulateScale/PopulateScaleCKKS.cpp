@@ -12,7 +12,6 @@
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Mgmt/Transforms/AnnotateMgmt.h"
 #include "lib/Transforms/PopulateScale/PopulateScalePatterns.h"
-#include "lib/Transforms/PopulateScale/ResolveOpenfheCKKSMetadata.h"
 #include "lib/Utils/APIntUtils.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
 #include "llvm/include/llvm/Support/DebugLog.h"            // from @llvm-project
@@ -311,8 +310,7 @@ LogicalResult runPopulateScaleCKKSImpl(Operation* top, MLIRContext& context,
                                        bool beforeMulIncludeFirstMul,
                                        StringRef scalePolicy,
                                        std::optional<StringRef> reconcilePolicy,
-                                       std::optional<int> preciseIterationCap,
-                                       StringRef openfheScalingTechnique) {
+                                       std::optional<int> preciseIterationCap) {
   auto module = dyn_cast<ModuleOp>(top);
   if (!module) {
     top->emitOpError() << "expected module op";
@@ -552,16 +550,6 @@ LogicalResult runPopulateScaleCKKSImpl(Operation* top, MLIRContext& context,
     return failure();
   }
 
-  if (!openfheScalingTechnique.empty()) {
-    if (failed(openfhe::resolveOpenfheCKKSMetadata(module,
-                                                   openfheScalingTechnique))) {
-      return failure();
-    }
-    if (failed(runAnnotateMgmt())) {
-      return failure();
-    }
-  }
-
   return success();
 }
 
@@ -572,9 +560,9 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
   using PopulateScaleCKKSBase::PopulateScaleCKKSBase;
 
   void runOnOperation() override {
-    if (failed(runPopulateScaleCKKSImpl(
-            getOperation(), getContext(), beforeMulIncludeFirstMul, scalePolicy,
-            reconcilePolicy, std::nullopt, openfheScalingTechnique))) {
+    if (failed(runPopulateScaleCKKSImpl(getOperation(), getContext(),
+                                        beforeMulIncludeFirstMul, scalePolicy,
+                                        reconcilePolicy, std::nullopt))) {
       signalPassFailure();
     }
   }
@@ -590,8 +578,7 @@ struct ResolveScaleCKKSBMPH20
   void runOnOperation() override {
     if (failed(runPopulateScaleCKKSImpl(
             getOperation(), getContext(), beforeMulIncludeFirstMul,
-            kCKKSPreciseScalePolicyValue, std::nullopt, maxIterations,
-            openfheScalingTechnique))) {
+            kCKKSPreciseScalePolicyValue, std::nullopt, maxIterations))) {
       signalPassFailure();
     }
   }

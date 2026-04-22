@@ -11,12 +11,10 @@ cc_library(
     srcs = [
         "PopulateScaleBGV.cpp",
         "PopulateScaleCKKS.cpp",
-        "ResolveOpenfheCKKSMetadata.cpp",
         "ResolveReconcileCKKS.cpp",
     ],
     hdrs = [
         "PopulateScale.h",
-        "ResolveOpenfheCKKSMetadata.h",
     ],
     deps = [
         ":PopulateScalePatterns",
@@ -46,7 +44,6 @@ cc_library(
         "@llvm-project//mlir:Support",
         "@llvm-project//mlir:TransformUtils",
         "@llvm-project//mlir:Transforms",
-        "@openfhe",
     ],
 )
 
