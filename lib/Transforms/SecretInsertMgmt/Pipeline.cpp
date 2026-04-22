@@ -186,10 +186,13 @@ void insertModReduceBeforeOrAfterMult(Operation* top, bool afterMul,
     // as before yield we only want mulResult to be mod reduced
     patterns.add<ModReduceBefore<secret::YieldOp>>(
         ctx, /*includeFirstMul*/ false, top, &solver);
-    // Note: structured ops (diagonal_matvec) also accumulate noiseScaleDeg.
-    // Rather than inserting extra modreduces here (which conflicts with the
-    // nominal scale model), generate-param-ckks adds extra levels to the chain
-    // to keep limbs > nsd at every modreduce point.
+    // When before-first-mul is enabled, also insert modreduce before
+    // structured ops (diagonal_matvec) to keep noiseScaleDeg bounded.
+    // Without this, mul → linear_transform chains accumulate noiseScaleDeg
+    // past the CRT limb count in OpenFHE's FIXEDMANUAL mode.
+    if (includeFloats && beforeMulIncludeFirstMul)
+      patterns.add<ModReduceBefore<tensor_ext::DiagonalMatvecOp>>(
+          ctx, /*includeFirstMul*/ false, top, &solver);
   }
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }

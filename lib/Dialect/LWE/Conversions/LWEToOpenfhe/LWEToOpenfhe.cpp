@@ -113,27 +113,33 @@ FailureOr<IntegerAttr> inferOpenfheNoiseScaleDegreeAttr(
     return IntegerAttr();
   }
 
-  if (!scale.isPowerOf2()) {
-    llvm::SmallString<32> scaleString;
-    scale.toStringUnsigned(scaleString);
-    op.emitOpError()
-        << "OpenFHE plaintext packing currently requires a power-of-two "
-           "encoding scale, but found "
-        << scaleString.c_str();
+  uint64_t logDefaultScale = schemeParam.getLogDefaultScale();
+  if (logDefaultScale == 0) {
+    op.emitOpError() << "logDefaultScale must be nonzero";
     return failure();
   }
 
-  uint64_t logDefaultScale = schemeParam.getLogDefaultScale();
-  unsigned logScale = scale.logBase2();
-  if (logDefaultScale == 0 || logScale % logDefaultScale != 0) {
-    op.emitOpError()
-        << "OpenFHE plaintext packing currently requires the encoding "
-           "scale to be an exact power of the default scale 2^"
-        << logDefaultScale << ", but found 2^" << logScale;
-    return failure();
+  if (scale.isPowerOf2()) {
+    // Nominal scale (power of two): exact division
+    unsigned logScale = scale.logBase2();
+    if (logScale % logDefaultScale != 0) {
+      op.emitOpError() << "OpenFHE plaintext packing requires the encoding "
+                          "scale to be an exact power of the default scale 2^"
+                       << logDefaultScale << ", but found 2^" << logScale;
+      return failure();
+    }
+    return rewriter.getI64IntegerAttr(
+        static_cast<int64_t>(logScale / logDefaultScale));
   }
-  return rewriter.getI64IntegerAttr(
-      static_cast<int64_t>(logScale / logDefaultScale));
+
+  // Precise scale (actual Q prime value): approximate the noiseScaleDeg
+  // by rounding log2(scale) / logDefaultScale. This is correct for
+  // FIXEDMANUAL mode where Q primes are ≈ 2^scalingModBits.
+  double logScale = std::log2(scale.roundToDouble());
+  int64_t nsd =
+      std::max(static_cast<int64_t>(1),
+               static_cast<int64_t>(std::round(logScale / logDefaultScale)));
+  return rewriter.getI64IntegerAttr(nsd);
 }
 
 FailureOr<IntegerAttr> inferOpenfheLevelAttr(lwe::RLWEEncodeOp op,

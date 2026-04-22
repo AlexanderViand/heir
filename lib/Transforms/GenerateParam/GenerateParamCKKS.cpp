@@ -185,11 +185,14 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
         maxLevel.value_or(0) + static_cast<int>(minLevelOverhead);
     if (auto minLevelHint =
             getOperation()->getAttrOfType<IntegerAttr>("heir.min_level_hint")) {
-      // Cap the hint at circuitDepth + 3 to avoid over-provisioning simple
-      // circuits. The original Orion scheme may have had many more levels
-      // than the circuit needs (e.g., 6 primes for a mulDepth=0 circuit).
+      // Cap the hint relative to circuit depth. The original Orion scheme
+      // may have more levels than the circuit needs (e.g., 6 primes for a
+      // mulDepth=0 circuit). The margin accounts for noise headroom from
+      // structured ops (linear_transform adds 1 to noiseScaleDeg) and the
+      // before-first-mul modreduce pattern (1 extra level per mul+lt pair).
+      constexpr int kMinLevelHintMargin = 3;
       int hint = static_cast<int>(minLevelHint.getValue().getSExtValue());
-      int cap = maxLevel.value_or(0) + 3;
+      int cap = maxLevel.value_or(0) + kMinLevelHintMargin;
       effectiveMaxLevel = std::max(effectiveMaxLevel, std::min(hint, cap));
       getOperation()->removeAttr("heir.min_level_hint");
     }

@@ -461,6 +461,10 @@ inline OpenfheCiphertextT evalOpenfheLinearTransformWithPrecompute(
   }
   result = cryptoContext->KeySwitchDown(result);
   result->GetElements()[0] += first;
+  // The EXT-basis BSGS loop accumulates noiseScaleDeg through intermediate
+  // EvalMultExt calls. Reset to the correct value: the linear_transform
+  // consumes exactly one plaintext scale factor, so nsd increments by 1.
+  result->SetNoiseScaleDeg(input->GetNoiseScaleDeg() + 1);
   return result;
 }
 
@@ -469,9 +473,19 @@ inline OpenfheCiphertextT evalOpenfheSparseLinearTransform(
     const std::vector<double>& diagonalsFlat,
     const std::vector<int32_t>& diagonalIndices, uint32_t slots,
     uint32_t babyStep, uint32_t plaintextLevel) {
+  // Derive the actual plaintext level from the input ciphertext's runtime
+  // state. This is critical for FLEXIBLE* modes where auto-rescaling shifts
+  // the ciphertext's level beyond what compile-time analysis predicts.
+  auto cryptoParams =
+      std::dynamic_pointer_cast<lbcrypto::CryptoParametersCKKSRNS>(
+          cryptoContext->GetCryptoParameters());
+  uint32_t sizeQ = cryptoParams->GetElementParams()->GetParams().size();
+  uint32_t compositeDegree = cryptoParams->GetCompositeDegree();
+  uint32_t ctLevel = input->GetLevel();
+  uint32_t runtimePlaintextLevel = sizeQ - ctLevel - compositeDegree;
   auto precomputed = precomputeOpenfheSparseLinearTransform(
       cryptoContext, diagonalsFlat, diagonalIndices, slots, babyStep,
-      plaintextLevel);
+      runtimePlaintextLevel);
   return evalOpenfheLinearTransformWithPrecompute(cryptoContext, input,
                                                   precomputed, babyStep);
 }
