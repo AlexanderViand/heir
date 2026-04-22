@@ -358,7 +358,8 @@ struct ConvertDiagonalMatvecToLinearTransform
             .replaceOpWithNewOp<orion::LinearTransformOp>(
                 op, outputTypes.front(), ciphertextInput, diagonals,
                 diagIndices, rewriter.getI64IntegerAttr(orionLevel),
-                rewriter.getF64FloatAttr(2.0),  // bsgs_ratio (default BSGS)
+                rewriter.getF64FloatAttr(
+                    0.0),  // bsgs_ratio (0 = library default)
                 rewriter.getI64IntegerAttr(slots))
             .getOperation();
     linearTransformOp->setAttr(orion::kImplStyleAttrName,

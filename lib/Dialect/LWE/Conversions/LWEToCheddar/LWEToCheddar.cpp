@@ -665,10 +665,12 @@ struct ConvertOrionLinearTransformOp
     auto level = rewriter.getI64IntegerAttr(levelVal);
     // bsgs_ratio is the ratio bs:gs (e.g., 2.0 means bs is twice gs).
     // cheddar.linear_transform stores the log2 of that ratio.
+    // For CHEDDAR, BSGS is required (unlike Lattigo where 0 = auto).
+    // Default to log2(2)=1 when the ratio is unset.
     double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
     int64_t logBsgsRatio =
         bsgsRatio > 0 ? static_cast<int64_t>(std::round(std::log2(bsgsRatio)))
-                      : 0;
+                      : 1;
 
     rewriter.replaceOpWithNewOp<cheddar::LinearTransformOp>(
         op, this->typeConverter->convertType(op.getResult().getType()),

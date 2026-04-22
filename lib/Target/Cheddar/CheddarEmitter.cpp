@@ -459,11 +459,28 @@ LogicalResult CheddarEmitter::printOperation(func::FuncOp funcOp) {
   os << ") {\n";
   os.indent();
 
+  // Timing instrumentation (gated by env var)
+  bool isMainFunc = !funcOp.getName().contains("__");
+  if (isMainFunc) {
+    os << "using _Clock = std::chrono::high_resolution_clock;\n";
+    os << "using _Dur = std::chrono::duration<double, std::milli>;\n";
+    os << "double _preproc_ms = 0, _compute_ms = 0;\n";
+    os << "auto _t0 = _Clock::now();\n";
+  }
+
   // Emit body
   for (Block &block : funcOp.getBody()) {
     for (Operation &op : block.getOperations()) {
       if (failed(translate(op))) return failure();
     }
+  }
+
+  if (isMainFunc) {
+    os << "auto _total_ms = _Dur(_Clock::now() - _t0).count();\n";
+    os << "std::cerr << \"[heir-cheddar-timing] preproc=\" << _preproc_ms "
+          "<< \"ms lt_compute=\" << _compute_ms << \"ms other_compute=\" "
+          "<< (_total_ms - _preproc_ms - _compute_ms) "
+          "<< \"ms total=\" << _total_ms << \"ms\" << std::endl;\n";
   }
 
   os.unindent();
@@ -697,6 +714,7 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   }
 
   os << "Pt " << name << ";\n";
+  os << "{ auto _ep = _Clock::now();\n";
   if (needsComplexConversion) {
     std::string complexMsgName = name + "_complex";
     os << "std::vector<Complex> " << complexMsgName << "(" << msgName
@@ -707,6 +725,7 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
     os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
        << ", " << scaleExpr << ", " << msgName << ");\n";
   }
+  os << "_preproc_ms += _Dur(_Clock::now() - _ep).count(); }\n";
   return success();
 }
 
@@ -1071,10 +1090,10 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   // Build the StripedMatrix from the diagonals tensor. CHEDDAR's
   // LinearTransform requires a square StripedMatrix whose logical dimensions
   // match the slot count; only the non-zero diagonals are actually stored.
+  os << "auto _pp_" << name << " = _Clock::now();\n";
   os << "StripedMatrix " << matName << "(" << slots << ", " << slots << ");\n";
   os << "{\n";
   os.indent();
-  os << "// Populate diagonals from " << diagonalsName << "\n";
   os << "auto* data = " << diagonalsName << ".data();\n";
   for (int64_t i = 0; i < numDiags; ++i) {
     os << matName << "[" << diagIndices[i] << "] = std::vector<Complex>(data + "
@@ -1089,11 +1108,14 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   os << "LinearTransform<word> " << ltName << "(" << ctxName << ", " << matName
      << ", " << level << ", " << ctxName << "->param_.GetScale(" << level
      << " - 1), " << bs << ", " << gs << ", " << preRotation << ");\n";
+  os << "_preproc_ms += _Dur(_Clock::now() - _pp_" << name << ").count();\n";
 
   // Evaluate
   os << "Ct " << name << ";\n";
+  os << "auto _cc_" << name << " = _Clock::now();\n";
   os << ltName << ".Evaluate(" << ctxName << ", " << name << ", " << inputName
      << ", " << evkMapName << ");\n";
+  os << "_compute_ms += _Dur(_Clock::now() - _cc_" << name << ").count();\n";
   return success();
 }
 
