@@ -179,21 +179,13 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     // 1. The target backend's overhead (e.g., OpenFHE's flexible-auto-ext
     //    needs 2 extra levels beyond the circuit's multiplicative depth).
     // 2. Any minimum level hint from the raise pass (preserves noise headroom
-    //    from the original Orion parameters), capped at circuitDepth + margin
-    //    to avoid over-provisioning simple circuits.
+    //    from the original Orion parameters).
     int effectiveMaxLevel =
         maxLevel.value_or(0) + static_cast<int>(minLevelOverhead);
     if (auto minLevelHint =
             getOperation()->getAttrOfType<IntegerAttr>("heir.min_level_hint")) {
-      // Cap the hint relative to circuit depth. The original Orion scheme
-      // may have more levels than the circuit needs (e.g., 6 primes for a
-      // mulDepth=0 circuit). The margin accounts for noise headroom from
-      // structured ops (linear_transform adds 1 to noiseScaleDeg) and the
-      // before-first-mul modreduce pattern (1 extra level per mul+lt pair).
-      constexpr int kMinLevelHintMargin = 3;
       int hint = static_cast<int>(minLevelHint.getValue().getSExtValue());
-      int cap = maxLevel.value_or(0) + kMinLevelHintMargin;
-      effectiveMaxLevel = std::max(effectiveMaxLevel, std::min(hint, cap));
+      effectiveMaxLevel = std::max(effectiveMaxLevel, hint);
       getOperation()->removeAttr("heir.min_level_hint");
     }
     // Use OpenFHE's security bounds when targeting OpenFHE, to ensure

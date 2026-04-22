@@ -31,6 +31,12 @@ def RaiseCKKS : Pass<"raise-ckks"> {
     - `ckks.schemeParam` -> stripped (parameter generation will re-derive)
     - `scheme.ckks` -> preserved
   }];
+  let options = [
+    Option<"preserveStructuredOps", "preserve-structured-ops", "bool",
+           /*default=*/"false", "If true, preserve structured ops (e.g. orion.linear_transform) "
+           "as high-level structured ops (e.g. tensor_ext.diagonal_matvec) "
+           "instead of lowering to standard arith/linalg ops.">,
+  ];
   let dependentDialects = [
     "mlir::heir::secret::SecretDialect",
     "mlir::heir::polynomial::PolynomialDialect",

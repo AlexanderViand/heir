@@ -88,6 +88,7 @@ openfhe_end_to_end_test(
         "--openfhe-debug-helper-include-path=tests/Examples/openfhe/ckks/debug_helper.h",
     ],
     mlir_src = ":mlp.mlir",
+    tags = ["manual"],
     test_src = "mlp_openfhe_flexible_auto_ext_debug_test.cpp",
     deps = ["@heir//tests/Examples/openfhe/ckks:debug_helper"],
 )

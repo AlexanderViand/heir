@@ -190,6 +190,52 @@ FastRotationExtOp::getRotationIndices() {
   return {getIndex()};
 }
 
+struct FoldMulNoRelinAndRelin : public OpRewritePattern<RelinOp> {
+  using OpRewritePattern<RelinOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(RelinOp op,
+                                PatternRewriter& rewriter) const override {
+    if (auto mulOp = op.getCiphertext().getDefiningOp<MulNoRelinOp>()) {
+      if (op.getCiphertext().hasOneUse()) {
+        rewriter.replaceOpWithNewOp<MulOp>(op, op.getType(),
+                                           op.getCryptoContext(),
+                                           mulOp.getLhs(), mulOp.getRhs());
+        rewriter.eraseOp(mulOp);
+        return success();
+      }
+    }
+    return failure();
+  }
+};
+
+void RelinOp::getCanonicalizationPatterns(RewritePatternSet& results,
+                                          MLIRContext* context) {
+  results.add<FoldMulNoRelinAndRelin>(context);
+}
+
+struct FoldMulNoRelinAndRelinInPlace : public OpRewritePattern<RelinInPlaceOp> {
+  using OpRewritePattern<RelinInPlaceOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(RelinInPlaceOp op,
+                                PatternRewriter& rewriter) const override {
+    if (auto mulOp = op.getCiphertext().getDefiningOp<MulNoRelinOp>()) {
+      if (op.getCiphertext().hasOneUse()) {
+        rewriter.replaceOpWithNewOp<MulOp>(op, op.getType(),
+                                           op.getCryptoContext(),
+                                           mulOp.getLhs(), mulOp.getRhs());
+        rewriter.eraseOp(mulOp);
+        return success();
+      }
+    }
+    return failure();
+  }
+};
+
+void RelinInPlaceOp::getCanonicalizationPatterns(RewritePatternSet& results,
+                                                 MLIRContext* context) {
+  results.add<FoldMulNoRelinAndRelinInPlace>(context);
+}
+
 }  // namespace openfhe
 }  // namespace heir
 }  // namespace mlir

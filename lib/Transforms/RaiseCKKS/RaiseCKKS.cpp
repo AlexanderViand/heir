@@ -298,7 +298,7 @@ struct RaiseCKKS : impl::RaiseCKKSBase<RaiseCKKS> {
       if (auto constOp = diagonals.getDefiningOp<arith::ConstantOp>()) {
         diagData = dyn_cast<DenseElementsAttr>(constOp.getValue());
       }
-      if (!diagData) {
+      if (!diagData || preserveStructuredOps) {
         // Function-parameter diagonals: emit tensor_ext.diagonal_matvec
         // which preserves the diagonal representation through management.
         Value mappedDiags = mapping.lookup(diagonals);

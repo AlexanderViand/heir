@@ -356,8 +356,14 @@ def NegateOp : Openfhe_UnaryOp<"negate"> { let summary = "Negation of a cipherte
 def NegateInPlaceOp : Openfhe_UnaryInPlaceOp<"negate_inplace"> { let summary = "In-place negation of a ciphertext."; }
 def SquareOp : Openfhe_UnaryOp<"square"> { let summary = "Square of a ciphertext."; }
 def SquareInPlaceOp : Openfhe_UnaryInPlaceOp<"square_inplace"> { let summary = "In-place square of a ciphertext."; }
-def RelinOp : Openfhe_UnaryOp<"relin"> { let summary = "Relinearization of a ciphertext."; }
-def RelinInPlaceOp : Openfhe_UnaryInPlaceOp<"relin_inplace"> { let summary = "In-place relinearization of a ciphertext."; }
+def RelinOp : Openfhe_UnaryOp<"relin"> {
+  let summary = "Relinearization of a ciphertext.";
+  let hasCanonicalizer = 1;
+}
+def RelinInPlaceOp : Openfhe_UnaryInPlaceOp<"relin_inplace"> {
+  let summary = "In-place relinearization of a ciphertext.";
+  let hasCanonicalizer = 1;
+}
 def ModReduceOp : Openfhe_UnaryOp<"mod_reduce"> { let summary = "mod_reduce of a ciphertext. (used only for BGV/CKKS)"; }
 def ModReduceInPlaceOp : Openfhe_UnaryInPlaceOp<"mod_reduce_inplace"> { let summary = "In-place mod_reduce of a ciphertext. (used only for BGV/CKKS)"; }
 
