@@ -21,7 +21,8 @@ module attributes {scheme.ckks, ckks.schemeParam = #ckks.scheme_param<logN = 4, 
   }
 }
 
-// CHECK: module attributes {scheme.ckks}
+// CHECK: module attributes
+// CHECK-SAME: scheme.ckks
 // CHECK-NOT: ckks.schemeParam
 // CHECK: func.func @chebyshev(%[[ARG:.*]]: tensor<8xf64> {secret.secret})
 // CHECK: polynomial.eval

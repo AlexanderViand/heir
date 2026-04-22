@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/IR/CKKSOps.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
@@ -71,6 +72,17 @@ struct RaiseCKKS : impl::RaiseCKKSBase<RaiseCKKS> {
   void runOnOperation() override {
     auto module = getOperation();
 
+    // Preserve the original chain length as a minimum level hint for
+    // generate-param-ckks. The original Orion parameters may include extra
+    // levels for noise headroom beyond what the circuit strictly needs.
+    if (auto schemeParamAttr = module->getAttrOfType<ckks::SchemeParamAttr>(
+            ckks::CKKSDialect::kSchemeParamAttrName)) {
+      int64_t originalQSize = schemeParamAttr.getQ().size();
+      module->setAttr(
+          "heir.min_level_hint",
+          IntegerAttr::get(IntegerType::get(module->getContext(), 64),
+                           originalQSize - 1));
+    }
     // Strip CKKS scheme param (will be re-derived by generate-param)
     module->removeAttr(ckks::CKKSDialect::kSchemeParamAttrName);
     // Strip scale policy and other management attrs

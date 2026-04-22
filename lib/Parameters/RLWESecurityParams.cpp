@@ -13,8 +13,19 @@ struct RLWESecurityParam rlweSecurityParam128BitClassic[] = {
     {1024, 26},   {2048, 53},   {4096, 106},   {8192, 214},
     {16384, 430}, {32768, 868}, {65536, 1747}, {131072, 3523}};
 
-int computeRingDim(int logPQ, int minRingDim) {
-  for (auto& param : rlweSecurityParam128BitClassic) {
+// OpenFHE's HEStd_ternary bounds for 128-bit classic security.
+// These are slightly more generous than the standard HE security guidelines
+// above, and must be used when targeting OpenFHE to ensure generated
+// parameters pass OpenFHE's runtime security validation.
+// Source: openfhe-development/src/core/lib/lattice/stdlatticeparms.cpp
+struct RLWESecurityParam rlweSecurityParamOpenFHETernary[] = {
+    {1024, 27},   {2048, 54},   {4096, 109},   {8192, 218},
+    {16384, 438}, {32768, 881}, {65536, 1747}, {131072, 3523}};
+
+int computeRingDim(int logPQ, int minRingDim, bool useOpenFHEBounds) {
+  auto& table = useOpenFHEBounds ? rlweSecurityParamOpenFHETernary
+                                 : rlweSecurityParam128BitClassic;
+  for (auto& param : table) {
     if (param.ringDim < minRingDim) {
       continue;
     }

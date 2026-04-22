@@ -185,6 +185,10 @@ def GenerateParamCKKS : Pass<"generate-param-ckks"> {
     Option<"reducedError", "reduced-error", "bool",
            /*default=*/"false", "If true, uses the prime selection logic in Reduced Error paper "
            "(https://eprint.iacr.org/2020/1118).">,
+    Option<"minLevelOverhead", "min-level-overhead", "int",
+           /*default=*/"0", "Extra levels to add beyond what the circuit requires, "
+           "for backend-specific overhead. OpenFHE's flexible-auto needs 1, "
+           "flexible-auto-ext needs 2. Added to the circuit's max level.">,
   ];
 }
 

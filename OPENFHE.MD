@@ -793,3 +793,69 @@ The management consequence is:
 - OpenFHE-aware CKKS management then checks the chosen scaling mode against the
   actual OpenFHE runtime law
 - if needed, it grows `ckks.schemeParam` before backend lowering
+
+## 10. Composite scaling (future work)
+
+Composite scaling (`COMPOSITESCALINGAUTO`, `COMPOSITESCALINGMANUAL`) is an
+OpenFHE feature for high-precision CKKS on narrow-word hardware (e.g., 32-bit
+accelerators). Reference: ePrint 2023/1462.
+
+### Core idea
+
+Instead of one large NTT-friendly prime per level, each "level" consists of a
+**composite** of `d` smaller primes whose product approximates
+`2^scalingModSize`:
+
+```
+q_i = p_1 * p_2 * ... * p_d  ≈  2^Δ
+```
+
+The composite degree `d` is determined by:
+
+```
+d = ceil(scalingModSize / registerWordSize)
+```
+
+For `scalingModSize=60, registerWordSize=32`: `d = 2` (two 30-bit primes per
+level).
+
+### Key implications for HEIR
+
+1. **More Q primes**: `numPrimes *= compositeDegree`. A circuit with
+   `mulDepth=5` and `d=2` needs 12 Q primes (not 6).
+
+1. **Smaller P primes**: `auxBits = min(registerWordSize - 1, 60)`. For
+   `registerWordSize=32`, P primes are ~31-bit (vs 60-bit for FLEXIBLEAUTO).
+
+1. **Rescale drops `d` levels**: Each multiplication + rescale drops `d` RNS
+   primes instead of 1.
+
+1. **Larger total logQP**: Despite smaller individual primes, the total `logQP`
+   is larger because there are `d` times more Q primes. This means larger ring
+   dimensions for the same security level.
+
+1. **Single-key only**: Composite scaling does not support multiparty CKKS or
+   scheme switching.
+
+### P prime sizing
+
+The P prime size (`auxBits`) in OpenFHE is:
+
+- **FLEXIBLEAUTO/EXT**: `auxBits = AUXMODSIZE = 60` (hardcoded)
+- **COMPOSITESCALING**: `auxBits = registerWordSize - 1` (e.g., 31 for 32-bit)
+
+This is computed in `ckksrns-parametergeneration.cpp:117-121`. The P primes are
+then generated in `rns-cryptoparameters.cpp:PrecomputeCRTTables`.
+
+### HEIR support status
+
+Not currently supported. To add:
+
+- Re-add `composite-auto` / `composite-manual` to `ScalingTechniqueUtils.h`
+- Add `SetRegisterWordSize(...)` and `SetCompositeDegree(...)` to the emitter
+- Adjust level management: each multiplication consumes `d` levels
+- Adjust `generate-param-ckks`: multiply `numScaleMod` by `d` for actual Q count
+- Add to `ConfigureCryptoContext` parameter generation
+
+Composite scaling is useful for 32-bit hardware targets and for achieving very
+high-precision CKKS with narrow-word NTT implementations.
