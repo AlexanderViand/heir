@@ -1,6 +1,7 @@
 #ifndef LIB_DIALECT_MODULEATTRIBUTES_H_
 #define LIB_DIALECT_MODULEATTRIBUTES_H_
 
+#include "lib/Dialect/CKKSScalePolicy.h"
 #include "llvm/include/llvm/ADT/StringRef.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"   // from @llvm-project
@@ -26,14 +27,6 @@ constexpr const static ::llvm::StringLiteral kRequestedSlotCountAttrName =
     "scheme.requested_slot_count";
 constexpr const static ::llvm::StringLiteral kActualSlotCountAttrName =
     "scheme.actual_slot_count";
-constexpr const static ::llvm::StringLiteral kCKKSScalePolicyAttrName =
-    "ckks.scale_policy";
-constexpr const static ::llvm::StringLiteral kCKKSReducedErrorAttrName =
-    "ckks.reduced_error";
-constexpr const static ::llvm::StringLiteral kCKKSNominalScalePolicyValue =
-    "nominal";
-constexpr const static ::llvm::StringLiteral kCKKSPreciseScalePolicyValue =
-    "precise";
 
 bool moduleIsBGV(Operation* moduleOp);
 bool moduleIsBFV(Operation* moduleOp);

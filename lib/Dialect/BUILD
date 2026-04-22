@@ -49,10 +49,19 @@ cc_library(
 )
 
 cc_library(
+    name = "CKKSScalePolicy",
+    hdrs = ["CKKSScalePolicy.h"],
+    deps = [
+        "@llvm-project//llvm:Support",
+    ],
+)
+
+cc_library(
     name = "ModuleAttributes",
     srcs = ["ModuleAttributes.cpp"],
     hdrs = ["ModuleAttributes.h"],
     deps = [
+        ":CKKSScalePolicy",
         "@heir//lib/Dialect/BGV/IR:Dialect",
         "@heir//lib/Dialect/CKKS/IR:Dialect",
         "@llvm-project//llvm:Support",

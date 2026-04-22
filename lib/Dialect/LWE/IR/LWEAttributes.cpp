@@ -1,6 +1,7 @@
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
 
 #include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
+#include "lib/Dialect/CKKSScalePolicy.h"
 #include "lib/Dialect/ModArith/IR/ModArithTypes.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
 #include "lib/Dialect/RNS/IR/RNSTypes.h"
@@ -23,9 +24,6 @@ namespace heir {
 namespace lwe {
 
 namespace {
-
-constexpr llvm::StringLiteral kCKKSScalePolicyAttrName = "ckks.scale_policy";
-constexpr llvm::StringLiteral kCKKSPreciseScalePolicyValue = "precise";
 
 APInt getNominalCkksRescaleFactor(Operation* op, const APInt& dividedModulus) {
   if (op) {

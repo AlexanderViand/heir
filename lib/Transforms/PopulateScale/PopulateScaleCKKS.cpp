@@ -163,6 +163,11 @@ FailureOr<ckks::SchemeParamAttr> maybeRegeneratePreciseSchemeParam(
     return schemeParamAttr;
   }
 
+  // This pass still runs on secret/mgmt IR, before SecretToCKKS embeds the
+  // selected modulus chain into final CKKS/LWE ciphertext types. Regenerating
+  // the scheme parameter here therefore updates the authoritative module-level
+  // CKKS params before any backend-facing types are materialized.
+
   auto q = schemeParamAttr.getQ().asArrayRef();
   if (q.empty()) {
     return failure();
@@ -361,7 +366,23 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     };
 
     SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
-    while (true) {
+    bool refinementConverged = false;
+    int maxPreciseRefinementIterations = 1;
+    if (scalePolicyKind == CKKSScalePolicyKind::kPrecise) {
+      int adjustScaleCount = 0;
+      getOperation()->walk([&](mgmt::AdjustScaleOp) { ++adjustScaleCount; });
+      auto maxLevel = getMaxLevel(getOperation()).value_or(0);
+      // Each successful refinement lowers at least one adjust_scale meeting
+      // point by one level, so the total number of meaningful rewrites is
+      // bounded by the number of adjust_scale sites times the available levels
+      // below them. Add a small cushion for the final fixed-point iteration.
+      maxPreciseRefinementIterations =
+          std::max(1, adjustScaleCount * (maxLevel + 1) + 1);
+    }
+
+    for (int refinementIteration = 0;
+         refinementIteration < maxPreciseRefinementIterations;
+         ++refinementIteration) {
       if (failed(runAnnotateMgmt())) {
         signalPassFailure();
         return;
@@ -415,7 +436,15 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       }
 
       noOpAdjustScales = std::move(candidateNoOpAdjustScales);
+      refinementConverged = true;
       break;
+    }
+    if (!refinementConverged) {
+      getOperation()->emitOpError()
+          << "precise scale refinement exceeded its monotone rewrite bound; "
+             "this likely indicates a non-converging adjust_scale repair loop";
+      signalPassFailure();
+      return;
     }
 
     for (auto op : noOpAdjustScales) {
@@ -479,6 +508,8 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     // In precise mode, mgmt.modreduce chains are semantically significant for
     // exact scale tracking and must not be folded into level_reduce forms by
     // generic canonicalization.
+    // TODO(#2364): replace this coarse skip with a targeted precise-safe
+    // canonicalization strategy once the offending folds are isolated.
     OpPassManager cleanup("builtin.module");
     if (scalePolicyKind != CKKSScalePolicyKind::kPrecise) {
       cleanup.addPass(createCanonicalizerPass());

@@ -29,6 +29,7 @@ cc_library(
         ":enums_inc_gen",
         ":ops_inc_gen",
         ":types_inc_gen",
+        "@heir//lib/Dialect:CKKSScalePolicy",
         "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect/CKKS/IR:Headers",
         "@heir//lib/Dialect/ModArith/IR:Dialect",
