@@ -84,6 +84,21 @@ struct Config {
   int64_t levelBudgetDecode;
 };
 
+namespace {
+
+int inferOpenfheMulDepthFromQSize(size_t qSize, StringRef scalingTechnique) {
+  StringRef resolvedScalingTechnique =
+      resolveScalingTechnique(scalingTechnique);
+  size_t overhead =
+      resolvedScalingTechnique == kScalingTechniqueFlexibleAutoExt ? 2 : 1;
+  if (qSize < overhead) {
+    return 0;
+  }
+  return static_cast<int>(qSize - overhead);
+}
+
+}  // namespace
+
 #define GEN_PASS_DEF_CONFIGURECRYPTOCONTEXT
 #include "lib/Dialect/Openfhe/Transforms/Passes.h.inc"
 
@@ -307,11 +322,14 @@ struct ConfigureCryptoContext
       }
       auto q = schemeParamAttr.getQ();
       if (!q.empty()) {
-        // OpenFHE's GenCryptoContext interprets multiplicative depth as the
-        // number of ct-ct multiply stages and internally allocates one more Q
-        // modulus than that depth. HEIR's ckks.schemeParam stores the actual
-        // Q chain, so the readout mapping is |Q| - 1.
-        inferredMulDepth = static_cast<int>(q.size()) - 1;
+        // CKKS schemeParam stores the actual Q chain length chosen by
+        // management. OpenFHE's multiplicative-depth parameter is one smaller
+        // than |Q| in the ordinary modes and two smaller in FLEXIBLEAUTOEXT.
+        StringRef effectiveScalingTechnique =
+            scalingTechnique.empty() ? StringRef(inferredScalingTechnique)
+                                     : StringRef(scalingTechnique);
+        inferredMulDepth =
+            inferOpenfheMulDepthFromQSize(q.size(), effectiveScalingTechnique);
         auto firstQ = static_cast<uint64_t>(q[0]);
         inferredFirstModSize =
             std::numeric_limits<uint64_t>::digits - llvm::countl_zero(firstQ);
@@ -439,7 +457,7 @@ struct ConfigureCryptoContext
       module->emitError()
           << "CKKS OpenFHE configuration requires the scaling technique to be "
              "resolved before `openfhe-configure-crypto-context`; run the "
-             "OpenFHE CKKS adjustment pass first or pass an explicit "
+             "OpenFHE-aware CKKS management pipeline first or pass an explicit "
              "`--openfhe-configure-crypto-context=scaling-technique=` "
              "override";
       return failure();

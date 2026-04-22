@@ -1,4 +1,4 @@
-// RUN: heir-opt --mlir-to-ckks='ciphertext-degree=32' --scheme-to-openfhe='entry-function=simple_sum' %s | FileCheck %s
+// RUN: heir-opt --mlir-to-ckks='ciphertext-degree=32 openfhe-scaling-technique=fixed-manual' --scheme-to-openfhe='entry-function=simple_sum openfhe-scaling-technique=fixed-manual' %s | FileCheck %s
 
 // CHECK: @simple_sum
 // CHECK-COUNT-6: openfhe.rot

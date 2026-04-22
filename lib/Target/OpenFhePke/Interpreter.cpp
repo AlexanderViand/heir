@@ -18,6 +18,7 @@
 #include "lib/Dialect/Openfhe/IR/OpenfheDialect.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheOps.h"
 #include "lib/Dialect/Openfhe/IR/OpenfheTypes.h"
+#include "lib/Dialect/Openfhe/Transforms/ScalingTechniqueUtils.h"
 #include "lib/Dialect/RNS/IR/RNSDialect.h"
 #include "lib/Dialect/TensorExt/IR/TensorExtDialect.h"
 #include "lib/Target/OpenFhePke/OpenFheLinearTransformHelpers.h"
@@ -1858,25 +1859,40 @@ void Interpreter::visit(MakeCKKSPackedPlaintextOp op) {
   uint32_t level = op.getLevelAttr()
                        ? static_cast<uint32_t>(op.getLevelAttr().getInt())
                        : static_cast<uint32_t>(0);
+  auto scalingFactorBitsAttr =
+      op->getAttrOfType<FloatAttr>(kScalingFactorBitsAttrName);
 
   if (elemType.isF32()) {
     const auto& vec = *floatVectors.at(op.getValue());
     std::vector<double> vecDouble(vec.begin(), vec.end());
     TIME_OPERATION_NONCT(
         "MakeCKKSPackedPlaintext", op.getPlaintext(),
-        cc->MakeCKKSPackedPlaintext(vecDouble, noiseScaleDeg, level),
+        scalingFactorBitsAttr
+            ? makeOpenfheCKKSPackedPlaintextWithScalingBits(
+                  cc, vecDouble, noiseScaleDeg, level,
+                  scalingFactorBitsAttr.getValueAsDouble())
+            : cc->MakeCKKSPackedPlaintext(vecDouble, noiseScaleDeg, level),
         plaintexts);
   } else if (elemType.isF64()) {
     const auto& vec = *doubleVectors.at(op.getValue());
-    TIME_OPERATION_NONCT("MakeCKKSPackedPlaintext", op.getPlaintext(),
-                         cc->MakeCKKSPackedPlaintext(vec, noiseScaleDeg, level),
-                         plaintexts);
+    TIME_OPERATION_NONCT(
+        "MakeCKKSPackedPlaintext", op.getPlaintext(),
+        scalingFactorBitsAttr
+            ? makeOpenfheCKKSPackedPlaintextWithScalingBits(
+                  cc, vec, noiseScaleDeg, level,
+                  scalingFactorBitsAttr.getValueAsDouble())
+            : cc->MakeCKKSPackedPlaintext(vec, noiseScaleDeg, level),
+        plaintexts);
   } else if (elemType.isInteger()) {
     const auto& vec = *intVectors.at(op.getValue());
     std::vector<double> vecDouble(vec.begin(), vec.end());
     TIME_OPERATION_NONCT(
         "MakeCKKSPackedPlaintext", op.getPlaintext(),
-        cc->MakeCKKSPackedPlaintext(vecDouble, noiseScaleDeg, level),
+        scalingFactorBitsAttr
+            ? makeOpenfheCKKSPackedPlaintextWithScalingBits(
+                  cc, vecDouble, noiseScaleDeg, level,
+                  scalingFactorBitsAttr.getValueAsDouble())
+            : cc->MakeCKKSPackedPlaintext(vecDouble, noiseScaleDeg, level),
         plaintexts);
   }
 }

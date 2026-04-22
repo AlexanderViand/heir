@@ -12,6 +12,10 @@ def ResolveReconcileCKKS : Pass<"resolve-reconcile-ckks"> {
     without yet populating concrete scale values.
   }];
 
+  let dependentDialects = [
+    "mlir::heir::mgmt::MgmtDialect",
+  ];
+
   let options = [
     Option<"reconcilePolicy", "reconcile-policy", "std::string",
            /*default=*/"\"local-highest-meeting-point\"",
@@ -62,6 +66,10 @@ def PopulateScaleCKKS : Pass<"populate-scale-ckks"> {
     (* example filepath=tests/Transforms/populate_scale/ckks/doctest.mlir *)
   }];
 
+  let dependentDialects = [
+    "mlir::heir::mgmt::MgmtDialect",
+  ];
+
   let options = [
     Option<"beforeMulIncludeFirstMul", "before-mul-include-first-mul", "bool",
            /*default=*/"false", "Modulus switching before each multiplication, including the first multiplication (default to false)">,
@@ -71,6 +79,9 @@ def PopulateScaleCKKS : Pass<"populate-scale-ckks"> {
     Option<"scalePolicy", "scale-policy", "std::string",
            /*default=*/"\"nominal\"",
            "CKKS scale policy: `nominal` or `precise` (the latter is superseded by `resolve-scale-ckks-bmph20`)">,
+    Option<"openfheScalingTechnique", "openfhe-scaling-technique", "std::string",
+           /*default=*/"\"\"",
+           "If set, resolve CKKS management with OpenFHE-compatible state semantics using the given scaling technique (`fixed-manual`, `flexible-auto`, `flexible-auto-ext`, `composite-auto`, `composite-manual`, `no-rescale`)">,
   ];
 }
 
@@ -83,11 +94,18 @@ def ResolveScaleCKKSBMPH20 : Pass<"resolve-scale-ckks-bmph20"> {
     CKKS parameters if the refined plan needs more levels.
   }];
 
+  let dependentDialects = [
+    "mlir::heir::mgmt::MgmtDialect",
+  ];
+
   let options = [
     Option<"beforeMulIncludeFirstMul", "before-mul-include-first-mul", "bool",
            /*default=*/"false", "Modulus switching before each multiplication, including the first multiplication (default to false)">,
     Option<"maxIterations", "max-iterations", "int",
            /*default=*/"8", "Maximum number of precise refinement iterations before failing hard">,
+    Option<"openfheScalingTechnique", "openfhe-scaling-technique", "std::string",
+           /*default=*/"\"\"",
+           "If set, resolve CKKS management with OpenFHE-compatible state semantics using the given scaling technique (`fixed-manual`, `flexible-auto`, `flexible-auto-ext`, `composite-auto`, `composite-manual`, `no-rescale`)">,
   ];
 }
 

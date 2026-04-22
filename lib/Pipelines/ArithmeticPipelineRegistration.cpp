@@ -414,12 +414,16 @@ void mlirToRLWEPipeline(OpPassManager& pm,
         ResolveScaleCKKSBMPH20Options resolveScaleCKKSBMPH20Options;
         resolveScaleCKKSBMPH20Options.beforeMulIncludeFirstMul =
             options.modulusSwitchBeforeFirstMul;
+        resolveScaleCKKSBMPH20Options.openfheScalingTechnique =
+            options.openfheScalingTechnique;
         pm.addPass(createResolveScaleCKKSBMPH20(resolveScaleCKKSBMPH20Options));
       } else {
         PopulateScaleCKKSOptions populateScaleCKKSOptions;
         populateScaleCKKSOptions.beforeMulIncludeFirstMul =
             options.modulusSwitchBeforeFirstMul;
         populateScaleCKKSOptions.scalePolicy = options.ckksScalePolicy;
+        populateScaleCKKSOptions.openfheScalingTechnique =
+            options.openfheScalingTechnique;
         pm.addPass(createPopulateScaleCKKS(populateScaleCKKSOptions));
       }
       break;
@@ -496,12 +500,6 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(const RLWEScheme scheme) {
 
 BackendPipelineBuilder toOpenFhePipelineBuilder() {
   return [=](OpPassManager& pm, const BackendOptions& options) {
-    auto adjustCkksSchemeParamOptions = openfhe::AdjustCKKSSchemeParamOptions{};
-    adjustCkksSchemeParamOptions.scalingTechnique =
-        options.openfheScalingTechnique;
-    pm.addPass(
-        openfhe::createAdjustCKKSSchemeParam(adjustCkksSchemeParamOptions));
-
     // Canonicalize to ensure the ciphertext operands are in the first operand
     // of ct-pt ops.
     pm.addPass(createCanonicalizerPass());
@@ -649,6 +647,7 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.splitPreprocessing = options.splitPreprocessing;
   suboptions.experimentalDisableLoopUnroll =
       options.experimentalDisableLoopUnroll;
+  suboptions.openfheScalingTechnique = options.openfheScalingTechnique;
 
   mlirToRLWEPipelineBuilder(mlir::heir::RLWEScheme::ckksScheme)(manager,
                                                                 suboptions);

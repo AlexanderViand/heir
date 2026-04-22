@@ -3,39 +3,15 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AdjustCKKSSchemeParam : Pass<"openfhe-adjust-ckks-scheme-param"> {
-  let summary = "Adjust CKKS scheme parameters for OpenFHE-native depth semantics";
-  let description = [{
-    This pass runs before OpenFHE lowering and updates `ckks.schemeParam` when
-    OpenFHE-native CKKS semantics require a longer modulus chain than the
-    current module attribute provides.
-
-    It models OpenFHE's ciphertext noise-scale-degree law on the already
-    managed CKKS/Orion IR, then regenerates the scheme parameters if a longer
-    chain is required. The later `openfhe-configure-crypto-context` pass then
-    reads the resulting scheme parameters directly instead of rediscovering
-    structured-op depth requirements from OpenFHE IR.
-
-    The exact per-level scale schedule still depends on the selected OpenFHE
-    scaling technique. This pass handles only the shared chain-length
-    recurrence. Exact scale planning stays in the CKKS management pipeline.
-  }];
-  let options = [
-    Option<"scalingTechnique", "scaling-technique", "std::string",
-           /*default=*/"\"\"",
-           "OpenFHE scaling technique (`fixed-manual`, `fixed-auto`, `flexible-auto`, `flexible-auto-ext`, `composite-auto`, `composite-manual`, `no-rescale`)">,
-  ];
-}
-
 def ConfigureCryptoContext : Pass<"openfhe-configure-crypto-context"> {
   let summary = "Configure the crypto context in OpenFHE";
   let description = [{
     This pass generates helper functions to generate and configure the OpenFHE crypto context for the given function. Generating the crypto context sets the appropriate encryption parameters, while the configuration generates the necessary evaluation keys (relinearization and rotation keys).
 
     For CKKS, this pass consumes the modulus chain, scaling technique, and
-    feature requirements already attached to the IR by earlier management and
-    OpenFHE-specific adjustment passes. It does not re-derive CKKS structured-op
-    depth requirements or choose a new modulus chain.
+    feature requirements already attached to the IR by the earlier management
+    pipeline. It does not re-derive CKKS structured-op depth requirements or
+    choose a new modulus chain.
 
     For the options, reader can refer to the OpenFHE documentation at
     https://github.com/openfheorg/openfhe-development/blob/main/src/pke/examples/README.md#description-of-the-cryptocontext-parameters-and-their-restrictions

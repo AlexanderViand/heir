@@ -1,4 +1,4 @@
-// RUN: heir-opt --annotate-module="backend=openfhe scheme=ckks" --affine-loop-normalize='promote-single-iter=1' --mlir-to-ckks --scheme-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --annotate-module="backend=openfhe scheme=ckks" --affine-loop-normalize='promote-single-iter=1' --mlir-to-ckks='openfhe-scaling-technique=fixed-manual' --scheme-to-openfhe='openfhe-scaling-technique=fixed-manual' %s | FileCheck %s
 
 // This pipeline fully loop unrolls the matmul.
 

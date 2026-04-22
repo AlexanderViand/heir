@@ -12,7 +12,6 @@ cc_library(
         "Passes.h",
     ],
     deps = [
-        ":AdjustCKKSSchemeParam",
         ":AllocToInPlace",
         ":ConfigureCryptoContext",
         ":ConvertToExtendedBasis",
@@ -21,32 +20,6 @@ cc_library(
         ":HoistKeySwitchDown",
         ":pass_inc_gen",
         "@heir//lib/Dialect/Openfhe/IR:Dialect",
-    ],
-)
-
-cc_library(
-    name = "AdjustCKKSSchemeParam",
-    srcs = ["AdjustCKKSSchemeParam.cpp"],
-    hdrs = [
-        "AdjustCKKSSchemeParam.h",
-        "ScalingTechniqueUtils.h",
-    ],
-    deps = [
-        ":pass_inc_gen",
-        "@heir//lib/Analysis:Utils",
-        "@heir//lib/Analysis/LevelAnalysis",
-        "@heir//lib/Analysis/SecretnessAnalysis",
-        "@heir//lib/Dialect:ModuleAttributes",
-        "@heir//lib/Dialect/CKKS/IR:Dialect",
-        "@heir//lib/Dialect/LWE/IR:Dialect",
-        "@heir//lib/Dialect/Orion/IR:Dialect",
-        "@heir//lib/Parameters/CKKS:Params",
-        "@llvm-project//llvm:Support",
-        "@llvm-project//mlir:Analysis",
-        "@llvm-project//mlir:IR",
-        "@llvm-project//mlir:Pass",
-        "@llvm-project//mlir:Support",
-        "@openfhe",
     ],
 )
 

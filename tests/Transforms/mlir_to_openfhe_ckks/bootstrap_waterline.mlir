@@ -1,4 +1,4 @@
-// RUN: heir-opt --mlir-to-ckks=ckks-bootstrap-waterline=3 --scheme-to-openfhe %s | FileCheck %s
+// RUN: heir-opt --mlir-to-ckks='ckks-bootstrap-waterline=3 openfhe-scaling-technique=fixed-manual' --scheme-to-openfhe='openfhe-scaling-technique=fixed-manual' %s | FileCheck %s
 
 // CHECK: func.func @bootstrap_waterline
 // CHECK:   openfhe.bootstrap
