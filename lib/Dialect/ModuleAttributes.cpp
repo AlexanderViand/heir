@@ -99,6 +99,14 @@ bool moduleUsesPreciseCKKSScalePolicy(Operation* moduleOp) {
   return getModuleCKKSScalePolicy(moduleOp) == kCKKSPreciseScalePolicyValue;
 }
 
+bool moduleUsesQAwarePreciseCKKSScalePolicy(Operation* moduleOp) {
+  // CHEDDAR's CKKS path uses a backend-defined per-level scale schedule rather
+  // than the generic q_i-aware exact rescale model. Keep "precise" symbolic
+  // for that backend until it grows a dedicated backend-aware realization.
+  return moduleUsesPreciseCKKSScalePolicy(moduleOp) &&
+         !moduleIsCheddar(moduleOp);
+}
+
 void moduleSetCKKSScalePolicy(Operation* moduleOp, StringRef policy) {
   moduleOp->setAttr(kCKKSScalePolicyAttrName,
                     mlir::StringAttr::get(moduleOp->getContext(), policy));
@@ -118,9 +126,15 @@ bool moduleIsLattigo(Operation* moduleOp) {
          nullptr;
 }
 
+bool moduleIsCheddar(Operation* moduleOp) {
+  return moduleOp->getAttrOfType<mlir::UnitAttr>(kCheddarBackendAttrName) !=
+         nullptr;
+}
+
 void moduleClearBackend(Operation* moduleOp) {
   moduleOp->removeAttr(kOpenfheBackendAttrName);
   moduleOp->removeAttr(kLattigoBackendAttrName);
+  moduleOp->removeAttr(kCheddarBackendAttrName);
 }
 
 void moduleSetOpenfhe(Operation* moduleOp) {
@@ -132,6 +146,12 @@ void moduleSetOpenfhe(Operation* moduleOp) {
 void moduleSetLattigo(Operation* moduleOp) {
   moduleClearBackend(moduleOp);
   moduleOp->setAttr(kLattigoBackendAttrName,
+                    mlir::UnitAttr::get(moduleOp->getContext()));
+}
+
+void moduleSetCheddar(Operation* moduleOp) {
+  moduleClearBackend(moduleOp);
+  moduleOp->setAttr(kCheddarBackendAttrName,
                     mlir::UnitAttr::get(moduleOp->getContext()));
 }
 

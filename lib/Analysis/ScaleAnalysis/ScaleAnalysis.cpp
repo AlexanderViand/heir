@@ -32,6 +32,11 @@
 namespace mlir {
 namespace heir {
 
+static bool isScaleBalancingConsumer(Operation* op) {
+  return isa<arith::AddIOp, arith::AddFOp, arith::SubIOp, arith::SubFOp,
+             arith::MulIOp, arith::MulFOp>(op);
+}
+
 //===----------------------------------------------------------------------===//
 // ScaleModel
 //===----------------------------------------------------------------------===//
@@ -75,6 +80,18 @@ FailureOr<APInt> BGVScaleModel::evalModReduceScaleBackward(
                                APInt(64, qi[level] % t.getZExtValue()), t);
 }
 
+FailureOr<APInt> BGVScaleModel::evalLevelReduceScale(
+    const bgv::LocalParam& inputParam, const APInt& scale,
+    int64_t levelToDrop) {
+  return scale;
+}
+
+FailureOr<APInt> BGVScaleModel::evalLevelReduceScaleBackward(
+    const bgv::LocalParam& inputParam, const APInt& resultScale,
+    int64_t levelToDrop) {
+  return resultScale;
+}
+
 FailureOr<APInt> CKKSScaleModel::evalMulScale(const ckks::LocalParam& param,
                                               const APInt& lhs,
                                               const APInt& rhs) {
@@ -100,6 +117,18 @@ FailureOr<APInt> CKKSScaleModel::evalModReduceScaleBackward(
   APInt nominalScale =
       getNominalPowerOfTwoScaleFromLog2(schemeParam->getLogDefaultScale());
   return multiplyUnsignedAPIntExact(resultScale, nominalScale);
+}
+
+FailureOr<APInt> CKKSScaleModel::evalLevelReduceScale(
+    const ckks::LocalParam& inputParam, const APInt& scale,
+    int64_t levelToDrop) {
+  return scale;
+}
+
+FailureOr<APInt> CKKSScaleModel::evalLevelReduceScaleBackward(
+    const ckks::LocalParam& inputParam, const APInt& resultScale,
+    int64_t levelToDrop) {
+  return resultScale;
 }
 
 FailureOr<APInt> CKKSPreciseScaleModel::evalMulScale(
@@ -132,6 +161,18 @@ FailureOr<APInt> CKKSPreciseScaleModel::evalModReduceScaleBackward(
   }
   APInt droppedPrime(64, static_cast<uint64_t>(schemeParam->getQi()[level]));
   return multiplyUnsignedAPIntExact(resultScale, droppedPrime);
+}
+
+FailureOr<APInt> CKKSPreciseScaleModel::evalLevelReduceScale(
+    const ckks::LocalParam& inputParam, const APInt& scale,
+    int64_t levelToDrop) {
+  return scale;
+}
+
+FailureOr<APInt> CKKSPreciseScaleModel::evalLevelReduceScaleBackward(
+    const ckks::LocalParam& inputParam, const APInt& resultScale,
+    int64_t levelToDrop) {
+  return resultScale;
 }
 
 //===----------------------------------------------------------------------===//
@@ -237,8 +278,56 @@ LogicalResult ScaleAnalysis<ScaleModelT>::visitOperation(
         }
         propagate(modReduceOp.getResult(), ScaleState(*newScale));
       })
+      .template Case<mgmt::LevelReduceOp>([&](auto levelReduceOp) {
+        SmallVector<APInt> scales;
+        getOperandScales(levelReduceOp, scales);
+        if (scales.empty()) {
+          return;
+        }
+
+        auto newScale = ScaleModelT::evalLevelReduceScale(
+            getLocalParam(levelReduceOp.getInput()), scales[0],
+            levelReduceOp.getLevelToDrop());
+        if (failed(newScale)) {
+          op->emitOpError("failed to infer exact output scale");
+          status = failure();
+          return;
+        }
+        propagate(levelReduceOp.getResult(), ScaleState(*newScale));
+      })
       .template Case<mgmt::AdjustScaleOp>([&](auto adjustScaleOp) {
-        // adjust_scale is resolved later in PopulateScaleCKKS.
+        // adjust_scale is materialized later. When a single downstream
+        // scale-balancing user already has a known peer scale, use that as
+        // the target scale for this abstract result.
+        if (!adjustScaleOp->hasOneUse()) {
+          return;
+        }
+        Operation* consumer = *adjustScaleOp->user_begin();
+        if (!isScaleBalancingConsumer(consumer)) {
+          return;
+        }
+
+        std::optional<APInt> peerScale;
+        for (Value operand : consumer->getOperands()) {
+          if (operand == adjustScaleOp.getResult()) {
+            continue;
+          }
+          auto operandState = getLatticeElement(operand)->getValue();
+          if (!operandState.isInitialized() || operandState.hasConflict()) {
+            continue;
+          }
+          if (!peerScale.has_value()) {
+            peerScale = operandState.getScale();
+            continue;
+          }
+          if (!APInt::isSameValue(*peerScale, operandState.getScale(),
+                                  /*SignedCompare=*/false)) {
+            return;
+          }
+        }
+        if (peerScale.has_value()) {
+          propagate(adjustScaleOp.getResult(), ScaleState(*peerScale));
+        }
         return;
       })
       .template Case<mgmt::InitOp>([&](auto initOp) {
@@ -456,6 +545,30 @@ LogicalResult ScaleAnalysisBackward<ScaleModelT>::visitOperation(
           return;
         }
         propagate(modReduceOp.getInput(), ScaleState(*newScale));
+      })
+      .template Case<mgmt::LevelReduceOp>([&](auto levelReduceOp) {
+        SmallVector<APInt> resultScales;
+        getResultScales(levelReduceOp, resultScales);
+        if (resultScales.empty()) {
+          return;
+        }
+        SmallVector<int64_t> operandWithoutScaleIndices;
+        SmallVector<APInt> scales;
+        getOperandScales(levelReduceOp, operandWithoutScaleIndices, scales);
+        if (!scales.empty()) {
+          return;
+        }
+
+        auto newScale = ScaleModelT::evalLevelReduceScaleBackward(
+            getLocalParam(levelReduceOp.getInput()), resultScales[0],
+            levelReduceOp.getLevelToDrop());
+        if (failed(newScale)) {
+          levelReduceOp->emitError(
+              "failed to back-propagate exact operand scale");
+          status = failure();
+          return;
+        }
+        propagate(levelReduceOp.getInput(), ScaleState(*newScale));
       })
       .template Case<mgmt::AdjustScaleOp>([&](auto adjustScaleOp) {
         // Do not back propagate through adjust scale op

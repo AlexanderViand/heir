@@ -120,9 +120,11 @@ LogicalResult createAndRunDataflowForPolicy(
   dataflow::loadBaselineAnalyses(solver);
   solver.load<SecretnessAnalysis>();
   APInt inputScale = getNominalPowerOfTwoScaleFromLog2(logDefaultScale);
-  if (beforeMulIncludeFirstMul) {
+  if (beforeMulIncludeFirstMul && !moduleIsCheddar(op)) {
     LDBG() << "Encoding at scale^2 due to 'include-first-mul' config";
     inputScale = multiplyUnsignedAPIntExact(inputScale, inputScale);
+  } else if (beforeMulIncludeFirstMul && moduleIsCheddar(op)) {
+    LDBG() << "Keeping CHEDDAR inputs on the canonical scale bucket";
   }
   auto param = ckks::getSchemeParamFromAttr(ckksSchemeParamAttr);
   solver.load<ScaleAnalysis<ScaleModelT>>(param,
@@ -316,8 +318,12 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       signalPassFailure();
       return;
     }
-    CKKSScalePolicyKind scalePolicyKind = *parsedScalePolicy;
     moduleSetCKKSScalePolicy(getOperation(), scalePolicy);
+    bool useQAwarePreciseScalePolicy =
+        moduleUsesQAwarePreciseCKKSScalePolicy(getOperation());
+    CKKSScalePolicyKind effectiveScalePolicyKind =
+        useQAwarePreciseScalePolicy ? CKKSScalePolicyKind::kPrecise
+                                    : CKKSScalePolicyKind::kNominal;
 
     auto ckksSchemeParamAttr = mlir::dyn_cast<ckks::SchemeParamAttr>(
         getOperation()->getAttr(ckks::CKKSDialect::kSchemeParamAttrName));
@@ -367,8 +373,8 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
 
     SmallVector<mgmt::AdjustScaleOp> noOpAdjustScales;
     bool refinementConverged = false;
-    int maxPreciseRefinementIterations = 1;
-    if (scalePolicyKind == CKKSScalePolicyKind::kPrecise) {
+    int maxScaleRefinementIterations = 1;
+    if (useQAwarePreciseScalePolicy) {
       int adjustScaleCount = 0;
       getOperation()->walk([&](mgmt::AdjustScaleOp) { ++adjustScaleCount; });
       auto maxLevel = getMaxLevel(getOperation()).value_or(0);
@@ -376,19 +382,19 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       // point by one level, so the total number of meaningful rewrites is
       // bounded by the number of adjust_scale sites times the available levels
       // below them. Add a small cushion for the final fixed-point iteration.
-      maxPreciseRefinementIterations =
+      maxScaleRefinementIterations =
           std::max(1, adjustScaleCount * (maxLevel + 1) + 1);
     }
 
     for (int refinementIteration = 0;
-         refinementIteration < maxPreciseRefinementIterations;
+         refinementIteration < maxScaleRefinementIterations;
          ++refinementIteration) {
       if (failed(runAnnotateMgmt())) {
         signalPassFailure();
         return;
       }
 
-      if (scalePolicyKind == CKKSScalePolicyKind::kPrecise) {
+      if (useQAwarePreciseScalePolicy) {
         auto regeneratedSchemeParam = maybeRegeneratePreciseSchemeParam(
             getOperation(), ckksSchemeParamAttr);
         if (failed(regeneratedSchemeParam)) {
@@ -401,12 +407,12 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
         ckksSchemeParamAttr = *regeneratedSchemeParam;
       }
       CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
-                                               scalePolicyKind);
+                                               effectiveScalePolicyKind);
 
       DataFlowSolver solver;
       if (failed(createAndRunDataflow(
               getOperation(), solver, logDefaultScale, ckksSchemeParamAttr,
-              beforeMulIncludeFirstMul, scalePolicyKind))) {
+              beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
         signalPassFailure();
         return;
       }
@@ -424,7 +430,7 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
         return;
       }
 
-      if (scalePolicyKind == CKKSScalePolicyKind::kPrecise) {
+      if (useQAwarePreciseScalePolicy) {
         auto repaired = refinePreciseAdjustScales(getOperation(), materializer);
         if (failed(repaired)) {
           signalPassFailure();
@@ -455,7 +461,7 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     DataFlowSolver activeSolver;
     if (failed(createAndRunDataflow(
             getOperation(), activeSolver, logDefaultScale, ckksSchemeParamAttr,
-            beforeMulIncludeFirstMul, scalePolicyKind))) {
+            beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
       signalPassFailure();
       return;
     }
@@ -488,7 +494,7 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
 
     LDBG() << "convert adjust_scale to mul_plain";
     CKKSAdjustScaleMaterializer materializer(ckksSchemeParamAttr,
-                                             scalePolicyKind);
+                                             effectiveScalePolicyKind);
     RewritePatternSet patterns(&getContext());
     // TODO(#1641): handle arith.muli in CKKS
     patterns.add<ConvertAdjustScaleToMulPlain<arith::MulFOp>>(&getContext(),
@@ -511,7 +517,7 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     // TODO(#2364): replace this coarse skip with a targeted precise-safe
     // canonicalization strategy once the offending folds are isolated.
     OpPassManager cleanup("builtin.module");
-    if (scalePolicyKind != CKKSScalePolicyKind::kPrecise) {
+    if (!useQAwarePreciseScalePolicy) {
       cleanup.addPass(createCanonicalizerPass());
     }
     cleanup.addPass(createCSEPass());
@@ -528,7 +534,7 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
     DataFlowSolver solverFinal;
     if (failed(createAndRunDataflow(
             getOperation(), solverFinal, logDefaultScale, ckksSchemeParamAttr,
-            beforeMulIncludeFirstMul, scalePolicyKind))) {
+            beforeMulIncludeFirstMul, effectiveScalePolicyKind))) {
       signalPassFailure();
       return;
     }

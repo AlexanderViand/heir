@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_test")
 
 package(default_applicable_licenses = ["@heir//:license"])
 
+exports_files(["mlp.mlir"])
+
 heir_lattigo_lib(
     name = "mlp",
     go_library_name = "mlp",

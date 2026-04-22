@@ -1,0 +1,43 @@
+# SkyPilot config for running CHEDDAR backend tests on a GPU instance.
+# Usage: sky launch -c heir-cheddar -i 10 sky/cheddar_test.yaml
+#
+# Uses nvidia/cuda Ubuntu 24.04 base image for clang-18 + CUDA compatibility.
+
+name: heir-cheddar
+
+# assumes we'll call this from the repo root
+workdir: .
+
+resources:
+  accelerators: A10G:1
+  cpus: 64+
+  memory: 128+
+  disk_size: 200
+  cloud: aws
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+
+setup: |
+  set -ex
+
+  apt-get update -qq
+  apt-get install -y -qq \
+    clang lld libomp-dev llvm \
+    zlib1g-dev \
+    libtommath-dev libjsoncpp-dev \
+    libcusparselt0 \
+    git wget pip
+
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
+  fi
+
+
+envs:
+  LLVM_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer
+
+# Note: if we don't fetch first, we might see random timeouts from things such as python wheel extraction/etc
+run: |
+  set -ex
+  bazel fetch //... --//:enable_cheddar=1
+  CC=clang bazel test //... --//:enable_cheddar=1
