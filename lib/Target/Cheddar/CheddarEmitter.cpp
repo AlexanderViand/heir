@@ -188,8 +188,10 @@ FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
       .Case<UserInterfaceType>([](auto) { return std::string("UI&"); })
       .Case<CiphertextType>(
           [asArg](auto) { return std::string(asArg ? "const Ct&" : "Ct"); })
+      // Pt args are passed non-const because AddPlainOp may call pt.SetScale()
+      // to match the ciphertext's drifted scale after LinearTransform eval.
       .Case<PlaintextType>(
-          [asArg](auto) { return std::string(asArg ? "const Pt&" : "Pt"); })
+          [asArg](auto) { return std::string(asArg ? "Pt&" : "Pt"); })
       .Case<ConstantType>([asArg](auto) {
         return std::string(asArg ? "const Const&" : "Const");
       })
@@ -216,7 +218,8 @@ FailureOr<std::string> CheddarEmitter::convertType(Type type, bool asArg) {
                                        : "std::vector<Ct>");
             }
             if (isa<PlaintextType>(elemType)) {
-              return std::string(asArg ? "const std::vector<Pt>&"
+              // Non-const to allow AddPlainOp's SetScale on elements.
+              return std::string(asArg ? "std::vector<Pt>&"
                                        : "std::vector<Pt>");
             }
             return failure();
@@ -459,23 +462,11 @@ LogicalResult CheddarEmitter::printOperation(func::FuncOp funcOp) {
   os << ") {\n";
   os.indent();
 
-  // Timing instrumentation (gated by env var)
-  bool isMainFunc = !funcOp.getName().contains("__");
-  if (isMainFunc) {
-    os << "using _Clock = std::chrono::high_resolution_clock;\n";
-    os << "using _Dur = std::chrono::duration<double, std::milli>;\n";
-    os << "double _preproc_ms = 0, _compute_ms = 0;\n";
-    os << "auto _t0 = _Clock::now();\n";
-  }
-
-  // Emit body
   for (Block &block : funcOp.getBody()) {
     for (Operation &op : block.getOperations()) {
       if (failed(translate(op))) return failure();
     }
   }
-
-  // (timing summary is emitted in printOperation(func::ReturnOp))
 
   os.unindent();
   os << "}\n\n";
@@ -483,16 +474,6 @@ LogicalResult CheddarEmitter::printOperation(func::FuncOp funcOp) {
 }
 
 LogicalResult CheddarEmitter::printOperation(func::ReturnOp op) {
-  // Emit timing summary before return in main (non-helper) functions.
-  if (auto funcOp = op->getParentOfType<func::FuncOp>()) {
-    if (!funcOp.getName().contains("__")) {
-      os << "auto _total_ms = _Dur(_Clock::now() - _t0).count();\n";
-      os << "std::cout << \"[heir-cheddar-timing] preproc=\" << _preproc_ms "
-            "<< \"ms lt_compute=\" << _compute_ms << \"ms other_compute=\" "
-            "<< (_total_ms - _preproc_ms - _compute_ms) "
-            "<< \"ms total=\" << _total_ms << \"ms\" << std::endl;\n";
-    }
-  }
   if (op.getNumOperands() == 0) {
     os << "return;\n";
   } else if (op.getNumOperands() == 1) {
@@ -718,11 +699,6 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
   }
 
   os << "Pt " << name << ";\n";
-  // Only emit timing in non-helper functions (where _Clock/_preproc_ms exist)
-  bool inMainFunc = false;
-  if (auto funcOp = op->getParentOfType<func::FuncOp>())
-    inMainFunc = !funcOp.getName().contains("__");
-  if (inMainFunc) os << "{ auto _ep = _Clock::now();\n";
   if (needsComplexConversion) {
     std::string complexMsgName = name + "_complex";
     os << "std::vector<Complex> " << complexMsgName << "(" << msgName
@@ -733,7 +709,6 @@ LogicalResult CheddarEmitter::printOperation(EncodeOp op) {
     os << getName(op.getEncoder()) << ".Encode(" << name << ", " << level
        << ", " << scaleExpr << ", " << msgName << ");\n";
   }
-  if (inMainFunc) os << "_preproc_ms += _Dur(_Clock::now() - _ep).count(); }\n";
   return success();
 }
 
@@ -1098,7 +1073,6 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   // Build the StripedMatrix from the diagonals tensor. CHEDDAR's
   // LinearTransform requires a square StripedMatrix whose logical dimensions
   // match the slot count; only the non-zero diagonals are actually stored.
-  os << "auto _pp_" << name << " = _Clock::now();\n";
   os << "StripedMatrix " << matName << "(" << slots << ", " << slots << ");\n";
   os << "{\n";
   os.indent();
@@ -1116,14 +1090,11 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   os << "LinearTransform<word> " << ltName << "(" << ctxName << ", " << matName
      << ", " << level << ", " << ctxName << "->param_.GetScale(" << level
      << " - 1), " << bs << ", " << gs << ", " << preRotation << ");\n";
-  os << "_preproc_ms += _Dur(_Clock::now() - _pp_" << name << ").count();\n";
 
   // Evaluate
   os << "Ct " << name << ";\n";
-  os << "auto _cc_" << name << " = _Clock::now();\n";
   os << ltName << ".Evaluate(" << ctxName << ", " << name << ", " << inputName
      << ", " << evkMapName << ");\n";
-  os << "_compute_ms += _Dur(_Clock::now() - _cc_" << name << ").count();\n";
   return success();
 }
 

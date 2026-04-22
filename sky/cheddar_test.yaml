@@ -35,12 +35,14 @@ setup: |
   fi
 
 # Note: if we don't fetch first, we might see random timeouts from things such as python wheel extraction/etc.
-# Narrowed to the Orion MLP benchmark targets to avoid tripping over unrelated
-# failures in the full suite (e.g., openfhe/ckks/rotom/mnist segfault).
+# Narrowed to the split-preprocessing MNIST MLP benchmark targets. The Orion
+# path doesn't support split-preprocessing (orion.linear_transform hides its
+# weight encoding from the pass), so we use the torch-linalg MNIST pipeline
+# where preprocessing is hoisted, giving apples-to-apples CPU-vs-GPU timing.
 run: |
   set -ex
   bazel fetch -c opt //... --//:enable_cheddar=1
   CC=clang bazel test -c opt \
-    //tests/Examples/orion/mlp:mlp_test \
-    //tests/Examples/cheddar/ckks/orion_mlp:mlp_test \
-    --//:enable_cheddar=1 --test_output=all
+    //tests/Examples/lattigo/ckks/mnist_split:mnist_test \
+    //tests/Examples/cheddar/ckks/mlp:mnist_test \
+    --//:enable_cheddar=1 --test_output=streamed

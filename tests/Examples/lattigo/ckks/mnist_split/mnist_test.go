@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -20,6 +21,10 @@ const (
 	imagesPath = dataBase + "/t10k-images-idx3-ubyte"
 	labelsPath = dataBase + "/t10k-labels-idx1-ubyte"
 )
+
+func msSince(t time.Time) int64 {
+	return time.Since(t).Milliseconds()
+}
 
 func loadWeights(path string) ([][]float32, error) {
 	r, err := zip.OpenReader(path)
@@ -107,76 +112,109 @@ func loadMNISTLabels(path string) ([]int, error) {
 	return labels, nil
 }
 
+func argmax(vals []float32, n int) int {
+	maxVal := float32(-math.MaxFloat32)
+	maxIdx := -1
+	for j := 0; j < n && j < len(vals); j++ {
+		if vals[j] > maxVal {
+			maxVal = vals[j]
+			maxIdx = j
+		}
+	}
+	return maxIdx
+}
+
 func TestMNISTSplit(t *testing.T) {
+	fmt.Println("=== Lattigo MNIST Benchmark (split-preprocessing) ===")
+
 	weights, err := loadWeights(modelPath)
 	if err != nil {
 		t.Fatalf("Failed to load weights: %v", err)
 	}
-
 	images, err := loadMNISTImages(imagesPath)
 	if err != nil {
 		t.Fatalf("Failed to load images: %v", err)
 	}
-
 	labels, err := loadMNISTLabels(labelsPath)
 	if err != nil {
 		t.Fatalf("Failed to load labels: %v", err)
 	}
 
+	fmt.Print("[1/5] Configuring Lattigo context...")
+	t0 := time.Now()
 	evaluator, params, encoder, encryptor, decryptor := mnist__configure()
+	fmt.Printf(" done (%d ms)\n", msSince(t0))
 
-	fmt.Printf("[1/4] Preprocessing plaintext weights...")
-	preprocessStart := time.Now()
+	// Benchmark sample.
+	input := images[0]
+	inputFloat32 := make([]float32, len(input))
+	for j := 0; j < len(input); j++ {
+		inputFloat32[j] = float32(input[j])
+	}
+
+	fmt.Print("[2/5] Encrypting input...")
+	t0 = time.Now()
+	ctInput := mnist__encrypt__arg4(evaluator, params, encoder, encryptor, inputFloat32)
+	fmt.Printf(" done (%d ms)\n", msSince(t0))
+
+	fmt.Print("[3/5] Preprocessing plaintext weights...")
+	t0 = time.Now()
 	p0, p1, p2, p3, p4, p5, p6, p7 := mnistsplit_utils.Mnist__preprocessing(
 		params, encoder, weights[0], weights[1], weights[2], weights[3],
 	)
-	fmt.Printf(" done (%d ms)\n", time.Since(preprocessStart).Milliseconds())
+	fmt.Printf(" done (%d ms)\n", msSince(t0))
 
+	// Warmup absorbs one-time costs (Lattigo evaluator caches, GC warmup,
+	// lazy init). Its result is reused as the sink for the timed loop so
+	// the last iteration leaves a valid ciphertext for the decrypt phase.
+	fmt.Print("[4/5] Running preprocessed MNIST core (warmup + 5 runs)...")
+	resCt := mnist__preprocessed(evaluator, params, encoder, ctInput, p0, p1, p2, p3, p4, p5, p6, p7)
+
+	const kReps = 5
+	runsMs := make([]int64, 0, kReps)
+	for i := 0; i < kReps; i++ {
+		s := time.Now()
+		resCt = mnist__preprocessed(evaluator, params, encoder, ctInput, p0, p1, p2, p3, p4, p5, p6, p7)
+		runsMs = append(runsMs, msSince(s))
+	}
+	sort.Slice(runsMs, func(i, j int) bool { return runsMs[i] < runsMs[j] })
+	fmt.Printf(" done (min=%d ms, median=%d ms, max=%d ms)\n",
+		runsMs[0], runsMs[kReps/2], runsMs[kReps-1])
+
+	fmt.Print("[5/5] Decrypting result...")
+	t0 = time.Now()
+	resValues := mnist__decrypt__result0(evaluator, params, encoder, decryptor, resCt)
+	fmt.Printf(" done (%d ms)\n", msSince(t0))
+
+	predicted := argmax(resValues, 10)
+	fmt.Printf("\nSample 0: predicted %d, actual %d\n", predicted, labels[0])
+
+	// Quick accuracy check on a few more samples (untimed).
 	total := 3
 	correct := 0
-
-	for i := 0; i < total; i++ {
+	if predicted == labels[0] {
+		correct++
+	}
+	for i := 1; i < total; i++ {
 		input := images[i]
-		label := labels[i]
-
 		inputFloat32 := make([]float32, len(input))
 		for j := 0; j < len(input); j++ {
 			inputFloat32[j] = float32(input[j])
 		}
-
-		fmt.Printf("[2/4] Encrypting sample %d...", i)
-		encryptStart := time.Now()
-		ctInput := mnist__encrypt__arg4(evaluator, params, encoder, encryptor, inputFloat32)
-		fmt.Printf(" done (%d ms)\n", time.Since(encryptStart).Milliseconds())
-
-		fmt.Printf("[3/4] Running preprocessed MNIST core for sample %d...", i)
-		coreStart := time.Now()
-		resCt := mnist__preprocessed(evaluator, params, encoder, ctInput, p0, p1, p2, p3, p4, p5, p6, p7)
-		fmt.Printf(" done (%d ms)\n", time.Since(coreStart).Milliseconds())
-
-		fmt.Printf("[4/4] Decrypting sample %d...", i)
-		decryptStart := time.Now()
-		resValues := mnist__decrypt__result0(evaluator, params, encoder, decryptor, resCt)
-		fmt.Printf(" done (%d ms)\n", time.Since(decryptStart).Milliseconds())
-
-		maxVal := float32(-math.MaxFloat32)
-		maxIdx := -1
-		for j := 0; j < 10; j++ {
-			if resValues[j] > maxVal {
-				maxVal = resValues[j]
-				maxIdx = j
-			}
-		}
-
-		if maxIdx == label {
+		ctIn := mnist__encrypt__arg4(evaluator, params, encoder, encryptor, inputFloat32)
+		rc := mnist__preprocessed(evaluator, params, encoder, ctIn, p0, p1, p2, p3, p4, p5, p6, p7)
+		rv := mnist__decrypt__result0(evaluator, params, encoder, decryptor, rc)
+		pred := argmax(rv, 10)
+		if pred == labels[i] {
 			correct++
 		}
-		t.Logf("Sample %d: predicted %d, actual %d", i, maxIdx, label)
+		t.Logf("Sample %d: predicted %d, actual %d", i, pred, labels[i])
 	}
-
 	accuracy := float64(correct) / float64(total)
 	t.Logf("Accuracy: %.2f (%d/%d correct)", accuracy, correct, total)
 	if accuracy < 0.6 {
 		t.Errorf("Accuracy too low: %.2f (%d/%d correct)", accuracy, correct, total)
 	}
+
+	fmt.Println("\n=== Lattigo MNIST Complete ===")
 }
