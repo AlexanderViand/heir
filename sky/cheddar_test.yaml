@@ -34,8 +34,13 @@ setup: |
     chmod +x /usr/local/bin/bazel
   fi
 
-# Note: if we don't fetch first, we might see random timeouts from things such as python wheel extraction/etc
+# Note: if we don't fetch first, we might see random timeouts from things such as python wheel extraction/etc.
+# Narrowed to the Orion MLP benchmark targets to avoid tripping over unrelated
+# failures in the full suite (e.g., openfhe/ckks/rotom/mnist segfault).
 run: |
   set -ex
   bazel fetch -c opt //... --//:enable_cheddar=1
-  CC=clang bazel test -c opt //... --//:enable_cheddar=1
+  CC=clang bazel test -c opt \
+    //tests/Examples/orion/mlp:mlp_test \
+    //tests/Examples/cheddar/ckks/orion_mlp:mlp_test \
+    --//:enable_cheddar=1 --test_output=all

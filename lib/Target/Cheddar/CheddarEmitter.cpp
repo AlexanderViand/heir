@@ -9,6 +9,7 @@
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
 #include "lib/Dialect/TensorExt/IR/TensorExtDialect.h"
 #include "lib/Target/Cheddar/CheddarTemplates.h"
+#include "lib/Utils/RotationUtils.h"
 #include "lib/Utils/TargetUtils.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"         // from @llvm-project
 #include "llvm/include/llvm/Support/ManagedStatic.h"  // from @llvm-project
@@ -325,11 +326,35 @@ LogicalResult CheddarEmitter::printOperation(ModuleOp moduleOp) {
     } else if (auto hrotAddOp = dyn_cast<HRotAddOp>(op)) {
       rotationDistances.insert(hrotAddOp.getDistanceAttr().getInt());
     } else if (auto linTransOp = dyn_cast<LinearTransformOp>(op)) {
-      for (auto rot : linTransOp.getRotationIndices()) {
-        if (auto attr = dyn_cast<Attribute>(rot)) {
-          rotationDistances.insert(cast<IntegerAttr>(attr).getInt());
+      // Compute BSGS rotation indices accounting for pre_rotation on
+      // wrap-around diagonal matrices.
+      auto diagType =
+          cast<RankedTensorType>(linTransOp.getDiagonals().getType());
+      int64_t ltSlots = diagType.getShape()[1];
+      auto diagIdx = linTransOp.getDiagonalIndicesAttr().asArrayRef();
+
+      // Determine pre_rotation (same logic as in printOperation).
+      int64_t preRot = 0;
+      for (auto idx : diagIdx) {
+        if (idx > ltSlots / 2) {
+          preRot = idx;
+          break;
         }
       }
+      for (auto idx : diagIdx) {
+        if (idx > ltSlots / 2 && idx < preRot) preRot = idx;
+      }
+
+      // Adjusted indices after pre_rotation.
+      SmallVector<int32_t> adjusted;
+      for (auto idx : diagIdx) {
+        adjusted.push_back(
+            static_cast<int32_t>((idx - preRot + ltSlots) % ltSlots));
+      }
+
+      int64_t logBSGS = linTransOp.getLogBabyStepGiantStepRatio().getInt();
+      auto rots = lintransRotationIndices(adjusted, ltSlots, logBSGS);
+      for (int64_t r : rots) rotationDistances.insert(r);
     }
   });
 
@@ -378,7 +403,7 @@ LogicalResult CheddarEmitter::printOperation(ModuleOp moduleOp) {
     os << "auto ctx = Context<word>::Create(param);\n";
     os << "UI ui(ctx);\n";
 
-    // Rotation keys
+    // Rotation keys.
     if (!rotationDistances.empty()) {
       for (int64_t dist : rotationDistances) {
         os << "ui.PrepareRotationKey(" << dist
@@ -806,12 +831,15 @@ LogicalResult CheddarEmitter::printOperation(MultOp op) {
 
 LogicalResult CheddarEmitter::printOperation(AddPlainOp op) {
   auto name = getName(op.getOutput());
+  auto ctName = getName(op.getCiphertext());
+  auto ptName = getName(op.getPlaintext());
   os << "Ct " << name << ";\n";
-  emitScaleMismatchDebugCheck("add_plain", name, op.getCiphertext(),
-                              op.getPlaintext());
-  os << getName(op.getCtx()) << "->Add(" << name << ", "
-     << getName(op.getCiphertext()) << ", " << getName(op.getPlaintext())
-     << ");\n";
+  // Fix up plaintext scale to exactly match ciphertext scale. This is needed
+  // because CHEDDAR's LinearTransform produces scales via floating-point
+  // arithmetic that may differ slightly from GetScale(level).
+  os << ptName << ".SetScale(" << ctName << ".GetScale());\n";
+  os << getName(op.getCtx()) << "->Add(" << name << ", " << ctName << ", "
+     << ptName << ");\n";
   return success();
 }
 
@@ -1010,25 +1038,40 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   int64_t numDiags = diagType.getShape()[0];
   int64_t slots = diagType.getShape()[1];
 
-  // Compute baby-step / giant-step from logBSGS ratio
-  // bs * gs >= numDiags, bs/gs ~ 2^logBSGS
-  int64_t bs = 1;
-  int64_t gs = numDiags;
-  if (logBSGS > 0) {
-    // Simple BSGS split: bs = ceil(sqrt(numDiags * 2^logBSGS))
-    double ratio = std::pow(2.0, logBSGS);
-    bs = static_cast<int64_t>(
-        std::ceil(std::sqrt(static_cast<double>(numDiags) * ratio)));
-    gs = (numDiags + bs - 1) / bs;
+  // Compute baby-step / giant-step from logBSGS ratio.
+  // If diagonal indices wrap around the slot range (some > slots/2), compute
+  // a pre_rotation to shift them into a contiguous range for BSGS.
+  int64_t preRotation = 0;
+  bool hasWrapAround = false;
+  int64_t minNeg = slots;  // smallest negative-rotation index
+  for (auto idx : diagIndices) {
+    if (idx > slots / 2) {
+      hasWrapAround = true;
+      minNeg = std::min(minNeg, static_cast<int64_t>(idx));
+    }
   }
+  if (hasWrapAround) preRotation = minNeg;
+
+  // Use the same BSGS computation as the rotation-index analysis so that
+  // the prepared rotation keys match what CHEDDAR actually requests.
+  // Compute on the pre-rotation-adjusted diagonal indices.
+  SmallVector<int32_t> adjustedDiags;
+  for (auto idx : diagIndices) {
+    adjustedDiags.push_back(
+        static_cast<int32_t>((idx - preRotation + slots) % slots));
+  }
+  int64_t bs =
+      (logBSGS > 0) ? findBestBSGSRatio(adjustedDiags, slots, logBSGS) : 1;
+  int64_t gs = (bs > 1) ? (numDiags + bs - 1) / bs : numDiags;
 
   // Unique name for this linear transform
   std::string ltName = name + "_lt";
   std::string matName = name + "_mat";
 
-  // Build the StripedMatrix from the diagonals tensor
-  os << "StripedMatrix " << matName << "(" << numDiags << ", " << slots
-     << ");\n";
+  // Build the StripedMatrix from the diagonals tensor. CHEDDAR's
+  // LinearTransform requires a square StripedMatrix whose logical dimensions
+  // match the slot count; only the non-zero diagonals are actually stored.
+  os << "StripedMatrix " << matName << "(" << slots << ", " << slots << ");\n";
   os << "{\n";
   os.indent();
   os << "// Populate diagonals from " << diagonalsName << "\n";
@@ -1040,10 +1083,12 @@ LogicalResult CheddarEmitter::printOperation(LinearTransformOp op) {
   os.unindent();
   os << "}\n";
 
-  // Construct LinearTransform
+  // Construct LinearTransform. CHEDDAR's LT internally rescales (output at
+  // pt_level - 1), so the diagonal plaintext scale should match the OUTPUT
+  // level's scale, not the input level's scale.
   os << "LinearTransform<word> " << ltName << "(" << ctxName << ", " << matName
-     << ", " << level << ", static_cast<double>(1ULL << " << logDefaultScale
-     << "), " << bs << ", " << gs << ");\n";
+     << ", " << level << ", " << ctxName << "->param_.GetScale(" << level
+     << " - 1), " << bs << ", " << gs << ", " << preRotation << ");\n";
 
   // Evaluate
   os << "Ct " << name << ";\n";

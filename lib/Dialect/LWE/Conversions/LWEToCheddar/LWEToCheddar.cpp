@@ -1,5 +1,6 @@
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 
+#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -40,6 +41,28 @@
 #define DEBUG_TYPE "lwe-to-cheddar"
 
 namespace mlir::heir::lwe {
+
+// Count linear_transform ops (orion or cheddar) in the def-chain of a value.
+static int64_t countLinearTransformAncestors(Value v) {
+  int64_t count = 0;
+  while (v) {
+    auto* defOp = v.getDefiningOp();
+    if (!defOp) break;
+    if (isa<orion::LinearTransformOp>(defOp) ||
+        isa<cheddar::LinearTransformOp>(defOp))
+      ++count;
+    Value next;
+    for (auto operand : defOp->getOperands()) {
+      auto elemTy = getElementTypeOrSelf(operand.getType());
+      if (isa<lwe::LWECiphertextType, cheddar::CiphertextType>(elemTy)) {
+        next = operand;
+        break;
+      }
+    }
+    v = next;
+  }
+  return count;
+}
 
 static FailureOr<int64_t> getCKKSLogDefaultScale(Operation* op) {
   auto moduleOp = op->getParentOfType<ModuleOp>();
@@ -534,6 +557,19 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
                            : static_cast<int64_t>(scale.nearestLogBase2());
 
     int64_t level = op.getLevel() ? op.getLevel().value() : 0;
+    // When the chain is longer than the circuit needs (heir.level_offset > 0),
+    // shift the level so CHEDDAR encodes plaintexts at the correct prime set.
+    if (auto levelOffset =
+            op->getParentOfType<ModuleOp>()->getAttrOfType<IntegerAttr>(
+                "heir.level_offset")) {
+      level += levelOffset.getInt();
+    }
+    // CHEDDAR's LinearTransform internally rescales (output at pt_level - 1).
+    // HEIR doesn't model this drop, so count how many LinearTransforms are in
+    // the def-chain of the ciphertext this plaintext will interact with, and
+    // subtract that many levels.
+    if (auto attr = op->getAttrOfType<IntegerAttr>("cheddar.lt_level_drop"))
+      level -= attr.getInt();
     auto ptTy = cheddar::PlaintextType::get(getContext());
     rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
         op, ptTy, encoder.value(), adaptor.getInput(),
@@ -613,9 +649,26 @@ struct ConvertOrionLinearTransformOp
         rewriter, op.getLoc(), cheddar::EvkMapType::get(getContext()),
         ui.value());
 
-    auto level = op.getOrionLevelAttr();
-    auto bsgsRatio = op.getBsgsRatioAttr();
-    int64_t logBsgsRatio = static_cast<int64_t>(bsgsRatio.getValueAsDouble());
+    int64_t levelVal = op.getOrionLevelAttr().getInt();
+    // When the chain is longer than the circuit needs (heir.level_offset > 0),
+    // shift the level so CHEDDAR uses the correct prime set.
+    if (auto levelOffset =
+            op->getParentOfType<ModuleOp>()->getAttrOfType<IntegerAttr>(
+                "heir.level_offset")) {
+      levelVal += levelOffset.getInt();
+    }
+    // CHEDDAR's LinearTransform outputs at pt_level - 1. Count preceding
+    // LTs in this ciphertext's def-chain so pt_level matches the actual
+    // input level (which has already been dropped by prior LTs).
+    int64_t ltDrop = countLinearTransformAncestors(op.getInput());
+    levelVal -= ltDrop;
+    auto level = rewriter.getI64IntegerAttr(levelVal);
+    // bsgs_ratio is the ratio bs:gs (e.g., 2.0 means bs is twice gs).
+    // cheddar.linear_transform stores the log2 of that ratio.
+    double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
+    int64_t logBsgsRatio =
+        bsgsRatio > 0 ? static_cast<int64_t>(std::round(std::log2(bsgsRatio)))
+                      : 0;
 
     rewriter.replaceOpWithNewOp<cheddar::LinearTransformOp>(
         op, this->typeConverter->convertType(op.getResult().getType()),
@@ -801,8 +854,34 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     });
   }
 
+  // Pre-pass: for each rlwe_encode consumed by an add_plain/mul_plain,
+  // compute how many LinearTransforms are in the ciphertext's def-chain.
+  void annotateLinearTransformLevelDrop() {
+    auto* module = getOperation();
+    auto i64Ty = IntegerType::get(module->getContext(), 64);
+    module->walk([&](lwe::RLWEEncodeOp encodeOp) {
+      int64_t maxDrop = 0;
+      for (auto& use : encodeOp.getOutput().getUses()) {
+        auto* consumer = use.getOwner();
+        for (auto operand : consumer->getOperands()) {
+          if (isa<lwe::LWECiphertextType>(
+                  getElementTypeOrSelf(operand.getType()))) {
+            int64_t drop = countLinearTransformAncestors(operand);
+            maxDrop = std::max(maxDrop, drop);
+            break;
+          }
+        }
+      }
+      if (maxDrop > 0) {
+        encodeOp->setAttr("cheddar.lt_level_drop",
+                          IntegerAttr::get(i64Ty, maxDrop));
+      }
+    });
+  }
+
   void runOnOperation() override {
     saveFuncCallOpDialectAttrs();
+    annotateLinearTransformLevelDrop();
 
     MLIRContext* context = &getContext();
     auto* module = getOperation();

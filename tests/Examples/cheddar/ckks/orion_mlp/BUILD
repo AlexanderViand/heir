@@ -16,7 +16,7 @@ heir_opt(
     pass_flags = [
         "--annotate-module=backend=cheddar scheme=ckks",
         "--raise-ckks",
-        "--mlir-to-ckks=ciphertext-degree=4096 enable-arithmetization=false preserve-structured-ops=true scaling-mod-bits=26 first-mod-bits=30 ckks-scale-policy=precise ckks-reconcile-policy=default-scale-schedule",
+        "--mlir-to-ckks=ciphertext-degree=4096 enable-arithmetization=false preserve-structured-ops=true scaling-mod-bits=26 first-mod-bits=30",
         "--scheme-to-cheddar",
     ],
 )
