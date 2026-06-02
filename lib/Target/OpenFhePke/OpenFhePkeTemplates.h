@@ -95,6 +95,11 @@ void bind_common(py::module &m)
         .def_readwrite("secretKey", &KeyPair<DCRTPoly>::secretKey);
     py::class_<CiphertextImpl<DCRTPoly>, std::shared_ptr<CiphertextImpl<DCRTPoly>>>(m, "Ciphertext", py::module_local())
         .def(py::init<>());
+    // Register the (abstract) Plaintext base so plaintexts can cross the Python
+    // boundary -- e.g. the std::vector<Plaintext> fields of a multi-result
+    // "__preprocessing" struct, which are fed into a split-out "__preprocessed"
+    // compute function. No py::init<> (PlaintextImpl is abstract).
+    py::class_<PlaintextImpl, std::shared_ptr<PlaintextImpl>>(m, "Plaintext", py::module_local());
     py::class_<CryptoContextImpl<DCRTPoly>, std::shared_ptr<CryptoContextImpl<DCRTPoly>>>(m, "CryptoContext", py::module_local())
         .def(py::init<>())
         .def("KeyGen", &CryptoContextImpl<DCRTPoly>::KeyGen);
