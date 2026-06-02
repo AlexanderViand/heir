@@ -21,6 +21,7 @@
 // CHECK:        .def_readwrite("secretKey", &KeyPair<DCRTPoly>::secretKey);
 // CHECK:    py::class_<CiphertextImpl<DCRTPoly>, std::shared_ptr<CiphertextImpl<DCRTPoly>>>(m, "Ciphertext", py::module_local())
 // CHECK:        .def(py::init<>());
+// CHECK:    py::class_<PlaintextImpl, std::shared_ptr<PlaintextImpl>>(m, "Plaintext", py::module_local());
 // CHECK:    py::class_<CryptoContextImpl<DCRTPoly>, std::shared_ptr<CryptoContextImpl<DCRTPoly>>>(m, "CryptoContext", py::module_local())
 // CHECK:        .def(py::init<>())
 // CHECK:        .def("KeyGen", &CryptoContextImpl<DCRTPoly>::KeyGen);
@@ -31,6 +32,10 @@
 // CHECK:   m.def("simple_sum", &simple_sum, py::call_guard<py::gil_scoped_release>());
 // CHECK:   m.def("simple_sum__encrypt", &simple_sum__encrypt, py::call_guard<py::gil_scoped_release>());
 // CHECK:   m.def("simple_sum__decrypt", &simple_sum__decrypt, py::call_guard<py::gil_scoped_release>());
+// A multi-result function returns a generated "<name>Struct"; the emitter must
+// bind it (with read/write fields) so its results can be unpacked in Python.
+// CHECK:   py::class_<two_plaintextsStruct>(m, "two_plaintextsStruct").def_readwrite("arg0", &two_plaintextsStruct::arg0).def_readwrite("arg1", &two_plaintextsStruct::arg1);
+// CHECK:   m.def("two_plaintexts", &two_plaintexts, py::call_guard<py::gil_scoped_release>());
 // CHECK: }
 
 !cc = !openfhe.crypto_context
@@ -64,4 +69,12 @@ func.func @simple_sum__decrypt(%arg0: !openfhe.crypto_context, %arg1: !ct, %arg2
   %0 = openfhe.decrypt %arg0, %arg1, %arg2 : (!openfhe.crypto_context, !ct, !openfhe.private_key) -> !pt
   %1 = openfhe.decode %0 : !pt -> i16
   return %1 : i16
+}
+// A function with multiple results: the emitter wraps them in a generated
+// "two_plaintextsStruct" and (with the pybind fix) binds that struct plus the
+// Plaintext element type so the results can cross the Python boundary.
+func.func @two_plaintexts(%arg0: !openfhe.crypto_context, %arg1: tensor<32xi16>, %arg2: tensor<32xi16>) -> (!pt, !pt) {
+  %0 = openfhe.make_packed_plaintext %arg0, %arg1 : (!openfhe.crypto_context, tensor<32xi16>) -> !pt
+  %1 = openfhe.make_packed_plaintext %arg0, %arg2 : (!openfhe.crypto_context, tensor<32xi16>) -> !pt
+  return %0, %1 : !pt, !pt
 }
