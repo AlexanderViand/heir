@@ -44,3 +44,29 @@ py_test(
         "@heir_pip_deps//torch",
     ],
 )
+
+# Exercises the multi-result-struct + Plaintext Python bindings at runtime:
+# encodes weights once via the multi-result mnist__preprocessing (returning the
+# generated struct) and feeds the unpacked plaintexts into mnist__preprocessed.
+py_test(
+    name = "split_test",
+    size = "enormous",
+    srcs = ["split_test.py"],
+    data = [
+        "@heir//tests/Examples/common/mnist/data:t10k-images-idx3-ubyte",
+        "@heir//tests/Examples/common/mnist/data:t10k-labels-idx1-ubyte",
+        "@heir//tests/Examples/common/mnist/data:traced_model.pt",
+    ],
+    main = "split_test.py",
+    tags = [
+        "nofastbuild",  # openfhe is slow unless -c opt
+        "notap",
+        "requires-mem:28g",
+    ],
+    deps = [
+        ":mnist_openfhe_pybind",
+        "@abseil-py//absl/testing:absltest",
+        "@heir_pip_deps//numpy",
+        "@heir_pip_deps//torch",
+    ],
+)
