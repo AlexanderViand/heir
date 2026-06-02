@@ -62,9 +62,24 @@ LogicalResult OpenFhePkePybindEmitter::printOperation(ModuleOp moduleOp) {
 }
 
 LogicalResult OpenFhePkePybindEmitter::printOperation(func::FuncOp funcOp) {
-  os << llvm::formatv(kPybindFunctionTemplate.data(),
-                      canonicalizeDebugPort(funcOp.getName()))
-     << "\n";
+  StringRef name = canonicalizeDebugPort(funcOp.getName());
+
+  // A function with multiple results returns a generated aggregate named
+  // "<name>Struct" with fields arg0..arg{N-1} (see OpenFhePkeEmitter). Bind it
+  // as a py::class_ with read/write fields so Python can construct and unpack
+  // it -- e.g. to encode plaintexts once via a "__preprocessing" function and
+  // pass them into a split-out "__preprocessed" compute function.
+  unsigned numResults = funcOp.getNumResults();
+  if (numResults > 1) {
+    os << llvm::formatv("py::class_<{0}Struct>(m, \"{0}Struct\")", name);
+    for (unsigned i = 0; i < numResults; ++i) {
+      os << llvm::formatv(".def_readwrite(\"arg{0}\", &{1}Struct::arg{0})", i,
+                          name);
+    }
+    os << ";\n";
+  }
+
+  os << llvm::formatv(kPybindFunctionTemplate.data(), name) << "\n";
   return success();
 }
 
