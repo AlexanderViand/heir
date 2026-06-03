@@ -53,5 +53,15 @@ build:asan --copt -O1
 build:asan --copt -g
 build:asan --copt -fno-omit-frame-pointer
 build:asan --linkopt -fsanitize=address
+# Force HAVE_POSIX_SIGNALS on Linux/glibc for the BCR readline overlay (pulled
+# in transitively via @abc). Its autoconf-style AC_TRY_LINK probe fails to
+# detect POSIX signals under ASAN (the probe's link step inherits asan's
+# linkopts and trips over something unrelated), which makes
+# readline/signals.c fall into the #else branch with a custom
+# `sighandler_cxt` struct whose `sa_handler` field collides with glibc's
+# `<bits/sigaction.h>` `#define sa_handler __sigaction_handler.sa_handler`
+# macro -- 8 errors per signals.c compilation. Forcing the define here keeps
+# signals.c on the HAVE_POSIX_SIGNALS code path it actually has working.
+build:asan --copt -DHAVE_POSIX_SIGNALS=1
 
 try-import %workspace%/fuzztest.bazelrc
