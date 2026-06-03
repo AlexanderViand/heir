@@ -20,56 +20,60 @@ module attributes {backend.openfhe, ckks.schemeParam = #ckks.scheme_param<logN =
     return %0 : tensor<1x8xf32>
   }
 
-  // CHECK: @loop
-  func.func @loop(%arg0: !secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 55>, tensor_ext.original_type = #original_type}) -> (!secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>, tensor_ext.original_type = #original_type}) {
+  // CHECK: func.func @loop(%arg0: tensor<1x!ct_L3>
+  // CHECK: %{{.*}} = ckks.mul_plain %arg0, %{{.*}} : (tensor<1x!ct_L3>, tensor<1x!pt>) -> tensor<1x!ct_L3_1>
+  // CHECK: %{{.*}} = ckks.rescale %{{.*}} {to_ring = #ring_rns_L2_1_x1024} : tensor<1x!ct_L3_1> -> tensor<1x!ct_L2>
+  // CHECK: %{{.*}} = affine.for
+  // CHECK: %{{.*}} = ckks.bootstrap %{{.*}} : tensor<1x!ct_L0> -> tensor<1x!ct_L3>
+  // CHECK: return %{{.*}} : tensor<1x!ct_L0>
+  func.func @loop(%arg0: !secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 36028797018963968>, tensor_ext.original_type = #original_type}) -> (!secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>, tensor_ext.original_type = #original_type}) {
     %cst = arith.constant dense<1.000000e+00> : tensor<1x8xf32>
     %cst_0 = arith.constant dense<1.000000e+00> : tensor<8xf32>
     %0 = call @_assign_layout_13348573087261549848(%cst_0) : (tensor<8xf32>) -> tensor<1x8xf32>
-    %1 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 55>} : tensor<1x8xf32>
-    %2 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-    %3 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-    %4 = secret.generic(%arg0: !secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 55>}) {
+    %1 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 36028797018963968>} : tensor<1x8xf32>
+    %2 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+    %3 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+    %4 = secret.generic(%arg0: !secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 36028797018963968>}) {
     ^body(%input0: tensor<1x8xf32>):
-      %5 = arith.mulf %input0, %1 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 110>} : tensor<1x8xf32>
-      %6 = mgmt.modreduce %5 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-      %7 = arith.subf %6, %2 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-      %8 = mgmt.level_reduce %7 {levelToDrop = 2 : i64, mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>} : tensor<1x8xf32>
+      %5 = arith.mulf %input0, %1 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+      %6 = mgmt.modreduce %5 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+      %7 = arith.subf %6, %2 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+      %8 = mgmt.level_reduce %7 {levelToDrop = 2 : i64, mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>} : tensor<1x8xf32>
 
-      // CHECK: affine.for
       %9 = affine.for %arg1 = 1 to 7 step 3 iter_args(%arg2 = %8) -> (tensor<1x8xf32>) {
-        %16 = mgmt.bootstrap %arg2 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 55>} : tensor<1x8xf32>
-        %17 = arith.mulf %input0, %16 {mgmt.mgmt = #mgmt.mgmt<level = 3, dimension = 3, scale = 110>} : tensor<1x8xf32>
-        %18 = mgmt.relinearize %17 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 110>} : tensor<1x8xf32>
-        %19 = mgmt.modreduce %18 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-        %20 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-        %21 = arith.subf %19, %20 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-        %22 = mgmt.init %cst {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 55>} : tensor<1x8xf32>
-        %23 = arith.mulf %input0, %22 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 110>} : tensor<1x8xf32>
-        %24 = mgmt.modreduce %23 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-        %25 = arith.mulf %24, %21 {mgmt.mgmt = #mgmt.mgmt<level = 2, dimension = 3, scale = 110>} : tensor<1x8xf32>
-        %26 = mgmt.relinearize %25 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 110>} : tensor<1x8xf32>
-        %27 = mgmt.modreduce %26 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 55>} : tensor<1x8xf32>
-        %28 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 55>} : tensor<1x8xf32>
-        %29 = arith.subf %27, %28 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 55>} : tensor<1x8xf32>
-        %30 = mgmt.level_reduce %input0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-        %31 = mgmt.init %cst {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-        %32 = arith.mulf %30, %31 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 110>} : tensor<1x8xf32>
-        %33 = mgmt.modreduce %32 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 55>} : tensor<1x8xf32>
-        %34 = arith.mulf %33, %29 {mgmt.mgmt = #mgmt.mgmt<level = 1, dimension = 3, scale = 110>} : tensor<1x8xf32>
-        %35 = mgmt.relinearize %34 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 110>} : tensor<1x8xf32>
-        %36 = mgmt.modreduce %35 {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>} : tensor<1x8xf32>
-        %37 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>} : tensor<1x8xf32>
-        %38 = arith.subf %36, %37 {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>} : tensor<1x8xf32>
+        %16 = mgmt.bootstrap %arg2 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 36028797018963968>} : tensor<1x8xf32>
+        %17 = arith.mulf %input0, %16 {mgmt.mgmt = #mgmt.mgmt<level = 3, dimension = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %18 = mgmt.relinearize %17 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %19 = mgmt.modreduce %18 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+        %20 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+        %21 = arith.subf %19, %20 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+        %22 = mgmt.init %cst {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 36028797018963968>} : tensor<1x8xf32>
+        %23 = arith.mulf %input0, %22 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %24 = mgmt.modreduce %23 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+        %25 = arith.mulf %24, %21 {mgmt.mgmt = #mgmt.mgmt<level = 2, dimension = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %26 = mgmt.relinearize %25 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %27 = mgmt.modreduce %26 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 36028797018963968>} : tensor<1x8xf32>
+        %28 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 36028797018963968>} : tensor<1x8xf32>
+        %29 = arith.subf %27, %28 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 36028797018963968>} : tensor<1x8xf32>
+        %30 = mgmt.level_reduce %input0 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+        %31 = mgmt.init %cst {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+        %32 = arith.mulf %30, %31 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %33 = mgmt.modreduce %32 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 36028797018963968>} : tensor<1x8xf32>
+        %34 = arith.mulf %33, %29 {mgmt.mgmt = #mgmt.mgmt<level = 1, dimension = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %35 = mgmt.relinearize %34 {mgmt.mgmt = #mgmt.mgmt<level = 1, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+        %36 = mgmt.modreduce %35 {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>} : tensor<1x8xf32>
+        %37 = mgmt.init %0 {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>} : tensor<1x8xf32>
+        %38 = arith.subf %36, %37 {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>} : tensor<1x8xf32>
         affine.yield %38 : tensor<1x8xf32>
-      } {__argattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>}], __resattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>}]}
-      %10 = mgmt.bootstrap %9 {halo.invariance, mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 55>} : tensor<1x8xf32>
-      %11 = arith.mulf %input0, %10 {mgmt.mgmt = #mgmt.mgmt<level = 3, dimension = 3, scale = 110>} : tensor<1x8xf32>
-      %12 = mgmt.relinearize %11 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 110>} : tensor<1x8xf32>
-      %13 = mgmt.modreduce %12 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-      %14 = arith.subf %13, %3 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 55>} : tensor<1x8xf32>
-      %15 = mgmt.level_reduce %14 {levelToDrop = 2 : i64, mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>} : tensor<1x8xf32>
+      } {__argattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>}], __resattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>}]}
+      %10 = mgmt.bootstrap %9 {halo.invariance, mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 36028797018963968>} : tensor<1x8xf32>
+      %11 = arith.mulf %input0, %10 {mgmt.mgmt = #mgmt.mgmt<level = 3, dimension = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+      %12 = mgmt.relinearize %11 {mgmt.mgmt = #mgmt.mgmt<level = 3, scale = 1298074214633706907132624082305024 : i112>} : tensor<1x8xf32>
+      %13 = mgmt.modreduce %12 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+      %14 = arith.subf %13, %3 {mgmt.mgmt = #mgmt.mgmt<level = 2, scale = 36028797018963968>} : tensor<1x8xf32>
+      %15 = mgmt.level_reduce %14 {levelToDrop = 2 : i64, mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>} : tensor<1x8xf32>
       secret.yield %15 : tensor<1x8xf32>
-    } -> (!secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 55>})
+    } -> (!secret.secret<tensor<1x8xf32>> {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 36028797018963968>})
     return %4 : !secret.secret<tensor<1x8xf32>>
   }
 }

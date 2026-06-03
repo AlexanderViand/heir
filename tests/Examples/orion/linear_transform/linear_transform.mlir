@@ -10,7 +10,7 @@
 !Z66994177_i64 = !mod_arith.int<66994177 : i64>
 !Z67043329_i64 = !mod_arith.int<67043329 : i64>
 !Z67239937_i64 = !mod_arith.int<67239937 : i64>
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 26>
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 67108864>
 #key = #lwe.key<>
 #modulus_chain_L5_C5 = #lwe.modulus_chain<elements = <536903681 : i64, 67043329 : i64, 66994177 : i64, 67239937 : i64, 66961409 : i64, 66813953 : i64>, current = 5>
 #ring_f64_1_x8192 = #polynomial.ring<coefficientType = f64, polynomialModulus = <1 + x**8192>>

@@ -30,6 +30,7 @@ cc_library(
         ":ops_inc_gen",
         ":types_inc_gen",
         "@heir//lib/Dialect:HEIRInterfaces",
+        "@heir//lib/Dialect/CKKS/IR:Headers",
         "@heir//lib/Dialect/ModArith/IR:Dialect",
         "@heir//lib/Dialect/Polynomial/IR:Dialect",
         "@heir//lib/Dialect/RNS/IR:Dialect",

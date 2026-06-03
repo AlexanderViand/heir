@@ -3,8 +3,10 @@
 
 #include <vector>
 
-#include "llvm/include/llvm/ADT/APInt.h"     // from @llvm-project
-#include "mlir/include/mlir/Support/LLVM.h"  // from @llvm-project
+#include "llvm/include/llvm/ADT/APInt.h"             // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/MLIRContext.h"        // from @llvm-project
+#include "mlir/include/mlir/Support/LLVM.h"          // from @llvm-project
 
 namespace mlir {
 namespace heir {
@@ -28,6 +30,21 @@ bool isPrime(const APInt& n);
 /// Returns the prime factors of n, without multiplicity. If n < 2, returns an
 /// empty vector.
 std::vector<APInt> factorize(APInt n);
+
+APInt canonicalizeUnsignedAPInt(const APInt& value, unsigned minWidth = 64);
+
+IntegerAttr getSignlessIntegerAttr(MLIRContext* context, const APInt& value,
+                                   unsigned minWidth = 64);
+
+APInt getNominalPowerOfTwoScaleFromLog2(uint64_t logScale,
+                                        unsigned minWidth = 64);
+
+APInt multiplyUnsignedAPIntExact(const APInt& lhs, const APInt& rhs,
+                                 unsigned minWidth = 64);
+
+FailureOr<APInt> divideUnsignedAPIntExact(const APInt& dividend,
+                                          const APInt& divisor,
+                                          unsigned minWidth = 64);
 
 }  // namespace heir
 }  // namespace mlir

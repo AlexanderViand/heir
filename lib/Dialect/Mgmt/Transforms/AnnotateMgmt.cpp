@@ -36,7 +36,7 @@ void annotateMgmtAttr(Operation* top) {
     if (!scaleAttr) {
       return MgmtAttr::get(top->getContext(), level, dimension);
     }
-    auto scale = cast<IntegerAttr>(scaleAttr).getInt();
+    auto scale = cast<IntegerAttr>(scaleAttr);
     return MgmtAttr::get(top->getContext(), level, dimension, scale);
   };
 

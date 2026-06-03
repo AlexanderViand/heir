@@ -10,6 +10,22 @@ package(
 )
 
 cc_library(
+    name = "Headers",
+    hdrs = [
+        "CKKSAttributes.h",
+        "CKKSDialect.h",
+        "CKKSEnums.h",
+    ],
+    deps = [
+        ":attributes_inc_gen",
+        ":dialect_inc_gen",
+        ":enums_inc_gen",
+        "@heir//lib/Parameters/CKKS:Params",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
     name = "Dialect",
     srcs = [
         "CKKSAttributes.cpp",

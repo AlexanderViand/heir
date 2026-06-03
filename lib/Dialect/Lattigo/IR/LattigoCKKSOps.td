@@ -61,7 +61,7 @@ def Lattigo_CKKSEncodeOp : Lattigo_CKKSOp<"encode", [InPlaceOpInterface, Plainte
     Lattigo_CKKSEncoder:$encoder,
     TensorOrMemRef<[AnyFloat, AnyComplex]>:$value,
     Lattigo_RLWEPlaintext:$plaintext,
-    DefaultValuedAttr<I64Attr, "1">:$scale
+    Builtin_IntegerAttr:$scale
   );
   let results = (outs Lattigo_RLWEPlaintext:$encoded);
 

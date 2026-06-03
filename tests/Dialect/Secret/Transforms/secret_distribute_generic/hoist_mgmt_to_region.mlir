@@ -1,7 +1,7 @@
 // RUN: heir-opt --secret-distribute-generic --verify-diagnostics %s | FileCheck %s
 
-#mgmt = #mgmt.mgmt<level = 0, scale = 45>
-#mgmt1 = #mgmt.mgmt<level = 1, scale = 45>
+#mgmt = #mgmt.mgmt<level = 0, scale = 35184372088832>
+#mgmt1 = #mgmt.mgmt<level = 1, scale = 35184372088832>
 
 // CHECK: @test_hoist_if
 func.func @test_hoist_if(%arg0: !secret.secret<tensor<1x1024xf32>>, %cond: i1) -> !secret.secret<tensor<1x1024xf32>> {
@@ -46,7 +46,7 @@ func.func @test_hoist_for(%arg0: !secret.secret<tensor<1x1024xf32>>) -> !secret.
   // CHECK-NEXT: secret.yield
   // CHECK-NEXT: {mgmt.mgmt =
   // CHECK-NEXT: scf.yield
-  // CHECK-NEXT: __resattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 45>}]
+  // CHECK-NEXT: __resattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 35184372088832 : i64>}]
   %0 = secret.generic(%arg0: !secret.secret<tensor<1x1024xf32>> {mgmt.mgmt = #mgmt}) {
   ^body(%input0: tensor<1x1024xf32>):
     %1 = scf.for %iv = %c0 to %c10 step %c1 iter_args(%arg1 = %input0) -> (tensor<1x1024xf32>) {
@@ -65,9 +65,9 @@ func.func @test_hoist_if_in_for(%arg0: !secret.secret<tensor<1x1024xf32>>, %cond
   %c10 = arith.constant 10 : index
   // CHECK: scf.for
   // CHECK: scf.if
-  // CHECK: } {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 45>}
+  // CHECK: } {mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 35184372088832 : i64>}
   // CHECK: scf.yield
-  // CHECK: } {__argattrs = {{.*}}, __resattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 45>}]}
+  // CHECK: } {__argattrs = {{.*}}, __resattrs = [{mgmt.mgmt = #mgmt.mgmt<level = 0, scale = 35184372088832 : i64>}]}
   %0 = secret.generic(%arg0: !secret.secret<tensor<1x1024xf32>> {mgmt.mgmt = #mgmt}) {
   ^body(%input0: tensor<1x1024xf32>):
     %1 = scf.for %iv = %c0 to %c10 step %c1 iter_args(%arg1 = %input0) -> (tensor<1x1024xf32>) {

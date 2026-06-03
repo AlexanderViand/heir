@@ -1,6 +1,6 @@
 // RUN: heir-opt --lwe-to-lattigo %s | FileCheck %s
 
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 45>
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 35184372088832>
 #key = #lwe.key<>
 #modulus_chain_L1_C0 = #lwe.modulus_chain<elements = <36028797018652673 : i64, 35184372121601 : i64>, current = 0>
 #ring_f64_1_x1024 = #polynomial.ring<coefficientType = f64, polynomialModulus = <1 + x**1024>>

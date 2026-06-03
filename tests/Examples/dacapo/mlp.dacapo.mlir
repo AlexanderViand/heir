@@ -15,11 +15,11 @@
 !Z957769724367225479_i64 = !mod_arith.int<957769724367225479 : i64>
 !Z981696679688787961_i64 = !mod_arith.int<981696679688787961 : i64>
 !Z997960547764032911_i64 = !mod_arith.int<997960547764032911 : i64>
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 40>
-#inverse_canonical_encoding1 = #lwe.inverse_canonical_encoding<scaling_factor = 80>
-#inverse_canonical_encoding2 = #lwe.inverse_canonical_encoding<scaling_factor = 120>
-#inverse_canonical_encoding3 = #lwe.inverse_canonical_encoding<scaling_factor = 60>
-#inverse_canonical_encoding4 = #lwe.inverse_canonical_encoding<scaling_factor = 100>
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 1099511627776>
+#inverse_canonical_encoding1 = #lwe.inverse_canonical_encoding<scaling_factor = 1208925819614629174706176 : i82>
+#inverse_canonical_encoding2 = #lwe.inverse_canonical_encoding<scaling_factor = 1329227995784915872903807060280344576 : i122>
+#inverse_canonical_encoding3 = #lwe.inverse_canonical_encoding<scaling_factor = 1152921504606846976>
+#inverse_canonical_encoding4 = #lwe.inverse_canonical_encoding<scaling_factor = 1267650600228229401496703205376 : i102>
 #key = #lwe.key<>
 #modulus_chain_L13_C13 = #lwe.modulus_chain<elements = <1106058412451299513 : i64, 1056763241666817029 : i64, 957769724367225479 : i64, 919081519653443687 : i64, 1030837924888066153 : i64, 1084354410096143723 : i64, 1135846243351935917 : i64, 1087115004561311021 : i64, 997960547764032911 : i64, 892538949448853293 : i64, 1002528331340998513 : i64, 1100798419621231379 : i64, 981696679688787961 : i64, 1061922508412786269 : i64>, current = 13>
 #modulus_chain_L13_C3 = #lwe.modulus_chain<elements = <1106058412451299513 : i64, 1056763241666817029 : i64, 957769724367225479 : i64, 919081519653443687 : i64, 1030837924888066153 : i64, 1084354410096143723 : i64, 1135846243351935917 : i64, 1087115004561311021 : i64, 997960547764032911 : i64, 892538949448853293 : i64, 1002528331340998513 : i64, 1100798419621231379 : i64, 981696679688787961 : i64, 1061922508412786269 : i64>, current = 3>

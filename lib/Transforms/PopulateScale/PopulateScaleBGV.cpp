@@ -34,12 +34,26 @@ class BGVAdjustScaleMaterializer : public AdjustScaleMaterializer {
 
   virtual ~BGVAdjustScaleMaterializer() = default;
 
-  int64_t deltaScale(int64_t scale, int64_t inputScale) const override {
-    auto inputScaleInverse =
-        multiplicativeInverse(llvm::APInt(64, inputScale),
-                              llvm::APInt(64, plaintextModulus))
-            .getSExtValue();
-    return (scale * inputScaleInverse) % plaintextModulus;
+  FailureOr<APInt> deltaScale(mgmt::AdjustScaleOp /*op*/, const APInt& scale,
+                              const APInt& inputScale) const override {
+    APInt modulus(64, plaintextModulus);
+    APInt inputScaleInverse =
+        multiplicativeInverse(inputScale.urem(modulus), modulus);
+    if (inputScaleInverse.isZero()) return failure();
+    return modularMultiplication(scale.urem(modulus), inputScaleInverse,
+                                 modulus);
+  }
+
+  // BGV scales live in Z_t; the materialized product must be reduced mod the
+  // plaintext modulus (it equals the target scale, since delta was computed as
+  // target * input^-1 mod t). Without the reduction the raw integer product
+  // leaks into the BGV encoding scaling factor and corrupts decryption.
+  APInt resultScale(const APInt& inputScale,
+                    const APInt& deltaScale) const override {
+    APInt modulus(64, plaintextModulus);
+    return modularMultiplication(inputScale.zextOrTrunc(64).urem(modulus),
+                                 deltaScale.zextOrTrunc(64).urem(modulus),
+                                 modulus);
   }
 
  private:
@@ -70,7 +84,7 @@ struct PopulateScaleBGV : impl::PopulateScaleBGVBase<PopulateScaleBGV> {
     // set input scale to 1, which is arbitrary.
     solver.load<ScaleAnalysis<BGVScaleModel>>(
         bgv::SchemeParam::getSchemeParamFromAttr(bgvSchemeParamAttr),
-        /*inputScale*/ 1);
+        /*inputScale*/ APInt(64, 1));
     // Back-prop ScaleAnalysis depends on (forward) ScaleAnalysis
     solver.load<ScaleAnalysisBackward<BGVScaleModel>>(
         symbolTable,

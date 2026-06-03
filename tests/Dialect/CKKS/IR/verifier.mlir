@@ -27,9 +27,9 @@ func.func @test_input_dimension_error(%input: !ct) {
 
 !Z35184372121601_i64_ = !mod_arith.int<35184372121601 : i64>
 !Z36028797019389953_i64_ = !mod_arith.int<36028797019389953 : i64>
-// note the scaling factor is 45
-// after mul it should be 90
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 45>
+// note the scaling factor is 2^45
+// after mul it should be 2^90
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 35184372088832>
 #key = #lwe.key<>
 #modulus_chain_L1_C0_ = #lwe.modulus_chain<elements = <36028797019389953 : i64, 35184372121601 : i64>, current = 0>
 #modulus_chain_L1_C1_ = #lwe.modulus_chain<elements = <36028797019389953 : i64, 35184372121601 : i64>, current = 1>
@@ -58,12 +58,12 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [3602879
 
 !Z35184372121601_i64_ = !mod_arith.int<35184372121601 : i64>
 !Z36028797019389953_i64_ = !mod_arith.int<36028797019389953 : i64>
-// note the scaling factor is 45
-// after mul it should be 90
-// after rescaling it should be 45
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 45>
-#inverse_canonical_encoding1 = #lwe.inverse_canonical_encoding<scaling_factor = 90>
-#inverse_canonical_encoding2 = #lwe.inverse_canonical_encoding<scaling_factor = 40>
+// note the scaling factor is 2^45
+// after mul it should be 2^90
+// after rescaling it should be 2^45
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 35184372088832>
+#inverse_canonical_encoding1 = #lwe.inverse_canonical_encoding<scaling_factor = 1237940039285380274899124224 : i92>
+#inverse_canonical_encoding2 = #lwe.inverse_canonical_encoding<scaling_factor = 1099511627776>
 #key = #lwe.key<>
 #modulus_chain_L1_C0_ = #lwe.modulus_chain<elements = <36028797019389953 : i64, 35184372121601 : i64>, current = 0>
 #modulus_chain_L1_C1_ = #lwe.modulus_chain<elements = <36028797019389953 : i64, 35184372121601 : i64>, current = 1>
@@ -93,9 +93,9 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [3602879
 
 !Z35184372121601_i64_ = !mod_arith.int<35184372121601 : i64>
 !Z36028797019389953_i64_ = !mod_arith.int<36028797019389953 : i64>
-// note the scaling factor is 45
-// after mul it should be 90
-#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 45>
+// note the scaling factor is 2^45
+// after mul it should be 2^90
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 35184372088832>
 #key = #lwe.key<>
 #modulus_chain_L1_C0_ = #lwe.modulus_chain<elements = <36028797019389953 : i64, 35184372121601 : i64>, current = 0>
 #modulus_chain_L1_C1_ = #lwe.modulus_chain<elements = <36028797019389953 : i64, 35184372121601 : i64>, current = 1>

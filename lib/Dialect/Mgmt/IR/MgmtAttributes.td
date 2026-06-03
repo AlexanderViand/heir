@@ -37,14 +37,15 @@ def Mgmt_MgmtAttr : Mgmt_Attr<"Mgmt", "mgmt"> {
   let parameters = (ins
     "int": $level,
     DefaultValuedParameter<"int", "2">:$dimension,
-    DefaultValuedParameter<"int64_t", "0">:$scale
+    DefaultValuedParameter<"::mlir::IntegerAttr", "$_builder.getI64IntegerAttr(0)">:$scale
   );
   let builders = [
     AttrBuilder<(ins "int":$level, "int":$dimension), [{
       return $_get(
         $_ctxt,
         level,
-        dimension, 0);
+        dimension,
+        IntegerAttr::get(IntegerType::get($_ctxt, 64), 0));
     }]>,
   ];
   let assemblyFormat = "`<` struct(params) `>`";

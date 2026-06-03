@@ -1,10 +1,10 @@
 #ifndef LIB_DIALECT_MGMT_IR_MGMTATTRIBUTES_H_
 #define LIB_DIALECT_MGMT_IR_MGMTATTRIBUTES_H_
 
-#include <cstdint>
-
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
+#include "llvm/include/llvm/ADT/APInt.h"                   // from @llvm-project
 #include "mlir/include/mlir/Analysis/DataFlowFramework.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"        // from @llvm-project
 #include "mlir/include/mlir/IR/Value.h"                    // from @llvm-project
 
 #define GET_ATTRDEF_CLASSES
@@ -18,7 +18,10 @@ namespace mgmt {
 // MgmtAttr helpers
 //===----------------------------------------------------------------------===//
 
+MgmtAttr getMgmtAttrWithNewScale(MgmtAttr mgmtAttr, const APInt& scale);
 MgmtAttr getMgmtAttrWithNewScale(MgmtAttr mgmtAttr, int64_t scale);
+
+APInt getScaleAsAPInt(MgmtAttr mgmtAttr);
 
 //===----------------------------------------------------------------------===//
 // Getters and Setters
