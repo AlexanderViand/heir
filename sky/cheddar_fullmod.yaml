@@ -1,0 +1,30 @@
+# WIP: lower the full MNIST module (client functions included).
+# sky exec heir-cheddar-dbg sky/cheddar_fullmod.yaml
+
+name: heir-cheddar-dbg
+workdir: .
+
+run: |
+  echo "########## FULL-MODULE PIPELINE (inline + fold) ##########"
+  CC=clang bazel run //tools:heir-opt --//:enable_cheddar=1 -- \
+    "--annotate-module=backend=lattigo scheme=ckks" \
+    "--torch-linalg-to-ckks=ciphertext-degree=1024" \
+    "--scheme-to-cheddar" \
+    "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map" \
+    "--inline=inlining-threshold=4294967295" \
+    "--fold-memref-alias-ops" \
+    "--canonicalize" \
+    "--cheddar-to-emitc" \
+    "--reconcile-unrealized-casts" \
+    "$(pwd)/tests/Examples/common/mnist/mnist.mlir" > /tmp/fm_out.mlir 2>/tmp/fm_err.txt
+  echo "exit=$? out_lines=$(wc -l < /tmp/fm_out.mlir)"
+  echo "########## remaining illegal ops / errors ##########"
+  grep -iE "failed to legalize|error:|lvalue" /tmp/fm_err.txt | grep -v "INFO\|Running\|action cache" | head -6
+  echo "########## emit C++ (mlir-to-cpp) ##########"
+  CC=clang bazel run @llvm-project//mlir:mlir-translate -- --mlir-to-cpp \
+    /tmp/fm_out.mlir > /tmp/fm.cpp 2>/tmp/cpp_err.txt
+  echo "cpp_exit=$? cpp_lines=$(wc -l < /tmp/fm.cpp)"
+  grep -iE "error:" /tmp/cpp_err.txt | head -4
+  echo "## sample emitted Encode/Decode/copy lines:"
+  grep -nE "\.Encode\(|\.Decode\(|_m\(|_d;|for \(size_t" /tmp/fm.cpp | head -6
+  echo "########## DONE ##########"

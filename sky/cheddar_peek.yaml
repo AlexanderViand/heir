@@ -1,0 +1,11 @@
+name: heir-cheddar-dbg
+workdir: .
+run: |
+  CD=/root/.cache/bazel/_bazel_root/1293db03465478a8460fd67f91f14246/external/+cheddar_deps+cheddar
+  echo "## Scale mismatch throw sites ##"
+  grep -rn "Scale mismatch" "$CD" 2>/dev/null | head
+  echo "## context of the throw (with file) ##"
+  F=$(grep -rl "Scale mismatch" "$CD" 2>/dev/null | head -1)
+  echo "FILE=$F"
+  test -n "$F" && grep -n -B6 -A2 "Scale mismatch" "$F" | head -40
+  echo "## DONE ##"
