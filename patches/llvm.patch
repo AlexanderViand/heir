@@ -181,3 +181,25 @@ diff -ruN --strip-trailing-cr a/llvm/test/Transforms/SLPVectorizer/X86/ordered-r
 +  %fadd19.i.i = fadd double %fadd26.i.i, 0.000000e+00
 +  br label %bb7
 +}
+[PoC] emitc: accept lvalue operands in (member_)call_opaque arg_operands,
+so destination-passing / move-only C++ APIs (CHEDDAR) can pass by reference.
+--- a/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
++++ b/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
+@@ -338,7 +338,7 @@
+     Arg<StrAttr, "the C++ function to call">:$callee,
+     Arg<OptionalAttr<ArrayAttr>, "the order of operands and further attributes">:$args,
+     Arg<OptionalAttr<ArrayAttr>, "template arguments">:$template_args,
+-    Variadic<EmitCType>:$arg_operands
++    Variadic<AnyTypeOf<[EmitCType, EmitC_LValueType]>>:$arg_operands
+   );
+   let results = (outs Variadic<EmitCType>);
+   let builders = [
+@@ -383,7 +383,7 @@
+     StrAttr:$callee,
+     OptionalAttr<ArrayAttr>:$args,
+     OptionalAttr<ArrayAttr>:$template_args,
+-    Variadic<EmitCType>:$arg_operands
++    Variadic<AnyTypeOf<[EmitCType, EmitC_LValueType]>>:$arg_operands
+   );
+   let results = (outs Variadic<EmitCType>);
+

@@ -605,9 +605,18 @@ namespace llvm {
 // Enable hashing in dense map
 template <>
 struct DenseMapInfo<::mlir::heir::TypeAndAttribute> {
+  // Build the sentinel keys from the empty/tombstone void-pointer values
+  // (mirroring MLIR's own DenseMapInfo<Type>::getEmptyKey). Newer MLIR no
+  // longer exposes getTombstoneKey() on DenseMapInfo<Type>/<Attribute>.
   static ::mlir::heir::TypeAndAttribute getEmptyKey() {
-    return {DenseMapInfo<::mlir::Type>::getEmptyKey(),
-            DenseMapInfo<::mlir::Attribute>::getEmptyKey()};
+    const void* p = DenseMapInfo<const void*>::getEmptyKey();
+    return {::mlir::Type::getFromOpaquePointer(p),
+            ::mlir::Attribute::getFromOpaquePointer(p)};
+  }
+  static ::mlir::heir::TypeAndAttribute getTombstoneKey() {
+    const void* p = DenseMapInfo<const void*>::getTombstoneKey();
+    return {::mlir::Type::getFromOpaquePointer(p),
+            ::mlir::Attribute::getFromOpaquePointer(p)};
   }
   static unsigned getHashValue(const ::mlir::heir::TypeAndAttribute& val) {
     return llvm::hash_combine(val.type, val.attr);
