@@ -162,6 +162,8 @@ BackendPipelineBuilder toOpenFhePipelineBuilder();
 
 BackendPipelineBuilder toLattigoPipelineBuilder();
 
+BackendPipelineBuilder toCheddarPipelineBuilder();
+
 // A subpipeline that preprocesses linalg ops to make them more suitable for
 // FHE.
 void linalgPreprocessingBuilder(OpPassManager& manager);

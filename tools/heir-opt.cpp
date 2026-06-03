@@ -20,6 +20,7 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/Transforms/BufferizableOpInterfaceImpl.h"
 #include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Comb/IR/CombDialect.h"
 #include "lib/Dialect/Debug/IR/DebugDialect.h"
 #include "lib/Dialect/Debug/Transforms/Passes.h"
@@ -28,6 +29,7 @@
 #include "lib/Dialect/JaxiteWord/IR/JaxiteWordDialect.h"
 #include "lib/Dialect/JaxiteWord/Transforms/Passes.h"
 #include "lib/Dialect/KeyMgmt/IR/KeyMgmtDialect.h"
+#include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToJaxiteWord/LWEToJaxiteWord.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
@@ -322,6 +324,7 @@ int main(int argc, char** argv) {
   debug::registerDebugPasses();
   registerCheddarToEmitCPasses();
   cheddar::registerCheddarFuseOpsPasses();
+  cheddar::registerCheddarConfigureCryptoContextPasses();
   ckks::registerCKKSPasses();
   lattigo::registerLattigoPasses();
   lwe::registerLWEPasses();
@@ -423,6 +426,7 @@ int main(int argc, char** argv) {
 
   // Dialect conversion passes in HEIR
   bgv::registerBGVToLWEPasses();
+  lwe::registerLWEToCheddarPasses();
   lwe::registerLWEToJaxiteWordPasses();
   lwe::registerLWEToLattigoPasses();
   lwe::registerLWEToOpenfhePasses();
@@ -528,6 +532,11 @@ int main(int argc, char** argv) {
       "scheme-to-lattigo",
       "Convert code expressed at FHE scheme level to Lattigo Go code.",
       toLattigoPipelineBuilder());
+
+  PassPipelineRegistration<mlir::heir::BackendOptions>(
+      "scheme-to-cheddar",
+      "Convert code expressed at FHE scheme level to the CHEDDAR dialect.",
+      toCheddarPipelineBuilder());
 
   // TODO(#1645): Add backend options for tfhe-rs, fpt, jaxite.
   PassPipelineRegistration<>(
