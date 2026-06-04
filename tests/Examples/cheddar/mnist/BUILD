@@ -16,8 +16,9 @@ package(
 # against a plaintext reference computed in the harness.
 heir_opt(
     name = "mnist_emitc",
-    # Cheddar-level IR (already past --scheme-to-cheddar) with the HACK #7
-    # scale-management hand-edit; lower it the rest of the way to emitc.
+    # Cheddar-level IR (already past --scheme-to-cheddar) with baked canonical
+    # scales + the relu scale-align hand-edits; lower it the rest
+    # of the way to emitc.
     src = "mnist.mlir",
     generated_filename = "mnist_emitc.mlir",
     pass_flags = [

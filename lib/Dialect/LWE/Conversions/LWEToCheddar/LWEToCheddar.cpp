@@ -336,10 +336,11 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
 // already be lowered to cheddar (which carries no modulus chain) and would
 // then report level 0.
 // Encode. CHEDDAR's Encode(pt, level, scale, msg) needs the plaintext level and
-// its exact scale. We forward the precise per-use level + log2(scale) from the
-// scale-management analysis; the cheddar-to-emitc lowering materialises the
-// exact scale as ctx->param_.GetScale(level) so it matches CHEDDAR's canonical
-// per-level scale (CHEDDAR rejects any scale mismatch beyond 1e-12).
+// its exact scale. We forward the precise per-use level and the (nominal) scale
+// from the scale-management analysis. The cheddar-to-emitc emitter emits this
+// scale verbatim, so the cheddar-level IR must carry the EXACT canonical scale
+// CHEDDAR asserts against (it rejects mismatches beyond 1e-12) -- produced by
+// precise scale management upstream, or for now baked into the test IR.
 struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -349,10 +350,10 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto encoder = getContextualArg<cheddar::EncoderType>(op.getOperation());
     if (failed(encoder)) return encoder;
 
-    // Exact scaling factor (APInt) from the precise scale management. It is the
-    // canonical scale (≈2^logDefaultScale) or a doubled scale (≈2^2logScale,
-    // e.g. post-mult before rescale); we record its log2 so the emitter can
-    // raise CHEDDAR's canonical per-level scale to the right power.
+    // Scaling factor (APInt). It is the nominal canonical scale
+    // (≈2^logDefaultScale) or a doubled scale (≈2^2logScale, e.g. post-mult
+    // before rescale). The emitter emits it verbatim; the exact (prime-derived)
+    // canonical value must already be baked in upstream.
     APInt scaleAP(64, 1ULL << 45);  // default 2^45
     auto ptType = dyn_cast<lwe::LWEPlaintextType>(op.getOutput().getType());
     if (ptType) {
@@ -366,10 +367,8 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
                            : static_cast<int64_t>(scaleAP.nearestLogBase2());
 
     // Precise per-use level from the scale-management analysis (the optional
-    // RLWEEncodeOp level attr). The cheddar-to-emitc lowering turns
-    // (level, logScale) into the exact CHEDDAR scale
-    // ctx->param_.GetScale(level) raised to logScale/logDefaultScale. Requires
-    // running torch-linalg-to-ckks with ckks-scale-policy=precise.
+    // RLWEEncodeOp level attr). Requires running torch-linalg-to-ckks with
+    // ckks-scale-policy=precise.
     int64_t level = op.getLevel() ? op.getLevel().value() : 0;
     if (auto levelOffset =
             op->getParentOfType<ModuleOp>()->getAttrOfType<IntegerAttr>(
@@ -578,15 +577,16 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     // (relinearization) key is threaded as a `!cheddar.eval_key` argument;
     // rotation/conjugation keys are looked up inline from the UserInterface by
     // the cheddar-to-emitc lowering and are NOT threaded here.
-    // Context and Encoder are threaded into any function that does crypto OR
-    // encoding: an encode-only function (the preprocessing function) still
-    // needs the Context so the emitter can read ctx->param_.GetScale(level) for
-    // the exact plaintext scale.
+    // The Encoder is threaded into any function that does crypto OR encoding
+    // (an encode-only function -- the preprocessing function -- needs it for
+    // `encoder.Encode(...)`). The Context is threaded only into crypto
+    // functions: the emitter emits the encode scale verbatim from the IR, so
+    // encode-only functions no longer need the Context.
     auto hasCryptoOrEncode = [&](Operation* op) {
       return hasCryptoOps(op) || hasEncodeOps(op);
     };
     std::vector<std::pair<Type, OpPredicate>> evaluators = {
-        {cheddar::ContextType::get(context), hasCryptoOrEncode},
+        {cheddar::ContextType::get(context), hasCryptoOps},
         {cheddar::EncoderType::get(context), hasCryptoOrEncode},
         {cheddar::UserInterfaceType::get(context), hasCryptoOps},
         {cheddar::EvalKeyType::get(context), hasCryptoOps},
