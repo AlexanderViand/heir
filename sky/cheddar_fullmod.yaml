@@ -7,7 +7,7 @@ workdir: .
 run: |
   echo "########## FULL-MODULE PIPELINE (inline + fold) ##########"
   CC=clang bazel run //tools:heir-opt --//:enable_cheddar=1 -- \
-    "--annotate-module=backend=lattigo scheme=ckks" \
+    "--annotate-module=backend=cheddar scheme=ckks" \
     "--torch-linalg-to-ckks=ciphertext-degree=1024" \
     "--scheme-to-cheddar" \
     "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map" \

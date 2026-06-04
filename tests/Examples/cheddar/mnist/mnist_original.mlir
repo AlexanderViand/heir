@@ -2,7 +2,7 @@
 // --scheme-to-cheddar output that mnist.mlir is derived from (which adds the
 // scale bake + the relu scale-align hand-edits; see HACKS.md #5). Kept for
 // diffing. Generated on tests/Examples/common/mnist/mnist.mlir with:
-//   heir-opt --annotate-module='backend=lattigo scheme=ckks' \
+//   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
 //            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
 !ciphertext = !cheddar.ciphertext
 !context = !cheddar.context
@@ -12,7 +12,7 @@
 !user_interface = !cheddar.user_interface
 #layout = #tensor_ext.layout<"{ [i0, i1] -> [ct, slot] : i0 = 0 and ct = 0 and (-i1 + slot) mod 16 = 0 and 0 <= i1 <= 9 and 0 <= slot <= 1023 }">
 #original_type = #tensor_ext.original_type<originalType = tensor<1x10xf32>, layout = #layout>
-module @jit_func attributes {backend.lattigo, cheddar.P = array<i64: 1152921504608747521, 1152921504614055937, 1152921504615628801>, cheddar.Q = array<i64: 36028797017456641, 35184366911489, 35184376545281, 35184367828993, 35184373989377, 35184368025601, 35184373006337, 35184368877569, 35184372744193>, cheddar.logDefaultScale = 45 : i64, cheddar.logN = 15 : i64, jax.uses_shape_polymorphism = false, mhlo.num_partitions = 1 : i32, mhlo.num_replicas = 1 : i32, scheme.actual_slot_count = 16384 : i64, scheme.requested_slot_count = 1024 : i64} {
+module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 1152921504608747521, 1152921504614055937, 1152921504615628801>, cheddar.Q = array<i64: 36028797017456641, 35184366911489, 35184376545281, 35184367828993, 35184373989377, 35184368025601, 35184373006337, 35184368877569, 35184372744193>, cheddar.logDefaultScale = 45 : i64, cheddar.logN = 15 : i64, jax.uses_shape_polymorphism = false, mhlo.num_partitions = 1 : i32, mhlo.num_replicas = 1 : i32, scheme.actual_slot_count = 16384 : i64, scheme.requested_slot_count = 1024 : i64} {
   func.func private @_assign_layout_5588569554497981456(%arg0: tensor<1x10xf32>) -> tensor<1x1024xf32> attributes {client.pack_func = {func_name = "mnist"}} {
     %c0 = arith.constant 0 : index
     %c16_i32 = arith.constant 16 : i32
