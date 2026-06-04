@@ -329,12 +329,6 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
   }
 };
 
-// Attribute stamped on each lwe.encode by the pre-pass below, carrying the
-// ciphertext level at which the plaintext is consumed. Computed BEFORE the
-// dialect conversion runs, while users are still lwe/ckks ops with a modulus
-// chain -- reading user levels mid-conversion is unreliable because users may
-// already be lowered to cheddar (which carries no modulus chain) and would
-// then report level 0.
 // Encode. CHEDDAR's Encode(pt, level, scale, msg) needs the plaintext level and
 // its exact scale. We forward the precise per-use level and the (nominal) scale
 // from the scale-management analysis. The cheddar-to-emitc emitter emits this
@@ -370,11 +364,6 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     // RLWEEncodeOp level attr). Requires running torch-linalg-to-ckks with
     // ckks-scale-policy=precise.
     int64_t level = op.getLevel() ? op.getLevel().value() : 0;
-    if (auto levelOffset =
-            op->getParentOfType<ModuleOp>()->getAttrOfType<IntegerAttr>(
-                "heir.level_offset")) {
-      level += levelOffset.getInt();
-    }
 
     auto ptTy = cheddar::PlaintextType::get(getContext());
     rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
