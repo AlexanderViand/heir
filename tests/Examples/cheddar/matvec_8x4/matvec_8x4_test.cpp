@@ -1,73 +1,97 @@
-// End-to-end test for the looped 8x4 matrix-vector multiply kernel emitted
-// from matvec_8x4.mlir. Exercises tensor-of-ciphertext / tensor-of-plaintext
-// patterns through scf.for, with a per-row `mult_plain + hrot_add + hrot_add`
-// chain that reduces a 4-element packed dot product into slot 0.
-//
-// The exact emitted C++ signature depends on how bufferization + the
-// cheddar-to-emitc emitter render `tensor<Nx!cheddar.*>` parameters. The
-// expectation encoded here is `std::array<T,N>` for static-sized tensors of
-// move-only payload types, plus by-out-reference for the result tensor.
-// If the emitter ends up picking a different shape (e.g. raw pointers or
-// `std::vector`), this signature needs to be updated to match.
+// End-to-end GPU run of a matrix-vector product (public 8x4 weights times a
+// secret 4-vector) via the cheddar backend. The whole lowered module is
+// exercised -- the generated `matvec__encrypt__arg0` (encrypt x),
+// `matvec__decrypt__result0`, the `matvec__preprocessing` that encodes the
+// weight diagonals, and the combined `matvec` kernel -- so the harness just
+// calls the generated functions and checks against the plaintext product.
 
 #include <gtest/gtest.h>
 
 #include <array>
 #include <cmath>
-#include <cstddef>
+#include <complex>
+#include <cstdint>
+#include <cstdio>
+#include <memory>
+#include <random>
 #include <utility>
 #include <vector>
 
-#include "tests/Examples/cheddar/cheddar_test_fixture.h"
+#include "UserInterface.h"
+#include "core/Context.h"
+#include "core/Encode.h"
+#include "core/Parameter.h"
 
-using cheddar::Context;
-using cheddar::UserInterface;
-using cheddar_test::Ct;
-using cheddar_test::Pt;
-using cheddar_test::word;
+using word = uint64_t;
+using Ct = cheddar::Ciphertext<word>;
+using Evk = cheddar::EvaluationKey<word>;
+using UI = cheddar::UserInterface<word>;
 
-// Generated kernel: see matvec_8x4.mlir for the IR-level contract.
-void matvec_8x4(Context<word>* ctx, UserInterface<word>* ui, const Ct& x,
-                const std::array<Pt, 8>& W, std::array<Ct, 8>& result);
+void matvec__encrypt__arg0(cheddar::Context<word>* ctx,
+                           const cheddar::Encoder<word>& encoder, UI* ui,
+                           const Evk& evk, float x[4], UI* ui2,
+                           std::array<Ct, 1>& out);
+void matvec(cheddar::Context<word>* ctx, const cheddar::Encoder<word>& encoder,
+            UI* ui, const Evk& evk, const std::array<Ct, 1>& x, float W[8][4],
+            std::array<Ct, 1>& out);
+void matvec__decrypt__result0(cheddar::Context<word>* ctx,
+                              const cheddar::Encoder<word>& encoder, UI* ui,
+                              const Evk& evk, const std::array<Ct, 1>& in,
+                              UI* ui2, float* out);
 
-TEST(CheddarMatvec8x4E2E, RowwiseDotProducts) {
-  auto f = cheddar_test::MakeFixture();
-  // The kernel does hrot_add at distances 2 and 1 at the operating level.
-  // mult_plain does NOT change the level, so we operate at top_level.
-  f.ui->PrepareRotationKey(1, f.top_level);
-  f.ui->PrepareRotationKey(2, f.top_level);
+namespace {
+constexpr int kMaxLevel = 1;
+const std::vector<int>& RotationDistances() {
+  static const std::vector<int> kD = {1, 2};
+  return kD;
+}
+cheddar::Parameter<word> MakeParam() {
+  std::vector<word> main_primes = {36028797018652673ULL, 35184372121601ULL};
+  std::vector<word> aux_primes = {1152921504606994433ULL};
+  std::vector<std::pair<int, int>> level_config;
+  for (int i = 1; i <= static_cast<int>(main_primes.size()); ++i)
+    level_config.emplace_back(i, 0);
+  return cheddar::Parameter<word>(
+      /*logN=*/13, /*scale=*/static_cast<double>(1ULL << 45), kMaxLevel,
+      level_config, main_primes, aux_primes);
+}
+}  // namespace
 
-  // 4-element input vector, encrypted into a single ciphertext.
-  std::vector<double> x_vec = {0.5, 0.25, 0.125, 0.0625};
-  Ct x = cheddar_test::EncryptVec(f, x_vec, f.top_level);
-
-  // 8x4 weight matrix as 8 plaintext rows. Picked so each row's expected
-  // dot product is easy to eyeball.
-  std::vector<std::vector<double>> W_vec = {
-      {1.0, 0.0, 0.0, 0.0},    // row 0:  W_0 . x = 0.5
-      {0.0, 1.0, 0.0, 0.0},    // row 1:  W_1 . x = 0.25
-      {0.0, 0.0, 1.0, 0.0},    // row 2:  W_2 . x = 0.125
-      {0.0, 0.0, 0.0, 1.0},    // row 3:  W_3 . x = 0.0625
-      {1.0, 1.0, 1.0, 1.0},    // row 4:  W_4 . x = 0.9375
-      {1.0, 0.5, 0.25, 0.0},   // row 5:  W_5 . x = 0.65625
-      {0.5, 0.5, 0.5, 0.5},    // row 6:  W_6 . x = 0.46875
-      {-1.0, 1.0, -1.0, 1.0},  // row 7:  W_7 . x = -0.3125
-  };
-  std::array<Pt, 8> W;
-  for (size_t i = 0; i < W.size(); ++i) {
-    W[i] = cheddar_test::EncodeVec(f, W_vec[i], f.top_level);
-  }
-
-  std::array<Ct, 8> result;
-  matvec_8x4(f.ctx.get(), f.ui.get(), x, W, result);
-
-  for (size_t i = 0; i < result.size(); ++i) {
-    double expected = 0.0;
-    for (size_t j = 0; j < x_vec.size(); ++j) {
-      expected += W_vec[i][j] * x_vec[j];
+TEST(CheddarMatvecE2E, GpuRun) {
+  std::mt19937 gen(123);
+  std::uniform_real_distribution<double> dist(-1.0, 1.0);
+  static float x[4];
+  static float W[8][4];
+  static float ref[8];
+  for (int i = 0; i < 4; ++i) x[i] = static_cast<float>(dist(gen));
+  for (int o = 0; o < 8; ++o) {
+    double acc = 0;
+    for (int i = 0; i < 4; ++i) {
+      W[o][i] = static_cast<float>(dist(gen));
+      acc += static_cast<double>(W[o][i]) * x[i];
     }
-    auto slots = cheddar_test::DecryptVec(f, result[i], 1);
-    EXPECT_NEAR(slots[0], expected, 0.01)
-        << "Row " << i << ": expected " << expected << ", got " << slots[0];
+    ref[o] = static_cast<float>(acc);
   }
+
+  auto param = MakeParam();
+  auto ctx = cheddar::Context<word>::Create(param);
+  auto ui = std::make_unique<UI>(ctx);
+  for (int d : RotationDistances()) ui->PrepareRotationKey(d, kMaxLevel);
+  const Evk& evk = ui->GetMultiplicationKey();
+
+  std::array<Ct, 1> cx, cout;
+  matvec__encrypt__arg0(ctx.get(), ctx->encoder_, ui.get(), evk, x, ui.get(),
+                        cx);
+  matvec(ctx.get(), ctx->encoder_, ui.get(), evk, cx, W, cout);
+  static float result[8];
+  matvec__decrypt__result0(ctx.get(), ctx->encoder_, ui.get(), evk, cout,
+                           ui.get(), result);
+
+  double max_abs = 0;
+  for (int o = 0; o < 8; ++o)
+    max_abs =
+        std::max(max_abs, std::abs(static_cast<double>(result[o]) - ref[o]));
+  std::printf("matvec: max|d|=%.6e (e.g. fhe[0]=%.5f ref[0]=%.5f)\n", max_abs,
+              result[0], ref[0]);
+  EXPECT_LT(max_abs, 1e-2);
 }

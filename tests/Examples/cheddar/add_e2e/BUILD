@@ -9,15 +9,23 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-# 1. cheddar dialect → emitc dialect
+# End-to-end: additive grab-bag (ct+ct, ct-ct, ct+const) on two secret 1024-vectors. The cheddar-level IR is a full module (client
+# encrypt/decrypt helpers + compute), so the harness just calls the generated
+# functions; lower it the rest of the way to emitc.
 heir_opt(
     name = "add_e2e_emitc",
     src = "add_e2e.mlir",
     generated_filename = "add_e2e_emitc.mlir",
-    pass_flags = ["--cheddar-to-emitc"],
+    pass_flags = [
+        "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map",
+        "--inline=inlining-threshold=4294967295",
+        "--fold-memref-alias-ops",
+        "--canonicalize",
+        "--cheddar-to-emitc",
+        "--reconcile-unrealized-casts",
+    ],
 )
 
-# 2. emitc → raw C++ (just function bodies, no includes)
 heir_translate(
     name = "add_e2e_cpp_raw",
     src = ":add_e2e_emitc.mlir",
@@ -25,22 +33,25 @@ heir_translate(
     pass_flags = ["--mlir-to-cpp"],
 )
 
-# 3. Prepend a CHEDDAR prelude (includes + `using namespace cheddar; using
-#    word = uint64_t;`) so the generated function bodies type-check.
 genrule(
     name = "add_e2e_lib_src",
     srcs = [":add_e2e_raw.cc"],
     outs = ["add_e2e_lib.cc"],
     cmd = """cat > $@ <<'PRELUDE_EOF'
 // AUTO-GENERATED: do not edit. See tests/Examples/cheddar/add_e2e/BUILD.
+#include <array>
+#include <complex>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <vector>
 #include "core/Context.h"
 #include "core/Encode.h"
 #include "core/Parameter.h"
 #include "UserInterface.h"
 using namespace cheddar;
 using word = uint64_t;
+using Complex = std::complex<double>;
 PRELUDE_EOF
 cat $(location :add_e2e_raw.cc) >> $@
 """,
