@@ -1,24 +1,84 @@
-// CHEDDAR-dialect kernels exercising ciphertext multiplication. The result of
-// `cheddar.mult` is a degree-3 ciphertext at the same level as its inputs;
-// `cheddar.relinearize_rescale` brings it back to degree-2 and drops one
-// level, so callers see a normal ciphertext at level-1.
-
-func.func @mult_kernel(%ctx: !cheddar.context, %mult_key: !cheddar.eval_key,
-                       %a: !cheddar.ciphertext,
-                       %b: !cheddar.ciphertext) -> !cheddar.ciphertext {
-  %prod = cheddar.mult %ctx, %a, %b
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
-  %r = cheddar.relinearize_rescale %ctx, %prod, %mult_key
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
-}
-
-// Fused single-kernel variant: `cheddar.hmult` does mult + relin + rescale
-// in one GPU launch.
-func.func @hmult_kernel(%ctx: !cheddar.context, %mult_key: !cheddar.eval_key,
-                        %a: !cheddar.ciphertext,
-                        %b: !cheddar.ciphertext) -> !cheddar.ciphertext {
-  %r = cheddar.hmult %ctx, %a, %b, %mult_key {rescale = true}
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// Element-wise product of two secret 1024-vectors at the cheddar level:
+// full-module e2e input (client encrypt/decrypt helpers + compute). Generated
+// from a linalg.generic (arith.mulf) source with:
+//   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
+//            --linalg-canonicalizations \
+//            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
+// Shallow (one mult): all encodes top-level, so no scale bake is needed.
+//
+// --scheme-to-cheddar runs cheddar-fuse-ops by default, so this IR uses the
+// compound kernels hmult (mult+relinearize[+rescale]) and hrot_add (hrot+add)
+// rather than the separate-op sequences.
+!ciphertext = !cheddar.ciphertext
+!context = !cheddar.context
+!encoder = !cheddar.encoder
+!eval_key = !cheddar.eval_key
+!plaintext = !cheddar.plaintext
+!user_interface = !cheddar.user_interface
+#layout = #tensor_ext.layout<"{ [i0] -> [ct, slot] : ct = 0 and (-i0 + slot) mod 1024 = 0 and 0 <= i0 <= 1023 and 0 <= slot <= 1023 }">
+#original_type = #tensor_ext.original_type<originalType = tensor<1024xf32>, layout = #layout>
+module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>, cheddar.Q = array<i64: 36028797018652673, 35184372121601>, cheddar.logDefaultScale = 45 : i64, cheddar.logN = 13 : i64, scheme.actual_slot_count = 4096 : i64, scheme.requested_slot_count = 1024 : i64} {
+  func.func @mult(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}, %arg1: tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}) -> (tensor<1x!ciphertext> {secret.secret, tensor_ext.original_type = #original_type}) {
+    %c0 = arith.constant 0 : index
+    %extracted = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
+    %extracted_0 = tensor.extract %arg1[%c0] : tensor<1x!ciphertext>
+    %0 = tensor.empty() : tensor<1x!ciphertext>
+    %ct = cheddar.hmult %ctx, %extracted, %extracted_0, %evk : (!context, !ciphertext, !ciphertext, !eval_key) -> !ciphertext
+    %inserted = tensor.insert %ct into %0[%c0] : tensor<1x!ciphertext>
+    return %inserted : tensor<1x!ciphertext>
+  }
+  func.func @mult__encrypt__arg0(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1024xf32>, %ui_0: !user_interface) -> tensor<1x!ciphertext> attributes {client.enc_func = {func_name = "mult", index = 0 : i64}} {
+    %c0 = arith.constant 0 : index
+    %cst = arith.constant dense<0.000000e+00> : tensor<1x1024xf32>
+    %c0_i32 = arith.constant 0 : i32
+    %c1_i32 = arith.constant 1 : i32
+    %c1024_i32 = arith.constant 1024 : i32
+    %0 = scf.for %arg1 = %c0_i32 to %c1024_i32 step %c1_i32 iter_args(%arg2 = %cst) -> (tensor<1x1024xf32>)  : i32 {
+      %1 = arith.index_cast %arg1 : i32 to index
+      %extracted = tensor.extract %arg0[%1] : tensor<1024xf32>
+      %inserted = tensor.insert %extracted into %arg2[%c0, %1] : tensor<1x1024xf32>
+      scf.yield %inserted : tensor<1x1024xf32>
+    }
+    %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
+    %pt = cheddar.encode %encoder, %extracted_slice {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
+    %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
+    return %from_elements : tensor<1x!ciphertext>
+  }
+  func.func @mult__encrypt__arg1(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1024xf32>, %ui_0: !user_interface) -> tensor<1x!ciphertext> attributes {client.enc_func = {func_name = "mult", index = 1 : i64}} {
+    %c0 = arith.constant 0 : index
+    %cst = arith.constant dense<0.000000e+00> : tensor<1x1024xf32>
+    %c0_i32 = arith.constant 0 : i32
+    %c1_i32 = arith.constant 1 : i32
+    %c1024_i32 = arith.constant 1024 : i32
+    %0 = scf.for %arg1 = %c0_i32 to %c1024_i32 step %c1_i32 iter_args(%arg2 = %cst) -> (tensor<1x1024xf32>)  : i32 {
+      %1 = arith.index_cast %arg1 : i32 to index
+      %extracted = tensor.extract %arg0[%1] : tensor<1024xf32>
+      %inserted = tensor.insert %extracted into %arg2[%c0, %1] : tensor<1x1024xf32>
+      scf.yield %inserted : tensor<1x1024xf32>
+    }
+    %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
+    %pt = cheddar.encode %encoder, %extracted_slice {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
+    %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
+    return %from_elements : tensor<1x!ciphertext>
+  }
+  func.func @mult__decrypt__result0(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext>, %ui_0: !user_interface) -> tensor<1024xf32> attributes {client.dec_func = {func_name = "mult", index = 0 : i64}} {
+    %c0 = arith.constant 0 : index
+    %c1024_i32 = arith.constant 1024 : i32
+    %c1_i32 = arith.constant 1 : i32
+    %c0_i32 = arith.constant 0 : i32
+    %cst = arith.constant dense<0.000000e+00> : tensor<1024xf32>
+    %extracted = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
+    %pt = cheddar.decrypt %ui, %extracted : (!user_interface, !ciphertext) -> !plaintext
+    %0 = tensor.empty() : tensor<1x1024xf32>
+    %1 = cheddar.decode %encoder, %pt, %0 : (!encoder, !plaintext, tensor<1x1024xf32>) -> tensor<1x1024xf32>
+    %2 = scf.for %arg1 = %c0_i32 to %c1024_i32 step %c1_i32 iter_args(%arg2 = %cst) -> (tensor<1024xf32>)  : i32 {
+      %3 = arith.index_cast %arg1 : i32 to index
+      %extracted_1 = tensor.extract %1[%c0, %3] : tensor<1x1024xf32>
+      %inserted = tensor.insert %extracted_1 into %arg2[%3] : tensor<1024xf32>
+      scf.yield %inserted : tensor<1024xf32>
+    }
+    return %2 : tensor<1024xf32>
+  }
 }
