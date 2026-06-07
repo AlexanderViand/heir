@@ -15,10 +15,11 @@
 // evk_map arg is threaded by --scheme-to-cheddar (LWEToCheddar) and supplied by
 // the harness from ui->GetEvkMap() after AddRequiredRotations.
 //
-// cheddar.boot lowers to `static_cast<BootContext<word>*>(ctx)->Boot(res, in,
-// evk_map)`; the harness passes a BootContext as the Context.
+// cheddar.boot takes a !cheddar.boot_context and lowers to `ctx->Boot(res, in,
+// evk_map)` on a BootContext<word>*; the harness passes the BootContext it built.
 !ciphertext = !cheddar.ciphertext
 !context = !cheddar.context
+!boot_context = !cheddar.boot_context
 !encoder = !cheddar.encoder
 !eval_key = !cheddar.eval_key
 !evk_map = !cheddar.evk_map
@@ -27,10 +28,10 @@
 #layout = #tensor_ext.layout<"{ [i0] -> [ct, slot] : ct = 0 and (-i0 + slot) mod 1024 = 0 and 0 <= i0 <= 1023 and 0 <= slot <= 1023 }">
 #original_type = #tensor_ext.original_type<originalType = tensor<1024xf32>, layout = #layout>
 module attributes {backend.cheddar, cheddar.logDefaultScale = 40 : i64, cheddar.logN = 16 : i64} {
-  func.func @boot(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %evk_map: !evk_map, %arg0: tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}) -> (tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}) {
+  func.func @boot(%ctx: !boot_context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %evk_map: !evk_map, %arg0: tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}) -> (tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}) {
     %c0 = arith.constant 0 : index
     %extracted = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
-    %ct = cheddar.boot %ctx, %extracted, %evk_map : (!context, !ciphertext, !evk_map) -> !ciphertext
+    %ct = cheddar.boot %ctx, %extracted, %evk_map : (!boot_context, !ciphertext, !evk_map) -> !ciphertext
     %0 = tensor.empty() : tensor<1x!ciphertext>
     %inserted = tensor.insert %ct into %0[%c0] : tensor<1x!ciphertext>
     return %inserted : tensor<1x!ciphertext>

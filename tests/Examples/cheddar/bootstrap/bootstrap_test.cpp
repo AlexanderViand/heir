@@ -1,6 +1,6 @@
 // End-to-end GPU run of a real CHEDDAR bootstrap via the cheddar backend. The
-// lowered module's `boot` kernel calls `static_cast<BootContext<word>*>(ctx)->
-// Boot(...)`, so the harness builds a BootContext from CHEDDAR's curated
+// lowered module's `boot` kernel takes a BootContext<word>* and calls
+// `ctx->Boot(...)`, so the harness builds a BootContext from CHEDDAR's curated
 // bootparam_40_64bit parameter set, runs the bootstrap preparation sequence
 // (PrepareEvalMod / PrepareEvalSpecialFFT / AddRequiredRotations -> rotation
 // keys), then calls the generated encrypt/boot/decrypt helpers and checks that
@@ -37,9 +37,10 @@ void boot__encrypt__arg0(cheddar::Context<word>* ctx,
                          const cheddar::Encoder<word>& encoder, UI* ui,
                          const Evk& evk, float a[1024], UI* ui2,
                          std::array<Ct, 1>& out);
-void boot(cheddar::Context<word>* ctx, const cheddar::Encoder<word>& encoder,
-          UI* ui, const Evk& evk, const EvkMap& evk_map,
-          const std::array<Ct, 1>& in, std::array<Ct, 1>& out);
+void boot(cheddar::BootContext<word>* ctx,
+          const cheddar::Encoder<word>& encoder, UI* ui, const Evk& evk,
+          const EvkMap& evk_map, const std::array<Ct, 1>& in,
+          std::array<Ct, 1>& out);
 void boot__decrypt__result0(cheddar::Context<word>* ctx,
                             const cheddar::Encoder<word>& encoder, UI* ui,
                             const Evk& evk, const std::array<Ct, 1>& in,
