@@ -108,6 +108,17 @@ FailureOr<Value> getContextualArg(Operation* op, Type type) {
   return getContextualArgFromFunc(op, type);
 }
 
+// The server-side context argument, accepting either a plain `!cheddar.context`
+// or a `!cheddar.boot_context`. A bootstrapping function carries a BootContext
+// (which all the ordinary ops in it still run on); a non-boot function carries
+// a plain Context. cheddar.boot itself separately requires the BootContext.
+FailureOr<Value> getContextualContext(Operation* op) {
+  if (auto bootCtx = getContextualArgFromFunc<cheddar::BootContextType>(op);
+      succeeded(bootCtx))
+    return bootCtx;
+  return getContextualArg<cheddar::ContextType>(op);
+}
+
 //===----------------------------------------------------------------------===//
 // Conversion patterns
 //===----------------------------------------------------------------------===//
@@ -120,7 +131,7 @@ struct ConvertCKKSBinOp : public OpConversionPattern<CKKSOp> {
   LogicalResult matchAndRewrite(
       CKKSOp op, typename CKKSOp::Adaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
 
     rewriter.replaceOpWithNewOp<CheddarOp>(
@@ -147,7 +158,7 @@ struct ConvertCKKSPlainOp : public OpConversionPattern<CKKSOp> {
   LogicalResult matchAndRewrite(
       CKKSOp op, typename CKKSOp::Adaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
 
     // Ensure ciphertext is first operand (CHEDDAR convention)
@@ -186,7 +197,7 @@ struct ConvertCKKSNegateOp : public OpConversionPattern<ckks::NegateOp> {
   LogicalResult matchAndRewrite(
       ckks::NegateOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
 
     rewriter.replaceOpWithNewOp<cheddar::NegOp>(
@@ -211,7 +222,7 @@ struct ConvertCKKSRelinOp : public OpConversionPattern<ckks::RelinearizeOp> {
   LogicalResult matchAndRewrite(
       ckks::RelinearizeOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
     auto multKey = getContextualArg<cheddar::EvalKeyType>(op.getOperation());
     if (failed(multKey)) return multKey;
@@ -230,7 +241,7 @@ struct ConvertCKKSRescaleOp : public OpConversionPattern<ckks::RescaleOp> {
   LogicalResult matchAndRewrite(
       ckks::RescaleOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
 
     rewriter.replaceOpWithNewOp<cheddar::RescaleOp>(
@@ -252,7 +263,7 @@ struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
   LogicalResult matchAndRewrite(
       ckks::RotateOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
 
     Value dynamicShift = adaptor.getDynamicShift();
@@ -285,7 +296,7 @@ struct ConvertCKKSLevelReduceOp
   LogicalResult matchAndRewrite(
       ckks::LevelReduceOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
 
     // Derive target level from the output ciphertext's modulus chain.
@@ -315,7 +326,7 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
   LogicalResult matchAndRewrite(
       ckks::BootstrapOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
     // The EvkMap (bootstrapping keys) is threaded as a contextual
     // `!cheddar.evk_map` function argument -- same as the mult key -- rather
@@ -332,11 +343,12 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
 };
 
 // Encode. CHEDDAR's Encode(pt, level, scale, msg) needs the plaintext level and
-// its exact scale. We forward the precise per-use level and the (nominal) scale
-// from the scale-management analysis. The cheddar-to-emitc emitter emits this
-// scale verbatim, so the cheddar-level IR must carry the EXACT canonical scale
-// CHEDDAR asserts against (it rejects mismatches beyond 1e-12) -- produced by
-// precise scale management upstream, or for now baked into the test IR.
+// its scale. This pattern is a pure forwarder: it does NOT compute or adjust
+// scales, it only forwards the exact scale and per-use level that the upstream
+// CKKS scale management already put on the plaintext type / op. CHEDDAR asserts
+// the scale matches its own canonical value (rejecting mismatches beyond
+// 1e-12); whether that value is correct is the higher-level pipeline's job, so
+// fixing the upstream scale management never requires changing this lowering.
 struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -346,23 +358,22 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto encoder = getContextualArg<cheddar::EncoderType>(op.getOperation());
     if (failed(encoder)) return encoder;
 
-    // Scaling factor (APInt). It is the nominal canonical scale
-    // (≈2^logDefaultScale) or a doubled scale (≈2^2logScale, e.g. post-mult
-    // before rescale). The emitter emits it verbatim; the exact (prime-derived)
-    // canonical value must already be baked in upstream.
-    APInt scaleAP(64, 1ULL << 45);  // default 2^45
+    // Forward the scaling factor verbatim. The plaintext type's
+    // InverseCanonicalEncoding carries the exact scale value (an APInt) that
+    // CHEDDAR encodes at; we hand it through as the f64 CHEDDAR expects. We do
+    // not invent a default: a CKKS plaintext without a scale is malformed.
     auto ptType = dyn_cast<lwe::LWEPlaintextType>(op.getOutput().getType());
-    if (ptType) {
-      if (auto invEncoding = dyn_cast<lwe::InverseCanonicalEncodingAttr>(
-              ptType.getPlaintextSpace().getEncoding())) {
-        scaleAP = invEncoding.getScalingFactor().getValue();
-      }
-    }
-    int64_t logScale = scaleAP.isPowerOf2()
-                           ? static_cast<int64_t>(scaleAP.exactLogBase2())
-                           : static_cast<int64_t>(scaleAP.nearestLogBase2());
+    auto invEncoding = ptType ? dyn_cast<lwe::InverseCanonicalEncodingAttr>(
+                                    ptType.getPlaintextSpace().getEncoding())
+                              : nullptr;
+    if (!invEncoding)
+      return op.emitOpError()
+             << "cannot lower to cheddar.encode: plaintext has no "
+                "InverseCanonicalEncoding scaling factor to forward as the "
+                "CHEDDAR encode scale";
+    double scale = invEncoding.getScalingFactor().getValue().roundToDouble();
 
-    // Precise per-use level from the scale-management analysis (the optional
+    // Per-use level from the scale-management analysis (the optional
     // RLWEEncodeOp level attr). Requires running torch-linalg-to-ckks with
     // ckks-scale-policy=precise.
     int64_t level = op.getLevel() ? op.getLevel().value() : 0;
@@ -370,8 +381,7 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto ptTy = cheddar::PlaintextType::get(getContext());
     rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
         op, ptTy, encoder.value(), adaptor.getInput(),
-        rewriter.getI64IntegerAttr(level),
-        rewriter.getF64FloatAttr(std::pow(2.0, (double)logScale)));
+        rewriter.getI64IntegerAttr(level), rewriter.getF64FloatAttr(scale));
     return success();
   }
 };
@@ -446,7 +456,7 @@ struct ConvertOrionLinearTransformOp
   LogicalResult matchAndRewrite(
       orion::LinearTransformOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
     auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
     if (failed(evkMap)) return evkMap;
@@ -464,8 +474,8 @@ struct ConvertOrionLinearTransformOp
     // consumers (emitter, getRotationIndices) read bs/gs as-is and never
     // recompute them.
     double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
-    int64_t ratio = bsgsRatio > 0 ? static_cast<int64_t>(std::llround(bsgsRatio))
-                                  : 2;
+    int64_t ratio =
+        bsgsRatio > 0 ? static_cast<int64_t>(std::llround(bsgsRatio)) : 2;
     if (ratio < 1) ratio = 1;
     int64_t maxRot = 0;
     for (int32_t d : op.getDiagonalIndicesAttr().asArrayRef())
@@ -493,10 +503,11 @@ struct ConvertOrionLinearTransformOp
 // domain [domain_start, domain_end] its coefficients were fit on and expects
 // the evaluator to remap x in [a, b] to [-1, 1] (Lattigo does this internally;
 // CHEDDAR cannot). Orion's frontend normalizes activations to [-1, 1] and emits
-// that domain in practice. If a non-canonical domain ever reaches here we refuse
-// to lower rather than silently drop it (which would miscompute the activation):
-// with backend=cheddar the higher-level pipeline must materialize the affine
-// input remap (mult_const/rescale/add_const to [-1, 1]) before this conversion.
+// that domain in practice. If a non-canonical domain ever reaches here we
+// refuse to lower rather than silently drop it (which would miscompute the
+// activation): with backend=cheddar the higher-level pipeline must materialize
+// the affine input remap (mult_const/rescale/add_const to [-1, 1]) before this
+// conversion.
 struct ConvertOrionChebyshevOp
     : public OpConversionPattern<orion::ChebyshevOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -504,7 +515,7 @@ struct ConvertOrionChebyshevOp
   LogicalResult matchAndRewrite(
       orion::ChebyshevOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
     auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
     if (failed(evkMap)) return evkMap;
@@ -515,22 +526,29 @@ struct ConvertOrionChebyshevOp
       return op.emitError()
              << "cannot lower orion.chebyshev with approximation domain ["
              << domainStart << ", " << domainEnd
-             << "] to the cheddar backend: CHEDDAR's EvalPoly only evaluates on "
+             << "] to the cheddar backend: CHEDDAR's EvalPoly only evaluates "
+                "on "
                 "[-1, 1]. The higher-level pipeline must normalize the domain "
-                "(materialize the affine input remap to [-1, 1]) before lowering "
+                "(materialize the affine input remap to [-1, 1]) before "
+                "lowering "
                 "to cheddar.";
     }
 
     // Input level (where the ciphertext enters) and output level (where the
     // polynomial's multiplicative depth leaves it) both come from the modulus
     // chains the upstream level analysis assigned; CHEDDAR's EvalPoly rescales
-    // the result to the canonical scale of the output level.
-    int64_t level = 0;
-    if (auto ctType = dyn_cast<lwe::LWECiphertextType>(op.getInput().getType()))
-      if (auto mc = ctType.getModulusChain()) level = mc.getCurrent();
-    int64_t outputLevel = 0;
-    if (auto rType = dyn_cast<lwe::LWECiphertextType>(op.getResult().getType()))
-      if (auto mc = rType.getModulusChain()) outputLevel = mc.getCurrent();
+    // the result to the canonical scale of the output level. A missing modulus
+    // chain means the upstream level analysis did not run -- fail rather than
+    // silently emit level 0 (the top of the chain), which would be wrong.
+    auto inTy = dyn_cast<lwe::LWECiphertextType>(op.getInput().getType());
+    auto resTy = dyn_cast<lwe::LWECiphertextType>(op.getResult().getType());
+    if (!inTy || !inTy.getModulusChain() || !resTy || !resTy.getModulusChain())
+      return op.emitOpError()
+             << "cannot lower to cheddar.eval_poly: input/result ciphertext "
+                "has no modulus chain to read the EvalPoly input/output level "
+                "from (run the upstream CKKS level analysis first)";
+    int64_t level = inTy.getModulusChain().getCurrent();
+    int64_t outputLevel = resTy.getModulusChain().getCurrent();
 
     rewriter.replaceOpWithNewOp<cheddar::EvalPolyOp>(
         op, this->typeConverter->convertType(op.getResult().getType()),
@@ -688,6 +706,23 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       return found;
     };
 
+    // Predicate: function bootstraps (contains a ckks.bootstrap). Such a
+    // function gets a `!cheddar.boot_context` argument instead of a plain
+    // `!cheddar.context`, so `cheddar.boot` can call BootContext::Boot with no
+    // downcast (the ordinary ops in it still run on the same context).
+    auto funcBootstraps = [&](Operation* op) -> bool {
+      auto funcOp = dyn_cast<func::FuncOp>(op);
+      if (!funcOp) return false;
+      bool found = false;
+      funcOp->walk([&](ckks::BootstrapOp) { found = true; });
+      return found;
+    };
+
+    // Crypto function that does not bootstrap -> plain Context.
+    auto hasCryptoNoBoot = [&](Operation* op) -> bool {
+      return hasCryptoOps(op) && !funcBootstraps(op);
+    };
+
     // CHEDDAR context args to thread through functions. The multiplication
     // (relinearization) key is threaded as a `!cheddar.eval_key` argument, and
     // the bootstrapping key map as a `!cheddar.evk_map` argument (only into
@@ -701,8 +736,11 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     auto hasCryptoOrEncode = [&](Operation* op) {
       return hasCryptoOps(op) || hasEncodeOps(op);
     };
+    // Exactly one of Context / BootContext fires per function (a bootstrapping
+    // function gets the BootContext); the resulting argument order is the same.
     std::vector<std::pair<Type, OpPredicate>> evaluators = {
-        {cheddar::ContextType::get(context), hasCryptoOps},
+        {cheddar::ContextType::get(context), hasCryptoNoBoot},
+        {cheddar::BootContextType::get(context), funcBootstraps},
         {cheddar::EncoderType::get(context), hasCryptoOrEncode},
         {cheddar::UserInterfaceType::get(context), hasCryptoOps},
         {cheddar::EvalKeyType::get(context), hasCryptoOps},
@@ -739,7 +777,8 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     target.addDynamicallyLegalOp<func::FuncOp>([&](func::FuncOp op) {
       bool hasCheddarCtxArg =
           op.getFunctionType().getNumInputs() > 0 &&
-          containsArgumentOfType<cheddar::ContextType, cheddar::EncoderType,
+          containsArgumentOfType<cheddar::ContextType, cheddar::BootContextType,
+                                 cheddar::EncoderType,
                                  cheddar::UserInterfaceType,
                                  cheddar::EvalKeyType>(op);
       bool hasCryptoArg =
@@ -764,7 +803,8 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       });
       auto hasCheddarCtxArg =
           !operandTypes.empty() &&
-          mlir::isa<cheddar::ContextType>(*operandTypes.begin());
+          mlir::isa<cheddar::ContextType, cheddar::BootContextType>(
+              *operandTypes.begin());
       bool signatureConsistent = false;
       FailureOr<func::FuncOp> callee = getCalledFunction(op);
       if (succeeded(callee)) {
