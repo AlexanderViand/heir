@@ -163,6 +163,7 @@ cc_binary(
         "@heir//lib/Transforms/LowerUnpack",
         "@heir//lib/Transforms/MemrefToArith:ExpandCopy",
         "@heir//lib/Transforms/MemrefToArith:MemrefToArithRegistration",
+        "@heir//lib/Transforms/ModArithToArithVeir",
         "@heir//lib/Transforms/OperationBalancer",
         "@heir//lib/Transforms/OptimizeRelinearization",
         "@heir//lib/Transforms/PolynomialApproximation",

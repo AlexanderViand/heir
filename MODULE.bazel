@@ -82,6 +82,17 @@ llvm_configure(
     targets = _LLVM_TARGETS,
 )
 
+# VEIR, a formally verified (Lean-based) MLIR-compatible optimizer, used by
+# the `--mod-arith-to-arith-veir` pass. The `veir-opt` binary is built
+# out-of-band with `lake build` in the VEIR repository; point the
+# HEIR_VEIR_OPT_PATH environment variable at the resulting
+# `.lake/build/bin/veir-opt` (e.g. via `--repo_env` and `--test_env`) to make
+# it available to bazel. Otherwise `@veir//:veir-opt` is an empty filegroup
+# and lit tests gated on the `veir` feature are skipped.
+veir_repository = use_repo_rule("//bazel:extensions.bzl", "veir_repository")
+
+veir_repository(name = "veir")
+
 # eigen 4.0.0-20241125.bcr.1 has issues with gitlab changing the checksum
 # Cf. https://github.com/google/heir/issues/1840
 bazel_dep(name = "eigen", version = "3.4.0.bcr.3")

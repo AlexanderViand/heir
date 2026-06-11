@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 from lit.formats import ShTest
@@ -56,6 +57,24 @@ yosys_libs = "_main/lib/Transforms/YosysOptimizer/yosys"
 config.environment["HEIR_YOSYS_SCRIPTS_DIR"] = str(
     runfiles_dir.joinpath(Path(yosys_libs))
 )
+
+# veir-opt is an optional external tool (a formally verified Lean-based
+# MLIR-compatible optimizer, built out-of-band with `lake build`) used by the
+# --mod-arith-to-arith-veir pass. It is located, in order of precedence, via
+# the HEIR_VEIR_OPT_PATH environment variable (forward it with
+# --test_env=HEIR_VEIR_OPT_PATH), the @veir bazel repository (see
+# MODULE.bazel), or the PATH. If found, the `veir` lit feature is set so that
+# tests marked with `REQUIRES: veir` run; otherwise they are skipped.
+veir_opt_path = os.environ.get("HEIR_VEIR_OPT_PATH")
+if not veir_opt_path:
+    bazel_veir_opt = runfiles_dir.joinpath(Path("+_repo_rules+veir/veir-opt-bin"))
+    if bazel_veir_opt.exists():
+        veir_opt_path = str(bazel_veir_opt)
+if not veir_opt_path:
+    veir_opt_path = shutil.which("veir-opt")
+if veir_opt_path and os.path.exists(veir_opt_path):
+    config.available_features.add("veir")
+    config.environment["HEIR_VEIR_OPT_PATH"] = veir_opt_path
 
 # Some tests that use mlir-runner need access to additional shared libs to
 # link against functions like print. Substitutions replace magic strings in the
