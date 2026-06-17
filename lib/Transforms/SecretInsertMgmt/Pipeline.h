@@ -14,6 +14,11 @@ struct InsertMgmtPipelineOptions {
   bool modReduceBeforeMulIncludeFirstMul;
   std::optional<int64_t> bootstrapWaterline;
   int64_t levelBudget;
+  // When true, resolve cross-level mismatches via level_reduce
+  // (cheddar.level_down) rather than adjust_scale + mod_reduce. Set for the
+  // Cheddar backend, whose fixed canonical scale per level makes adjust_scale
+  // unnecessary (and incorrect).
+  bool cheddarMode = false;
 };
 
 // Run the secret-insert-mgmt pipeline.
@@ -36,7 +41,8 @@ void insertRelinearizeAfterMult(Operation* top, bool includeFloats);
 
 void adjustLevelsForRegionBranchOps(Operation* top);
 
-void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats);
+void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
+                         bool cheddarMode);
 
 void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats);
 

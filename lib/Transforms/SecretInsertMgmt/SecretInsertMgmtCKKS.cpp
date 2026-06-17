@@ -1,3 +1,4 @@
+#include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Mgmt/Transforms/AnnotateMgmt.h"
 #include "lib/Dialect/Mgmt/Transforms/Passes.h"
 #include "lib/Dialect/ModuleAttributes.h"
@@ -28,12 +29,27 @@ struct SecretInsertMgmtCKKS
     // Helper for future lowerings that want to know what scheme was used
     moduleSetCKKS(getOperation());
 
+    // The Cheddar backend has a fixed canonical scale per level. We read the
+    // backend from the module attribute set by annotate-module (run before this
+    // pass in the cheddar pipeline) and switch to a scale-management strategy
+    // that never emits adjust_scale.
+    bool cheddarMode = moduleIsCheddar(getOperation());
+
     InsertMgmtPipelineOptions options;
     options.includeFloats = true;
     options.levelBudget = levelBudget;
-    options.modReduceAfterMul = afterMul;
+    // Cheddar requires rescale-after-mult: this guarantees every multiplication
+    // result immediately drops a level, so every operand-scale mismatch becomes
+    // a cross-level mismatch (resolved with level_down, no adjust_scale). With
+    // rescale-before-mult, a not-yet-rescaled mul result would instead force a
+    // same-level adjust_scale (MatchCrossMulDepth) that Cheddar cannot
+    // represent.
+    options.modReduceAfterMul = afterMul || cheddarMode;
     options.modReduceBeforeMulIncludeFirstMul = beforeMulIncludeFirstMul;
     options.bootstrapWaterline = bootstrapWaterline;
+    // In cheddar mode, cross-level mismatches are resolved with level_reduce
+    // (cheddar.level_down) instead of adjust_scale + mod_reduce.
+    options.cheddarMode = cheddarMode;
     LogicalResult result = runInsertMgmtPipeline(getOperation(), options);
 
     if (failed(result)) {
@@ -56,6 +72,24 @@ struct SecretInsertMgmtCKKS
     pipeline.addPass(createCSEPass());
     pipeline.addPass(mgmt::createAnnotateMgmt());
     (void)runPipeline(pipeline, getOperation());
+
+    // In cheddar mode, cross-level mismatches are resolved with level_down and
+    // no adjust_scale should ever be emitted. adjust_scale lowers to a scalar
+    // mul_plain with the nominal scale, which Cheddar rejects, so verify it is
+    // absent rather than letting it silently corrupt scales downstream.
+    if (cheddarMode) {
+      bool foundAdjustScale = false;
+      getOperation()->walk([&](mgmt::AdjustScaleOp op) {
+        op.emitError(
+            "cheddar backend does not support mgmt.adjust_scale; "
+            "cross-level mismatches must be resolved with level_down");
+        foundAdjustScale = true;
+      });
+      if (foundAdjustScale) {
+        signalPassFailure();
+        return;
+      }
+    }
   }
 };
 

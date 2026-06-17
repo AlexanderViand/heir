@@ -119,7 +119,8 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
 
   int idCounter = 0;  // for making adjust_scale op different to avoid cse
   LDBG(2) << "Handling cross level ops";
-  handleCrossLevelOps(top, &idCounter, options.includeFloats);
+  handleCrossLevelOps(top, &idCounter, options.includeFloats,
+                      options.cheddarMode);
 
   LDBG(2) << "Handling cross mul depth ops";
   handleCrossMulDepthOps(top, &idCounter, options.includeFloats);
@@ -199,16 +200,19 @@ void insertRelinearizeAfterMult(Operation* top, bool includeFloats) {
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 
-void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats) {
+void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
+                         bool cheddarMode) {
   DataFlowSolver solver;
   makeAndRunSecretnessAndLevelSolver(top, solver);
   MLIRContext* ctx = top->getContext();
   RewritePatternSet patterns(ctx);
   patterns.add<MatchCrossLevel<arith::AddIOp>, MatchCrossLevel<arith::SubIOp>,
-               MatchCrossLevel<arith::MulIOp>>(ctx, idCounter, top, &solver);
+               MatchCrossLevel<arith::MulIOp>>(ctx, idCounter, top, &solver,
+                                               cheddarMode);
   if (includeFloats)
     patterns.add<MatchCrossLevel<arith::AddFOp>, MatchCrossLevel<arith::SubFOp>,
-                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver);
+                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver,
+                                                 cheddarMode);
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 

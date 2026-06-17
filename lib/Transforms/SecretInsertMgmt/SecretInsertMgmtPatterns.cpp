@@ -217,6 +217,19 @@ LogicalResult MatchCrossLevel<Op>::matchAndRewrite(
       if (resultLevelState.isMaxLevel()) {
         managed =
             mgmt::LevelReduceMinOp::create(rewriter, op.getLoc(), managed);
+      } else if (cheddarMode) {
+        // Cheddar exposes a fixed canonical scale per level, so simply bringing
+        // the operand down to the result level (a single mgmt.level_reduce,
+        // lowered to cheddar.level_down / context->LevelDown) is enough to make
+        // the scales match -- no adjust_scale is needed. This is exactly the
+        // "mod_down" strategy: an adjust_scale would otherwise lower to a
+        // scalar mul_plain with the (wrong) nominal scale, which Cheddar
+        // rejects and which is indistinguishable from a user-level scalar
+        // multiplication.
+        auto resultLevel = resultLevelState.getInt();
+        auto level = levelState.getInt();
+        managed = mgmt::LevelReduceOp::create(rewriter, op.getLoc(), managed,
+                                              resultLevel - level);
       } else {
         auto resultLevel = resultLevelState.getInt();
         auto level = levelState.getInt();
