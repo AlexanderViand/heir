@@ -7,9 +7,10 @@
 //            --linalg-canonicalizations \
 //            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
 // The plaintext multiply makes this depth-1 (max_level 1, two Q primes) -- a
-// single Q prime is not a viable CHEDDAR modulus chain. All encodes are at the
-// top level: the 2.0 at the nominal scale 2^45 and the 0.5 at 2^90 (= 2^45^2,
-// the post-mult_plain product scale), both canonical, so no scale bake needed.
+// single Q prime is not a viable CHEDDAR modulus chain. The 2.0 is encoded at
+// the top level (level 1); the product is rescaled back to the canonical scale
+// before adding the 0.5, which is encoded at level 0 -- so every op sees
+// matching per-level GetScale scales, no scale bake or tolerance needed.
 !ciphertext = !cheddar.ciphertext
 !context = !cheddar.context
 !encoder = !cheddar.encoder
@@ -23,7 +24,7 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %cst = arith.constant dense<2.000000e+00> : tensor<1024xf32>
     %cst_0 = arith.constant dense<5.000000e-01> : tensor<1024xf32>
     %pt = cheddar.encode %encoder, %cst {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_1 = cheddar.encode %encoder, %cst_0 {level = 1 : i64, scale = 1.2379400392853803E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_1 = cheddar.encode %encoder, %cst_0 {level = 0 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %from_elements = tensor.from_elements %pt_1 : tensor<1x!plaintext>
     %from_elements_2 = tensor.from_elements %pt : tensor<1x!plaintext>
     return %from_elements, %from_elements_2 : tensor<1x!plaintext>, tensor<1x!plaintext>
@@ -37,9 +38,9 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %ct = cheddar.add %ctx, %extracted_1, %extracted_2 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_3 = cheddar.sub %ctx, %ct, %extracted_2 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_4 = cheddar.mult_plain %ctx, %ct_3, %extracted_0 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_5 = cheddar.add_plain %ctx, %ct_4, %extracted : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_5 = cheddar.rescale %ctx, %ct_4 : (!context, !ciphertext) -> !ciphertext
+    %ct_6 = cheddar.add_plain %ctx, %ct_5, %extracted : (!context, !ciphertext, !plaintext) -> !ciphertext
     %0 = tensor.empty() : tensor<1x!ciphertext>
-    %ct_6 = cheddar.rescale %ctx, %ct_5 : (!context, !ciphertext) -> !ciphertext
     %inserted = tensor.insert %ct_6 into %0[%c0] : tensor<1x!ciphertext>
     return %inserted : tensor<1x!ciphertext>
   }
