@@ -127,10 +127,6 @@ FailureOr<Value> getContextualArg(Operation* op) {
   return result.value();
 }
 
-FailureOr<Value> getContextualArg(Operation* op, Type type) {
-  return getContextualArgFromFunc(op, type);
-}
-
 FailureOr<Value> getContextualContext(Operation* op) {
   if (auto bootCtx = getContextualArgFromFunc<cheddar::BootContextType>(op);
       succeeded(bootCtx))
@@ -597,19 +593,17 @@ struct ConvertCheddarFuncCallOp : public OpConversionPattern<func::CallOp> {
     auto funcOp = getCalledFunction(op);
     if (failed(funcOp))
       return rewriter.notifyMatchFailure(op, "could not find callee function");
-    SmallVector<Value> selectedValues;
-    for (const auto& evaluator : evaluators) {
-      auto result = getContextualArg(op.getOperation(), evaluator.first);
-      if (failed(result)) continue;
-      if (!llvm::any_of(funcOp.value().getArgumentTypes(), [&](Type argType) {
-            return evaluator.first == argType;
-          }))
-        continue;
-      selectedValues.push_back(result.value());
-    }
     SmallVector<Value> newOperands;
-    for (auto v : selectedValues) newOperands.push_back(v);
-    for (auto operand : adaptor.getOperands()) newOperands.push_back(operand);
+    for (const auto& evaluator : evaluators) {
+      auto result =
+          getContextualArgFromFunc(op.getOperation(), evaluator.first);
+      if (failed(result)) continue;
+      if (!llvm::is_contained(funcOp.value().getArgumentTypes(),
+                              evaluator.first))
+        continue;
+      newOperands.push_back(result.value());
+    }
+    llvm::append_range(newOperands, adaptor.getOperands());
     SmallVector<NamedAttribute> dialectAttrs(op->getDialectAttrs());
     rewriter
         .replaceOpWithNewOp<func::CallOp>(op, op.getCallee(),

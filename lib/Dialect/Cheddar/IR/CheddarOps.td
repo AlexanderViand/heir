@@ -24,15 +24,17 @@ class Cheddar_Op<string mnemonic, list<Trait> traits = []> :
 // destination (init), and the result is tied 1:1 to it. The op is valid both
 // in tensor form (one result, pre-bufferization) and in buffer form (operands
 // are `memref<!cheddar.X>`, zero results, post one-shot-bufferize). The shared
-// `getDpsInitsMutable` points at `$output`; `mad_unsafe` overrides it to point
-// at its accumulator (true in-place).
-class Cheddar_DpsOp<string mnemonic, list<Trait> traits = []> :
+// `getDpsInitsMutable` points at the init operand named by `initName` (the
+// `$output` of most ops; `decode` writes `$value`, `mad_unsafe` its
+// `$accumulator` for a true in-place update).
+class Cheddar_DpsOp<string mnemonic, list<Trait> traits = [],
+                    string initName = "Output"> :
         Cheddar_Op<mnemonic, traits # [DestinationStyleOpInterface]> {
   let extraClassDeclaration = [{
-    // The single `$output` init operand as a (length-1) MutableOperandRange.
+    // The single init operand as a (length-1) MutableOperandRange.
     ::mlir::MutableOperandRange getDpsInitsMutable() {
       return ::mlir::MutableOperandRange(
-          getOperation(), getOutputMutable().getOperandNumber(), 1);
+          getOperation(), get}] # initName # [{Mutable().getOperandNumber(), 1);
     }
   }];
 }
@@ -157,7 +159,7 @@ def Cheddar_EncodeConstantOp : Cheddar_DpsOp<"encode_constant"> {
   let results = (outs Cheddar_ConstResult:$result);
 }
 
-def Cheddar_DecodeOp : Cheddar_Op<"decode", [DestinationStyleOpInterface]> {
+def Cheddar_DecodeOp : Cheddar_DpsOp<"decode", [], "Value"> {
   let summary = "Decode a CHEDDAR plaintext back to a message vector";
   let description = [{
     Calls encoder.Decode(message, pt). `value` is the destination buffer the
@@ -170,12 +172,6 @@ def Cheddar_DecodeOp : Cheddar_Op<"decode", [DestinationStyleOpInterface]> {
     Cheddar_FloatLike:$value
   );
   let results = (outs Variadic<AnyRankedTensor>:$decoded);
-  let extraClassDeclaration = [{
-    ::mlir::MutableOperandRange getDpsInitsMutable() {
-      return ::mlir::MutableOperandRange(
-          getOperation(), getValueMutable().getOperandNumber(), 1);
-    }
-  }];
 }
 
 def Cheddar_EncryptOp : Cheddar_DpsOp<"encrypt", [MemoryEffects<[MemWrite]>]> {
@@ -462,7 +458,7 @@ def Cheddar_HConjAddOp : Cheddar_DpsOp<"hconj_add"> {
   let results = (outs Cheddar_CtResult:$result);
 }
 
-def Cheddar_MadUnsafeOp : Cheddar_Op<"mad_unsafe", [DestinationStyleOpInterface]> {
+def Cheddar_MadUnsafeOp : Cheddar_DpsOp<"mad_unsafe", [], "Accumulator"> {
   let summary = "Fused multiply-accumulate with constant (no rescale)";
   let description = [{
     Computes res += a * constant (in-place accumulation).
@@ -480,12 +476,6 @@ def Cheddar_MadUnsafeOp : Cheddar_Op<"mad_unsafe", [DestinationStyleOpInterface]
     Cheddar_ConstLike:$constant
   );
   let results = (outs Cheddar_CtResult:$result);
-  let extraClassDeclaration = [{
-    ::mlir::MutableOperandRange getDpsInitsMutable() {
-      return ::mlir::MutableOperandRange(
-          getOperation(), getAccumulatorMutable().getOperandNumber(), 1);
-    }
-  }];
 }
 
 //===----------------------------------------------------------------------===//

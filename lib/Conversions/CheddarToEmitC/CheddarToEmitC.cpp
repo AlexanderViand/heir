@@ -124,7 +124,12 @@ int64_t numElements(ArrayRef<int64_t> shape) {
   return result;
 }
 
+// Flat `<elt>*` to a buffer's first element: the value itself if it is already
+// a pointer (e.g. a subview slice), else `&array[0]..[0]`. Emitting this as SSA
+// `address_of(subscript(buf, 0..0))` -- not a baked `&buf[0]..[0]` string --
+// lets cheddar-emitc-boundary recognize and flatten a result out-param.
 Value addressOfFirstElement(OpBuilder& b, Location loc, Value array) {
+  if (isa<emitc::PointerType>(array.getType())) return array;
   auto arrayTy = cast<emitc::ArrayType>(array.getType());
   auto sizeT = emitc::SizeTType::get(b.getContext());
   SmallVector<Value> zeroIdxs;
@@ -135,17 +140,6 @@ Value addressOfFirstElement(OpBuilder& b, Location loc, Value array) {
       emitc::SubscriptOp::create(b, loc, lvalueTy, array, zeroIdxs);
   return emitc::AddressOfOp::create(
       b, loc, emitc::PointerType::get(arrayTy.getElementType()), firstElement);
-}
-
-// A flat `<elt>*` to a float buffer's first element: `addressOfFirstElement`
-// for a C array, the value itself if already a pointer (e.g. a subview slice).
-// Emitting this as an SSA `address_of(subscript(buf, 0..0))` -- rather than
-// baking `&buf[0]..[0]` into a verbatim string -- lets the
-// cheddar-emitc-boundary pass recognize and flatten a result out-param (it
-// rewrites that exact pattern to the bare pointer arg).
-Value flatFloatPointer(OpBuilder& b, Location loc, Value buf) {
-  if (isa<emitc::PointerType>(buf.getType())) return buf;
-  return addressOfFirstElement(b, loc, buf);
 }
 
 // Emit `receiver.method(out, args..., extra)` (or `receiver->method(...)` for a
@@ -886,8 +880,8 @@ struct ConvertMemRefCopyFloat
     // Index both buffers through flat `<elt>*` SSA pointers so a result
     // out-param target (later flattened to `float*` at the boundary) stays
     // valid; the printed C++ is unchanged for ordinary C-array copies.
-    Value tgtPtr = flatFloatPointer(rewriter, op.getLoc(), tgt);
-    Value srcPtr = flatFloatPointer(rewriter, op.getLoc(), src);
+    Value tgtPtr = addressOfFirstElement(rewriter, op.getLoc(), tgt);
+    Value srcPtr = addressOfFirstElement(rewriter, op.getLoc(), src);
     std::string fmt = "for (size_t _i = 0; _i < " + std::to_string(n) +
                       "; ++_i) ({})[_i] = ({})[_i];";
     VerbatimOp::create(rewriter, op.getLoc(), fmt, ValueRange{tgtPtr, srcPtr});
@@ -1041,17 +1035,12 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
     addDps("Decrypt", cheddar::DecryptOp{});
     addDps("MadUnsafe", cheddar::MadUnsafeOp{});
     addDps("Boot", cheddar::BootOp{});
-    patterns.add<OutParamDpsPattern<cheddar::LevelDownOp>>(
-        typeConverter, ctx, "LevelDown",
-        std::function<std::string(cheddar::LevelDownOp)>(
-            [](cheddar::LevelDownOp op) {
-              return intLit(op.getTargetLevelAttr());
-            }));
-    patterns.add<OutParamDpsPattern<cheddar::HMultOp>>(
-        typeConverter, ctx, "HMult",
-        std::function<std::string(cheddar::HMultOp)>([](cheddar::HMultOp op) {
-          return op.getRescale() ? std::string("true") : std::string("false");
-        }));
+    addDps("LevelDown", cheddar::LevelDownOp{}, [](cheddar::LevelDownOp op) {
+      return intLit(op.getTargetLevelAttr());
+    });
+    addDps("HMult", cheddar::HMultOp{}, [](cheddar::HMultOp op) {
+      return op.getRescale() ? std::string("true") : std::string("false");
+    });
   }
 };
 

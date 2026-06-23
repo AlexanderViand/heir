@@ -101,6 +101,23 @@ struct FuseMultRelinRescaleFused
   }
 };
 
+// Find a single-use `OpTy` defining one of `addOp`'s operands; on success
+// `otherOperand` is set to the other addend. Shared by the hrot/hconj fusions.
+template <typename OpTy>
+OpTy fusableAddend(AddOp addOp, Value &otherOperand) {
+  if (auto lhs = addOp.getLhs().getDefiningOp<OpTy>())
+    if (lhs->getResult(0).hasOneUse()) {
+      otherOperand = addOp.getRhs();
+      return lhs;
+    }
+  if (auto rhs = addOp.getRhs().getDefiningOp<OpTy>())
+    if (rhs->getResult(0).hasOneUse()) {
+      otherOperand = addOp.getLhs();
+      return rhs;
+    }
+  return nullptr;
+}
+
 // Pattern: hrot(a) + b -> hrot_add(a, b)
 // `hrot_add` carries a static distance attribute, so it can fuse an hrot with a
 // static distance or one whose dynamic distance is a constant (the form the
@@ -110,23 +127,8 @@ struct FuseHRotAdd : public OpRewritePattern<AddOp> {
 
   LogicalResult matchAndRewrite(AddOp addOp,
                                 PatternRewriter &rewriter) const override {
-    HRotOp hrotOp = nullptr;
     Value otherOperand;
-
-    if (auto lhsHrot = addOp.getLhs().getDefiningOp<HRotOp>()) {
-      if (lhsHrot->getResult(0).hasOneUse()) {
-        hrotOp = lhsHrot;
-        otherOperand = addOp.getRhs();
-      }
-    }
-    if (!hrotOp) {
-      if (auto rhsHrot = addOp.getRhs().getDefiningOp<HRotOp>()) {
-        if (rhsHrot->getResult(0).hasOneUse()) {
-          hrotOp = rhsHrot;
-          otherOperand = addOp.getLhs();
-        }
-      }
-    }
+    HRotOp hrotOp = fusableAddend<HRotOp>(addOp, otherOperand);
     if (!hrotOp) return failure();
 
     // Resolve the rotation distance to the static attribute hrot_add carries.
@@ -155,23 +157,8 @@ struct FuseHConjAdd : public OpRewritePattern<AddOp> {
 
   LogicalResult matchAndRewrite(AddOp addOp,
                                 PatternRewriter &rewriter) const override {
-    HConjOp hconjOp = nullptr;
     Value otherOperand;
-
-    if (auto lhsHconj = addOp.getLhs().getDefiningOp<HConjOp>()) {
-      if (lhsHconj->getResult(0).hasOneUse()) {
-        hconjOp = lhsHconj;
-        otherOperand = addOp.getRhs();
-      }
-    }
-    if (!hconjOp) {
-      if (auto rhsHconj = addOp.getRhs().getDefiningOp<HConjOp>()) {
-        if (rhsHconj->getResult(0).hasOneUse()) {
-          hconjOp = rhsHconj;
-          otherOperand = addOp.getLhs();
-        }
-      }
-    }
+    HConjOp hconjOp = fusableAddend<HConjOp>(addOp, otherOperand);
     if (!hconjOp) return failure();
 
     rewriter.replaceOpWithNewOp<HConjAddOp>(

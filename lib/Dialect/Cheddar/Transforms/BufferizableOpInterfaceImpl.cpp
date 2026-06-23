@@ -53,8 +53,7 @@ struct CheddarDpsModel
     rewriter.setInsertionPoint(op);
     OperationState opState(op->getLoc(), op->getName(), newOperands,
                            /*resultTypes=*/TypeRange{}, op->getAttrs());
-    Operation* newOp = rewriter.create(opState);
-    (void)newOp;
+    rewriter.create(opState);
 
     // Each result is tied to a DPS init; its bufferized value is that init's
     // buffer (already in newOperands at the init's operand index).
