@@ -198,6 +198,12 @@ Value addressOfFirstElement(OpBuilder& b, Location loc, Value array) {
       b, loc, emitc::PointerType::get(arrayTy.getElementType()), firstElement);
 }
 
+int64_t numElements(ArrayRef<int64_t> shape) {
+  int64_t result = 1;
+  for (int64_t dim : shape) result *= dim;
+  return result;
+}
+
 // Cheddar types map to the textual C++ type that the CHEDDAR library uses.
 // Move-only types (Ciphertext/Plaintext/Constant) are *also* mapped to
 // `opaque<X>`; local variables wrap them in `lvalue<X>` only at the point of
@@ -456,6 +462,55 @@ struct ConvertSubViewToPointer
         emitc::SubscriptOp::create(rewriter, op.getLoc(), lvalT, base, idx);
     rewriter.replaceOpWithNewOp<emitc::AddressOfOp>(
         op, emitc::PointerType::get(arrayTy.getElementType()), sub.getResult());
+    return success();
+  }
+};
+
+// memref.expand_shape reinterprets a buffer. EmitC C arrays have rank in their
+// C++ type, so the remaining whole-buffer expand-shapes in Cheddar
+// preprocessing are materialized as a reshaped local array copy before calling
+// pack helpers.
+struct ConvertExpandShapeFloatCopy
+    : public OpConversionPattern<mlir::memref::ExpandShapeOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      mlir::memref::ExpandShapeOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto srcMemrefTy = cast<MemRefType>(op.getSrc().getType());
+    auto resultMemrefTy = cast<MemRefType>(op.getResult().getType());
+    if (!srcMemrefTy.hasStaticShape() || !resultMemrefTy.hasStaticShape())
+      return failure();
+    if (!isa<FloatType>(srcMemrefTy.getElementType()) ||
+        srcMemrefTy.getElementType() != resultMemrefTy.getElementType())
+      return failure();
+    if (numElements(srcMemrefTy.getShape()) !=
+        numElements(resultMemrefTy.getShape()))
+      return failure();
+
+    for (Operation* user : op.getResult().getUsers()) {
+      if (isa<mlir::memref::StoreOp, mlir::memref::CopyOp,
+              mlir::memref::SubViewOp>(user))
+        return rewriter.notifyMatchFailure(
+            op, "only read-only whole-buffer expand_shape is supported");
+    }
+
+    auto srcArrayTy = dyn_cast<emitc::ArrayType>(adaptor.getSrc().getType());
+    auto resultArrayTy = dyn_cast_or_null<emitc::ArrayType>(
+        getTypeConverter()->convertType(resultMemrefTy));
+    if (!srcArrayTy || !resultArrayTy) return failure();
+
+    Value out = VariableOp::create(rewriter, op.getLoc(), resultArrayTy,
+                                   OpaqueAttr::get(rewriter.getContext(), ""));
+    Value outPtr = addressOfFirstElement(rewriter, op.getLoc(), out);
+    Value srcPtr =
+        addressOfFirstElement(rewriter, op.getLoc(), adaptor.getSrc());
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        "for (size_t _i = 0; _i < " +
+            std::to_string(numElements(resultMemrefTy.getShape())) +
+            "; ++_i) {}[_i] = {}[_i];",
+        ValueRange{outPtr, srcPtr});
+    rewriter.replaceOp(op, out);
     return success();
   }
 };
@@ -1199,8 +1254,9 @@ struct CheddarToEmitCPass
     // MemRefToEmitC is the real downstream lowering it used to defer to.)
     patterns.add<ConvertMemRefAllocMoveOnly, ConvertMemRefLoadMoveOnly,
                  ConvertMemRefStoreMoveOnly, EraseMemRefDeallocMoveOnly,
-                 ConvertSubViewToPointer, ConvertMemRefCopy,
-                 ConvertGlobalDropAlign>(tc, ctx, /*benefit=*/2);
+                 ConvertSubViewToPointer, ConvertExpandShapeFloatCopy,
+                 ConvertMemRefCopy, ConvertGlobalDropAlign>(tc, ctx,
+                                                            /*benefit=*/2);
 
     // get_evk_map / get_mult_key / get_encoder / create_user_interface are
     // rejected up front by diagnoseUnsupportedGetters, so no patterns are
