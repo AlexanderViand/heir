@@ -11,7 +11,7 @@ package(
 )
 
 # End-to-end: lower the WHOLE common/mnist/mnist.mlir (client functions
-# included) -- encrypt / mnist (preprocessing + compute, inlined) / decrypt --
+# included) -- encrypt / mnist (split-preprocessing joint entry) / decrypt --
 # and run it on real weights + images, checking the decrypted classification
 # against a plaintext reference computed in the harness.
 heir_opt(
@@ -23,9 +23,6 @@ heir_opt(
     generated_filename = "mnist_emitc.mlir",
     pass_flags = [
         "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map",
-        # Fold the per-func preprocessing/compute decomposition into the
-        # combined @mnist entry (max threshold => always inline).
-        "--inline=inlining-threshold=4294967295",
         "--fold-memref-alias-ops",
         "--canonicalize",
         "--cheddar-to-emitc",

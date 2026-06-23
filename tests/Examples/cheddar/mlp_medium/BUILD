@@ -25,7 +25,6 @@ heir_opt(
     generated_filename = "mlp_medium_emitc.mlir",
     pass_flags = [
         "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map",
-        "--inline=inlining-threshold=4294967295",
         "--fold-memref-alias-ops",
         "--canonicalize",
         "--cheddar-to-emitc",

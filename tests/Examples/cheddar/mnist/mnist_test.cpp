@@ -1,7 +1,7 @@
 // End-to-end GPU run of HEIR's MNIST MLP via the cheddar backend.
 //
 // Runs the WHOLE lowered module -- the generated `mnist__encrypt__arg4` /
-// `mnist` (preprocessing + compute, inlined) / `mnist__decrypt__result0`
+// `mnist` (split-preprocessing joint entry) / `mnist__decrypt__result0`
 // functions -- on REAL model weights and real MNIST images.
 //
 // What this validates, and how it avoids the classic "argmax happens to
@@ -117,9 +117,9 @@ double TrueRelu(double x) { return x > 0 ? x : 0; }
 // Outside [-20,20] this (like the circuit) diverges -- intentionally evaluated
 // verbatim so the FHE comparison stays apples-to-apples on those slots too.
 double ChebReluApprox(double x) {
-  static const double c[6] = {6.3393991028159498,     1.000000e+01,
-                              4.3075053667521672,     -8.1728713370568291e-16,
-                              -1.2656936164678267,    -5.7991334850882538e-16};
+  static const double c[6] = {6.3393991028159498,  1.000000e+01,
+                              4.3075053667521672,  -8.1728713370568291e-16,
+                              -1.2656936164678267, -5.7991334850882538e-16};
   const double t = x / 20.0;
   double tkm1 = 1.0, tk = t, acc = c[0] + c[1] * t;
   for (int k = 2; k < 6; ++k) {
@@ -203,7 +203,8 @@ TEST(CheddarMnistFullE2E, GpuRun) {
   // Two plaintext references per image: the circuit-spec Chebyshev forward
   // (what the FHE actually evaluates) and the true-ReLU forward (accuracy
   // ground truth).
-  std::vector<std::array<double, 10>> refs_cheb(kNumImages), refs_relu(kNumImages);
+  std::vector<std::array<double, 10>> refs_cheb(kNumImages),
+      refs_relu(kNumImages);
   for (int n = 0; n < kNumImages; ++n) {
     refs_cheb[n] =
         Forward(w_fc1, b_fc1, w_fc2, b_fc2, images[n], ChebReluApprox);
@@ -239,8 +240,10 @@ TEST(CheddarMnistFullE2E, GpuRun) {
       if (logits[k] > logits[dec_argmax]) dec_argmax = k;
       if (refs_cheb[i][k] > refs_cheb[i][cheb_argmax]) cheb_argmax = k;
       if (refs_relu[i][k] > refs_relu[i][relu_argmax]) relu_argmax = k;
-      max_abs_cheb = std::max(max_abs_cheb, std::abs(logits[k] - refs_cheb[i][k]));
-      max_abs_relu = std::max(max_abs_relu, std::abs(logits[k] - refs_relu[i][k]));
+      max_abs_cheb =
+          std::max(max_abs_cheb, std::abs(logits[k] - refs_cheb[i][k]));
+      max_abs_relu =
+          std::max(max_abs_relu, std::abs(logits[k] - refs_relu[i][k]));
     }
     if (dec_argmax == labels[i]) ++correct;
 
@@ -261,12 +264,15 @@ TEST(CheddarMnistFullE2E, GpuRun) {
     // bound that still catches any scale/lowering regression (which would show
     // up as O(0.1) or larger), while staying ~400x below the ReLU-approx gap.
     EXPECT_LT(max_abs_cheb, 0.01)
-        << "image " << i << ": FHE diverges from the Chebyshev circuit it "
-                            "evaluates (lowering/scale bug, not approx error)";
+        << "image " << i
+        << ": FHE diverges from the Chebyshev circuit it "
+           "evaluates (lowering/scale bug, not approx error)";
     EXPECT_EQ(dec_argmax, cheb_argmax)
-        << "image " << i << ": FHE prediction differs from the plaintext "
-                            "Chebyshev circuit";
-    // End-to-end accuracy: the (approximate) prediction still matches the label.
+        << "image " << i
+        << ": FHE prediction differs from the plaintext "
+           "Chebyshev circuit";
+    // End-to-end accuracy: the (approximate) prediction still matches the
+    // label.
     EXPECT_EQ(dec_argmax, labels[i]) << "image " << i;
   }
   std::printf("correct argmax: %d/%d\n", correct, num_images);
