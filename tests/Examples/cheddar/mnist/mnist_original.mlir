@@ -1,7 +1,7 @@
 // Auto-generated, UNMODIFIED reference: the pristine full-module
-// --scheme-to-cheddar output that mnist.mlir is hand-edited from (the only
-// edit there is the HACK #7 scale-alignment in the relu; see HACKS.md). Kept
-// for diffing. Generated on tests/Examples/common/mnist/mnist.mlir with:
+// --scheme-to-cheddar output that mnist.mlir is derived from (which adds the
+// scale bake + the relu scale-align hand-edits; see HACKS.md #5). Kept for
+// diffing. Generated on tests/Examples/common/mnist/mnist.mlir with:
 //   heir-opt --annotate-module='backend=lattigo scheme=ckks' \
 //            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
 !ciphertext = !cheddar.ciphertext

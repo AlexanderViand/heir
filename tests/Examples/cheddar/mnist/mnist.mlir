@@ -1,10 +1,11 @@
 // Full MNIST module at the cheddar level (all client functions), the input to
 // the full-module e2e test. This is `mnist_original.mlir` (the pristine
-// --scheme-to-cheddar dump) plus the HACK #7 scale-management hand-edits in the
-// relu region: two ct-ct scale-alignment op pairs (search `_adj`) and five
-// `cheddar.exact_scale` attrs pinning the pre-rescale bias plaintexts to the
-// ciphertext's exact (drifted) scale. Precise scale management would produce
-// both automatically. These are the ONLY edits vs the original. See HACKS.md.
+// --scheme-to-cheddar dump) with the scale-management hand-edits (HACKS.md #5):
+// every `cheddar.encode` scale baked to CHEDDAR's exact canonical
+// `GetScale(level)^k` via bake_scales.py (the emitter emits it verbatim), plus
+// two ct-ct scale-alignment op pairs in the relu region (search `_adj`) and
+// five pre-rescale bias encodes baked to their drifted off-canonical scale.
+// Precise scale management would produce all of this automatically.
 //
 // Regenerate the original with, on tests/Examples/common/mnist/mnist.mlir:
 //   heir-opt --annotate-module='backend=lattigo scheme=ckks' \
@@ -2167,1082 +2168,1082 @@ module @jit_func attributes {backend.lattigo, cheddar.P = array<i64: 11529215046
     %inserted_slice_2008 = tensor.insert_slice %extracted_slice_2006 into %11[0, 506] [1, 518] [1, 1] : tensor<1x518xf32> into tensor<1x1024xf32>
     %inserted_slice_2009 = tensor.insert_slice %extracted_slice_2007 into %inserted_slice_2008[0, 0] [1, 506] [1, 1] : tensor<1x506xf32> into tensor<1x1024xf32>
     %extracted_slice_2010 = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice_2010 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt = cheddar.encode %encoder, %extracted_slice_2010 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2011 = tensor.extract_slice %0[1, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2012 = cheddar.encode %encoder, %extracted_slice_2011 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2012 = cheddar.encode %encoder, %extracted_slice_2011 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2013 = tensor.extract_slice %0[2, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2014 = cheddar.encode %encoder, %extracted_slice_2013 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2014 = cheddar.encode %encoder, %extracted_slice_2013 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2015 = tensor.extract_slice %0[3, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2016 = cheddar.encode %encoder, %extracted_slice_2015 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2016 = cheddar.encode %encoder, %extracted_slice_2015 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2017 = tensor.extract_slice %0[4, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2018 = cheddar.encode %encoder, %extracted_slice_2017 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2018 = cheddar.encode %encoder, %extracted_slice_2017 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2019 = tensor.extract_slice %0[5, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2020 = cheddar.encode %encoder, %extracted_slice_2019 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2020 = cheddar.encode %encoder, %extracted_slice_2019 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2021 = tensor.extract_slice %0[6, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2022 = cheddar.encode %encoder, %extracted_slice_2021 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2022 = cheddar.encode %encoder, %extracted_slice_2021 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2023 = tensor.extract_slice %0[7, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2024 = cheddar.encode %encoder, %extracted_slice_2023 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2024 = cheddar.encode %encoder, %extracted_slice_2023 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2025 = tensor.extract_slice %0[8, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2026 = cheddar.encode %encoder, %extracted_slice_2025 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2026 = cheddar.encode %encoder, %extracted_slice_2025 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2027 = tensor.extract_slice %0[9, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2028 = cheddar.encode %encoder, %extracted_slice_2027 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2028 = cheddar.encode %encoder, %extracted_slice_2027 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2029 = tensor.extract_slice %0[10, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2030 = cheddar.encode %encoder, %extracted_slice_2029 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2030 = cheddar.encode %encoder, %extracted_slice_2029 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2031 = tensor.extract_slice %0[11, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2032 = cheddar.encode %encoder, %extracted_slice_2031 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2032 = cheddar.encode %encoder, %extracted_slice_2031 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2033 = tensor.extract_slice %0[12, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2034 = cheddar.encode %encoder, %extracted_slice_2033 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2034 = cheddar.encode %encoder, %extracted_slice_2033 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2035 = tensor.extract_slice %0[13, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2036 = cheddar.encode %encoder, %extracted_slice_2035 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2036 = cheddar.encode %encoder, %extracted_slice_2035 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2037 = tensor.extract_slice %0[14, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2038 = cheddar.encode %encoder, %extracted_slice_2037 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2038 = cheddar.encode %encoder, %extracted_slice_2037 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2039 = tensor.extract_slice %0[15, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2040 = cheddar.encode %encoder, %extracted_slice_2039 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2040 = cheddar.encode %encoder, %extracted_slice_2039 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2041 = tensor.extract_slice %0[16, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2042 = cheddar.encode %encoder, %extracted_slice_2041 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2042 = cheddar.encode %encoder, %extracted_slice_2041 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2043 = tensor.extract_slice %0[17, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2044 = cheddar.encode %encoder, %extracted_slice_2043 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2044 = cheddar.encode %encoder, %extracted_slice_2043 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2045 = tensor.extract_slice %0[18, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2046 = cheddar.encode %encoder, %extracted_slice_2045 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2046 = cheddar.encode %encoder, %extracted_slice_2045 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2047 = tensor.extract_slice %0[19, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2048 = cheddar.encode %encoder, %extracted_slice_2047 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2048 = cheddar.encode %encoder, %extracted_slice_2047 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2049 = tensor.extract_slice %0[20, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2050 = cheddar.encode %encoder, %extracted_slice_2049 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2050 = cheddar.encode %encoder, %extracted_slice_2049 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2051 = tensor.extract_slice %0[21, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2052 = cheddar.encode %encoder, %extracted_slice_2051 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2052 = cheddar.encode %encoder, %extracted_slice_2051 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2053 = tensor.extract_slice %0[22, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2054 = cheddar.encode %encoder, %extracted_slice_2053 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2054 = cheddar.encode %encoder, %extracted_slice_2053 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2055 = tensor.extract_slice %inserted_slice_57[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2056 = cheddar.encode %encoder, %extracted_slice_2055 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2056 = cheddar.encode %encoder, %extracted_slice_2055 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2057 = tensor.extract_slice %inserted_slice_61[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2058 = cheddar.encode %encoder, %extracted_slice_2057 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2058 = cheddar.encode %encoder, %extracted_slice_2057 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2059 = tensor.extract_slice %inserted_slice_65[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2060 = cheddar.encode %encoder, %extracted_slice_2059 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2060 = cheddar.encode %encoder, %extracted_slice_2059 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2061 = tensor.extract_slice %inserted_slice_69[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2062 = cheddar.encode %encoder, %extracted_slice_2061 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2062 = cheddar.encode %encoder, %extracted_slice_2061 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2063 = tensor.extract_slice %inserted_slice_73[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2064 = cheddar.encode %encoder, %extracted_slice_2063 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2064 = cheddar.encode %encoder, %extracted_slice_2063 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2065 = tensor.extract_slice %inserted_slice_77[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2066 = cheddar.encode %encoder, %extracted_slice_2065 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2066 = cheddar.encode %encoder, %extracted_slice_2065 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2067 = tensor.extract_slice %inserted_slice_81[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2068 = cheddar.encode %encoder, %extracted_slice_2067 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2068 = cheddar.encode %encoder, %extracted_slice_2067 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2069 = tensor.extract_slice %inserted_slice_85[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2070 = cheddar.encode %encoder, %extracted_slice_2069 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2070 = cheddar.encode %encoder, %extracted_slice_2069 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2071 = tensor.extract_slice %inserted_slice_89[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2072 = cheddar.encode %encoder, %extracted_slice_2071 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2072 = cheddar.encode %encoder, %extracted_slice_2071 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2073 = tensor.extract_slice %inserted_slice_93[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2074 = cheddar.encode %encoder, %extracted_slice_2073 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2074 = cheddar.encode %encoder, %extracted_slice_2073 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2075 = tensor.extract_slice %inserted_slice_97[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2076 = cheddar.encode %encoder, %extracted_slice_2075 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2076 = cheddar.encode %encoder, %extracted_slice_2075 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2077 = tensor.extract_slice %inserted_slice_101[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2078 = cheddar.encode %encoder, %extracted_slice_2077 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2078 = cheddar.encode %encoder, %extracted_slice_2077 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2079 = tensor.extract_slice %inserted_slice_105[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2080 = cheddar.encode %encoder, %extracted_slice_2079 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2080 = cheddar.encode %encoder, %extracted_slice_2079 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2081 = tensor.extract_slice %inserted_slice_109[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2082 = cheddar.encode %encoder, %extracted_slice_2081 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2082 = cheddar.encode %encoder, %extracted_slice_2081 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2083 = tensor.extract_slice %inserted_slice_113[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2084 = cheddar.encode %encoder, %extracted_slice_2083 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2084 = cheddar.encode %encoder, %extracted_slice_2083 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2085 = tensor.extract_slice %inserted_slice_117[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2086 = cheddar.encode %encoder, %extracted_slice_2085 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2086 = cheddar.encode %encoder, %extracted_slice_2085 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2087 = tensor.extract_slice %inserted_slice_121[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2088 = cheddar.encode %encoder, %extracted_slice_2087 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2088 = cheddar.encode %encoder, %extracted_slice_2087 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2089 = tensor.extract_slice %inserted_slice_125[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2090 = cheddar.encode %encoder, %extracted_slice_2089 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2090 = cheddar.encode %encoder, %extracted_slice_2089 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2091 = tensor.extract_slice %inserted_slice_129[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2092 = cheddar.encode %encoder, %extracted_slice_2091 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2092 = cheddar.encode %encoder, %extracted_slice_2091 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2093 = tensor.extract_slice %inserted_slice_133[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2094 = cheddar.encode %encoder, %extracted_slice_2093 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2094 = cheddar.encode %encoder, %extracted_slice_2093 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2095 = tensor.extract_slice %inserted_slice_137[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2096 = cheddar.encode %encoder, %extracted_slice_2095 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2096 = cheddar.encode %encoder, %extracted_slice_2095 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2097 = tensor.extract_slice %inserted_slice_141[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2098 = cheddar.encode %encoder, %extracted_slice_2097 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2098 = cheddar.encode %encoder, %extracted_slice_2097 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2099 = tensor.extract_slice %inserted_slice_145[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2100 = cheddar.encode %encoder, %extracted_slice_2099 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2100 = cheddar.encode %encoder, %extracted_slice_2099 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2101 = tensor.extract_slice %inserted_slice_149[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2102 = cheddar.encode %encoder, %extracted_slice_2101 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2102 = cheddar.encode %encoder, %extracted_slice_2101 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2103 = tensor.extract_slice %inserted_slice_153[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2104 = cheddar.encode %encoder, %extracted_slice_2103 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2104 = cheddar.encode %encoder, %extracted_slice_2103 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2105 = tensor.extract_slice %inserted_slice_157[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2106 = cheddar.encode %encoder, %extracted_slice_2105 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2106 = cheddar.encode %encoder, %extracted_slice_2105 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2107 = tensor.extract_slice %inserted_slice_161[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2108 = cheddar.encode %encoder, %extracted_slice_2107 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2108 = cheddar.encode %encoder, %extracted_slice_2107 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2109 = tensor.extract_slice %inserted_slice_165[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2110 = cheddar.encode %encoder, %extracted_slice_2109 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2110 = cheddar.encode %encoder, %extracted_slice_2109 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2111 = tensor.extract_slice %inserted_slice_169[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2112 = cheddar.encode %encoder, %extracted_slice_2111 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2112 = cheddar.encode %encoder, %extracted_slice_2111 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2113 = tensor.extract_slice %inserted_slice_173[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2114 = cheddar.encode %encoder, %extracted_slice_2113 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2114 = cheddar.encode %encoder, %extracted_slice_2113 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2115 = tensor.extract_slice %inserted_slice_177[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2116 = cheddar.encode %encoder, %extracted_slice_2115 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2116 = cheddar.encode %encoder, %extracted_slice_2115 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2117 = tensor.extract_slice %inserted_slice_181[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2118 = cheddar.encode %encoder, %extracted_slice_2117 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2118 = cheddar.encode %encoder, %extracted_slice_2117 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2119 = tensor.extract_slice %inserted_slice_185[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2120 = cheddar.encode %encoder, %extracted_slice_2119 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2120 = cheddar.encode %encoder, %extracted_slice_2119 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2121 = tensor.extract_slice %inserted_slice_189[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2122 = cheddar.encode %encoder, %extracted_slice_2121 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2122 = cheddar.encode %encoder, %extracted_slice_2121 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2123 = tensor.extract_slice %inserted_slice_193[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2124 = cheddar.encode %encoder, %extracted_slice_2123 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2124 = cheddar.encode %encoder, %extracted_slice_2123 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2125 = tensor.extract_slice %inserted_slice_197[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2126 = cheddar.encode %encoder, %extracted_slice_2125 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2126 = cheddar.encode %encoder, %extracted_slice_2125 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2127 = tensor.extract_slice %inserted_slice_201[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2128 = cheddar.encode %encoder, %extracted_slice_2127 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2128 = cheddar.encode %encoder, %extracted_slice_2127 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2129 = tensor.extract_slice %inserted_slice_205[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2130 = cheddar.encode %encoder, %extracted_slice_2129 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2130 = cheddar.encode %encoder, %extracted_slice_2129 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2131 = tensor.extract_slice %inserted_slice_209[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2132 = cheddar.encode %encoder, %extracted_slice_2131 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2132 = cheddar.encode %encoder, %extracted_slice_2131 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2133 = tensor.extract_slice %inserted_slice_213[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2134 = cheddar.encode %encoder, %extracted_slice_2133 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2134 = cheddar.encode %encoder, %extracted_slice_2133 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2135 = tensor.extract_slice %inserted_slice_217[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2136 = cheddar.encode %encoder, %extracted_slice_2135 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2136 = cheddar.encode %encoder, %extracted_slice_2135 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2137 = tensor.extract_slice %inserted_slice_221[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2138 = cheddar.encode %encoder, %extracted_slice_2137 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2138 = cheddar.encode %encoder, %extracted_slice_2137 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2139 = tensor.extract_slice %inserted_slice_225[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2140 = cheddar.encode %encoder, %extracted_slice_2139 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2140 = cheddar.encode %encoder, %extracted_slice_2139 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2141 = tensor.extract_slice %inserted_slice_229[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2142 = cheddar.encode %encoder, %extracted_slice_2141 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2142 = cheddar.encode %encoder, %extracted_slice_2141 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2143 = tensor.extract_slice %inserted_slice_233[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2144 = cheddar.encode %encoder, %extracted_slice_2143 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2144 = cheddar.encode %encoder, %extracted_slice_2143 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2145 = tensor.extract_slice %inserted_slice_237[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2146 = cheddar.encode %encoder, %extracted_slice_2145 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2146 = cheddar.encode %encoder, %extracted_slice_2145 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2147 = tensor.extract_slice %inserted_slice_241[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2148 = cheddar.encode %encoder, %extracted_slice_2147 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2148 = cheddar.encode %encoder, %extracted_slice_2147 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2149 = tensor.extract_slice %inserted_slice_245[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2150 = cheddar.encode %encoder, %extracted_slice_2149 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2150 = cheddar.encode %encoder, %extracted_slice_2149 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2151 = tensor.extract_slice %inserted_slice_249[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2152 = cheddar.encode %encoder, %extracted_slice_2151 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2152 = cheddar.encode %encoder, %extracted_slice_2151 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2153 = tensor.extract_slice %inserted_slice_253[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2154 = cheddar.encode %encoder, %extracted_slice_2153 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2154 = cheddar.encode %encoder, %extracted_slice_2153 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2155 = tensor.extract_slice %inserted_slice_257[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2156 = cheddar.encode %encoder, %extracted_slice_2155 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2156 = cheddar.encode %encoder, %extracted_slice_2155 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2157 = tensor.extract_slice %inserted_slice_261[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2158 = cheddar.encode %encoder, %extracted_slice_2157 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2158 = cheddar.encode %encoder, %extracted_slice_2157 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2159 = tensor.extract_slice %inserted_slice_265[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2160 = cheddar.encode %encoder, %extracted_slice_2159 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2160 = cheddar.encode %encoder, %extracted_slice_2159 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2161 = tensor.extract_slice %inserted_slice_269[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2162 = cheddar.encode %encoder, %extracted_slice_2161 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2162 = cheddar.encode %encoder, %extracted_slice_2161 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2163 = tensor.extract_slice %inserted_slice_273[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2164 = cheddar.encode %encoder, %extracted_slice_2163 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2164 = cheddar.encode %encoder, %extracted_slice_2163 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2165 = tensor.extract_slice %inserted_slice_277[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2166 = cheddar.encode %encoder, %extracted_slice_2165 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2166 = cheddar.encode %encoder, %extracted_slice_2165 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2167 = tensor.extract_slice %inserted_slice_281[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2168 = cheddar.encode %encoder, %extracted_slice_2167 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2168 = cheddar.encode %encoder, %extracted_slice_2167 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2169 = tensor.extract_slice %inserted_slice_285[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2170 = cheddar.encode %encoder, %extracted_slice_2169 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2170 = cheddar.encode %encoder, %extracted_slice_2169 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2171 = tensor.extract_slice %inserted_slice_289[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2172 = cheddar.encode %encoder, %extracted_slice_2171 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2172 = cheddar.encode %encoder, %extracted_slice_2171 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2173 = tensor.extract_slice %inserted_slice_293[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2174 = cheddar.encode %encoder, %extracted_slice_2173 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2174 = cheddar.encode %encoder, %extracted_slice_2173 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2175 = tensor.extract_slice %inserted_slice_297[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2176 = cheddar.encode %encoder, %extracted_slice_2175 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2176 = cheddar.encode %encoder, %extracted_slice_2175 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2177 = tensor.extract_slice %inserted_slice_301[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2178 = cheddar.encode %encoder, %extracted_slice_2177 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2178 = cheddar.encode %encoder, %extracted_slice_2177 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2179 = tensor.extract_slice %inserted_slice_305[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2180 = cheddar.encode %encoder, %extracted_slice_2179 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2180 = cheddar.encode %encoder, %extracted_slice_2179 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2181 = tensor.extract_slice %inserted_slice_309[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2182 = cheddar.encode %encoder, %extracted_slice_2181 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2182 = cheddar.encode %encoder, %extracted_slice_2181 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2183 = tensor.extract_slice %inserted_slice_313[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2184 = cheddar.encode %encoder, %extracted_slice_2183 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2184 = cheddar.encode %encoder, %extracted_slice_2183 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2185 = tensor.extract_slice %inserted_slice_317[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2186 = cheddar.encode %encoder, %extracted_slice_2185 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2186 = cheddar.encode %encoder, %extracted_slice_2185 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2187 = tensor.extract_slice %inserted_slice_321[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2188 = cheddar.encode %encoder, %extracted_slice_2187 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2188 = cheddar.encode %encoder, %extracted_slice_2187 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2189 = tensor.extract_slice %inserted_slice_325[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2190 = cheddar.encode %encoder, %extracted_slice_2189 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2190 = cheddar.encode %encoder, %extracted_slice_2189 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2191 = tensor.extract_slice %inserted_slice_329[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2192 = cheddar.encode %encoder, %extracted_slice_2191 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2192 = cheddar.encode %encoder, %extracted_slice_2191 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2193 = tensor.extract_slice %inserted_slice_333[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2194 = cheddar.encode %encoder, %extracted_slice_2193 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2194 = cheddar.encode %encoder, %extracted_slice_2193 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2195 = tensor.extract_slice %inserted_slice_337[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2196 = cheddar.encode %encoder, %extracted_slice_2195 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2196 = cheddar.encode %encoder, %extracted_slice_2195 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2197 = tensor.extract_slice %inserted_slice_341[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2198 = cheddar.encode %encoder, %extracted_slice_2197 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2198 = cheddar.encode %encoder, %extracted_slice_2197 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2199 = tensor.extract_slice %inserted_slice_345[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2200 = cheddar.encode %encoder, %extracted_slice_2199 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2200 = cheddar.encode %encoder, %extracted_slice_2199 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2201 = tensor.extract_slice %inserted_slice_349[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2202 = cheddar.encode %encoder, %extracted_slice_2201 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2202 = cheddar.encode %encoder, %extracted_slice_2201 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2203 = tensor.extract_slice %inserted_slice_353[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2204 = cheddar.encode %encoder, %extracted_slice_2203 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2204 = cheddar.encode %encoder, %extracted_slice_2203 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2205 = tensor.extract_slice %inserted_slice_357[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2206 = cheddar.encode %encoder, %extracted_slice_2205 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2206 = cheddar.encode %encoder, %extracted_slice_2205 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2207 = tensor.extract_slice %inserted_slice_361[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2208 = cheddar.encode %encoder, %extracted_slice_2207 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2208 = cheddar.encode %encoder, %extracted_slice_2207 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2209 = tensor.extract_slice %inserted_slice_365[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2210 = cheddar.encode %encoder, %extracted_slice_2209 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2210 = cheddar.encode %encoder, %extracted_slice_2209 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2211 = tensor.extract_slice %inserted_slice_369[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2212 = cheddar.encode %encoder, %extracted_slice_2211 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2212 = cheddar.encode %encoder, %extracted_slice_2211 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2213 = tensor.extract_slice %inserted_slice_373[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2214 = cheddar.encode %encoder, %extracted_slice_2213 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2214 = cheddar.encode %encoder, %extracted_slice_2213 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2215 = tensor.extract_slice %inserted_slice_377[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2216 = cheddar.encode %encoder, %extracted_slice_2215 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2216 = cheddar.encode %encoder, %extracted_slice_2215 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2217 = tensor.extract_slice %inserted_slice_381[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2218 = cheddar.encode %encoder, %extracted_slice_2217 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2218 = cheddar.encode %encoder, %extracted_slice_2217 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2219 = tensor.extract_slice %inserted_slice_385[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2220 = cheddar.encode %encoder, %extracted_slice_2219 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2220 = cheddar.encode %encoder, %extracted_slice_2219 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2221 = tensor.extract_slice %inserted_slice_389[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2222 = cheddar.encode %encoder, %extracted_slice_2221 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2222 = cheddar.encode %encoder, %extracted_slice_2221 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2223 = tensor.extract_slice %inserted_slice_393[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2224 = cheddar.encode %encoder, %extracted_slice_2223 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2224 = cheddar.encode %encoder, %extracted_slice_2223 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2225 = tensor.extract_slice %inserted_slice_397[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2226 = cheddar.encode %encoder, %extracted_slice_2225 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2226 = cheddar.encode %encoder, %extracted_slice_2225 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2227 = tensor.extract_slice %inserted_slice_401[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2228 = cheddar.encode %encoder, %extracted_slice_2227 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2228 = cheddar.encode %encoder, %extracted_slice_2227 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2229 = tensor.extract_slice %inserted_slice_405[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2230 = cheddar.encode %encoder, %extracted_slice_2229 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2230 = cheddar.encode %encoder, %extracted_slice_2229 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2231 = tensor.extract_slice %inserted_slice_409[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2232 = cheddar.encode %encoder, %extracted_slice_2231 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2232 = cheddar.encode %encoder, %extracted_slice_2231 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2233 = tensor.extract_slice %inserted_slice_413[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2234 = cheddar.encode %encoder, %extracted_slice_2233 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2234 = cheddar.encode %encoder, %extracted_slice_2233 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2235 = tensor.extract_slice %inserted_slice_417[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2236 = cheddar.encode %encoder, %extracted_slice_2235 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2236 = cheddar.encode %encoder, %extracted_slice_2235 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2237 = tensor.extract_slice %inserted_slice_421[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2238 = cheddar.encode %encoder, %extracted_slice_2237 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2238 = cheddar.encode %encoder, %extracted_slice_2237 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2239 = tensor.extract_slice %inserted_slice_425[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2240 = cheddar.encode %encoder, %extracted_slice_2239 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2240 = cheddar.encode %encoder, %extracted_slice_2239 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2241 = tensor.extract_slice %inserted_slice_429[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2242 = cheddar.encode %encoder, %extracted_slice_2241 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2242 = cheddar.encode %encoder, %extracted_slice_2241 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2243 = tensor.extract_slice %inserted_slice_433[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2244 = cheddar.encode %encoder, %extracted_slice_2243 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2244 = cheddar.encode %encoder, %extracted_slice_2243 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2245 = tensor.extract_slice %inserted_slice_437[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2246 = cheddar.encode %encoder, %extracted_slice_2245 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2246 = cheddar.encode %encoder, %extracted_slice_2245 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2247 = tensor.extract_slice %inserted_slice_441[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2248 = cheddar.encode %encoder, %extracted_slice_2247 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2248 = cheddar.encode %encoder, %extracted_slice_2247 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2249 = tensor.extract_slice %inserted_slice_445[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2250 = cheddar.encode %encoder, %extracted_slice_2249 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2250 = cheddar.encode %encoder, %extracted_slice_2249 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2251 = tensor.extract_slice %inserted_slice_449[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2252 = cheddar.encode %encoder, %extracted_slice_2251 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2252 = cheddar.encode %encoder, %extracted_slice_2251 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2253 = tensor.extract_slice %inserted_slice_453[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2254 = cheddar.encode %encoder, %extracted_slice_2253 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2254 = cheddar.encode %encoder, %extracted_slice_2253 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2255 = tensor.extract_slice %inserted_slice_457[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2256 = cheddar.encode %encoder, %extracted_slice_2255 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2256 = cheddar.encode %encoder, %extracted_slice_2255 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2257 = tensor.extract_slice %inserted_slice_461[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2258 = cheddar.encode %encoder, %extracted_slice_2257 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2258 = cheddar.encode %encoder, %extracted_slice_2257 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2259 = tensor.extract_slice %inserted_slice_465[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2260 = cheddar.encode %encoder, %extracted_slice_2259 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2260 = cheddar.encode %encoder, %extracted_slice_2259 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2261 = tensor.extract_slice %inserted_slice_469[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2262 = cheddar.encode %encoder, %extracted_slice_2261 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2262 = cheddar.encode %encoder, %extracted_slice_2261 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2263 = tensor.extract_slice %inserted_slice_473[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2264 = cheddar.encode %encoder, %extracted_slice_2263 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2264 = cheddar.encode %encoder, %extracted_slice_2263 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2265 = tensor.extract_slice %inserted_slice_477[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2266 = cheddar.encode %encoder, %extracted_slice_2265 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2266 = cheddar.encode %encoder, %extracted_slice_2265 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2267 = tensor.extract_slice %inserted_slice_481[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2268 = cheddar.encode %encoder, %extracted_slice_2267 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2268 = cheddar.encode %encoder, %extracted_slice_2267 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2269 = tensor.extract_slice %inserted_slice_485[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2270 = cheddar.encode %encoder, %extracted_slice_2269 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2270 = cheddar.encode %encoder, %extracted_slice_2269 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2271 = tensor.extract_slice %inserted_slice_489[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2272 = cheddar.encode %encoder, %extracted_slice_2271 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2272 = cheddar.encode %encoder, %extracted_slice_2271 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2273 = tensor.extract_slice %inserted_slice_493[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2274 = cheddar.encode %encoder, %extracted_slice_2273 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2274 = cheddar.encode %encoder, %extracted_slice_2273 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2275 = tensor.extract_slice %inserted_slice_497[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2276 = cheddar.encode %encoder, %extracted_slice_2275 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2276 = cheddar.encode %encoder, %extracted_slice_2275 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2277 = tensor.extract_slice %inserted_slice_501[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2278 = cheddar.encode %encoder, %extracted_slice_2277 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2278 = cheddar.encode %encoder, %extracted_slice_2277 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2279 = tensor.extract_slice %inserted_slice_505[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2280 = cheddar.encode %encoder, %extracted_slice_2279 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2280 = cheddar.encode %encoder, %extracted_slice_2279 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2281 = tensor.extract_slice %inserted_slice_509[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2282 = cheddar.encode %encoder, %extracted_slice_2281 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2282 = cheddar.encode %encoder, %extracted_slice_2281 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2283 = tensor.extract_slice %inserted_slice_513[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2284 = cheddar.encode %encoder, %extracted_slice_2283 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2284 = cheddar.encode %encoder, %extracted_slice_2283 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2285 = tensor.extract_slice %inserted_slice_517[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2286 = cheddar.encode %encoder, %extracted_slice_2285 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2286 = cheddar.encode %encoder, %extracted_slice_2285 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2287 = tensor.extract_slice %inserted_slice_521[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2288 = cheddar.encode %encoder, %extracted_slice_2287 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2288 = cheddar.encode %encoder, %extracted_slice_2287 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2289 = tensor.extract_slice %inserted_slice_525[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2290 = cheddar.encode %encoder, %extracted_slice_2289 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2290 = cheddar.encode %encoder, %extracted_slice_2289 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2291 = tensor.extract_slice %inserted_slice_529[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2292 = cheddar.encode %encoder, %extracted_slice_2291 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2292 = cheddar.encode %encoder, %extracted_slice_2291 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2293 = tensor.extract_slice %inserted_slice_533[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2294 = cheddar.encode %encoder, %extracted_slice_2293 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2294 = cheddar.encode %encoder, %extracted_slice_2293 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2295 = tensor.extract_slice %inserted_slice_537[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2296 = cheddar.encode %encoder, %extracted_slice_2295 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2296 = cheddar.encode %encoder, %extracted_slice_2295 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2297 = tensor.extract_slice %inserted_slice_541[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2298 = cheddar.encode %encoder, %extracted_slice_2297 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2298 = cheddar.encode %encoder, %extracted_slice_2297 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2299 = tensor.extract_slice %inserted_slice_545[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2300 = cheddar.encode %encoder, %extracted_slice_2299 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2300 = cheddar.encode %encoder, %extracted_slice_2299 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2301 = tensor.extract_slice %inserted_slice_549[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2302 = cheddar.encode %encoder, %extracted_slice_2301 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2302 = cheddar.encode %encoder, %extracted_slice_2301 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2303 = tensor.extract_slice %inserted_slice_553[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2304 = cheddar.encode %encoder, %extracted_slice_2303 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2304 = cheddar.encode %encoder, %extracted_slice_2303 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2305 = tensor.extract_slice %inserted_slice_557[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2306 = cheddar.encode %encoder, %extracted_slice_2305 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2306 = cheddar.encode %encoder, %extracted_slice_2305 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2307 = tensor.extract_slice %inserted_slice_561[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2308 = cheddar.encode %encoder, %extracted_slice_2307 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2308 = cheddar.encode %encoder, %extracted_slice_2307 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2309 = tensor.extract_slice %inserted_slice_565[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2310 = cheddar.encode %encoder, %extracted_slice_2309 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2310 = cheddar.encode %encoder, %extracted_slice_2309 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2311 = tensor.extract_slice %inserted_slice_569[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2312 = cheddar.encode %encoder, %extracted_slice_2311 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2312 = cheddar.encode %encoder, %extracted_slice_2311 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2313 = tensor.extract_slice %inserted_slice_573[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2314 = cheddar.encode %encoder, %extracted_slice_2313 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2314 = cheddar.encode %encoder, %extracted_slice_2313 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2315 = tensor.extract_slice %inserted_slice_577[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2316 = cheddar.encode %encoder, %extracted_slice_2315 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2316 = cheddar.encode %encoder, %extracted_slice_2315 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2317 = tensor.extract_slice %inserted_slice_581[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2318 = cheddar.encode %encoder, %extracted_slice_2317 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2318 = cheddar.encode %encoder, %extracted_slice_2317 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2319 = tensor.extract_slice %inserted_slice_585[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2320 = cheddar.encode %encoder, %extracted_slice_2319 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2320 = cheddar.encode %encoder, %extracted_slice_2319 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2321 = tensor.extract_slice %inserted_slice_589[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2322 = cheddar.encode %encoder, %extracted_slice_2321 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2322 = cheddar.encode %encoder, %extracted_slice_2321 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2323 = tensor.extract_slice %inserted_slice_593[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2324 = cheddar.encode %encoder, %extracted_slice_2323 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2324 = cheddar.encode %encoder, %extracted_slice_2323 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2325 = tensor.extract_slice %inserted_slice_597[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2326 = cheddar.encode %encoder, %extracted_slice_2325 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2326 = cheddar.encode %encoder, %extracted_slice_2325 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2327 = tensor.extract_slice %inserted_slice_601[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2328 = cheddar.encode %encoder, %extracted_slice_2327 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2328 = cheddar.encode %encoder, %extracted_slice_2327 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2329 = tensor.extract_slice %inserted_slice_605[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2330 = cheddar.encode %encoder, %extracted_slice_2329 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2330 = cheddar.encode %encoder, %extracted_slice_2329 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2331 = tensor.extract_slice %inserted_slice_609[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2332 = cheddar.encode %encoder, %extracted_slice_2331 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2332 = cheddar.encode %encoder, %extracted_slice_2331 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2333 = tensor.extract_slice %inserted_slice_613[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2334 = cheddar.encode %encoder, %extracted_slice_2333 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2334 = cheddar.encode %encoder, %extracted_slice_2333 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2335 = tensor.extract_slice %inserted_slice_617[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2336 = cheddar.encode %encoder, %extracted_slice_2335 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2336 = cheddar.encode %encoder, %extracted_slice_2335 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2337 = tensor.extract_slice %inserted_slice_621[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2338 = cheddar.encode %encoder, %extracted_slice_2337 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2338 = cheddar.encode %encoder, %extracted_slice_2337 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2339 = tensor.extract_slice %inserted_slice_625[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2340 = cheddar.encode %encoder, %extracted_slice_2339 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2340 = cheddar.encode %encoder, %extracted_slice_2339 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2341 = tensor.extract_slice %inserted_slice_629[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2342 = cheddar.encode %encoder, %extracted_slice_2341 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2342 = cheddar.encode %encoder, %extracted_slice_2341 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2343 = tensor.extract_slice %inserted_slice_633[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2344 = cheddar.encode %encoder, %extracted_slice_2343 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2344 = cheddar.encode %encoder, %extracted_slice_2343 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2345 = tensor.extract_slice %inserted_slice_637[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2346 = cheddar.encode %encoder, %extracted_slice_2345 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2346 = cheddar.encode %encoder, %extracted_slice_2345 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2347 = tensor.extract_slice %inserted_slice_641[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2348 = cheddar.encode %encoder, %extracted_slice_2347 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2348 = cheddar.encode %encoder, %extracted_slice_2347 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2349 = tensor.extract_slice %inserted_slice_645[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2350 = cheddar.encode %encoder, %extracted_slice_2349 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2350 = cheddar.encode %encoder, %extracted_slice_2349 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2351 = tensor.extract_slice %inserted_slice_649[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2352 = cheddar.encode %encoder, %extracted_slice_2351 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2352 = cheddar.encode %encoder, %extracted_slice_2351 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2353 = tensor.extract_slice %inserted_slice_653[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2354 = cheddar.encode %encoder, %extracted_slice_2353 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2354 = cheddar.encode %encoder, %extracted_slice_2353 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2355 = tensor.extract_slice %inserted_slice_657[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2356 = cheddar.encode %encoder, %extracted_slice_2355 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2356 = cheddar.encode %encoder, %extracted_slice_2355 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2357 = tensor.extract_slice %inserted_slice_661[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2358 = cheddar.encode %encoder, %extracted_slice_2357 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2358 = cheddar.encode %encoder, %extracted_slice_2357 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2359 = tensor.extract_slice %inserted_slice_665[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2360 = cheddar.encode %encoder, %extracted_slice_2359 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2360 = cheddar.encode %encoder, %extracted_slice_2359 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2361 = tensor.extract_slice %inserted_slice_669[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2362 = cheddar.encode %encoder, %extracted_slice_2361 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2362 = cheddar.encode %encoder, %extracted_slice_2361 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2363 = tensor.extract_slice %inserted_slice_673[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2364 = cheddar.encode %encoder, %extracted_slice_2363 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2364 = cheddar.encode %encoder, %extracted_slice_2363 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2365 = tensor.extract_slice %inserted_slice_677[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2366 = cheddar.encode %encoder, %extracted_slice_2365 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2366 = cheddar.encode %encoder, %extracted_slice_2365 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2367 = tensor.extract_slice %inserted_slice_681[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2368 = cheddar.encode %encoder, %extracted_slice_2367 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2368 = cheddar.encode %encoder, %extracted_slice_2367 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2369 = tensor.extract_slice %inserted_slice_685[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2370 = cheddar.encode %encoder, %extracted_slice_2369 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2370 = cheddar.encode %encoder, %extracted_slice_2369 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2371 = tensor.extract_slice %inserted_slice_689[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2372 = cheddar.encode %encoder, %extracted_slice_2371 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2372 = cheddar.encode %encoder, %extracted_slice_2371 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2373 = tensor.extract_slice %inserted_slice_693[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2374 = cheddar.encode %encoder, %extracted_slice_2373 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2374 = cheddar.encode %encoder, %extracted_slice_2373 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2375 = tensor.extract_slice %inserted_slice_697[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2376 = cheddar.encode %encoder, %extracted_slice_2375 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2376 = cheddar.encode %encoder, %extracted_slice_2375 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2377 = tensor.extract_slice %inserted_slice_701[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2378 = cheddar.encode %encoder, %extracted_slice_2377 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2378 = cheddar.encode %encoder, %extracted_slice_2377 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2379 = tensor.extract_slice %inserted_slice_705[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2380 = cheddar.encode %encoder, %extracted_slice_2379 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2380 = cheddar.encode %encoder, %extracted_slice_2379 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2381 = tensor.extract_slice %inserted_slice_709[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2382 = cheddar.encode %encoder, %extracted_slice_2381 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2382 = cheddar.encode %encoder, %extracted_slice_2381 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2383 = tensor.extract_slice %inserted_slice_713[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2384 = cheddar.encode %encoder, %extracted_slice_2383 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2384 = cheddar.encode %encoder, %extracted_slice_2383 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2385 = tensor.extract_slice %inserted_slice_717[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2386 = cheddar.encode %encoder, %extracted_slice_2385 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2386 = cheddar.encode %encoder, %extracted_slice_2385 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2387 = tensor.extract_slice %inserted_slice_721[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2388 = cheddar.encode %encoder, %extracted_slice_2387 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2388 = cheddar.encode %encoder, %extracted_slice_2387 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2389 = tensor.extract_slice %inserted_slice_725[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2390 = cheddar.encode %encoder, %extracted_slice_2389 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2390 = cheddar.encode %encoder, %extracted_slice_2389 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2391 = tensor.extract_slice %inserted_slice_729[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2392 = cheddar.encode %encoder, %extracted_slice_2391 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2392 = cheddar.encode %encoder, %extracted_slice_2391 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2393 = tensor.extract_slice %inserted_slice_733[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2394 = cheddar.encode %encoder, %extracted_slice_2393 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2394 = cheddar.encode %encoder, %extracted_slice_2393 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2395 = tensor.extract_slice %inserted_slice_737[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2396 = cheddar.encode %encoder, %extracted_slice_2395 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2396 = cheddar.encode %encoder, %extracted_slice_2395 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2397 = tensor.extract_slice %inserted_slice_741[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2398 = cheddar.encode %encoder, %extracted_slice_2397 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2398 = cheddar.encode %encoder, %extracted_slice_2397 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2399 = tensor.extract_slice %inserted_slice_745[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2400 = cheddar.encode %encoder, %extracted_slice_2399 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2400 = cheddar.encode %encoder, %extracted_slice_2399 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2401 = tensor.extract_slice %inserted_slice_749[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2402 = cheddar.encode %encoder, %extracted_slice_2401 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2402 = cheddar.encode %encoder, %extracted_slice_2401 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2403 = tensor.extract_slice %inserted_slice_753[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2404 = cheddar.encode %encoder, %extracted_slice_2403 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2404 = cheddar.encode %encoder, %extracted_slice_2403 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2405 = tensor.extract_slice %inserted_slice_757[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2406 = cheddar.encode %encoder, %extracted_slice_2405 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2406 = cheddar.encode %encoder, %extracted_slice_2405 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2407 = tensor.extract_slice %inserted_slice_761[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2408 = cheddar.encode %encoder, %extracted_slice_2407 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2408 = cheddar.encode %encoder, %extracted_slice_2407 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2409 = tensor.extract_slice %inserted_slice_765[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2410 = cheddar.encode %encoder, %extracted_slice_2409 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2410 = cheddar.encode %encoder, %extracted_slice_2409 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2411 = tensor.extract_slice %inserted_slice_769[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2412 = cheddar.encode %encoder, %extracted_slice_2411 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2412 = cheddar.encode %encoder, %extracted_slice_2411 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2413 = tensor.extract_slice %inserted_slice_773[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2414 = cheddar.encode %encoder, %extracted_slice_2413 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2414 = cheddar.encode %encoder, %extracted_slice_2413 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2415 = tensor.extract_slice %inserted_slice_777[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2416 = cheddar.encode %encoder, %extracted_slice_2415 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2416 = cheddar.encode %encoder, %extracted_slice_2415 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2417 = tensor.extract_slice %inserted_slice_781[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2418 = cheddar.encode %encoder, %extracted_slice_2417 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2418 = cheddar.encode %encoder, %extracted_slice_2417 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2419 = tensor.extract_slice %inserted_slice_785[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2420 = cheddar.encode %encoder, %extracted_slice_2419 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2420 = cheddar.encode %encoder, %extracted_slice_2419 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2421 = tensor.extract_slice %inserted_slice_789[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2422 = cheddar.encode %encoder, %extracted_slice_2421 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2422 = cheddar.encode %encoder, %extracted_slice_2421 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2423 = tensor.extract_slice %inserted_slice_793[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2424 = cheddar.encode %encoder, %extracted_slice_2423 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2424 = cheddar.encode %encoder, %extracted_slice_2423 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2425 = tensor.extract_slice %inserted_slice_797[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2426 = cheddar.encode %encoder, %extracted_slice_2425 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2426 = cheddar.encode %encoder, %extracted_slice_2425 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2427 = tensor.extract_slice %inserted_slice_801[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2428 = cheddar.encode %encoder, %extracted_slice_2427 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2428 = cheddar.encode %encoder, %extracted_slice_2427 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2429 = tensor.extract_slice %inserted_slice_805[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2430 = cheddar.encode %encoder, %extracted_slice_2429 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2430 = cheddar.encode %encoder, %extracted_slice_2429 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2431 = tensor.extract_slice %inserted_slice_809[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2432 = cheddar.encode %encoder, %extracted_slice_2431 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2432 = cheddar.encode %encoder, %extracted_slice_2431 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2433 = tensor.extract_slice %inserted_slice_813[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2434 = cheddar.encode %encoder, %extracted_slice_2433 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2434 = cheddar.encode %encoder, %extracted_slice_2433 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2435 = tensor.extract_slice %inserted_slice_817[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2436 = cheddar.encode %encoder, %extracted_slice_2435 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2436 = cheddar.encode %encoder, %extracted_slice_2435 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2437 = tensor.extract_slice %inserted_slice_821[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2438 = cheddar.encode %encoder, %extracted_slice_2437 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2438 = cheddar.encode %encoder, %extracted_slice_2437 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2439 = tensor.extract_slice %inserted_slice_825[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2440 = cheddar.encode %encoder, %extracted_slice_2439 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2440 = cheddar.encode %encoder, %extracted_slice_2439 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2441 = tensor.extract_slice %inserted_slice_829[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2442 = cheddar.encode %encoder, %extracted_slice_2441 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2442 = cheddar.encode %encoder, %extracted_slice_2441 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2443 = tensor.extract_slice %inserted_slice_833[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2444 = cheddar.encode %encoder, %extracted_slice_2443 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2444 = cheddar.encode %encoder, %extracted_slice_2443 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2445 = tensor.extract_slice %inserted_slice_837[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2446 = cheddar.encode %encoder, %extracted_slice_2445 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2446 = cheddar.encode %encoder, %extracted_slice_2445 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2447 = tensor.extract_slice %inserted_slice_841[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2448 = cheddar.encode %encoder, %extracted_slice_2447 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2448 = cheddar.encode %encoder, %extracted_slice_2447 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2449 = tensor.extract_slice %inserted_slice_845[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2450 = cheddar.encode %encoder, %extracted_slice_2449 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2450 = cheddar.encode %encoder, %extracted_slice_2449 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2451 = tensor.extract_slice %inserted_slice_849[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2452 = cheddar.encode %encoder, %extracted_slice_2451 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2452 = cheddar.encode %encoder, %extracted_slice_2451 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2453 = tensor.extract_slice %inserted_slice_853[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2454 = cheddar.encode %encoder, %extracted_slice_2453 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2454 = cheddar.encode %encoder, %extracted_slice_2453 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2455 = tensor.extract_slice %inserted_slice_857[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2456 = cheddar.encode %encoder, %extracted_slice_2455 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2456 = cheddar.encode %encoder, %extracted_slice_2455 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2457 = tensor.extract_slice %inserted_slice_861[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2458 = cheddar.encode %encoder, %extracted_slice_2457 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2458 = cheddar.encode %encoder, %extracted_slice_2457 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2459 = tensor.extract_slice %inserted_slice_865[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2460 = cheddar.encode %encoder, %extracted_slice_2459 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2460 = cheddar.encode %encoder, %extracted_slice_2459 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2461 = tensor.extract_slice %inserted_slice_869[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2462 = cheddar.encode %encoder, %extracted_slice_2461 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2462 = cheddar.encode %encoder, %extracted_slice_2461 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2463 = tensor.extract_slice %inserted_slice_873[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2464 = cheddar.encode %encoder, %extracted_slice_2463 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2464 = cheddar.encode %encoder, %extracted_slice_2463 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2465 = tensor.extract_slice %inserted_slice_877[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2466 = cheddar.encode %encoder, %extracted_slice_2465 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2466 = cheddar.encode %encoder, %extracted_slice_2465 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2467 = tensor.extract_slice %inserted_slice_881[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2468 = cheddar.encode %encoder, %extracted_slice_2467 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2468 = cheddar.encode %encoder, %extracted_slice_2467 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2469 = tensor.extract_slice %inserted_slice_885[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2470 = cheddar.encode %encoder, %extracted_slice_2469 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2470 = cheddar.encode %encoder, %extracted_slice_2469 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2471 = tensor.extract_slice %inserted_slice_889[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2472 = cheddar.encode %encoder, %extracted_slice_2471 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2472 = cheddar.encode %encoder, %extracted_slice_2471 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2473 = tensor.extract_slice %inserted_slice_893[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2474 = cheddar.encode %encoder, %extracted_slice_2473 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2474 = cheddar.encode %encoder, %extracted_slice_2473 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2475 = tensor.extract_slice %inserted_slice_897[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2476 = cheddar.encode %encoder, %extracted_slice_2475 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2476 = cheddar.encode %encoder, %extracted_slice_2475 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2477 = tensor.extract_slice %inserted_slice_901[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2478 = cheddar.encode %encoder, %extracted_slice_2477 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2478 = cheddar.encode %encoder, %extracted_slice_2477 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2479 = tensor.extract_slice %inserted_slice_905[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2480 = cheddar.encode %encoder, %extracted_slice_2479 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2480 = cheddar.encode %encoder, %extracted_slice_2479 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2481 = tensor.extract_slice %inserted_slice_909[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2482 = cheddar.encode %encoder, %extracted_slice_2481 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2482 = cheddar.encode %encoder, %extracted_slice_2481 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2483 = tensor.extract_slice %inserted_slice_913[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2484 = cheddar.encode %encoder, %extracted_slice_2483 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2484 = cheddar.encode %encoder, %extracted_slice_2483 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2485 = tensor.extract_slice %inserted_slice_917[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2486 = cheddar.encode %encoder, %extracted_slice_2485 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2486 = cheddar.encode %encoder, %extracted_slice_2485 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2487 = tensor.extract_slice %inserted_slice_921[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2488 = cheddar.encode %encoder, %extracted_slice_2487 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2488 = cheddar.encode %encoder, %extracted_slice_2487 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2489 = tensor.extract_slice %inserted_slice_925[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2490 = cheddar.encode %encoder, %extracted_slice_2489 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2490 = cheddar.encode %encoder, %extracted_slice_2489 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2491 = tensor.extract_slice %inserted_slice_929[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2492 = cheddar.encode %encoder, %extracted_slice_2491 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2492 = cheddar.encode %encoder, %extracted_slice_2491 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2493 = tensor.extract_slice %inserted_slice_933[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2494 = cheddar.encode %encoder, %extracted_slice_2493 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2494 = cheddar.encode %encoder, %extracted_slice_2493 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2495 = tensor.extract_slice %inserted_slice_937[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2496 = cheddar.encode %encoder, %extracted_slice_2495 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2496 = cheddar.encode %encoder, %extracted_slice_2495 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2497 = tensor.extract_slice %inserted_slice_941[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2498 = cheddar.encode %encoder, %extracted_slice_2497 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2498 = cheddar.encode %encoder, %extracted_slice_2497 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2499 = tensor.extract_slice %inserted_slice_945[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2500 = cheddar.encode %encoder, %extracted_slice_2499 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2500 = cheddar.encode %encoder, %extracted_slice_2499 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2501 = tensor.extract_slice %inserted_slice_949[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2502 = cheddar.encode %encoder, %extracted_slice_2501 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2502 = cheddar.encode %encoder, %extracted_slice_2501 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2503 = tensor.extract_slice %inserted_slice_953[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2504 = cheddar.encode %encoder, %extracted_slice_2503 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2504 = cheddar.encode %encoder, %extracted_slice_2503 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2505 = tensor.extract_slice %inserted_slice_957[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2506 = cheddar.encode %encoder, %extracted_slice_2505 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2506 = cheddar.encode %encoder, %extracted_slice_2505 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2507 = tensor.extract_slice %inserted_slice_961[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2508 = cheddar.encode %encoder, %extracted_slice_2507 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2508 = cheddar.encode %encoder, %extracted_slice_2507 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2509 = tensor.extract_slice %inserted_slice_965[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2510 = cheddar.encode %encoder, %extracted_slice_2509 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2510 = cheddar.encode %encoder, %extracted_slice_2509 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2511 = tensor.extract_slice %inserted_slice_969[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2512 = cheddar.encode %encoder, %extracted_slice_2511 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2512 = cheddar.encode %encoder, %extracted_slice_2511 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2513 = tensor.extract_slice %inserted_slice_973[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2514 = cheddar.encode %encoder, %extracted_slice_2513 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2514 = cheddar.encode %encoder, %extracted_slice_2513 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2515 = tensor.extract_slice %inserted_slice_977[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2516 = cheddar.encode %encoder, %extracted_slice_2515 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2516 = cheddar.encode %encoder, %extracted_slice_2515 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2517 = tensor.extract_slice %inserted_slice_981[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2518 = cheddar.encode %encoder, %extracted_slice_2517 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2518 = cheddar.encode %encoder, %extracted_slice_2517 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2519 = tensor.extract_slice %inserted_slice_985[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2520 = cheddar.encode %encoder, %extracted_slice_2519 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2520 = cheddar.encode %encoder, %extracted_slice_2519 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2521 = tensor.extract_slice %inserted_slice_989[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2522 = cheddar.encode %encoder, %extracted_slice_2521 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2522 = cheddar.encode %encoder, %extracted_slice_2521 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2523 = tensor.extract_slice %inserted_slice_993[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2524 = cheddar.encode %encoder, %extracted_slice_2523 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2524 = cheddar.encode %encoder, %extracted_slice_2523 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2525 = tensor.extract_slice %inserted_slice_997[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2526 = cheddar.encode %encoder, %extracted_slice_2525 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2526 = cheddar.encode %encoder, %extracted_slice_2525 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2527 = tensor.extract_slice %inserted_slice_1001[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2528 = cheddar.encode %encoder, %extracted_slice_2527 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2528 = cheddar.encode %encoder, %extracted_slice_2527 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2529 = tensor.extract_slice %inserted_slice_1005[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2530 = cheddar.encode %encoder, %extracted_slice_2529 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2530 = cheddar.encode %encoder, %extracted_slice_2529 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2531 = tensor.extract_slice %inserted_slice_1009[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2532 = cheddar.encode %encoder, %extracted_slice_2531 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2532 = cheddar.encode %encoder, %extracted_slice_2531 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2533 = tensor.extract_slice %inserted_slice_1013[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2534 = cheddar.encode %encoder, %extracted_slice_2533 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2534 = cheddar.encode %encoder, %extracted_slice_2533 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2535 = tensor.extract_slice %inserted_slice_1017[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2536 = cheddar.encode %encoder, %extracted_slice_2535 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2536 = cheddar.encode %encoder, %extracted_slice_2535 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2537 = tensor.extract_slice %inserted_slice_1021[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2538 = cheddar.encode %encoder, %extracted_slice_2537 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2538 = cheddar.encode %encoder, %extracted_slice_2537 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2539 = tensor.extract_slice %inserted_slice_1025[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2540 = cheddar.encode %encoder, %extracted_slice_2539 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2540 = cheddar.encode %encoder, %extracted_slice_2539 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2541 = tensor.extract_slice %inserted_slice_1029[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2542 = cheddar.encode %encoder, %extracted_slice_2541 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2542 = cheddar.encode %encoder, %extracted_slice_2541 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2543 = tensor.extract_slice %inserted_slice_1033[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2544 = cheddar.encode %encoder, %extracted_slice_2543 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2544 = cheddar.encode %encoder, %extracted_slice_2543 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2545 = tensor.extract_slice %inserted_slice_1037[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2546 = cheddar.encode %encoder, %extracted_slice_2545 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2546 = cheddar.encode %encoder, %extracted_slice_2545 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2547 = tensor.extract_slice %inserted_slice_1041[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2548 = cheddar.encode %encoder, %extracted_slice_2547 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2548 = cheddar.encode %encoder, %extracted_slice_2547 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2549 = tensor.extract_slice %inserted_slice_1045[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2550 = cheddar.encode %encoder, %extracted_slice_2549 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2550 = cheddar.encode %encoder, %extracted_slice_2549 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2551 = tensor.extract_slice %inserted_slice_1049[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2552 = cheddar.encode %encoder, %extracted_slice_2551 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2552 = cheddar.encode %encoder, %extracted_slice_2551 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2553 = tensor.extract_slice %inserted_slice_1053[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2554 = cheddar.encode %encoder, %extracted_slice_2553 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2554 = cheddar.encode %encoder, %extracted_slice_2553 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2555 = tensor.extract_slice %inserted_slice_1057[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2556 = cheddar.encode %encoder, %extracted_slice_2555 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2556 = cheddar.encode %encoder, %extracted_slice_2555 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2557 = tensor.extract_slice %inserted_slice_1061[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2558 = cheddar.encode %encoder, %extracted_slice_2557 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2558 = cheddar.encode %encoder, %extracted_slice_2557 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2559 = tensor.extract_slice %inserted_slice_1065[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2560 = cheddar.encode %encoder, %extracted_slice_2559 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2560 = cheddar.encode %encoder, %extracted_slice_2559 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2561 = tensor.extract_slice %inserted_slice_1069[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2562 = cheddar.encode %encoder, %extracted_slice_2561 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2562 = cheddar.encode %encoder, %extracted_slice_2561 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2563 = tensor.extract_slice %inserted_slice_1073[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2564 = cheddar.encode %encoder, %extracted_slice_2563 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2564 = cheddar.encode %encoder, %extracted_slice_2563 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2565 = tensor.extract_slice %inserted_slice_1077[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2566 = cheddar.encode %encoder, %extracted_slice_2565 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2566 = cheddar.encode %encoder, %extracted_slice_2565 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2567 = tensor.extract_slice %inserted_slice_1081[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2568 = cheddar.encode %encoder, %extracted_slice_2567 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2568 = cheddar.encode %encoder, %extracted_slice_2567 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2569 = tensor.extract_slice %inserted_slice_1085[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2570 = cheddar.encode %encoder, %extracted_slice_2569 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2570 = cheddar.encode %encoder, %extracted_slice_2569 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2571 = tensor.extract_slice %inserted_slice_1089[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2572 = cheddar.encode %encoder, %extracted_slice_2571 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2572 = cheddar.encode %encoder, %extracted_slice_2571 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2573 = tensor.extract_slice %inserted_slice_1093[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2574 = cheddar.encode %encoder, %extracted_slice_2573 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2574 = cheddar.encode %encoder, %extracted_slice_2573 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2575 = tensor.extract_slice %inserted_slice_1097[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2576 = cheddar.encode %encoder, %extracted_slice_2575 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2576 = cheddar.encode %encoder, %extracted_slice_2575 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2577 = tensor.extract_slice %inserted_slice_1101[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2578 = cheddar.encode %encoder, %extracted_slice_2577 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2578 = cheddar.encode %encoder, %extracted_slice_2577 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2579 = tensor.extract_slice %inserted_slice_1105[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2580 = cheddar.encode %encoder, %extracted_slice_2579 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2580 = cheddar.encode %encoder, %extracted_slice_2579 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2581 = tensor.extract_slice %inserted_slice_1109[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2582 = cheddar.encode %encoder, %extracted_slice_2581 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2582 = cheddar.encode %encoder, %extracted_slice_2581 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2583 = tensor.extract_slice %inserted_slice_1113[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2584 = cheddar.encode %encoder, %extracted_slice_2583 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2584 = cheddar.encode %encoder, %extracted_slice_2583 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2585 = tensor.extract_slice %inserted_slice_1117[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2586 = cheddar.encode %encoder, %extracted_slice_2585 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2586 = cheddar.encode %encoder, %extracted_slice_2585 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2587 = tensor.extract_slice %inserted_slice_1121[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2588 = cheddar.encode %encoder, %extracted_slice_2587 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2588 = cheddar.encode %encoder, %extracted_slice_2587 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2589 = tensor.extract_slice %inserted_slice_1125[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2590 = cheddar.encode %encoder, %extracted_slice_2589 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2590 = cheddar.encode %encoder, %extracted_slice_2589 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2591 = tensor.extract_slice %inserted_slice_1129[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2592 = cheddar.encode %encoder, %extracted_slice_2591 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2592 = cheddar.encode %encoder, %extracted_slice_2591 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2593 = tensor.extract_slice %inserted_slice_1133[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2594 = cheddar.encode %encoder, %extracted_slice_2593 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2594 = cheddar.encode %encoder, %extracted_slice_2593 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2595 = tensor.extract_slice %inserted_slice_1137[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2596 = cheddar.encode %encoder, %extracted_slice_2595 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2596 = cheddar.encode %encoder, %extracted_slice_2595 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2597 = tensor.extract_slice %inserted_slice_1141[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2598 = cheddar.encode %encoder, %extracted_slice_2597 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2598 = cheddar.encode %encoder, %extracted_slice_2597 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2599 = tensor.extract_slice %inserted_slice_1145[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2600 = cheddar.encode %encoder, %extracted_slice_2599 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2600 = cheddar.encode %encoder, %extracted_slice_2599 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2601 = tensor.extract_slice %inserted_slice_1149[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2602 = cheddar.encode %encoder, %extracted_slice_2601 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2602 = cheddar.encode %encoder, %extracted_slice_2601 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2603 = tensor.extract_slice %inserted_slice_1153[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2604 = cheddar.encode %encoder, %extracted_slice_2603 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2604 = cheddar.encode %encoder, %extracted_slice_2603 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2605 = tensor.extract_slice %inserted_slice_1157[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2606 = cheddar.encode %encoder, %extracted_slice_2605 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2606 = cheddar.encode %encoder, %extracted_slice_2605 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2607 = tensor.extract_slice %inserted_slice_1161[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2608 = cheddar.encode %encoder, %extracted_slice_2607 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2608 = cheddar.encode %encoder, %extracted_slice_2607 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2609 = tensor.extract_slice %inserted_slice_1165[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2610 = cheddar.encode %encoder, %extracted_slice_2609 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2610 = cheddar.encode %encoder, %extracted_slice_2609 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2611 = tensor.extract_slice %inserted_slice_1169[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2612 = cheddar.encode %encoder, %extracted_slice_2611 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2612 = cheddar.encode %encoder, %extracted_slice_2611 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2613 = tensor.extract_slice %inserted_slice_1173[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2614 = cheddar.encode %encoder, %extracted_slice_2613 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2614 = cheddar.encode %encoder, %extracted_slice_2613 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2615 = tensor.extract_slice %inserted_slice_1177[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2616 = cheddar.encode %encoder, %extracted_slice_2615 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2616 = cheddar.encode %encoder, %extracted_slice_2615 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2617 = tensor.extract_slice %inserted_slice_1181[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2618 = cheddar.encode %encoder, %extracted_slice_2617 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2618 = cheddar.encode %encoder, %extracted_slice_2617 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2619 = tensor.extract_slice %inserted_slice_1185[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2620 = cheddar.encode %encoder, %extracted_slice_2619 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2620 = cheddar.encode %encoder, %extracted_slice_2619 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2621 = tensor.extract_slice %inserted_slice_1189[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2622 = cheddar.encode %encoder, %extracted_slice_2621 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2622 = cheddar.encode %encoder, %extracted_slice_2621 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2623 = tensor.extract_slice %inserted_slice_1193[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2624 = cheddar.encode %encoder, %extracted_slice_2623 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2624 = cheddar.encode %encoder, %extracted_slice_2623 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2625 = tensor.extract_slice %inserted_slice_1197[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2626 = cheddar.encode %encoder, %extracted_slice_2625 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2626 = cheddar.encode %encoder, %extracted_slice_2625 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2627 = tensor.extract_slice %inserted_slice_1201[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2628 = cheddar.encode %encoder, %extracted_slice_2627 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2628 = cheddar.encode %encoder, %extracted_slice_2627 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2629 = tensor.extract_slice %inserted_slice_1205[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2630 = cheddar.encode %encoder, %extracted_slice_2629 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2630 = cheddar.encode %encoder, %extracted_slice_2629 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2631 = tensor.extract_slice %inserted_slice_1209[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2632 = cheddar.encode %encoder, %extracted_slice_2631 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2632 = cheddar.encode %encoder, %extracted_slice_2631 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2633 = tensor.extract_slice %inserted_slice_1213[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2634 = cheddar.encode %encoder, %extracted_slice_2633 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2634 = cheddar.encode %encoder, %extracted_slice_2633 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2635 = tensor.extract_slice %inserted_slice_1217[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2636 = cheddar.encode %encoder, %extracted_slice_2635 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2636 = cheddar.encode %encoder, %extracted_slice_2635 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2637 = tensor.extract_slice %inserted_slice_1221[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2638 = cheddar.encode %encoder, %extracted_slice_2637 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2638 = cheddar.encode %encoder, %extracted_slice_2637 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2639 = tensor.extract_slice %inserted_slice_1225[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2640 = cheddar.encode %encoder, %extracted_slice_2639 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2640 = cheddar.encode %encoder, %extracted_slice_2639 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2641 = tensor.extract_slice %inserted_slice_1229[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2642 = cheddar.encode %encoder, %extracted_slice_2641 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2642 = cheddar.encode %encoder, %extracted_slice_2641 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2643 = tensor.extract_slice %inserted_slice_1233[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2644 = cheddar.encode %encoder, %extracted_slice_2643 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2644 = cheddar.encode %encoder, %extracted_slice_2643 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2645 = tensor.extract_slice %inserted_slice_1237[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2646 = cheddar.encode %encoder, %extracted_slice_2645 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2646 = cheddar.encode %encoder, %extracted_slice_2645 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2647 = tensor.extract_slice %inserted_slice_1241[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2648 = cheddar.encode %encoder, %extracted_slice_2647 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2648 = cheddar.encode %encoder, %extracted_slice_2647 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2649 = tensor.extract_slice %inserted_slice_1245[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2650 = cheddar.encode %encoder, %extracted_slice_2649 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2650 = cheddar.encode %encoder, %extracted_slice_2649 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2651 = tensor.extract_slice %inserted_slice_1249[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2652 = cheddar.encode %encoder, %extracted_slice_2651 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2652 = cheddar.encode %encoder, %extracted_slice_2651 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2653 = tensor.extract_slice %inserted_slice_1253[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2654 = cheddar.encode %encoder, %extracted_slice_2653 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2654 = cheddar.encode %encoder, %extracted_slice_2653 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2655 = tensor.extract_slice %inserted_slice_1257[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2656 = cheddar.encode %encoder, %extracted_slice_2655 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2656 = cheddar.encode %encoder, %extracted_slice_2655 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2657 = tensor.extract_slice %inserted_slice_1261[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2658 = cheddar.encode %encoder, %extracted_slice_2657 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2658 = cheddar.encode %encoder, %extracted_slice_2657 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2659 = tensor.extract_slice %inserted_slice_1265[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2660 = cheddar.encode %encoder, %extracted_slice_2659 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2660 = cheddar.encode %encoder, %extracted_slice_2659 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2661 = tensor.extract_slice %inserted_slice_1269[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2662 = cheddar.encode %encoder, %extracted_slice_2661 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2662 = cheddar.encode %encoder, %extracted_slice_2661 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2663 = tensor.extract_slice %inserted_slice_1273[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2664 = cheddar.encode %encoder, %extracted_slice_2663 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2664 = cheddar.encode %encoder, %extracted_slice_2663 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2665 = tensor.extract_slice %inserted_slice_1277[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2666 = cheddar.encode %encoder, %extracted_slice_2665 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2666 = cheddar.encode %encoder, %extracted_slice_2665 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2667 = tensor.extract_slice %inserted_slice_1281[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2668 = cheddar.encode %encoder, %extracted_slice_2667 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2668 = cheddar.encode %encoder, %extracted_slice_2667 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2669 = tensor.extract_slice %inserted_slice_1285[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2670 = cheddar.encode %encoder, %extracted_slice_2669 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2670 = cheddar.encode %encoder, %extracted_slice_2669 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2671 = tensor.extract_slice %inserted_slice_1289[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2672 = cheddar.encode %encoder, %extracted_slice_2671 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2672 = cheddar.encode %encoder, %extracted_slice_2671 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2673 = tensor.extract_slice %inserted_slice_1293[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2674 = cheddar.encode %encoder, %extracted_slice_2673 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2674 = cheddar.encode %encoder, %extracted_slice_2673 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2675 = tensor.extract_slice %inserted_slice_1297[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2676 = cheddar.encode %encoder, %extracted_slice_2675 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2676 = cheddar.encode %encoder, %extracted_slice_2675 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2677 = tensor.extract_slice %inserted_slice_1301[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2678 = cheddar.encode %encoder, %extracted_slice_2677 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2678 = cheddar.encode %encoder, %extracted_slice_2677 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2679 = tensor.extract_slice %inserted_slice_1305[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2680 = cheddar.encode %encoder, %extracted_slice_2679 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2680 = cheddar.encode %encoder, %extracted_slice_2679 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2681 = tensor.extract_slice %inserted_slice_1309[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2682 = cheddar.encode %encoder, %extracted_slice_2681 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2682 = cheddar.encode %encoder, %extracted_slice_2681 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2683 = tensor.extract_slice %inserted_slice_1313[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2684 = cheddar.encode %encoder, %extracted_slice_2683 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2684 = cheddar.encode %encoder, %extracted_slice_2683 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2685 = tensor.extract_slice %inserted_slice_1317[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2686 = cheddar.encode %encoder, %extracted_slice_2685 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2686 = cheddar.encode %encoder, %extracted_slice_2685 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2687 = tensor.extract_slice %inserted_slice_1321[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2688 = cheddar.encode %encoder, %extracted_slice_2687 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2688 = cheddar.encode %encoder, %extracted_slice_2687 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2689 = tensor.extract_slice %inserted_slice_1325[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2690 = cheddar.encode %encoder, %extracted_slice_2689 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2690 = cheddar.encode %encoder, %extracted_slice_2689 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2691 = tensor.extract_slice %inserted_slice_1329[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2692 = cheddar.encode %encoder, %extracted_slice_2691 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2692 = cheddar.encode %encoder, %extracted_slice_2691 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2693 = tensor.extract_slice %inserted_slice_1333[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2694 = cheddar.encode %encoder, %extracted_slice_2693 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2694 = cheddar.encode %encoder, %extracted_slice_2693 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2695 = tensor.extract_slice %inserted_slice_1337[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2696 = cheddar.encode %encoder, %extracted_slice_2695 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2696 = cheddar.encode %encoder, %extracted_slice_2695 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2697 = tensor.extract_slice %inserted_slice_1341[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2698 = cheddar.encode %encoder, %extracted_slice_2697 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2698 = cheddar.encode %encoder, %extracted_slice_2697 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2699 = tensor.extract_slice %inserted_slice_1345[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2700 = cheddar.encode %encoder, %extracted_slice_2699 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2700 = cheddar.encode %encoder, %extracted_slice_2699 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2701 = tensor.extract_slice %inserted_slice_1349[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2702 = cheddar.encode %encoder, %extracted_slice_2701 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2702 = cheddar.encode %encoder, %extracted_slice_2701 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2703 = tensor.extract_slice %inserted_slice_1353[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2704 = cheddar.encode %encoder, %extracted_slice_2703 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2704 = cheddar.encode %encoder, %extracted_slice_2703 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2705 = tensor.extract_slice %inserted_slice_1357[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2706 = cheddar.encode %encoder, %extracted_slice_2705 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2706 = cheddar.encode %encoder, %extracted_slice_2705 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2707 = tensor.extract_slice %inserted_slice_1361[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2708 = cheddar.encode %encoder, %extracted_slice_2707 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2708 = cheddar.encode %encoder, %extracted_slice_2707 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2709 = tensor.extract_slice %inserted_slice_1365[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2710 = cheddar.encode %encoder, %extracted_slice_2709 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2710 = cheddar.encode %encoder, %extracted_slice_2709 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2711 = tensor.extract_slice %inserted_slice_1369[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2712 = cheddar.encode %encoder, %extracted_slice_2711 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2712 = cheddar.encode %encoder, %extracted_slice_2711 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2713 = tensor.extract_slice %inserted_slice_1373[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2714 = cheddar.encode %encoder, %extracted_slice_2713 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2714 = cheddar.encode %encoder, %extracted_slice_2713 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2715 = tensor.extract_slice %inserted_slice_1377[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2716 = cheddar.encode %encoder, %extracted_slice_2715 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2716 = cheddar.encode %encoder, %extracted_slice_2715 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2717 = tensor.extract_slice %inserted_slice_1381[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2718 = cheddar.encode %encoder, %extracted_slice_2717 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2718 = cheddar.encode %encoder, %extracted_slice_2717 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2719 = tensor.extract_slice %inserted_slice_1385[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2720 = cheddar.encode %encoder, %extracted_slice_2719 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2720 = cheddar.encode %encoder, %extracted_slice_2719 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2721 = tensor.extract_slice %inserted_slice_1389[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2722 = cheddar.encode %encoder, %extracted_slice_2721 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2722 = cheddar.encode %encoder, %extracted_slice_2721 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2723 = tensor.extract_slice %inserted_slice_1393[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2724 = cheddar.encode %encoder, %extracted_slice_2723 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2724 = cheddar.encode %encoder, %extracted_slice_2723 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2725 = tensor.extract_slice %inserted_slice_1397[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2726 = cheddar.encode %encoder, %extracted_slice_2725 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2726 = cheddar.encode %encoder, %extracted_slice_2725 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2727 = tensor.extract_slice %inserted_slice_1401[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2728 = cheddar.encode %encoder, %extracted_slice_2727 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2728 = cheddar.encode %encoder, %extracted_slice_2727 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2729 = tensor.extract_slice %inserted_slice_1405[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2730 = cheddar.encode %encoder, %extracted_slice_2729 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2730 = cheddar.encode %encoder, %extracted_slice_2729 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2731 = tensor.extract_slice %inserted_slice_1409[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2732 = cheddar.encode %encoder, %extracted_slice_2731 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2732 = cheddar.encode %encoder, %extracted_slice_2731 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2733 = tensor.extract_slice %inserted_slice_1413[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2734 = cheddar.encode %encoder, %extracted_slice_2733 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2734 = cheddar.encode %encoder, %extracted_slice_2733 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2735 = tensor.extract_slice %inserted_slice_1417[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2736 = cheddar.encode %encoder, %extracted_slice_2735 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2736 = cheddar.encode %encoder, %extracted_slice_2735 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2737 = tensor.extract_slice %inserted_slice_1421[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2738 = cheddar.encode %encoder, %extracted_slice_2737 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2738 = cheddar.encode %encoder, %extracted_slice_2737 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2739 = tensor.extract_slice %inserted_slice_1425[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2740 = cheddar.encode %encoder, %extracted_slice_2739 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2740 = cheddar.encode %encoder, %extracted_slice_2739 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2741 = tensor.extract_slice %inserted_slice_1429[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2742 = cheddar.encode %encoder, %extracted_slice_2741 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2742 = cheddar.encode %encoder, %extracted_slice_2741 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2743 = tensor.extract_slice %inserted_slice_1433[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2744 = cheddar.encode %encoder, %extracted_slice_2743 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2744 = cheddar.encode %encoder, %extracted_slice_2743 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2745 = tensor.extract_slice %inserted_slice_1437[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2746 = cheddar.encode %encoder, %extracted_slice_2745 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2746 = cheddar.encode %encoder, %extracted_slice_2745 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2747 = tensor.extract_slice %inserted_slice_1441[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2748 = cheddar.encode %encoder, %extracted_slice_2747 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2748 = cheddar.encode %encoder, %extracted_slice_2747 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2749 = tensor.extract_slice %inserted_slice_1445[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2750 = cheddar.encode %encoder, %extracted_slice_2749 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2750 = cheddar.encode %encoder, %extracted_slice_2749 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2751 = tensor.extract_slice %inserted_slice_1449[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2752 = cheddar.encode %encoder, %extracted_slice_2751 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2752 = cheddar.encode %encoder, %extracted_slice_2751 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2753 = tensor.extract_slice %inserted_slice_1453[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2754 = cheddar.encode %encoder, %extracted_slice_2753 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2754 = cheddar.encode %encoder, %extracted_slice_2753 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2755 = tensor.extract_slice %inserted_slice_1457[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2756 = cheddar.encode %encoder, %extracted_slice_2755 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2756 = cheddar.encode %encoder, %extracted_slice_2755 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2757 = tensor.extract_slice %inserted_slice_1461[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2758 = cheddar.encode %encoder, %extracted_slice_2757 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2758 = cheddar.encode %encoder, %extracted_slice_2757 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2759 = tensor.extract_slice %inserted_slice_1465[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2760 = cheddar.encode %encoder, %extracted_slice_2759 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2760 = cheddar.encode %encoder, %extracted_slice_2759 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2761 = tensor.extract_slice %inserted_slice_1469[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2762 = cheddar.encode %encoder, %extracted_slice_2761 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2762 = cheddar.encode %encoder, %extracted_slice_2761 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2763 = tensor.extract_slice %inserted_slice_1473[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2764 = cheddar.encode %encoder, %extracted_slice_2763 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2764 = cheddar.encode %encoder, %extracted_slice_2763 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2765 = tensor.extract_slice %inserted_slice_1477[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2766 = cheddar.encode %encoder, %extracted_slice_2765 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2766 = cheddar.encode %encoder, %extracted_slice_2765 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2767 = tensor.extract_slice %inserted_slice_1481[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2768 = cheddar.encode %encoder, %extracted_slice_2767 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2768 = cheddar.encode %encoder, %extracted_slice_2767 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2769 = tensor.extract_slice %inserted_slice_1485[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2770 = cheddar.encode %encoder, %extracted_slice_2769 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2770 = cheddar.encode %encoder, %extracted_slice_2769 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2771 = tensor.extract_slice %inserted_slice_1489[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2772 = cheddar.encode %encoder, %extracted_slice_2771 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2772 = cheddar.encode %encoder, %extracted_slice_2771 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2773 = tensor.extract_slice %inserted_slice_1493[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2774 = cheddar.encode %encoder, %extracted_slice_2773 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2774 = cheddar.encode %encoder, %extracted_slice_2773 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2775 = tensor.extract_slice %inserted_slice_1497[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2776 = cheddar.encode %encoder, %extracted_slice_2775 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2776 = cheddar.encode %encoder, %extracted_slice_2775 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2777 = tensor.extract_slice %inserted_slice_1501[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2778 = cheddar.encode %encoder, %extracted_slice_2777 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2778 = cheddar.encode %encoder, %extracted_slice_2777 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2779 = tensor.extract_slice %inserted_slice_1505[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2780 = cheddar.encode %encoder, %extracted_slice_2779 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2780 = cheddar.encode %encoder, %extracted_slice_2779 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2781 = tensor.extract_slice %inserted_slice_1509[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2782 = cheddar.encode %encoder, %extracted_slice_2781 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2782 = cheddar.encode %encoder, %extracted_slice_2781 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2783 = tensor.extract_slice %inserted_slice_1513[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2784 = cheddar.encode %encoder, %extracted_slice_2783 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2784 = cheddar.encode %encoder, %extracted_slice_2783 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2785 = tensor.extract_slice %inserted_slice_1517[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2786 = cheddar.encode %encoder, %extracted_slice_2785 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2786 = cheddar.encode %encoder, %extracted_slice_2785 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2787 = tensor.extract_slice %inserted_slice_1521[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2788 = cheddar.encode %encoder, %extracted_slice_2787 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2788 = cheddar.encode %encoder, %extracted_slice_2787 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2789 = tensor.extract_slice %inserted_slice_1525[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2790 = cheddar.encode %encoder, %extracted_slice_2789 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2790 = cheddar.encode %encoder, %extracted_slice_2789 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2791 = tensor.extract_slice %inserted_slice_1529[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2792 = cheddar.encode %encoder, %extracted_slice_2791 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2792 = cheddar.encode %encoder, %extracted_slice_2791 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2793 = tensor.extract_slice %inserted_slice_1533[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2794 = cheddar.encode %encoder, %extracted_slice_2793 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2794 = cheddar.encode %encoder, %extracted_slice_2793 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2795 = tensor.extract_slice %inserted_slice_1537[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2796 = cheddar.encode %encoder, %extracted_slice_2795 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2796 = cheddar.encode %encoder, %extracted_slice_2795 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2797 = tensor.extract_slice %inserted_slice_1541[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2798 = cheddar.encode %encoder, %extracted_slice_2797 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2798 = cheddar.encode %encoder, %extracted_slice_2797 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2799 = tensor.extract_slice %inserted_slice_1545[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2800 = cheddar.encode %encoder, %extracted_slice_2799 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2800 = cheddar.encode %encoder, %extracted_slice_2799 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2801 = tensor.extract_slice %inserted_slice_1549[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2802 = cheddar.encode %encoder, %extracted_slice_2801 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2802 = cheddar.encode %encoder, %extracted_slice_2801 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2803 = tensor.extract_slice %inserted_slice_1553[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2804 = cheddar.encode %encoder, %extracted_slice_2803 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2804 = cheddar.encode %encoder, %extracted_slice_2803 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2805 = tensor.extract_slice %inserted_slice_1557[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2806 = cheddar.encode %encoder, %extracted_slice_2805 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2806 = cheddar.encode %encoder, %extracted_slice_2805 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2807 = tensor.extract_slice %inserted_slice_1561[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2808 = cheddar.encode %encoder, %extracted_slice_2807 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2808 = cheddar.encode %encoder, %extracted_slice_2807 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2809 = tensor.extract_slice %inserted_slice_1565[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2810 = cheddar.encode %encoder, %extracted_slice_2809 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2810 = cheddar.encode %encoder, %extracted_slice_2809 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2811 = tensor.extract_slice %inserted_slice_1569[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2812 = cheddar.encode %encoder, %extracted_slice_2811 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2812 = cheddar.encode %encoder, %extracted_slice_2811 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2813 = tensor.extract_slice %inserted_slice_1573[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2814 = cheddar.encode %encoder, %extracted_slice_2813 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2814 = cheddar.encode %encoder, %extracted_slice_2813 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2815 = tensor.extract_slice %inserted_slice_1577[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2816 = cheddar.encode %encoder, %extracted_slice_2815 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2816 = cheddar.encode %encoder, %extracted_slice_2815 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2817 = tensor.extract_slice %inserted_slice_1581[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2818 = cheddar.encode %encoder, %extracted_slice_2817 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2818 = cheddar.encode %encoder, %extracted_slice_2817 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2819 = tensor.extract_slice %inserted_slice_1585[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2820 = cheddar.encode %encoder, %extracted_slice_2819 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2820 = cheddar.encode %encoder, %extracted_slice_2819 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2821 = tensor.extract_slice %inserted_slice_1589[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2822 = cheddar.encode %encoder, %extracted_slice_2821 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2822 = cheddar.encode %encoder, %extracted_slice_2821 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2823 = tensor.extract_slice %inserted_slice_1593[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2824 = cheddar.encode %encoder, %extracted_slice_2823 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2824 = cheddar.encode %encoder, %extracted_slice_2823 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2825 = tensor.extract_slice %inserted_slice_1597[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2826 = cheddar.encode %encoder, %extracted_slice_2825 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2826 = cheddar.encode %encoder, %extracted_slice_2825 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2827 = tensor.extract_slice %inserted_slice_1601[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2828 = cheddar.encode %encoder, %extracted_slice_2827 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2828 = cheddar.encode %encoder, %extracted_slice_2827 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2829 = tensor.extract_slice %inserted_slice_1605[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2830 = cheddar.encode %encoder, %extracted_slice_2829 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2830 = cheddar.encode %encoder, %extracted_slice_2829 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2831 = tensor.extract_slice %inserted_slice_1609[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2832 = cheddar.encode %encoder, %extracted_slice_2831 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2832 = cheddar.encode %encoder, %extracted_slice_2831 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2833 = tensor.extract_slice %inserted_slice_1613[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2834 = cheddar.encode %encoder, %extracted_slice_2833 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2834 = cheddar.encode %encoder, %extracted_slice_2833 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2835 = tensor.extract_slice %inserted_slice_1617[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2836 = cheddar.encode %encoder, %extracted_slice_2835 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2836 = cheddar.encode %encoder, %extracted_slice_2835 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2837 = tensor.extract_slice %inserted_slice_1621[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2838 = cheddar.encode %encoder, %extracted_slice_2837 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2838 = cheddar.encode %encoder, %extracted_slice_2837 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2839 = tensor.extract_slice %inserted_slice_1625[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2840 = cheddar.encode %encoder, %extracted_slice_2839 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2840 = cheddar.encode %encoder, %extracted_slice_2839 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2841 = tensor.extract_slice %inserted_slice_1629[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2842 = cheddar.encode %encoder, %extracted_slice_2841 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2842 = cheddar.encode %encoder, %extracted_slice_2841 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2843 = tensor.extract_slice %inserted_slice_1633[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2844 = cheddar.encode %encoder, %extracted_slice_2843 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2844 = cheddar.encode %encoder, %extracted_slice_2843 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2845 = tensor.extract_slice %inserted_slice_1637[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2846 = cheddar.encode %encoder, %extracted_slice_2845 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2846 = cheddar.encode %encoder, %extracted_slice_2845 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2847 = tensor.extract_slice %inserted_slice_1641[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2848 = cheddar.encode %encoder, %extracted_slice_2847 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2848 = cheddar.encode %encoder, %extracted_slice_2847 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2849 = tensor.extract_slice %inserted_slice_1645[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2850 = cheddar.encode %encoder, %extracted_slice_2849 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2850 = cheddar.encode %encoder, %extracted_slice_2849 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2851 = tensor.extract_slice %inserted_slice_1649[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2852 = cheddar.encode %encoder, %extracted_slice_2851 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2852 = cheddar.encode %encoder, %extracted_slice_2851 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2853 = tensor.extract_slice %inserted_slice_1653[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2854 = cheddar.encode %encoder, %extracted_slice_2853 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2854 = cheddar.encode %encoder, %extracted_slice_2853 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2855 = tensor.extract_slice %inserted_slice_1657[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2856 = cheddar.encode %encoder, %extracted_slice_2855 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2856 = cheddar.encode %encoder, %extracted_slice_2855 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2857 = tensor.extract_slice %inserted_slice_1661[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2858 = cheddar.encode %encoder, %extracted_slice_2857 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2858 = cheddar.encode %encoder, %extracted_slice_2857 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2859 = tensor.extract_slice %inserted_slice_1665[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2860 = cheddar.encode %encoder, %extracted_slice_2859 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2860 = cheddar.encode %encoder, %extracted_slice_2859 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2861 = tensor.extract_slice %inserted_slice_1669[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2862 = cheddar.encode %encoder, %extracted_slice_2861 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2862 = cheddar.encode %encoder, %extracted_slice_2861 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2863 = tensor.extract_slice %inserted_slice_1673[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2864 = cheddar.encode %encoder, %extracted_slice_2863 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2864 = cheddar.encode %encoder, %extracted_slice_2863 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2865 = tensor.extract_slice %inserted_slice_1677[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2866 = cheddar.encode %encoder, %extracted_slice_2865 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2866 = cheddar.encode %encoder, %extracted_slice_2865 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2867 = tensor.extract_slice %inserted_slice_1681[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2868 = cheddar.encode %encoder, %extracted_slice_2867 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2868 = cheddar.encode %encoder, %extracted_slice_2867 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2869 = tensor.extract_slice %inserted_slice_1685[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2870 = cheddar.encode %encoder, %extracted_slice_2869 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2870 = cheddar.encode %encoder, %extracted_slice_2869 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2871 = tensor.extract_slice %inserted_slice_1689[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2872 = cheddar.encode %encoder, %extracted_slice_2871 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2872 = cheddar.encode %encoder, %extracted_slice_2871 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2873 = tensor.extract_slice %inserted_slice_1693[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2874 = cheddar.encode %encoder, %extracted_slice_2873 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2874 = cheddar.encode %encoder, %extracted_slice_2873 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2875 = tensor.extract_slice %inserted_slice_1697[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2876 = cheddar.encode %encoder, %extracted_slice_2875 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2876 = cheddar.encode %encoder, %extracted_slice_2875 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2877 = tensor.extract_slice %inserted_slice_1701[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2878 = cheddar.encode %encoder, %extracted_slice_2877 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2878 = cheddar.encode %encoder, %extracted_slice_2877 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2879 = tensor.extract_slice %inserted_slice_1705[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2880 = cheddar.encode %encoder, %extracted_slice_2879 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2880 = cheddar.encode %encoder, %extracted_slice_2879 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2881 = tensor.extract_slice %inserted_slice_1709[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2882 = cheddar.encode %encoder, %extracted_slice_2881 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2882 = cheddar.encode %encoder, %extracted_slice_2881 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2883 = tensor.extract_slice %inserted_slice_1713[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2884 = cheddar.encode %encoder, %extracted_slice_2883 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2884 = cheddar.encode %encoder, %extracted_slice_2883 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2885 = tensor.extract_slice %inserted_slice_1717[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2886 = cheddar.encode %encoder, %extracted_slice_2885 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2886 = cheddar.encode %encoder, %extracted_slice_2885 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2887 = tensor.extract_slice %inserted_slice_1721[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2888 = cheddar.encode %encoder, %extracted_slice_2887 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2888 = cheddar.encode %encoder, %extracted_slice_2887 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2889 = tensor.extract_slice %inserted_slice_1725[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2890 = cheddar.encode %encoder, %extracted_slice_2889 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2890 = cheddar.encode %encoder, %extracted_slice_2889 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2891 = tensor.extract_slice %inserted_slice_1729[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2892 = cheddar.encode %encoder, %extracted_slice_2891 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2892 = cheddar.encode %encoder, %extracted_slice_2891 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2893 = tensor.extract_slice %inserted_slice_1733[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2894 = cheddar.encode %encoder, %extracted_slice_2893 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2894 = cheddar.encode %encoder, %extracted_slice_2893 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2895 = tensor.extract_slice %inserted_slice_1737[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2896 = cheddar.encode %encoder, %extracted_slice_2895 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2896 = cheddar.encode %encoder, %extracted_slice_2895 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2897 = tensor.extract_slice %inserted_slice_1741[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2898 = cheddar.encode %encoder, %extracted_slice_2897 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2898 = cheddar.encode %encoder, %extracted_slice_2897 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2899 = tensor.extract_slice %inserted_slice_1745[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2900 = cheddar.encode %encoder, %extracted_slice_2899 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2900 = cheddar.encode %encoder, %extracted_slice_2899 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2901 = tensor.extract_slice %inserted_slice_1749[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2902 = cheddar.encode %encoder, %extracted_slice_2901 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2902 = cheddar.encode %encoder, %extracted_slice_2901 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2903 = tensor.extract_slice %inserted_slice_1753[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2904 = cheddar.encode %encoder, %extracted_slice_2903 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2904 = cheddar.encode %encoder, %extracted_slice_2903 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2905 = tensor.extract_slice %inserted_slice_1757[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2906 = cheddar.encode %encoder, %extracted_slice_2905 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2906 = cheddar.encode %encoder, %extracted_slice_2905 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2907 = tensor.extract_slice %inserted_slice_1761[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2908 = cheddar.encode %encoder, %extracted_slice_2907 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2908 = cheddar.encode %encoder, %extracted_slice_2907 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2909 = tensor.extract_slice %inserted_slice_1765[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2910 = cheddar.encode %encoder, %extracted_slice_2909 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2910 = cheddar.encode %encoder, %extracted_slice_2909 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2911 = tensor.extract_slice %inserted_slice_1769[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2912 = cheddar.encode %encoder, %extracted_slice_2911 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2912 = cheddar.encode %encoder, %extracted_slice_2911 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2913 = tensor.extract_slice %inserted_slice_1773[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2914 = cheddar.encode %encoder, %extracted_slice_2913 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2914 = cheddar.encode %encoder, %extracted_slice_2913 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2915 = tensor.extract_slice %inserted_slice_1777[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2916 = cheddar.encode %encoder, %extracted_slice_2915 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2916 = cheddar.encode %encoder, %extracted_slice_2915 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2917 = tensor.extract_slice %inserted_slice_1781[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2918 = cheddar.encode %encoder, %extracted_slice_2917 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2918 = cheddar.encode %encoder, %extracted_slice_2917 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2919 = tensor.extract_slice %inserted_slice_1785[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2920 = cheddar.encode %encoder, %extracted_slice_2919 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2920 = cheddar.encode %encoder, %extracted_slice_2919 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2921 = tensor.extract_slice %inserted_slice_1789[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2922 = cheddar.encode %encoder, %extracted_slice_2921 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2922 = cheddar.encode %encoder, %extracted_slice_2921 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2923 = tensor.extract_slice %inserted_slice_1793[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2924 = cheddar.encode %encoder, %extracted_slice_2923 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2924 = cheddar.encode %encoder, %extracted_slice_2923 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2925 = tensor.extract_slice %inserted_slice_1797[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2926 = cheddar.encode %encoder, %extracted_slice_2925 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2926 = cheddar.encode %encoder, %extracted_slice_2925 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2927 = tensor.extract_slice %inserted_slice_1801[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2928 = cheddar.encode %encoder, %extracted_slice_2927 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2928 = cheddar.encode %encoder, %extracted_slice_2927 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2929 = tensor.extract_slice %inserted_slice_1805[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2930 = cheddar.encode %encoder, %extracted_slice_2929 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2930 = cheddar.encode %encoder, %extracted_slice_2929 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2931 = tensor.extract_slice %inserted_slice_1809[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2932 = cheddar.encode %encoder, %extracted_slice_2931 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2932 = cheddar.encode %encoder, %extracted_slice_2931 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2933 = tensor.extract_slice %inserted_slice_1813[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2934 = cheddar.encode %encoder, %extracted_slice_2933 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2934 = cheddar.encode %encoder, %extracted_slice_2933 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2935 = tensor.extract_slice %inserted_slice_1817[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2936 = cheddar.encode %encoder, %extracted_slice_2935 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2936 = cheddar.encode %encoder, %extracted_slice_2935 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2937 = tensor.extract_slice %inserted_slice_1821[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2938 = cheddar.encode %encoder, %extracted_slice_2937 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2938 = cheddar.encode %encoder, %extracted_slice_2937 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2939 = tensor.extract_slice %inserted_slice_1825[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2940 = cheddar.encode %encoder, %extracted_slice_2939 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2940 = cheddar.encode %encoder, %extracted_slice_2939 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2941 = tensor.extract_slice %inserted_slice_1829[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2942 = cheddar.encode %encoder, %extracted_slice_2941 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2942 = cheddar.encode %encoder, %extracted_slice_2941 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2943 = tensor.extract_slice %inserted_slice_1833[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2944 = cheddar.encode %encoder, %extracted_slice_2943 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2944 = cheddar.encode %encoder, %extracted_slice_2943 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2945 = tensor.extract_slice %inserted_slice_1837[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2946 = cheddar.encode %encoder, %extracted_slice_2945 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2946 = cheddar.encode %encoder, %extracted_slice_2945 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2947 = tensor.extract_slice %inserted_slice_1841[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2948 = cheddar.encode %encoder, %extracted_slice_2947 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2948 = cheddar.encode %encoder, %extracted_slice_2947 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2949 = tensor.extract_slice %inserted_slice_1845[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2950 = cheddar.encode %encoder, %extracted_slice_2949 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2950 = cheddar.encode %encoder, %extracted_slice_2949 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2951 = tensor.extract_slice %inserted_slice_1849[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2952 = cheddar.encode %encoder, %extracted_slice_2951 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2952 = cheddar.encode %encoder, %extracted_slice_2951 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2953 = tensor.extract_slice %inserted_slice_1853[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2954 = cheddar.encode %encoder, %extracted_slice_2953 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2954 = cheddar.encode %encoder, %extracted_slice_2953 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2955 = tensor.extract_slice %inserted_slice_1857[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2956 = cheddar.encode %encoder, %extracted_slice_2955 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2956 = cheddar.encode %encoder, %extracted_slice_2955 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2957 = tensor.extract_slice %inserted_slice_1861[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2958 = cheddar.encode %encoder, %extracted_slice_2957 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2958 = cheddar.encode %encoder, %extracted_slice_2957 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2959 = tensor.extract_slice %inserted_slice_1865[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2960 = cheddar.encode %encoder, %extracted_slice_2959 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2960 = cheddar.encode %encoder, %extracted_slice_2959 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2961 = tensor.extract_slice %inserted_slice_1869[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2962 = cheddar.encode %encoder, %extracted_slice_2961 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2962 = cheddar.encode %encoder, %extracted_slice_2961 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2963 = tensor.extract_slice %inserted_slice_1873[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2964 = cheddar.encode %encoder, %extracted_slice_2963 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2964 = cheddar.encode %encoder, %extracted_slice_2963 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2965 = tensor.extract_slice %inserted_slice_1877[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2966 = cheddar.encode %encoder, %extracted_slice_2965 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2966 = cheddar.encode %encoder, %extracted_slice_2965 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2967 = tensor.extract_slice %inserted_slice_1881[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2968 = cheddar.encode %encoder, %extracted_slice_2967 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2968 = cheddar.encode %encoder, %extracted_slice_2967 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2969 = tensor.extract_slice %inserted_slice_1885[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2970 = cheddar.encode %encoder, %extracted_slice_2969 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2970 = cheddar.encode %encoder, %extracted_slice_2969 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2971 = tensor.extract_slice %inserted_slice_1889[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2972 = cheddar.encode %encoder, %extracted_slice_2971 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2972 = cheddar.encode %encoder, %extracted_slice_2971 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2973 = tensor.extract_slice %inserted_slice_1893[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2974 = cheddar.encode %encoder, %extracted_slice_2973 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2974 = cheddar.encode %encoder, %extracted_slice_2973 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2975 = tensor.extract_slice %inserted_slice_1897[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2976 = cheddar.encode %encoder, %extracted_slice_2975 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2976 = cheddar.encode %encoder, %extracted_slice_2975 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2977 = tensor.extract_slice %inserted_slice_1901[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2978 = cheddar.encode %encoder, %extracted_slice_2977 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2978 = cheddar.encode %encoder, %extracted_slice_2977 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2979 = tensor.extract_slice %inserted_slice_1905[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2980 = cheddar.encode %encoder, %extracted_slice_2979 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2980 = cheddar.encode %encoder, %extracted_slice_2979 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2981 = tensor.extract_slice %inserted_slice_1909[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2982 = cheddar.encode %encoder, %extracted_slice_2981 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2982 = cheddar.encode %encoder, %extracted_slice_2981 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2983 = tensor.extract_slice %inserted_slice_1913[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2984 = cheddar.encode %encoder, %extracted_slice_2983 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2984 = cheddar.encode %encoder, %extracted_slice_2983 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2985 = tensor.extract_slice %inserted_slice_1917[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2986 = cheddar.encode %encoder, %extracted_slice_2985 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2986 = cheddar.encode %encoder, %extracted_slice_2985 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2987 = tensor.extract_slice %inserted_slice_1921[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2988 = cheddar.encode %encoder, %extracted_slice_2987 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2988 = cheddar.encode %encoder, %extracted_slice_2987 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2989 = tensor.extract_slice %inserted_slice_1925[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2990 = cheddar.encode %encoder, %extracted_slice_2989 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2990 = cheddar.encode %encoder, %extracted_slice_2989 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2991 = tensor.extract_slice %inserted_slice_1929[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2992 = cheddar.encode %encoder, %extracted_slice_2991 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2992 = cheddar.encode %encoder, %extracted_slice_2991 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2993 = tensor.extract_slice %inserted_slice_1933[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2994 = cheddar.encode %encoder, %extracted_slice_2993 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2994 = cheddar.encode %encoder, %extracted_slice_2993 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2995 = tensor.extract_slice %inserted_slice_1937[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2996 = cheddar.encode %encoder, %extracted_slice_2995 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2996 = cheddar.encode %encoder, %extracted_slice_2995 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2997 = tensor.extract_slice %inserted_slice_1941[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2998 = cheddar.encode %encoder, %extracted_slice_2997 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2998 = cheddar.encode %encoder, %extracted_slice_2997 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2999 = tensor.extract_slice %inserted_slice_1945[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3000 = cheddar.encode %encoder, %extracted_slice_2999 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3000 = cheddar.encode %encoder, %extracted_slice_2999 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3001 = tensor.extract_slice %inserted_slice_1949[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3002 = cheddar.encode %encoder, %extracted_slice_3001 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3002 = cheddar.encode %encoder, %extracted_slice_3001 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3003 = tensor.extract_slice %inserted_slice_1953[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3004 = cheddar.encode %encoder, %extracted_slice_3003 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3004 = cheddar.encode %encoder, %extracted_slice_3003 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3005 = tensor.extract_slice %inserted_slice_1957[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3006 = cheddar.encode %encoder, %extracted_slice_3005 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3006 = cheddar.encode %encoder, %extracted_slice_3005 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3007 = tensor.extract_slice %inserted_slice_1961[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3008 = cheddar.encode %encoder, %extracted_slice_3007 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3008 = cheddar.encode %encoder, %extracted_slice_3007 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3009 = tensor.extract_slice %inserted_slice_1965[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3010 = cheddar.encode %encoder, %extracted_slice_3009 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3010 = cheddar.encode %encoder, %extracted_slice_3009 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3011 = tensor.extract_slice %inserted_slice_1969[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3012 = cheddar.encode %encoder, %extracted_slice_3011 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3012 = cheddar.encode %encoder, %extracted_slice_3011 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3013 = tensor.extract_slice %inserted_slice_1973[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3014 = cheddar.encode %encoder, %extracted_slice_3013 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3014 = cheddar.encode %encoder, %extracted_slice_3013 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3015 = tensor.extract_slice %inserted_slice_1977[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3016 = cheddar.encode %encoder, %extracted_slice_3015 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3016 = cheddar.encode %encoder, %extracted_slice_3015 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3017 = tensor.extract_slice %inserted_slice_1981[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3018 = cheddar.encode %encoder, %extracted_slice_3017 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3018 = cheddar.encode %encoder, %extracted_slice_3017 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3019 = tensor.extract_slice %inserted_slice_1985[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3020 = cheddar.encode %encoder, %extracted_slice_3019 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3020 = cheddar.encode %encoder, %extracted_slice_3019 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3021 = tensor.extract_slice %inserted_slice_1989[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3022 = cheddar.encode %encoder, %extracted_slice_3021 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3022 = cheddar.encode %encoder, %extracted_slice_3021 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3023 = tensor.extract_slice %inserted_slice_1993[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3024 = cheddar.encode %encoder, %extracted_slice_3023 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3024 = cheddar.encode %encoder, %extracted_slice_3023 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3025 = tensor.extract_slice %inserted_slice_1997[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3026 = cheddar.encode %encoder, %extracted_slice_3025 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3026 = cheddar.encode %encoder, %extracted_slice_3025 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3027 = tensor.extract_slice %inserted_slice_2001[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3028 = cheddar.encode %encoder, %extracted_slice_3027 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3028 = cheddar.encode %encoder, %extracted_slice_3027 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3029 = tensor.extract_slice %inserted_slice_2005[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3030 = cheddar.encode %encoder, %extracted_slice_3029 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3030 = cheddar.encode %encoder, %extracted_slice_3029 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3031 = tensor.extract_slice %inserted_slice_2009[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3032 = cheddar.encode %encoder, %extracted_slice_3031 {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3032 = cheddar.encode %encoder, %extracted_slice_3031 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3033 = tensor.extract_slice %1[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3034 = cheddar.encode %encoder, %extracted_slice_3033 {level = 8 : i64, scale = 1.2379400392853803E+27 : f64, cheddar.exact_scale = 1.2379399965733078E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3034 = cheddar.encode %encoder, %extracted_slice_3033 {level = 8 : i64, scale = 0x458FFFFFED7A01E3 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3035 = tensor.extract_slice %2[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3036 = cheddar.encode %encoder, %extracted_slice_3035 {level = 7 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3036 = cheddar.encode %encoder, %extracted_slice_3035 {level = 7 : i64, scale = 0x42BFFFFFE37A00EB : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3037 = tensor.extract_slice %3[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3038 = cheddar.encode %encoder, %extracted_slice_3037 {level = 6 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3038 = cheddar.encode %encoder, %extracted_slice_3037 {level = 6 : i64, scale = 0x42BFFFFFF7F400E3 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3039 = tensor.extract_slice %5[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3040 = cheddar.encode %encoder, %extracted_slice_3039 {level = 6 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3040 = cheddar.encode %encoder, %extracted_slice_3039 {level = 6 : i64, scale = 0x42BFFFFFF7F400E3 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3041 = tensor.extract_slice %6[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3042 = cheddar.encode %encoder, %extracted_slice_3041 {level = 5 : i64, scale = 1.2379400392853803E+27 : f64, cheddar.exact_scale = 1.2379398532867841E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3042 = cheddar.encode %encoder, %extracted_slice_3041 {level = 5 : i64, scale = 0x458FFFFFAF5601F2 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3043 = tensor.extract_slice %7[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3044 = cheddar.encode %encoder, %extracted_slice_3043 {level = 4 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_3045 = cheddar.encode %encoder, %extracted_slice_3039 {level = 4 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_3046 = cheddar.encode %encoder, %extracted_slice_3041 {level = 3 : i64, scale = 1.2379400392853803E+27 : f64, cheddar.exact_scale = 1.2379397542616433E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3044 = cheddar.encode %encoder, %extracted_slice_3043 {level = 4 : i64, scale = 0x42C0000000E80065 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3045 = cheddar.encode %encoder, %extracted_slice_3039 {level = 4 : i64, scale = 0x42C0000000E80065 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3046 = cheddar.encode %encoder, %extracted_slice_3041 {level = 3 : i64, scale = 0x458FFFFF8464022B : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3047 = tensor.extract_slice %8[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3048 = cheddar.encode %encoder, %extracted_slice_3047 {level = 2 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3048 = cheddar.encode %encoder, %extracted_slice_3047 {level = 2 : i64, scale = 0x42C0000007200043 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3049 = tensor.extract_slice %4[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3050 = cheddar.encode %encoder, %extracted_slice_3049 {level = 6 : i64, scale = 1.2379400392853803E+27 : f64, cheddar.exact_scale = 1.2379400021757822E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_3051 = cheddar.encode %encoder, %cst_6 {level = 3 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3050 = cheddar.encode %encoder, %extracted_slice_3049 {level = 6 : i64, scale = 0x458FFFFFEFE801C9 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3051 = cheddar.encode %encoder, %cst_6 {level = 3 : i64, scale = 0x42BFFFFFE6A000AA : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3052 = tensor.extract_slice %9[0, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3053 = cheddar.encode %encoder, %extracted_slice_3052 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3053 = cheddar.encode %encoder, %extracted_slice_3052 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3054 = tensor.extract_slice %9[1, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3055 = cheddar.encode %encoder, %extracted_slice_3054 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3055 = cheddar.encode %encoder, %extracted_slice_3054 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3056 = tensor.extract_slice %9[2, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3057 = cheddar.encode %encoder, %extracted_slice_3056 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3057 = cheddar.encode %encoder, %extracted_slice_3056 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3058 = tensor.extract_slice %9[3, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3059 = cheddar.encode %encoder, %extracted_slice_3058 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3059 = cheddar.encode %encoder, %extracted_slice_3058 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3060 = tensor.extract_slice %inserted_slice_9[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3061 = cheddar.encode %encoder, %extracted_slice_3060 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3061 = cheddar.encode %encoder, %extracted_slice_3060 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3062 = tensor.extract_slice %inserted_slice_13[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3063 = cheddar.encode %encoder, %extracted_slice_3062 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3063 = cheddar.encode %encoder, %extracted_slice_3062 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3064 = tensor.extract_slice %inserted_slice_17[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3065 = cheddar.encode %encoder, %extracted_slice_3064 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3065 = cheddar.encode %encoder, %extracted_slice_3064 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3066 = tensor.extract_slice %inserted_slice_21[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3067 = cheddar.encode %encoder, %extracted_slice_3066 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3067 = cheddar.encode %encoder, %extracted_slice_3066 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3068 = tensor.extract_slice %inserted_slice_25[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3069 = cheddar.encode %encoder, %extracted_slice_3068 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3069 = cheddar.encode %encoder, %extracted_slice_3068 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3070 = tensor.extract_slice %inserted_slice_29[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3071 = cheddar.encode %encoder, %extracted_slice_3070 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3071 = cheddar.encode %encoder, %extracted_slice_3070 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3072 = tensor.extract_slice %inserted_slice_33[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3073 = cheddar.encode %encoder, %extracted_slice_3072 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3073 = cheddar.encode %encoder, %extracted_slice_3072 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3074 = tensor.extract_slice %inserted_slice_37[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3075 = cheddar.encode %encoder, %extracted_slice_3074 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3075 = cheddar.encode %encoder, %extracted_slice_3074 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3076 = tensor.extract_slice %inserted_slice_41[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3077 = cheddar.encode %encoder, %extracted_slice_3076 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3077 = cheddar.encode %encoder, %extracted_slice_3076 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3078 = tensor.extract_slice %inserted_slice_45[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3079 = cheddar.encode %encoder, %extracted_slice_3078 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3079 = cheddar.encode %encoder, %extracted_slice_3078 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3080 = tensor.extract_slice %inserted_slice_49[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3081 = cheddar.encode %encoder, %extracted_slice_3080 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3081 = cheddar.encode %encoder, %extracted_slice_3080 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3082 = tensor.extract_slice %inserted_slice_53[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3083 = cheddar.encode %encoder, %extracted_slice_3082 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3083 = cheddar.encode %encoder, %extracted_slice_3082 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3084 = tensor.extract_slice %10[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3085 = cheddar.encode %encoder, %extracted_slice_3084 {level = 1 : i64, scale = 1.2379400392853803E+27 : f64, cheddar.exact_scale = 1.2379398057107462E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3085 = cheddar.encode %encoder, %extracted_slice_3084 {level = 1 : i64, scale = 0x458FFFFF9AB4019F : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %from_elements = tensor.from_elements %pt_3034, %pt_3042, %pt_3046, %pt_3050, %pt_3085 : tensor<5x!plaintext>
     %from_elements_3086 = tensor.from_elements %pt, %pt_2012, %pt_2014, %pt_2016, %pt_2018, %pt_2020, %pt_2022, %pt_2024, %pt_2026, %pt_2028, %pt_2030, %pt_2032, %pt_2034, %pt_2036, %pt_2038, %pt_2040, %pt_2042, %pt_2044, %pt_2046, %pt_2048, %pt_2050, %pt_2052, %pt_2054, %pt_2056, %pt_2058, %pt_2060, %pt_2062, %pt_2064, %pt_2066, %pt_2068, %pt_2070, %pt_2072, %pt_2074, %pt_2076, %pt_2078, %pt_2080 : tensor<36x!plaintext>
     %from_elements_3087 = tensor.from_elements %pt_2082, %pt_2084, %pt_2086, %pt_2088, %pt_2090, %pt_2092, %pt_2094, %pt_2096, %pt_2098, %pt_2100, %pt_2102, %pt_2104, %pt_2106, %pt_2108, %pt_2110, %pt_2112, %pt_2114, %pt_2116, %pt_2118, %pt_2120, %pt_2122, %pt_2124, %pt_2126, %pt_2128, %pt_2130, %pt_2132, %pt_2134, %pt_2136, %pt_2138, %pt_2140, %pt_2142, %pt_2144, %pt_2146, %pt_2148, %pt_2150, %pt_2152 : tensor<36x!plaintext>
@@ -5050,7 +5051,7 @@ module @jit_func attributes {backend.lattigo, cheddar.P = array<i64: 11529215046
       scf.yield %inserted : tensor<1x1024xf32>
     }
     %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice {level = 8 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt = cheddar.encode %encoder, %extracted_slice {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
     %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
     return %from_elements : tensor<1x!ciphertext>
