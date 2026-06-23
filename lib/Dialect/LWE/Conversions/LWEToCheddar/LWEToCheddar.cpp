@@ -17,6 +17,8 @@
 #include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/ModuleAttributes.h"
+#include "lib/Dialect/Orion/IR/OrionDialect.h"
+#include "lib/Dialect/Orion/IR/OrionOps.h"
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/APInt.h"                 // from @llvm-project
@@ -315,16 +317,16 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
       ConversionPatternRewriter& rewriter) const override {
     auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
     if (failed(ctx)) return ctx;
-    auto ui = getContextualArg<cheddar::UserInterfaceType>(op.getOperation());
-    if (failed(ui)) return ui;
-
-    auto evkMap = cheddar::GetEvkMapOp::create(
-        rewriter, op.getLoc(), cheddar::EvkMapType::get(getContext()),
-        ui.value());
+    // The EvkMap (bootstrapping keys) is threaded as a contextual
+    // `!cheddar.evk_map` function argument -- same as the mult key -- rather
+    // than materialised via a `cheddar.get_evk_map` getter (which the emitter
+    // rejects, being a const ref to a move-only value).
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
 
     rewriter.replaceOpWithNewOp<cheddar::BootOp>(
         op, this->typeConverter->convertType(op.getOutput().getType()),
-        ctx.value(), adaptor.getInput(), evkMap);
+        ctx.value(), adaptor.getInput(), evkMap.value());
     return success();
   }
 };
@@ -426,6 +428,115 @@ struct ConvertLWEDecodeOp : public OpConversionPattern<lwe::RLWEDecodeOp> {
         rewriter, op.getLoc(), outTy.getShape(), outTy.getElementType());
     rewriter.replaceOpWithNewOp<cheddar::DecodeOp>(op, outTy, encoder.value(),
                                                    adaptor.getInput(), dest);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// Orion extension ops (linear_transform, chebyshev) -> CHEDDAR extension ops
+//===----------------------------------------------------------------------===//
+
+// orion.linear_transform -> cheddar.linear_transform (CHEDDAR's BSGS+hoisting
+// LinearTransform extension). The diagonals stay a cleartext operand; the
+// EvkMap (rotation keys) is threaded as a contextual function argument.
+struct ConvertOrionLinearTransformOp
+    : public OpConversionPattern<orion::LinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      orion::LinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    if (failed(ctx)) return ctx;
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
+
+    // CHEDDAR's LinearTransform operates at the input level and does NOT
+    // rescale internally (the explicit cheddar.rescale that follows is the only
+    // level drop), so the op level is just the Orion layer level.
+    auto level = rewriter.getI64IntegerAttr(op.getOrionLevelAttr().getInt());
+
+    // Pick a principled BSGS grid: a square-ish split of the rotation span,
+    // biased by the requested baby:giant ratio. gs is the giant-step count, bs
+    // the baby-step count, and bs*gs covers the largest diagonal index. This is
+    // a sensible default for a dense transform; a sparse/wrap-around transform
+    // may be hand-tuned to gs=1 (pure diagonal method) in the produced IR. The
+    // consumers (emitter, getRotationIndices) read bs/gs as-is and never
+    // recompute them.
+    double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
+    int64_t ratio = bsgsRatio > 0 ? static_cast<int64_t>(std::llround(bsgsRatio))
+                                  : 2;
+    if (ratio < 1) ratio = 1;
+    int64_t maxRot = 0;
+    for (int32_t d : op.getDiagonalIndicesAttr().asArrayRef())
+      maxRot = std::max<int64_t>(maxRot, d);
+    int64_t need = maxRot + 1;
+    int64_t gs = static_cast<int64_t>(
+        std::ceil(std::sqrt(static_cast<double>(need) / ratio)));
+    if (gs < 1) gs = 1;
+    int64_t bs = (need + gs - 1) / gs;  // ceil(need/gs) so bs*gs >= need
+
+    rewriter.replaceOpWithNewOp<cheddar::LinearTransformOp>(
+        op, this->typeConverter->convertType(op.getResult().getType()),
+        ctx.value(), adaptor.getInput(), evkMap.value(), adaptor.getDiagonals(),
+        op.getDiagonalIndicesAttr(), level, rewriter.getI64IntegerAttr(bs),
+        rewriter.getI64IntegerAttr(gs));
+    return success();
+  }
+};
+
+// orion.chebyshev -> cheddar.eval_poly (CHEDDAR's EvalPoly extension).
+//
+// CHEDDAR's EvalPoly has no notion of an approximation interval: it evaluates a
+// Chebyshev series on the canonical domain [-1, 1] and assumes the input
+// ciphertext already lives there. The orion op, mirroring Lattigo, carries the
+// domain [domain_start, domain_end] its coefficients were fit on and expects
+// the evaluator to remap x in [a, b] to [-1, 1] (Lattigo does this internally;
+// CHEDDAR cannot). Orion's frontend normalizes activations to [-1, 1] and emits
+// that domain in practice. If a non-canonical domain ever reaches here we refuse
+// to lower rather than silently drop it (which would miscompute the activation):
+// with backend=cheddar the higher-level pipeline must materialize the affine
+// input remap (mult_const/rescale/add_const to [-1, 1]) before this conversion.
+struct ConvertOrionChebyshevOp
+    : public OpConversionPattern<orion::ChebyshevOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      orion::ChebyshevOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualArg<cheddar::ContextType>(op.getOperation());
+    if (failed(ctx)) return ctx;
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
+
+    double domainStart = op.getDomainStartAttr().getValueAsDouble();
+    double domainEnd = op.getDomainEndAttr().getValueAsDouble();
+    if (domainStart != -1.0 || domainEnd != 1.0) {
+      return op.emitError()
+             << "cannot lower orion.chebyshev with approximation domain ["
+             << domainStart << ", " << domainEnd
+             << "] to the cheddar backend: CHEDDAR's EvalPoly only evaluates on "
+                "[-1, 1]. The higher-level pipeline must normalize the domain "
+                "(materialize the affine input remap to [-1, 1]) before lowering "
+                "to cheddar.";
+    }
+
+    // Input level (where the ciphertext enters) and output level (where the
+    // polynomial's multiplicative depth leaves it) both come from the modulus
+    // chains the upstream level analysis assigned; CHEDDAR's EvalPoly rescales
+    // the result to the canonical scale of the output level.
+    int64_t level = 0;
+    if (auto ctType = dyn_cast<lwe::LWECiphertextType>(op.getInput().getType()))
+      if (auto mc = ctType.getModulusChain()) level = mc.getCurrent();
+    int64_t outputLevel = 0;
+    if (auto rType = dyn_cast<lwe::LWECiphertextType>(op.getResult().getType()))
+      if (auto mc = rType.getModulusChain()) outputLevel = mc.getCurrent();
+
+    rewriter.replaceOpWithNewOp<cheddar::EvalPolyOp>(
+        op, this->typeConverter->convertType(op.getResult().getType()),
+        ctx.value(), adaptor.getInput(), evkMap.value(),
+        op.getCoefficientsAttr(), rewriter.getI64IntegerAttr(level),
+        rewriter.getI64IntegerAttr(outputLevel));
     return success();
   }
 };
@@ -538,7 +649,7 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
 
     ConversionTarget target(*context);
     target.addLegalDialect<cheddar::CheddarDialect>();
-    target.addIllegalDialect<ckks::CKKSDialect>();
+    target.addIllegalDialect<ckks::CKKSDialect, orion::OrionDialect>();
     target
         .addIllegalOp<lwe::RLWEEncryptOp, lwe::RLWEDecryptOp, lwe::RLWEEncodeOp,
                       lwe::RLWEDecodeOp, lwe::RAddOp, lwe::RSubOp, lwe::RMulOp,
@@ -562,15 +673,31 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       return found;
     };
 
+    // Predicate: function contains an op that needs the EvkMap threaded -- a
+    // bootstrap, or an Orion linear_transform / chebyshev (CHEDDAR's
+    // LinearTransform / EvalPoly extensions take an EvkMap of rotation keys).
+    auto needsEvkMap = [&](Operation* op) -> bool {
+      auto funcOp = dyn_cast<func::FuncOp>(op);
+      if (!funcOp) return false;
+      bool found = false;
+      funcOp->walk([&](Operation* inner) {
+        if (isa<ckks::BootstrapOp, orion::LinearTransformOp,
+                orion::ChebyshevOp>(inner))
+          found = true;
+      });
+      return found;
+    };
+
     // CHEDDAR context args to thread through functions. The multiplication
-    // (relinearization) key is threaded as a `!cheddar.eval_key` argument;
-    // rotation/conjugation keys are looked up inline from the UserInterface by
-    // the cheddar-to-emitc lowering and are NOT threaded here.
-    // The Encoder is threaded into any function that does crypto OR encoding
-    // (an encode-only function -- the preprocessing function -- needs it for
-    // `encoder.Encode(...)`). The Context is threaded only into crypto
-    // functions: the emitter emits the encode scale verbatim from the IR, so
-    // encode-only functions no longer need the Context.
+    // (relinearization) key is threaded as a `!cheddar.eval_key` argument, and
+    // the bootstrapping key map as a `!cheddar.evk_map` argument (only into
+    // functions that bootstrap); rotation/conjugation keys are looked up inline
+    // from the UserInterface by the cheddar-to-emitc lowering and are NOT
+    // threaded here. The Encoder is threaded into any function that does crypto
+    // OR encoding (an encode-only function -- the preprocessing function --
+    // needs it for `encoder.Encode(...)`). The Context is threaded only into
+    // crypto functions: the emitter emits the encode scale verbatim from the
+    // IR, so encode-only functions no longer need the Context.
     auto hasCryptoOrEncode = [&](Operation* op) {
       return hasCryptoOps(op) || hasEncodeOps(op);
     };
@@ -579,6 +706,7 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
         {cheddar::EncoderType::get(context), hasCryptoOrEncode},
         {cheddar::UserInterfaceType::get(context), hasCryptoOps},
         {cheddar::EvalKeyType::get(context), hasCryptoOps},
+        {cheddar::EvkMapType::get(context), needsEvkMap},
     };
 
     patterns.add<AddCheddarContextArg>(context, evaluators);
@@ -600,6 +728,10 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     // LWE encrypt/decrypt/encode/decode ops
     patterns.add<ConvertLWEEncodeOp, ConvertLWEDecodeOp, ConvertLWEEncryptOp,
                  ConvertLWEDecryptOp>(typeConverter, context);
+
+    // Orion extension ops (linear_transform, chebyshev)
+    patterns.add<ConvertOrionLinearTransformOp, ConvertOrionChebyshevOp>(
+        typeConverter, context);
 
     // Dynamically legal: func ops that have been converted. A function needs
     // a CHEDDAR context argument if it has crypto-typed args OR contains encode
