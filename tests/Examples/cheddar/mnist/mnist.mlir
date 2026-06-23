@@ -1,6 +1,6 @@
 // Full MNIST module at the cheddar level (all client functions), the input to
 // the full-module e2e test. This is `mnist_original.mlir` (the pristine
-// --scheme-to-cheddar dump) with the scale-management hand-edits (HACKS.md #5):
+// --scheme-to-cheddar dump) with the scale-management hand-edits:
 // every `cheddar.encode` scale baked to CHEDDAR's exact canonical
 // `GetScale(level)^k` via bake_scales.py (the emitter emits it verbatim), plus
 // two ct-ct scale-alignment op pairs in the relu region (search `_adj`) and
@@ -10,7 +10,12 @@
 // Regenerate the original with, on tests/Examples/common/mnist/mnist.mlir:
 //   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
 //            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
+//
+// --scheme-to-cheddar runs cheddar-fuse-ops by default, so this IR uses the
+// compound kernels hmult (mult+relinearize[+rescale]) and hrot_add (hrot+add)
+// rather than the separate-op sequences.
 !ciphertext = !cheddar.ciphertext
+!constant = !cheddar.constant
 !context = !cheddar.context
 !encoder = !cheddar.encoder
 !eval_key = !cheddar.eval_key
@@ -2168,1082 +2173,1082 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %inserted_slice_2008 = tensor.insert_slice %extracted_slice_2006 into %11[0, 506] [1, 518] [1, 1] : tensor<1x518xf32> into tensor<1x1024xf32>
     %inserted_slice_2009 = tensor.insert_slice %extracted_slice_2007 into %inserted_slice_2008[0, 0] [1, 506] [1, 1] : tensor<1x506xf32> into tensor<1x1024xf32>
     %extracted_slice_2010 = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice_2010 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt = cheddar.encode %encoder, %extracted_slice_2010 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2011 = tensor.extract_slice %0[1, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2012 = cheddar.encode %encoder, %extracted_slice_2011 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2012 = cheddar.encode %encoder, %extracted_slice_2011 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2013 = tensor.extract_slice %0[2, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2014 = cheddar.encode %encoder, %extracted_slice_2013 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2014 = cheddar.encode %encoder, %extracted_slice_2013 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2015 = tensor.extract_slice %0[3, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2016 = cheddar.encode %encoder, %extracted_slice_2015 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2016 = cheddar.encode %encoder, %extracted_slice_2015 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2017 = tensor.extract_slice %0[4, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2018 = cheddar.encode %encoder, %extracted_slice_2017 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2018 = cheddar.encode %encoder, %extracted_slice_2017 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2019 = tensor.extract_slice %0[5, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2020 = cheddar.encode %encoder, %extracted_slice_2019 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2020 = cheddar.encode %encoder, %extracted_slice_2019 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2021 = tensor.extract_slice %0[6, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2022 = cheddar.encode %encoder, %extracted_slice_2021 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2022 = cheddar.encode %encoder, %extracted_slice_2021 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2023 = tensor.extract_slice %0[7, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2024 = cheddar.encode %encoder, %extracted_slice_2023 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2024 = cheddar.encode %encoder, %extracted_slice_2023 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2025 = tensor.extract_slice %0[8, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2026 = cheddar.encode %encoder, %extracted_slice_2025 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2026 = cheddar.encode %encoder, %extracted_slice_2025 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2027 = tensor.extract_slice %0[9, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2028 = cheddar.encode %encoder, %extracted_slice_2027 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2028 = cheddar.encode %encoder, %extracted_slice_2027 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2029 = tensor.extract_slice %0[10, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2030 = cheddar.encode %encoder, %extracted_slice_2029 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2030 = cheddar.encode %encoder, %extracted_slice_2029 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2031 = tensor.extract_slice %0[11, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2032 = cheddar.encode %encoder, %extracted_slice_2031 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2032 = cheddar.encode %encoder, %extracted_slice_2031 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2033 = tensor.extract_slice %0[12, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2034 = cheddar.encode %encoder, %extracted_slice_2033 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2034 = cheddar.encode %encoder, %extracted_slice_2033 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2035 = tensor.extract_slice %0[13, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2036 = cheddar.encode %encoder, %extracted_slice_2035 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2036 = cheddar.encode %encoder, %extracted_slice_2035 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2037 = tensor.extract_slice %0[14, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2038 = cheddar.encode %encoder, %extracted_slice_2037 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2038 = cheddar.encode %encoder, %extracted_slice_2037 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2039 = tensor.extract_slice %0[15, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2040 = cheddar.encode %encoder, %extracted_slice_2039 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2040 = cheddar.encode %encoder, %extracted_slice_2039 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2041 = tensor.extract_slice %0[16, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2042 = cheddar.encode %encoder, %extracted_slice_2041 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2042 = cheddar.encode %encoder, %extracted_slice_2041 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2043 = tensor.extract_slice %0[17, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2044 = cheddar.encode %encoder, %extracted_slice_2043 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2044 = cheddar.encode %encoder, %extracted_slice_2043 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2045 = tensor.extract_slice %0[18, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2046 = cheddar.encode %encoder, %extracted_slice_2045 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2046 = cheddar.encode %encoder, %extracted_slice_2045 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2047 = tensor.extract_slice %0[19, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2048 = cheddar.encode %encoder, %extracted_slice_2047 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2048 = cheddar.encode %encoder, %extracted_slice_2047 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2049 = tensor.extract_slice %0[20, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2050 = cheddar.encode %encoder, %extracted_slice_2049 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2050 = cheddar.encode %encoder, %extracted_slice_2049 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2051 = tensor.extract_slice %0[21, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2052 = cheddar.encode %encoder, %extracted_slice_2051 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2052 = cheddar.encode %encoder, %extracted_slice_2051 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2053 = tensor.extract_slice %0[22, 0] [1, 1024] [1, 1] : tensor<512x1024xf32> to tensor<1024xf32>
-    %pt_2054 = cheddar.encode %encoder, %extracted_slice_2053 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2054 = cheddar.encode %encoder, %extracted_slice_2053 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2055 = tensor.extract_slice %inserted_slice_57[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2056 = cheddar.encode %encoder, %extracted_slice_2055 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2056 = cheddar.encode %encoder, %extracted_slice_2055 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2057 = tensor.extract_slice %inserted_slice_61[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2058 = cheddar.encode %encoder, %extracted_slice_2057 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2058 = cheddar.encode %encoder, %extracted_slice_2057 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2059 = tensor.extract_slice %inserted_slice_65[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2060 = cheddar.encode %encoder, %extracted_slice_2059 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2060 = cheddar.encode %encoder, %extracted_slice_2059 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2061 = tensor.extract_slice %inserted_slice_69[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2062 = cheddar.encode %encoder, %extracted_slice_2061 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2062 = cheddar.encode %encoder, %extracted_slice_2061 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2063 = tensor.extract_slice %inserted_slice_73[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2064 = cheddar.encode %encoder, %extracted_slice_2063 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2064 = cheddar.encode %encoder, %extracted_slice_2063 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2065 = tensor.extract_slice %inserted_slice_77[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2066 = cheddar.encode %encoder, %extracted_slice_2065 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2066 = cheddar.encode %encoder, %extracted_slice_2065 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2067 = tensor.extract_slice %inserted_slice_81[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2068 = cheddar.encode %encoder, %extracted_slice_2067 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2068 = cheddar.encode %encoder, %extracted_slice_2067 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2069 = tensor.extract_slice %inserted_slice_85[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2070 = cheddar.encode %encoder, %extracted_slice_2069 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2070 = cheddar.encode %encoder, %extracted_slice_2069 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2071 = tensor.extract_slice %inserted_slice_89[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2072 = cheddar.encode %encoder, %extracted_slice_2071 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2072 = cheddar.encode %encoder, %extracted_slice_2071 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2073 = tensor.extract_slice %inserted_slice_93[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2074 = cheddar.encode %encoder, %extracted_slice_2073 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2074 = cheddar.encode %encoder, %extracted_slice_2073 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2075 = tensor.extract_slice %inserted_slice_97[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2076 = cheddar.encode %encoder, %extracted_slice_2075 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2076 = cheddar.encode %encoder, %extracted_slice_2075 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2077 = tensor.extract_slice %inserted_slice_101[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2078 = cheddar.encode %encoder, %extracted_slice_2077 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2078 = cheddar.encode %encoder, %extracted_slice_2077 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2079 = tensor.extract_slice %inserted_slice_105[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2080 = cheddar.encode %encoder, %extracted_slice_2079 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2080 = cheddar.encode %encoder, %extracted_slice_2079 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2081 = tensor.extract_slice %inserted_slice_109[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2082 = cheddar.encode %encoder, %extracted_slice_2081 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2082 = cheddar.encode %encoder, %extracted_slice_2081 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2083 = tensor.extract_slice %inserted_slice_113[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2084 = cheddar.encode %encoder, %extracted_slice_2083 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2084 = cheddar.encode %encoder, %extracted_slice_2083 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2085 = tensor.extract_slice %inserted_slice_117[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2086 = cheddar.encode %encoder, %extracted_slice_2085 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2086 = cheddar.encode %encoder, %extracted_slice_2085 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2087 = tensor.extract_slice %inserted_slice_121[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2088 = cheddar.encode %encoder, %extracted_slice_2087 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2088 = cheddar.encode %encoder, %extracted_slice_2087 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2089 = tensor.extract_slice %inserted_slice_125[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2090 = cheddar.encode %encoder, %extracted_slice_2089 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2090 = cheddar.encode %encoder, %extracted_slice_2089 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2091 = tensor.extract_slice %inserted_slice_129[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2092 = cheddar.encode %encoder, %extracted_slice_2091 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2092 = cheddar.encode %encoder, %extracted_slice_2091 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2093 = tensor.extract_slice %inserted_slice_133[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2094 = cheddar.encode %encoder, %extracted_slice_2093 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2094 = cheddar.encode %encoder, %extracted_slice_2093 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2095 = tensor.extract_slice %inserted_slice_137[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2096 = cheddar.encode %encoder, %extracted_slice_2095 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2096 = cheddar.encode %encoder, %extracted_slice_2095 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2097 = tensor.extract_slice %inserted_slice_141[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2098 = cheddar.encode %encoder, %extracted_slice_2097 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2098 = cheddar.encode %encoder, %extracted_slice_2097 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2099 = tensor.extract_slice %inserted_slice_145[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2100 = cheddar.encode %encoder, %extracted_slice_2099 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2100 = cheddar.encode %encoder, %extracted_slice_2099 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2101 = tensor.extract_slice %inserted_slice_149[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2102 = cheddar.encode %encoder, %extracted_slice_2101 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2102 = cheddar.encode %encoder, %extracted_slice_2101 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2103 = tensor.extract_slice %inserted_slice_153[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2104 = cheddar.encode %encoder, %extracted_slice_2103 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2104 = cheddar.encode %encoder, %extracted_slice_2103 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2105 = tensor.extract_slice %inserted_slice_157[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2106 = cheddar.encode %encoder, %extracted_slice_2105 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2106 = cheddar.encode %encoder, %extracted_slice_2105 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2107 = tensor.extract_slice %inserted_slice_161[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2108 = cheddar.encode %encoder, %extracted_slice_2107 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2108 = cheddar.encode %encoder, %extracted_slice_2107 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2109 = tensor.extract_slice %inserted_slice_165[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2110 = cheddar.encode %encoder, %extracted_slice_2109 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2110 = cheddar.encode %encoder, %extracted_slice_2109 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2111 = tensor.extract_slice %inserted_slice_169[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2112 = cheddar.encode %encoder, %extracted_slice_2111 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2112 = cheddar.encode %encoder, %extracted_slice_2111 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2113 = tensor.extract_slice %inserted_slice_173[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2114 = cheddar.encode %encoder, %extracted_slice_2113 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2114 = cheddar.encode %encoder, %extracted_slice_2113 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2115 = tensor.extract_slice %inserted_slice_177[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2116 = cheddar.encode %encoder, %extracted_slice_2115 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2116 = cheddar.encode %encoder, %extracted_slice_2115 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2117 = tensor.extract_slice %inserted_slice_181[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2118 = cheddar.encode %encoder, %extracted_slice_2117 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2118 = cheddar.encode %encoder, %extracted_slice_2117 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2119 = tensor.extract_slice %inserted_slice_185[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2120 = cheddar.encode %encoder, %extracted_slice_2119 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2120 = cheddar.encode %encoder, %extracted_slice_2119 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2121 = tensor.extract_slice %inserted_slice_189[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2122 = cheddar.encode %encoder, %extracted_slice_2121 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2122 = cheddar.encode %encoder, %extracted_slice_2121 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2123 = tensor.extract_slice %inserted_slice_193[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2124 = cheddar.encode %encoder, %extracted_slice_2123 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2124 = cheddar.encode %encoder, %extracted_slice_2123 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2125 = tensor.extract_slice %inserted_slice_197[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2126 = cheddar.encode %encoder, %extracted_slice_2125 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2126 = cheddar.encode %encoder, %extracted_slice_2125 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2127 = tensor.extract_slice %inserted_slice_201[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2128 = cheddar.encode %encoder, %extracted_slice_2127 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2128 = cheddar.encode %encoder, %extracted_slice_2127 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2129 = tensor.extract_slice %inserted_slice_205[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2130 = cheddar.encode %encoder, %extracted_slice_2129 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2130 = cheddar.encode %encoder, %extracted_slice_2129 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2131 = tensor.extract_slice %inserted_slice_209[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2132 = cheddar.encode %encoder, %extracted_slice_2131 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2132 = cheddar.encode %encoder, %extracted_slice_2131 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2133 = tensor.extract_slice %inserted_slice_213[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2134 = cheddar.encode %encoder, %extracted_slice_2133 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2134 = cheddar.encode %encoder, %extracted_slice_2133 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2135 = tensor.extract_slice %inserted_slice_217[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2136 = cheddar.encode %encoder, %extracted_slice_2135 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2136 = cheddar.encode %encoder, %extracted_slice_2135 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2137 = tensor.extract_slice %inserted_slice_221[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2138 = cheddar.encode %encoder, %extracted_slice_2137 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2138 = cheddar.encode %encoder, %extracted_slice_2137 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2139 = tensor.extract_slice %inserted_slice_225[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2140 = cheddar.encode %encoder, %extracted_slice_2139 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2140 = cheddar.encode %encoder, %extracted_slice_2139 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2141 = tensor.extract_slice %inserted_slice_229[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2142 = cheddar.encode %encoder, %extracted_slice_2141 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2142 = cheddar.encode %encoder, %extracted_slice_2141 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2143 = tensor.extract_slice %inserted_slice_233[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2144 = cheddar.encode %encoder, %extracted_slice_2143 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2144 = cheddar.encode %encoder, %extracted_slice_2143 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2145 = tensor.extract_slice %inserted_slice_237[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2146 = cheddar.encode %encoder, %extracted_slice_2145 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2146 = cheddar.encode %encoder, %extracted_slice_2145 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2147 = tensor.extract_slice %inserted_slice_241[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2148 = cheddar.encode %encoder, %extracted_slice_2147 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2148 = cheddar.encode %encoder, %extracted_slice_2147 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2149 = tensor.extract_slice %inserted_slice_245[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2150 = cheddar.encode %encoder, %extracted_slice_2149 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2150 = cheddar.encode %encoder, %extracted_slice_2149 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2151 = tensor.extract_slice %inserted_slice_249[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2152 = cheddar.encode %encoder, %extracted_slice_2151 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2152 = cheddar.encode %encoder, %extracted_slice_2151 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2153 = tensor.extract_slice %inserted_slice_253[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2154 = cheddar.encode %encoder, %extracted_slice_2153 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2154 = cheddar.encode %encoder, %extracted_slice_2153 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2155 = tensor.extract_slice %inserted_slice_257[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2156 = cheddar.encode %encoder, %extracted_slice_2155 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2156 = cheddar.encode %encoder, %extracted_slice_2155 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2157 = tensor.extract_slice %inserted_slice_261[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2158 = cheddar.encode %encoder, %extracted_slice_2157 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2158 = cheddar.encode %encoder, %extracted_slice_2157 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2159 = tensor.extract_slice %inserted_slice_265[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2160 = cheddar.encode %encoder, %extracted_slice_2159 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2160 = cheddar.encode %encoder, %extracted_slice_2159 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2161 = tensor.extract_slice %inserted_slice_269[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2162 = cheddar.encode %encoder, %extracted_slice_2161 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2162 = cheddar.encode %encoder, %extracted_slice_2161 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2163 = tensor.extract_slice %inserted_slice_273[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2164 = cheddar.encode %encoder, %extracted_slice_2163 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2164 = cheddar.encode %encoder, %extracted_slice_2163 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2165 = tensor.extract_slice %inserted_slice_277[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2166 = cheddar.encode %encoder, %extracted_slice_2165 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2166 = cheddar.encode %encoder, %extracted_slice_2165 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2167 = tensor.extract_slice %inserted_slice_281[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2168 = cheddar.encode %encoder, %extracted_slice_2167 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2168 = cheddar.encode %encoder, %extracted_slice_2167 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2169 = tensor.extract_slice %inserted_slice_285[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2170 = cheddar.encode %encoder, %extracted_slice_2169 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2170 = cheddar.encode %encoder, %extracted_slice_2169 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2171 = tensor.extract_slice %inserted_slice_289[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2172 = cheddar.encode %encoder, %extracted_slice_2171 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2172 = cheddar.encode %encoder, %extracted_slice_2171 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2173 = tensor.extract_slice %inserted_slice_293[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2174 = cheddar.encode %encoder, %extracted_slice_2173 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2174 = cheddar.encode %encoder, %extracted_slice_2173 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2175 = tensor.extract_slice %inserted_slice_297[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2176 = cheddar.encode %encoder, %extracted_slice_2175 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2176 = cheddar.encode %encoder, %extracted_slice_2175 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2177 = tensor.extract_slice %inserted_slice_301[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2178 = cheddar.encode %encoder, %extracted_slice_2177 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2178 = cheddar.encode %encoder, %extracted_slice_2177 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2179 = tensor.extract_slice %inserted_slice_305[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2180 = cheddar.encode %encoder, %extracted_slice_2179 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2180 = cheddar.encode %encoder, %extracted_slice_2179 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2181 = tensor.extract_slice %inserted_slice_309[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2182 = cheddar.encode %encoder, %extracted_slice_2181 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2182 = cheddar.encode %encoder, %extracted_slice_2181 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2183 = tensor.extract_slice %inserted_slice_313[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2184 = cheddar.encode %encoder, %extracted_slice_2183 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2184 = cheddar.encode %encoder, %extracted_slice_2183 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2185 = tensor.extract_slice %inserted_slice_317[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2186 = cheddar.encode %encoder, %extracted_slice_2185 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2186 = cheddar.encode %encoder, %extracted_slice_2185 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2187 = tensor.extract_slice %inserted_slice_321[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2188 = cheddar.encode %encoder, %extracted_slice_2187 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2188 = cheddar.encode %encoder, %extracted_slice_2187 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2189 = tensor.extract_slice %inserted_slice_325[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2190 = cheddar.encode %encoder, %extracted_slice_2189 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2190 = cheddar.encode %encoder, %extracted_slice_2189 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2191 = tensor.extract_slice %inserted_slice_329[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2192 = cheddar.encode %encoder, %extracted_slice_2191 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2192 = cheddar.encode %encoder, %extracted_slice_2191 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2193 = tensor.extract_slice %inserted_slice_333[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2194 = cheddar.encode %encoder, %extracted_slice_2193 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2194 = cheddar.encode %encoder, %extracted_slice_2193 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2195 = tensor.extract_slice %inserted_slice_337[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2196 = cheddar.encode %encoder, %extracted_slice_2195 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2196 = cheddar.encode %encoder, %extracted_slice_2195 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2197 = tensor.extract_slice %inserted_slice_341[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2198 = cheddar.encode %encoder, %extracted_slice_2197 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2198 = cheddar.encode %encoder, %extracted_slice_2197 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2199 = tensor.extract_slice %inserted_slice_345[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2200 = cheddar.encode %encoder, %extracted_slice_2199 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2200 = cheddar.encode %encoder, %extracted_slice_2199 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2201 = tensor.extract_slice %inserted_slice_349[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2202 = cheddar.encode %encoder, %extracted_slice_2201 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2202 = cheddar.encode %encoder, %extracted_slice_2201 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2203 = tensor.extract_slice %inserted_slice_353[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2204 = cheddar.encode %encoder, %extracted_slice_2203 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2204 = cheddar.encode %encoder, %extracted_slice_2203 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2205 = tensor.extract_slice %inserted_slice_357[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2206 = cheddar.encode %encoder, %extracted_slice_2205 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2206 = cheddar.encode %encoder, %extracted_slice_2205 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2207 = tensor.extract_slice %inserted_slice_361[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2208 = cheddar.encode %encoder, %extracted_slice_2207 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2208 = cheddar.encode %encoder, %extracted_slice_2207 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2209 = tensor.extract_slice %inserted_slice_365[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2210 = cheddar.encode %encoder, %extracted_slice_2209 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2210 = cheddar.encode %encoder, %extracted_slice_2209 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2211 = tensor.extract_slice %inserted_slice_369[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2212 = cheddar.encode %encoder, %extracted_slice_2211 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2212 = cheddar.encode %encoder, %extracted_slice_2211 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2213 = tensor.extract_slice %inserted_slice_373[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2214 = cheddar.encode %encoder, %extracted_slice_2213 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2214 = cheddar.encode %encoder, %extracted_slice_2213 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2215 = tensor.extract_slice %inserted_slice_377[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2216 = cheddar.encode %encoder, %extracted_slice_2215 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2216 = cheddar.encode %encoder, %extracted_slice_2215 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2217 = tensor.extract_slice %inserted_slice_381[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2218 = cheddar.encode %encoder, %extracted_slice_2217 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2218 = cheddar.encode %encoder, %extracted_slice_2217 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2219 = tensor.extract_slice %inserted_slice_385[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2220 = cheddar.encode %encoder, %extracted_slice_2219 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2220 = cheddar.encode %encoder, %extracted_slice_2219 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2221 = tensor.extract_slice %inserted_slice_389[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2222 = cheddar.encode %encoder, %extracted_slice_2221 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2222 = cheddar.encode %encoder, %extracted_slice_2221 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2223 = tensor.extract_slice %inserted_slice_393[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2224 = cheddar.encode %encoder, %extracted_slice_2223 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2224 = cheddar.encode %encoder, %extracted_slice_2223 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2225 = tensor.extract_slice %inserted_slice_397[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2226 = cheddar.encode %encoder, %extracted_slice_2225 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2226 = cheddar.encode %encoder, %extracted_slice_2225 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2227 = tensor.extract_slice %inserted_slice_401[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2228 = cheddar.encode %encoder, %extracted_slice_2227 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2228 = cheddar.encode %encoder, %extracted_slice_2227 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2229 = tensor.extract_slice %inserted_slice_405[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2230 = cheddar.encode %encoder, %extracted_slice_2229 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2230 = cheddar.encode %encoder, %extracted_slice_2229 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2231 = tensor.extract_slice %inserted_slice_409[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2232 = cheddar.encode %encoder, %extracted_slice_2231 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2232 = cheddar.encode %encoder, %extracted_slice_2231 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2233 = tensor.extract_slice %inserted_slice_413[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2234 = cheddar.encode %encoder, %extracted_slice_2233 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2234 = cheddar.encode %encoder, %extracted_slice_2233 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2235 = tensor.extract_slice %inserted_slice_417[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2236 = cheddar.encode %encoder, %extracted_slice_2235 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2236 = cheddar.encode %encoder, %extracted_slice_2235 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2237 = tensor.extract_slice %inserted_slice_421[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2238 = cheddar.encode %encoder, %extracted_slice_2237 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2238 = cheddar.encode %encoder, %extracted_slice_2237 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2239 = tensor.extract_slice %inserted_slice_425[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2240 = cheddar.encode %encoder, %extracted_slice_2239 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2240 = cheddar.encode %encoder, %extracted_slice_2239 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2241 = tensor.extract_slice %inserted_slice_429[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2242 = cheddar.encode %encoder, %extracted_slice_2241 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2242 = cheddar.encode %encoder, %extracted_slice_2241 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2243 = tensor.extract_slice %inserted_slice_433[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2244 = cheddar.encode %encoder, %extracted_slice_2243 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2244 = cheddar.encode %encoder, %extracted_slice_2243 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2245 = tensor.extract_slice %inserted_slice_437[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2246 = cheddar.encode %encoder, %extracted_slice_2245 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2246 = cheddar.encode %encoder, %extracted_slice_2245 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2247 = tensor.extract_slice %inserted_slice_441[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2248 = cheddar.encode %encoder, %extracted_slice_2247 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2248 = cheddar.encode %encoder, %extracted_slice_2247 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2249 = tensor.extract_slice %inserted_slice_445[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2250 = cheddar.encode %encoder, %extracted_slice_2249 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2250 = cheddar.encode %encoder, %extracted_slice_2249 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2251 = tensor.extract_slice %inserted_slice_449[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2252 = cheddar.encode %encoder, %extracted_slice_2251 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2252 = cheddar.encode %encoder, %extracted_slice_2251 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2253 = tensor.extract_slice %inserted_slice_453[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2254 = cheddar.encode %encoder, %extracted_slice_2253 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2254 = cheddar.encode %encoder, %extracted_slice_2253 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2255 = tensor.extract_slice %inserted_slice_457[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2256 = cheddar.encode %encoder, %extracted_slice_2255 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2256 = cheddar.encode %encoder, %extracted_slice_2255 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2257 = tensor.extract_slice %inserted_slice_461[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2258 = cheddar.encode %encoder, %extracted_slice_2257 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2258 = cheddar.encode %encoder, %extracted_slice_2257 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2259 = tensor.extract_slice %inserted_slice_465[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2260 = cheddar.encode %encoder, %extracted_slice_2259 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2260 = cheddar.encode %encoder, %extracted_slice_2259 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2261 = tensor.extract_slice %inserted_slice_469[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2262 = cheddar.encode %encoder, %extracted_slice_2261 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2262 = cheddar.encode %encoder, %extracted_slice_2261 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2263 = tensor.extract_slice %inserted_slice_473[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2264 = cheddar.encode %encoder, %extracted_slice_2263 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2264 = cheddar.encode %encoder, %extracted_slice_2263 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2265 = tensor.extract_slice %inserted_slice_477[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2266 = cheddar.encode %encoder, %extracted_slice_2265 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2266 = cheddar.encode %encoder, %extracted_slice_2265 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2267 = tensor.extract_slice %inserted_slice_481[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2268 = cheddar.encode %encoder, %extracted_slice_2267 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2268 = cheddar.encode %encoder, %extracted_slice_2267 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2269 = tensor.extract_slice %inserted_slice_485[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2270 = cheddar.encode %encoder, %extracted_slice_2269 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2270 = cheddar.encode %encoder, %extracted_slice_2269 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2271 = tensor.extract_slice %inserted_slice_489[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2272 = cheddar.encode %encoder, %extracted_slice_2271 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2272 = cheddar.encode %encoder, %extracted_slice_2271 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2273 = tensor.extract_slice %inserted_slice_493[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2274 = cheddar.encode %encoder, %extracted_slice_2273 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2274 = cheddar.encode %encoder, %extracted_slice_2273 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2275 = tensor.extract_slice %inserted_slice_497[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2276 = cheddar.encode %encoder, %extracted_slice_2275 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2276 = cheddar.encode %encoder, %extracted_slice_2275 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2277 = tensor.extract_slice %inserted_slice_501[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2278 = cheddar.encode %encoder, %extracted_slice_2277 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2278 = cheddar.encode %encoder, %extracted_slice_2277 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2279 = tensor.extract_slice %inserted_slice_505[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2280 = cheddar.encode %encoder, %extracted_slice_2279 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2280 = cheddar.encode %encoder, %extracted_slice_2279 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2281 = tensor.extract_slice %inserted_slice_509[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2282 = cheddar.encode %encoder, %extracted_slice_2281 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2282 = cheddar.encode %encoder, %extracted_slice_2281 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2283 = tensor.extract_slice %inserted_slice_513[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2284 = cheddar.encode %encoder, %extracted_slice_2283 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2284 = cheddar.encode %encoder, %extracted_slice_2283 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2285 = tensor.extract_slice %inserted_slice_517[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2286 = cheddar.encode %encoder, %extracted_slice_2285 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2286 = cheddar.encode %encoder, %extracted_slice_2285 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2287 = tensor.extract_slice %inserted_slice_521[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2288 = cheddar.encode %encoder, %extracted_slice_2287 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2288 = cheddar.encode %encoder, %extracted_slice_2287 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2289 = tensor.extract_slice %inserted_slice_525[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2290 = cheddar.encode %encoder, %extracted_slice_2289 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2290 = cheddar.encode %encoder, %extracted_slice_2289 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2291 = tensor.extract_slice %inserted_slice_529[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2292 = cheddar.encode %encoder, %extracted_slice_2291 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2292 = cheddar.encode %encoder, %extracted_slice_2291 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2293 = tensor.extract_slice %inserted_slice_533[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2294 = cheddar.encode %encoder, %extracted_slice_2293 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2294 = cheddar.encode %encoder, %extracted_slice_2293 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2295 = tensor.extract_slice %inserted_slice_537[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2296 = cheddar.encode %encoder, %extracted_slice_2295 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2296 = cheddar.encode %encoder, %extracted_slice_2295 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2297 = tensor.extract_slice %inserted_slice_541[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2298 = cheddar.encode %encoder, %extracted_slice_2297 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2298 = cheddar.encode %encoder, %extracted_slice_2297 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2299 = tensor.extract_slice %inserted_slice_545[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2300 = cheddar.encode %encoder, %extracted_slice_2299 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2300 = cheddar.encode %encoder, %extracted_slice_2299 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2301 = tensor.extract_slice %inserted_slice_549[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2302 = cheddar.encode %encoder, %extracted_slice_2301 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2302 = cheddar.encode %encoder, %extracted_slice_2301 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2303 = tensor.extract_slice %inserted_slice_553[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2304 = cheddar.encode %encoder, %extracted_slice_2303 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2304 = cheddar.encode %encoder, %extracted_slice_2303 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2305 = tensor.extract_slice %inserted_slice_557[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2306 = cheddar.encode %encoder, %extracted_slice_2305 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2306 = cheddar.encode %encoder, %extracted_slice_2305 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2307 = tensor.extract_slice %inserted_slice_561[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2308 = cheddar.encode %encoder, %extracted_slice_2307 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2308 = cheddar.encode %encoder, %extracted_slice_2307 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2309 = tensor.extract_slice %inserted_slice_565[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2310 = cheddar.encode %encoder, %extracted_slice_2309 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2310 = cheddar.encode %encoder, %extracted_slice_2309 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2311 = tensor.extract_slice %inserted_slice_569[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2312 = cheddar.encode %encoder, %extracted_slice_2311 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2312 = cheddar.encode %encoder, %extracted_slice_2311 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2313 = tensor.extract_slice %inserted_slice_573[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2314 = cheddar.encode %encoder, %extracted_slice_2313 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2314 = cheddar.encode %encoder, %extracted_slice_2313 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2315 = tensor.extract_slice %inserted_slice_577[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2316 = cheddar.encode %encoder, %extracted_slice_2315 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2316 = cheddar.encode %encoder, %extracted_slice_2315 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2317 = tensor.extract_slice %inserted_slice_581[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2318 = cheddar.encode %encoder, %extracted_slice_2317 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2318 = cheddar.encode %encoder, %extracted_slice_2317 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2319 = tensor.extract_slice %inserted_slice_585[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2320 = cheddar.encode %encoder, %extracted_slice_2319 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2320 = cheddar.encode %encoder, %extracted_slice_2319 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2321 = tensor.extract_slice %inserted_slice_589[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2322 = cheddar.encode %encoder, %extracted_slice_2321 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2322 = cheddar.encode %encoder, %extracted_slice_2321 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2323 = tensor.extract_slice %inserted_slice_593[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2324 = cheddar.encode %encoder, %extracted_slice_2323 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2324 = cheddar.encode %encoder, %extracted_slice_2323 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2325 = tensor.extract_slice %inserted_slice_597[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2326 = cheddar.encode %encoder, %extracted_slice_2325 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2326 = cheddar.encode %encoder, %extracted_slice_2325 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2327 = tensor.extract_slice %inserted_slice_601[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2328 = cheddar.encode %encoder, %extracted_slice_2327 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2328 = cheddar.encode %encoder, %extracted_slice_2327 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2329 = tensor.extract_slice %inserted_slice_605[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2330 = cheddar.encode %encoder, %extracted_slice_2329 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2330 = cheddar.encode %encoder, %extracted_slice_2329 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2331 = tensor.extract_slice %inserted_slice_609[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2332 = cheddar.encode %encoder, %extracted_slice_2331 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2332 = cheddar.encode %encoder, %extracted_slice_2331 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2333 = tensor.extract_slice %inserted_slice_613[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2334 = cheddar.encode %encoder, %extracted_slice_2333 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2334 = cheddar.encode %encoder, %extracted_slice_2333 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2335 = tensor.extract_slice %inserted_slice_617[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2336 = cheddar.encode %encoder, %extracted_slice_2335 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2336 = cheddar.encode %encoder, %extracted_slice_2335 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2337 = tensor.extract_slice %inserted_slice_621[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2338 = cheddar.encode %encoder, %extracted_slice_2337 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2338 = cheddar.encode %encoder, %extracted_slice_2337 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2339 = tensor.extract_slice %inserted_slice_625[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2340 = cheddar.encode %encoder, %extracted_slice_2339 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2340 = cheddar.encode %encoder, %extracted_slice_2339 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2341 = tensor.extract_slice %inserted_slice_629[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2342 = cheddar.encode %encoder, %extracted_slice_2341 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2342 = cheddar.encode %encoder, %extracted_slice_2341 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2343 = tensor.extract_slice %inserted_slice_633[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2344 = cheddar.encode %encoder, %extracted_slice_2343 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2344 = cheddar.encode %encoder, %extracted_slice_2343 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2345 = tensor.extract_slice %inserted_slice_637[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2346 = cheddar.encode %encoder, %extracted_slice_2345 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2346 = cheddar.encode %encoder, %extracted_slice_2345 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2347 = tensor.extract_slice %inserted_slice_641[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2348 = cheddar.encode %encoder, %extracted_slice_2347 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2348 = cheddar.encode %encoder, %extracted_slice_2347 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2349 = tensor.extract_slice %inserted_slice_645[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2350 = cheddar.encode %encoder, %extracted_slice_2349 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2350 = cheddar.encode %encoder, %extracted_slice_2349 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2351 = tensor.extract_slice %inserted_slice_649[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2352 = cheddar.encode %encoder, %extracted_slice_2351 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2352 = cheddar.encode %encoder, %extracted_slice_2351 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2353 = tensor.extract_slice %inserted_slice_653[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2354 = cheddar.encode %encoder, %extracted_slice_2353 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2354 = cheddar.encode %encoder, %extracted_slice_2353 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2355 = tensor.extract_slice %inserted_slice_657[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2356 = cheddar.encode %encoder, %extracted_slice_2355 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2356 = cheddar.encode %encoder, %extracted_slice_2355 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2357 = tensor.extract_slice %inserted_slice_661[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2358 = cheddar.encode %encoder, %extracted_slice_2357 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2358 = cheddar.encode %encoder, %extracted_slice_2357 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2359 = tensor.extract_slice %inserted_slice_665[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2360 = cheddar.encode %encoder, %extracted_slice_2359 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2360 = cheddar.encode %encoder, %extracted_slice_2359 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2361 = tensor.extract_slice %inserted_slice_669[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2362 = cheddar.encode %encoder, %extracted_slice_2361 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2362 = cheddar.encode %encoder, %extracted_slice_2361 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2363 = tensor.extract_slice %inserted_slice_673[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2364 = cheddar.encode %encoder, %extracted_slice_2363 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2364 = cheddar.encode %encoder, %extracted_slice_2363 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2365 = tensor.extract_slice %inserted_slice_677[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2366 = cheddar.encode %encoder, %extracted_slice_2365 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2366 = cheddar.encode %encoder, %extracted_slice_2365 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2367 = tensor.extract_slice %inserted_slice_681[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2368 = cheddar.encode %encoder, %extracted_slice_2367 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2368 = cheddar.encode %encoder, %extracted_slice_2367 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2369 = tensor.extract_slice %inserted_slice_685[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2370 = cheddar.encode %encoder, %extracted_slice_2369 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2370 = cheddar.encode %encoder, %extracted_slice_2369 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2371 = tensor.extract_slice %inserted_slice_689[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2372 = cheddar.encode %encoder, %extracted_slice_2371 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2372 = cheddar.encode %encoder, %extracted_slice_2371 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2373 = tensor.extract_slice %inserted_slice_693[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2374 = cheddar.encode %encoder, %extracted_slice_2373 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2374 = cheddar.encode %encoder, %extracted_slice_2373 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2375 = tensor.extract_slice %inserted_slice_697[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2376 = cheddar.encode %encoder, %extracted_slice_2375 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2376 = cheddar.encode %encoder, %extracted_slice_2375 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2377 = tensor.extract_slice %inserted_slice_701[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2378 = cheddar.encode %encoder, %extracted_slice_2377 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2378 = cheddar.encode %encoder, %extracted_slice_2377 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2379 = tensor.extract_slice %inserted_slice_705[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2380 = cheddar.encode %encoder, %extracted_slice_2379 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2380 = cheddar.encode %encoder, %extracted_slice_2379 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2381 = tensor.extract_slice %inserted_slice_709[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2382 = cheddar.encode %encoder, %extracted_slice_2381 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2382 = cheddar.encode %encoder, %extracted_slice_2381 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2383 = tensor.extract_slice %inserted_slice_713[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2384 = cheddar.encode %encoder, %extracted_slice_2383 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2384 = cheddar.encode %encoder, %extracted_slice_2383 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2385 = tensor.extract_slice %inserted_slice_717[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2386 = cheddar.encode %encoder, %extracted_slice_2385 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2386 = cheddar.encode %encoder, %extracted_slice_2385 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2387 = tensor.extract_slice %inserted_slice_721[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2388 = cheddar.encode %encoder, %extracted_slice_2387 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2388 = cheddar.encode %encoder, %extracted_slice_2387 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2389 = tensor.extract_slice %inserted_slice_725[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2390 = cheddar.encode %encoder, %extracted_slice_2389 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2390 = cheddar.encode %encoder, %extracted_slice_2389 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2391 = tensor.extract_slice %inserted_slice_729[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2392 = cheddar.encode %encoder, %extracted_slice_2391 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2392 = cheddar.encode %encoder, %extracted_slice_2391 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2393 = tensor.extract_slice %inserted_slice_733[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2394 = cheddar.encode %encoder, %extracted_slice_2393 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2394 = cheddar.encode %encoder, %extracted_slice_2393 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2395 = tensor.extract_slice %inserted_slice_737[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2396 = cheddar.encode %encoder, %extracted_slice_2395 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2396 = cheddar.encode %encoder, %extracted_slice_2395 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2397 = tensor.extract_slice %inserted_slice_741[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2398 = cheddar.encode %encoder, %extracted_slice_2397 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2398 = cheddar.encode %encoder, %extracted_slice_2397 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2399 = tensor.extract_slice %inserted_slice_745[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2400 = cheddar.encode %encoder, %extracted_slice_2399 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2400 = cheddar.encode %encoder, %extracted_slice_2399 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2401 = tensor.extract_slice %inserted_slice_749[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2402 = cheddar.encode %encoder, %extracted_slice_2401 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2402 = cheddar.encode %encoder, %extracted_slice_2401 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2403 = tensor.extract_slice %inserted_slice_753[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2404 = cheddar.encode %encoder, %extracted_slice_2403 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2404 = cheddar.encode %encoder, %extracted_slice_2403 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2405 = tensor.extract_slice %inserted_slice_757[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2406 = cheddar.encode %encoder, %extracted_slice_2405 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2406 = cheddar.encode %encoder, %extracted_slice_2405 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2407 = tensor.extract_slice %inserted_slice_761[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2408 = cheddar.encode %encoder, %extracted_slice_2407 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2408 = cheddar.encode %encoder, %extracted_slice_2407 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2409 = tensor.extract_slice %inserted_slice_765[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2410 = cheddar.encode %encoder, %extracted_slice_2409 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2410 = cheddar.encode %encoder, %extracted_slice_2409 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2411 = tensor.extract_slice %inserted_slice_769[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2412 = cheddar.encode %encoder, %extracted_slice_2411 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2412 = cheddar.encode %encoder, %extracted_slice_2411 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2413 = tensor.extract_slice %inserted_slice_773[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2414 = cheddar.encode %encoder, %extracted_slice_2413 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2414 = cheddar.encode %encoder, %extracted_slice_2413 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2415 = tensor.extract_slice %inserted_slice_777[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2416 = cheddar.encode %encoder, %extracted_slice_2415 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2416 = cheddar.encode %encoder, %extracted_slice_2415 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2417 = tensor.extract_slice %inserted_slice_781[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2418 = cheddar.encode %encoder, %extracted_slice_2417 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2418 = cheddar.encode %encoder, %extracted_slice_2417 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2419 = tensor.extract_slice %inserted_slice_785[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2420 = cheddar.encode %encoder, %extracted_slice_2419 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2420 = cheddar.encode %encoder, %extracted_slice_2419 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2421 = tensor.extract_slice %inserted_slice_789[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2422 = cheddar.encode %encoder, %extracted_slice_2421 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2422 = cheddar.encode %encoder, %extracted_slice_2421 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2423 = tensor.extract_slice %inserted_slice_793[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2424 = cheddar.encode %encoder, %extracted_slice_2423 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2424 = cheddar.encode %encoder, %extracted_slice_2423 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2425 = tensor.extract_slice %inserted_slice_797[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2426 = cheddar.encode %encoder, %extracted_slice_2425 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2426 = cheddar.encode %encoder, %extracted_slice_2425 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2427 = tensor.extract_slice %inserted_slice_801[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2428 = cheddar.encode %encoder, %extracted_slice_2427 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2428 = cheddar.encode %encoder, %extracted_slice_2427 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2429 = tensor.extract_slice %inserted_slice_805[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2430 = cheddar.encode %encoder, %extracted_slice_2429 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2430 = cheddar.encode %encoder, %extracted_slice_2429 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2431 = tensor.extract_slice %inserted_slice_809[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2432 = cheddar.encode %encoder, %extracted_slice_2431 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2432 = cheddar.encode %encoder, %extracted_slice_2431 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2433 = tensor.extract_slice %inserted_slice_813[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2434 = cheddar.encode %encoder, %extracted_slice_2433 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2434 = cheddar.encode %encoder, %extracted_slice_2433 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2435 = tensor.extract_slice %inserted_slice_817[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2436 = cheddar.encode %encoder, %extracted_slice_2435 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2436 = cheddar.encode %encoder, %extracted_slice_2435 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2437 = tensor.extract_slice %inserted_slice_821[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2438 = cheddar.encode %encoder, %extracted_slice_2437 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2438 = cheddar.encode %encoder, %extracted_slice_2437 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2439 = tensor.extract_slice %inserted_slice_825[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2440 = cheddar.encode %encoder, %extracted_slice_2439 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2440 = cheddar.encode %encoder, %extracted_slice_2439 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2441 = tensor.extract_slice %inserted_slice_829[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2442 = cheddar.encode %encoder, %extracted_slice_2441 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2442 = cheddar.encode %encoder, %extracted_slice_2441 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2443 = tensor.extract_slice %inserted_slice_833[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2444 = cheddar.encode %encoder, %extracted_slice_2443 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2444 = cheddar.encode %encoder, %extracted_slice_2443 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2445 = tensor.extract_slice %inserted_slice_837[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2446 = cheddar.encode %encoder, %extracted_slice_2445 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2446 = cheddar.encode %encoder, %extracted_slice_2445 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2447 = tensor.extract_slice %inserted_slice_841[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2448 = cheddar.encode %encoder, %extracted_slice_2447 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2448 = cheddar.encode %encoder, %extracted_slice_2447 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2449 = tensor.extract_slice %inserted_slice_845[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2450 = cheddar.encode %encoder, %extracted_slice_2449 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2450 = cheddar.encode %encoder, %extracted_slice_2449 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2451 = tensor.extract_slice %inserted_slice_849[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2452 = cheddar.encode %encoder, %extracted_slice_2451 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2452 = cheddar.encode %encoder, %extracted_slice_2451 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2453 = tensor.extract_slice %inserted_slice_853[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2454 = cheddar.encode %encoder, %extracted_slice_2453 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2454 = cheddar.encode %encoder, %extracted_slice_2453 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2455 = tensor.extract_slice %inserted_slice_857[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2456 = cheddar.encode %encoder, %extracted_slice_2455 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2456 = cheddar.encode %encoder, %extracted_slice_2455 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2457 = tensor.extract_slice %inserted_slice_861[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2458 = cheddar.encode %encoder, %extracted_slice_2457 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2458 = cheddar.encode %encoder, %extracted_slice_2457 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2459 = tensor.extract_slice %inserted_slice_865[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2460 = cheddar.encode %encoder, %extracted_slice_2459 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2460 = cheddar.encode %encoder, %extracted_slice_2459 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2461 = tensor.extract_slice %inserted_slice_869[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2462 = cheddar.encode %encoder, %extracted_slice_2461 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2462 = cheddar.encode %encoder, %extracted_slice_2461 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2463 = tensor.extract_slice %inserted_slice_873[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2464 = cheddar.encode %encoder, %extracted_slice_2463 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2464 = cheddar.encode %encoder, %extracted_slice_2463 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2465 = tensor.extract_slice %inserted_slice_877[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2466 = cheddar.encode %encoder, %extracted_slice_2465 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2466 = cheddar.encode %encoder, %extracted_slice_2465 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2467 = tensor.extract_slice %inserted_slice_881[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2468 = cheddar.encode %encoder, %extracted_slice_2467 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2468 = cheddar.encode %encoder, %extracted_slice_2467 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2469 = tensor.extract_slice %inserted_slice_885[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2470 = cheddar.encode %encoder, %extracted_slice_2469 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2470 = cheddar.encode %encoder, %extracted_slice_2469 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2471 = tensor.extract_slice %inserted_slice_889[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2472 = cheddar.encode %encoder, %extracted_slice_2471 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2472 = cheddar.encode %encoder, %extracted_slice_2471 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2473 = tensor.extract_slice %inserted_slice_893[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2474 = cheddar.encode %encoder, %extracted_slice_2473 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2474 = cheddar.encode %encoder, %extracted_slice_2473 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2475 = tensor.extract_slice %inserted_slice_897[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2476 = cheddar.encode %encoder, %extracted_slice_2475 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2476 = cheddar.encode %encoder, %extracted_slice_2475 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2477 = tensor.extract_slice %inserted_slice_901[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2478 = cheddar.encode %encoder, %extracted_slice_2477 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2478 = cheddar.encode %encoder, %extracted_slice_2477 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2479 = tensor.extract_slice %inserted_slice_905[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2480 = cheddar.encode %encoder, %extracted_slice_2479 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2480 = cheddar.encode %encoder, %extracted_slice_2479 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2481 = tensor.extract_slice %inserted_slice_909[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2482 = cheddar.encode %encoder, %extracted_slice_2481 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2482 = cheddar.encode %encoder, %extracted_slice_2481 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2483 = tensor.extract_slice %inserted_slice_913[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2484 = cheddar.encode %encoder, %extracted_slice_2483 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2484 = cheddar.encode %encoder, %extracted_slice_2483 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2485 = tensor.extract_slice %inserted_slice_917[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2486 = cheddar.encode %encoder, %extracted_slice_2485 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2486 = cheddar.encode %encoder, %extracted_slice_2485 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2487 = tensor.extract_slice %inserted_slice_921[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2488 = cheddar.encode %encoder, %extracted_slice_2487 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2488 = cheddar.encode %encoder, %extracted_slice_2487 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2489 = tensor.extract_slice %inserted_slice_925[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2490 = cheddar.encode %encoder, %extracted_slice_2489 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2490 = cheddar.encode %encoder, %extracted_slice_2489 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2491 = tensor.extract_slice %inserted_slice_929[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2492 = cheddar.encode %encoder, %extracted_slice_2491 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2492 = cheddar.encode %encoder, %extracted_slice_2491 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2493 = tensor.extract_slice %inserted_slice_933[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2494 = cheddar.encode %encoder, %extracted_slice_2493 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2494 = cheddar.encode %encoder, %extracted_slice_2493 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2495 = tensor.extract_slice %inserted_slice_937[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2496 = cheddar.encode %encoder, %extracted_slice_2495 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2496 = cheddar.encode %encoder, %extracted_slice_2495 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2497 = tensor.extract_slice %inserted_slice_941[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2498 = cheddar.encode %encoder, %extracted_slice_2497 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2498 = cheddar.encode %encoder, %extracted_slice_2497 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2499 = tensor.extract_slice %inserted_slice_945[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2500 = cheddar.encode %encoder, %extracted_slice_2499 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2500 = cheddar.encode %encoder, %extracted_slice_2499 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2501 = tensor.extract_slice %inserted_slice_949[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2502 = cheddar.encode %encoder, %extracted_slice_2501 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2502 = cheddar.encode %encoder, %extracted_slice_2501 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2503 = tensor.extract_slice %inserted_slice_953[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2504 = cheddar.encode %encoder, %extracted_slice_2503 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2504 = cheddar.encode %encoder, %extracted_slice_2503 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2505 = tensor.extract_slice %inserted_slice_957[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2506 = cheddar.encode %encoder, %extracted_slice_2505 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2506 = cheddar.encode %encoder, %extracted_slice_2505 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2507 = tensor.extract_slice %inserted_slice_961[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2508 = cheddar.encode %encoder, %extracted_slice_2507 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2508 = cheddar.encode %encoder, %extracted_slice_2507 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2509 = tensor.extract_slice %inserted_slice_965[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2510 = cheddar.encode %encoder, %extracted_slice_2509 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2510 = cheddar.encode %encoder, %extracted_slice_2509 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2511 = tensor.extract_slice %inserted_slice_969[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2512 = cheddar.encode %encoder, %extracted_slice_2511 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2512 = cheddar.encode %encoder, %extracted_slice_2511 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2513 = tensor.extract_slice %inserted_slice_973[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2514 = cheddar.encode %encoder, %extracted_slice_2513 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2514 = cheddar.encode %encoder, %extracted_slice_2513 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2515 = tensor.extract_slice %inserted_slice_977[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2516 = cheddar.encode %encoder, %extracted_slice_2515 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2516 = cheddar.encode %encoder, %extracted_slice_2515 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2517 = tensor.extract_slice %inserted_slice_981[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2518 = cheddar.encode %encoder, %extracted_slice_2517 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2518 = cheddar.encode %encoder, %extracted_slice_2517 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2519 = tensor.extract_slice %inserted_slice_985[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2520 = cheddar.encode %encoder, %extracted_slice_2519 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2520 = cheddar.encode %encoder, %extracted_slice_2519 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2521 = tensor.extract_slice %inserted_slice_989[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2522 = cheddar.encode %encoder, %extracted_slice_2521 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2522 = cheddar.encode %encoder, %extracted_slice_2521 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2523 = tensor.extract_slice %inserted_slice_993[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2524 = cheddar.encode %encoder, %extracted_slice_2523 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2524 = cheddar.encode %encoder, %extracted_slice_2523 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2525 = tensor.extract_slice %inserted_slice_997[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2526 = cheddar.encode %encoder, %extracted_slice_2525 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2526 = cheddar.encode %encoder, %extracted_slice_2525 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2527 = tensor.extract_slice %inserted_slice_1001[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2528 = cheddar.encode %encoder, %extracted_slice_2527 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2528 = cheddar.encode %encoder, %extracted_slice_2527 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2529 = tensor.extract_slice %inserted_slice_1005[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2530 = cheddar.encode %encoder, %extracted_slice_2529 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2530 = cheddar.encode %encoder, %extracted_slice_2529 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2531 = tensor.extract_slice %inserted_slice_1009[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2532 = cheddar.encode %encoder, %extracted_slice_2531 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2532 = cheddar.encode %encoder, %extracted_slice_2531 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2533 = tensor.extract_slice %inserted_slice_1013[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2534 = cheddar.encode %encoder, %extracted_slice_2533 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2534 = cheddar.encode %encoder, %extracted_slice_2533 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2535 = tensor.extract_slice %inserted_slice_1017[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2536 = cheddar.encode %encoder, %extracted_slice_2535 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2536 = cheddar.encode %encoder, %extracted_slice_2535 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2537 = tensor.extract_slice %inserted_slice_1021[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2538 = cheddar.encode %encoder, %extracted_slice_2537 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2538 = cheddar.encode %encoder, %extracted_slice_2537 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2539 = tensor.extract_slice %inserted_slice_1025[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2540 = cheddar.encode %encoder, %extracted_slice_2539 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2540 = cheddar.encode %encoder, %extracted_slice_2539 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2541 = tensor.extract_slice %inserted_slice_1029[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2542 = cheddar.encode %encoder, %extracted_slice_2541 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2542 = cheddar.encode %encoder, %extracted_slice_2541 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2543 = tensor.extract_slice %inserted_slice_1033[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2544 = cheddar.encode %encoder, %extracted_slice_2543 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2544 = cheddar.encode %encoder, %extracted_slice_2543 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2545 = tensor.extract_slice %inserted_slice_1037[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2546 = cheddar.encode %encoder, %extracted_slice_2545 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2546 = cheddar.encode %encoder, %extracted_slice_2545 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2547 = tensor.extract_slice %inserted_slice_1041[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2548 = cheddar.encode %encoder, %extracted_slice_2547 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2548 = cheddar.encode %encoder, %extracted_slice_2547 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2549 = tensor.extract_slice %inserted_slice_1045[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2550 = cheddar.encode %encoder, %extracted_slice_2549 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2550 = cheddar.encode %encoder, %extracted_slice_2549 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2551 = tensor.extract_slice %inserted_slice_1049[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2552 = cheddar.encode %encoder, %extracted_slice_2551 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2552 = cheddar.encode %encoder, %extracted_slice_2551 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2553 = tensor.extract_slice %inserted_slice_1053[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2554 = cheddar.encode %encoder, %extracted_slice_2553 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2554 = cheddar.encode %encoder, %extracted_slice_2553 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2555 = tensor.extract_slice %inserted_slice_1057[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2556 = cheddar.encode %encoder, %extracted_slice_2555 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2556 = cheddar.encode %encoder, %extracted_slice_2555 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2557 = tensor.extract_slice %inserted_slice_1061[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2558 = cheddar.encode %encoder, %extracted_slice_2557 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2558 = cheddar.encode %encoder, %extracted_slice_2557 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2559 = tensor.extract_slice %inserted_slice_1065[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2560 = cheddar.encode %encoder, %extracted_slice_2559 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2560 = cheddar.encode %encoder, %extracted_slice_2559 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2561 = tensor.extract_slice %inserted_slice_1069[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2562 = cheddar.encode %encoder, %extracted_slice_2561 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2562 = cheddar.encode %encoder, %extracted_slice_2561 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2563 = tensor.extract_slice %inserted_slice_1073[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2564 = cheddar.encode %encoder, %extracted_slice_2563 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2564 = cheddar.encode %encoder, %extracted_slice_2563 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2565 = tensor.extract_slice %inserted_slice_1077[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2566 = cheddar.encode %encoder, %extracted_slice_2565 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2566 = cheddar.encode %encoder, %extracted_slice_2565 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2567 = tensor.extract_slice %inserted_slice_1081[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2568 = cheddar.encode %encoder, %extracted_slice_2567 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2568 = cheddar.encode %encoder, %extracted_slice_2567 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2569 = tensor.extract_slice %inserted_slice_1085[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2570 = cheddar.encode %encoder, %extracted_slice_2569 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2570 = cheddar.encode %encoder, %extracted_slice_2569 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2571 = tensor.extract_slice %inserted_slice_1089[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2572 = cheddar.encode %encoder, %extracted_slice_2571 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2572 = cheddar.encode %encoder, %extracted_slice_2571 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2573 = tensor.extract_slice %inserted_slice_1093[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2574 = cheddar.encode %encoder, %extracted_slice_2573 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2574 = cheddar.encode %encoder, %extracted_slice_2573 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2575 = tensor.extract_slice %inserted_slice_1097[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2576 = cheddar.encode %encoder, %extracted_slice_2575 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2576 = cheddar.encode %encoder, %extracted_slice_2575 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2577 = tensor.extract_slice %inserted_slice_1101[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2578 = cheddar.encode %encoder, %extracted_slice_2577 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2578 = cheddar.encode %encoder, %extracted_slice_2577 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2579 = tensor.extract_slice %inserted_slice_1105[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2580 = cheddar.encode %encoder, %extracted_slice_2579 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2580 = cheddar.encode %encoder, %extracted_slice_2579 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2581 = tensor.extract_slice %inserted_slice_1109[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2582 = cheddar.encode %encoder, %extracted_slice_2581 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2582 = cheddar.encode %encoder, %extracted_slice_2581 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2583 = tensor.extract_slice %inserted_slice_1113[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2584 = cheddar.encode %encoder, %extracted_slice_2583 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2584 = cheddar.encode %encoder, %extracted_slice_2583 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2585 = tensor.extract_slice %inserted_slice_1117[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2586 = cheddar.encode %encoder, %extracted_slice_2585 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2586 = cheddar.encode %encoder, %extracted_slice_2585 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2587 = tensor.extract_slice %inserted_slice_1121[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2588 = cheddar.encode %encoder, %extracted_slice_2587 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2588 = cheddar.encode %encoder, %extracted_slice_2587 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2589 = tensor.extract_slice %inserted_slice_1125[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2590 = cheddar.encode %encoder, %extracted_slice_2589 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2590 = cheddar.encode %encoder, %extracted_slice_2589 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2591 = tensor.extract_slice %inserted_slice_1129[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2592 = cheddar.encode %encoder, %extracted_slice_2591 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2592 = cheddar.encode %encoder, %extracted_slice_2591 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2593 = tensor.extract_slice %inserted_slice_1133[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2594 = cheddar.encode %encoder, %extracted_slice_2593 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2594 = cheddar.encode %encoder, %extracted_slice_2593 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2595 = tensor.extract_slice %inserted_slice_1137[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2596 = cheddar.encode %encoder, %extracted_slice_2595 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2596 = cheddar.encode %encoder, %extracted_slice_2595 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2597 = tensor.extract_slice %inserted_slice_1141[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2598 = cheddar.encode %encoder, %extracted_slice_2597 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2598 = cheddar.encode %encoder, %extracted_slice_2597 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2599 = tensor.extract_slice %inserted_slice_1145[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2600 = cheddar.encode %encoder, %extracted_slice_2599 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2600 = cheddar.encode %encoder, %extracted_slice_2599 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2601 = tensor.extract_slice %inserted_slice_1149[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2602 = cheddar.encode %encoder, %extracted_slice_2601 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2602 = cheddar.encode %encoder, %extracted_slice_2601 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2603 = tensor.extract_slice %inserted_slice_1153[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2604 = cheddar.encode %encoder, %extracted_slice_2603 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2604 = cheddar.encode %encoder, %extracted_slice_2603 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2605 = tensor.extract_slice %inserted_slice_1157[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2606 = cheddar.encode %encoder, %extracted_slice_2605 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2606 = cheddar.encode %encoder, %extracted_slice_2605 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2607 = tensor.extract_slice %inserted_slice_1161[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2608 = cheddar.encode %encoder, %extracted_slice_2607 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2608 = cheddar.encode %encoder, %extracted_slice_2607 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2609 = tensor.extract_slice %inserted_slice_1165[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2610 = cheddar.encode %encoder, %extracted_slice_2609 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2610 = cheddar.encode %encoder, %extracted_slice_2609 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2611 = tensor.extract_slice %inserted_slice_1169[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2612 = cheddar.encode %encoder, %extracted_slice_2611 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2612 = cheddar.encode %encoder, %extracted_slice_2611 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2613 = tensor.extract_slice %inserted_slice_1173[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2614 = cheddar.encode %encoder, %extracted_slice_2613 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2614 = cheddar.encode %encoder, %extracted_slice_2613 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2615 = tensor.extract_slice %inserted_slice_1177[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2616 = cheddar.encode %encoder, %extracted_slice_2615 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2616 = cheddar.encode %encoder, %extracted_slice_2615 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2617 = tensor.extract_slice %inserted_slice_1181[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2618 = cheddar.encode %encoder, %extracted_slice_2617 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2618 = cheddar.encode %encoder, %extracted_slice_2617 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2619 = tensor.extract_slice %inserted_slice_1185[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2620 = cheddar.encode %encoder, %extracted_slice_2619 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2620 = cheddar.encode %encoder, %extracted_slice_2619 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2621 = tensor.extract_slice %inserted_slice_1189[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2622 = cheddar.encode %encoder, %extracted_slice_2621 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2622 = cheddar.encode %encoder, %extracted_slice_2621 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2623 = tensor.extract_slice %inserted_slice_1193[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2624 = cheddar.encode %encoder, %extracted_slice_2623 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2624 = cheddar.encode %encoder, %extracted_slice_2623 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2625 = tensor.extract_slice %inserted_slice_1197[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2626 = cheddar.encode %encoder, %extracted_slice_2625 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2626 = cheddar.encode %encoder, %extracted_slice_2625 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2627 = tensor.extract_slice %inserted_slice_1201[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2628 = cheddar.encode %encoder, %extracted_slice_2627 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2628 = cheddar.encode %encoder, %extracted_slice_2627 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2629 = tensor.extract_slice %inserted_slice_1205[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2630 = cheddar.encode %encoder, %extracted_slice_2629 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2630 = cheddar.encode %encoder, %extracted_slice_2629 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2631 = tensor.extract_slice %inserted_slice_1209[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2632 = cheddar.encode %encoder, %extracted_slice_2631 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2632 = cheddar.encode %encoder, %extracted_slice_2631 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2633 = tensor.extract_slice %inserted_slice_1213[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2634 = cheddar.encode %encoder, %extracted_slice_2633 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2634 = cheddar.encode %encoder, %extracted_slice_2633 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2635 = tensor.extract_slice %inserted_slice_1217[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2636 = cheddar.encode %encoder, %extracted_slice_2635 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2636 = cheddar.encode %encoder, %extracted_slice_2635 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2637 = tensor.extract_slice %inserted_slice_1221[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2638 = cheddar.encode %encoder, %extracted_slice_2637 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2638 = cheddar.encode %encoder, %extracted_slice_2637 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2639 = tensor.extract_slice %inserted_slice_1225[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2640 = cheddar.encode %encoder, %extracted_slice_2639 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2640 = cheddar.encode %encoder, %extracted_slice_2639 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2641 = tensor.extract_slice %inserted_slice_1229[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2642 = cheddar.encode %encoder, %extracted_slice_2641 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2642 = cheddar.encode %encoder, %extracted_slice_2641 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2643 = tensor.extract_slice %inserted_slice_1233[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2644 = cheddar.encode %encoder, %extracted_slice_2643 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2644 = cheddar.encode %encoder, %extracted_slice_2643 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2645 = tensor.extract_slice %inserted_slice_1237[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2646 = cheddar.encode %encoder, %extracted_slice_2645 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2646 = cheddar.encode %encoder, %extracted_slice_2645 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2647 = tensor.extract_slice %inserted_slice_1241[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2648 = cheddar.encode %encoder, %extracted_slice_2647 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2648 = cheddar.encode %encoder, %extracted_slice_2647 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2649 = tensor.extract_slice %inserted_slice_1245[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2650 = cheddar.encode %encoder, %extracted_slice_2649 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2650 = cheddar.encode %encoder, %extracted_slice_2649 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2651 = tensor.extract_slice %inserted_slice_1249[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2652 = cheddar.encode %encoder, %extracted_slice_2651 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2652 = cheddar.encode %encoder, %extracted_slice_2651 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2653 = tensor.extract_slice %inserted_slice_1253[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2654 = cheddar.encode %encoder, %extracted_slice_2653 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2654 = cheddar.encode %encoder, %extracted_slice_2653 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2655 = tensor.extract_slice %inserted_slice_1257[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2656 = cheddar.encode %encoder, %extracted_slice_2655 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2656 = cheddar.encode %encoder, %extracted_slice_2655 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2657 = tensor.extract_slice %inserted_slice_1261[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2658 = cheddar.encode %encoder, %extracted_slice_2657 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2658 = cheddar.encode %encoder, %extracted_slice_2657 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2659 = tensor.extract_slice %inserted_slice_1265[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2660 = cheddar.encode %encoder, %extracted_slice_2659 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2660 = cheddar.encode %encoder, %extracted_slice_2659 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2661 = tensor.extract_slice %inserted_slice_1269[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2662 = cheddar.encode %encoder, %extracted_slice_2661 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2662 = cheddar.encode %encoder, %extracted_slice_2661 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2663 = tensor.extract_slice %inserted_slice_1273[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2664 = cheddar.encode %encoder, %extracted_slice_2663 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2664 = cheddar.encode %encoder, %extracted_slice_2663 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2665 = tensor.extract_slice %inserted_slice_1277[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2666 = cheddar.encode %encoder, %extracted_slice_2665 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2666 = cheddar.encode %encoder, %extracted_slice_2665 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2667 = tensor.extract_slice %inserted_slice_1281[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2668 = cheddar.encode %encoder, %extracted_slice_2667 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2668 = cheddar.encode %encoder, %extracted_slice_2667 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2669 = tensor.extract_slice %inserted_slice_1285[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2670 = cheddar.encode %encoder, %extracted_slice_2669 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2670 = cheddar.encode %encoder, %extracted_slice_2669 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2671 = tensor.extract_slice %inserted_slice_1289[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2672 = cheddar.encode %encoder, %extracted_slice_2671 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2672 = cheddar.encode %encoder, %extracted_slice_2671 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2673 = tensor.extract_slice %inserted_slice_1293[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2674 = cheddar.encode %encoder, %extracted_slice_2673 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2674 = cheddar.encode %encoder, %extracted_slice_2673 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2675 = tensor.extract_slice %inserted_slice_1297[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2676 = cheddar.encode %encoder, %extracted_slice_2675 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2676 = cheddar.encode %encoder, %extracted_slice_2675 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2677 = tensor.extract_slice %inserted_slice_1301[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2678 = cheddar.encode %encoder, %extracted_slice_2677 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2678 = cheddar.encode %encoder, %extracted_slice_2677 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2679 = tensor.extract_slice %inserted_slice_1305[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2680 = cheddar.encode %encoder, %extracted_slice_2679 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2680 = cheddar.encode %encoder, %extracted_slice_2679 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2681 = tensor.extract_slice %inserted_slice_1309[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2682 = cheddar.encode %encoder, %extracted_slice_2681 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2682 = cheddar.encode %encoder, %extracted_slice_2681 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2683 = tensor.extract_slice %inserted_slice_1313[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2684 = cheddar.encode %encoder, %extracted_slice_2683 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2684 = cheddar.encode %encoder, %extracted_slice_2683 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2685 = tensor.extract_slice %inserted_slice_1317[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2686 = cheddar.encode %encoder, %extracted_slice_2685 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2686 = cheddar.encode %encoder, %extracted_slice_2685 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2687 = tensor.extract_slice %inserted_slice_1321[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2688 = cheddar.encode %encoder, %extracted_slice_2687 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2688 = cheddar.encode %encoder, %extracted_slice_2687 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2689 = tensor.extract_slice %inserted_slice_1325[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2690 = cheddar.encode %encoder, %extracted_slice_2689 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2690 = cheddar.encode %encoder, %extracted_slice_2689 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2691 = tensor.extract_slice %inserted_slice_1329[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2692 = cheddar.encode %encoder, %extracted_slice_2691 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2692 = cheddar.encode %encoder, %extracted_slice_2691 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2693 = tensor.extract_slice %inserted_slice_1333[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2694 = cheddar.encode %encoder, %extracted_slice_2693 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2694 = cheddar.encode %encoder, %extracted_slice_2693 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2695 = tensor.extract_slice %inserted_slice_1337[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2696 = cheddar.encode %encoder, %extracted_slice_2695 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2696 = cheddar.encode %encoder, %extracted_slice_2695 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2697 = tensor.extract_slice %inserted_slice_1341[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2698 = cheddar.encode %encoder, %extracted_slice_2697 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2698 = cheddar.encode %encoder, %extracted_slice_2697 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2699 = tensor.extract_slice %inserted_slice_1345[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2700 = cheddar.encode %encoder, %extracted_slice_2699 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2700 = cheddar.encode %encoder, %extracted_slice_2699 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2701 = tensor.extract_slice %inserted_slice_1349[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2702 = cheddar.encode %encoder, %extracted_slice_2701 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2702 = cheddar.encode %encoder, %extracted_slice_2701 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2703 = tensor.extract_slice %inserted_slice_1353[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2704 = cheddar.encode %encoder, %extracted_slice_2703 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2704 = cheddar.encode %encoder, %extracted_slice_2703 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2705 = tensor.extract_slice %inserted_slice_1357[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2706 = cheddar.encode %encoder, %extracted_slice_2705 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2706 = cheddar.encode %encoder, %extracted_slice_2705 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2707 = tensor.extract_slice %inserted_slice_1361[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2708 = cheddar.encode %encoder, %extracted_slice_2707 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2708 = cheddar.encode %encoder, %extracted_slice_2707 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2709 = tensor.extract_slice %inserted_slice_1365[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2710 = cheddar.encode %encoder, %extracted_slice_2709 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2710 = cheddar.encode %encoder, %extracted_slice_2709 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2711 = tensor.extract_slice %inserted_slice_1369[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2712 = cheddar.encode %encoder, %extracted_slice_2711 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2712 = cheddar.encode %encoder, %extracted_slice_2711 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2713 = tensor.extract_slice %inserted_slice_1373[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2714 = cheddar.encode %encoder, %extracted_slice_2713 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2714 = cheddar.encode %encoder, %extracted_slice_2713 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2715 = tensor.extract_slice %inserted_slice_1377[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2716 = cheddar.encode %encoder, %extracted_slice_2715 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2716 = cheddar.encode %encoder, %extracted_slice_2715 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2717 = tensor.extract_slice %inserted_slice_1381[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2718 = cheddar.encode %encoder, %extracted_slice_2717 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2718 = cheddar.encode %encoder, %extracted_slice_2717 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2719 = tensor.extract_slice %inserted_slice_1385[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2720 = cheddar.encode %encoder, %extracted_slice_2719 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2720 = cheddar.encode %encoder, %extracted_slice_2719 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2721 = tensor.extract_slice %inserted_slice_1389[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2722 = cheddar.encode %encoder, %extracted_slice_2721 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2722 = cheddar.encode %encoder, %extracted_slice_2721 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2723 = tensor.extract_slice %inserted_slice_1393[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2724 = cheddar.encode %encoder, %extracted_slice_2723 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2724 = cheddar.encode %encoder, %extracted_slice_2723 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2725 = tensor.extract_slice %inserted_slice_1397[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2726 = cheddar.encode %encoder, %extracted_slice_2725 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2726 = cheddar.encode %encoder, %extracted_slice_2725 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2727 = tensor.extract_slice %inserted_slice_1401[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2728 = cheddar.encode %encoder, %extracted_slice_2727 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2728 = cheddar.encode %encoder, %extracted_slice_2727 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2729 = tensor.extract_slice %inserted_slice_1405[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2730 = cheddar.encode %encoder, %extracted_slice_2729 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2730 = cheddar.encode %encoder, %extracted_slice_2729 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2731 = tensor.extract_slice %inserted_slice_1409[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2732 = cheddar.encode %encoder, %extracted_slice_2731 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2732 = cheddar.encode %encoder, %extracted_slice_2731 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2733 = tensor.extract_slice %inserted_slice_1413[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2734 = cheddar.encode %encoder, %extracted_slice_2733 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2734 = cheddar.encode %encoder, %extracted_slice_2733 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2735 = tensor.extract_slice %inserted_slice_1417[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2736 = cheddar.encode %encoder, %extracted_slice_2735 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2736 = cheddar.encode %encoder, %extracted_slice_2735 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2737 = tensor.extract_slice %inserted_slice_1421[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2738 = cheddar.encode %encoder, %extracted_slice_2737 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2738 = cheddar.encode %encoder, %extracted_slice_2737 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2739 = tensor.extract_slice %inserted_slice_1425[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2740 = cheddar.encode %encoder, %extracted_slice_2739 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2740 = cheddar.encode %encoder, %extracted_slice_2739 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2741 = tensor.extract_slice %inserted_slice_1429[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2742 = cheddar.encode %encoder, %extracted_slice_2741 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2742 = cheddar.encode %encoder, %extracted_slice_2741 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2743 = tensor.extract_slice %inserted_slice_1433[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2744 = cheddar.encode %encoder, %extracted_slice_2743 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2744 = cheddar.encode %encoder, %extracted_slice_2743 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2745 = tensor.extract_slice %inserted_slice_1437[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2746 = cheddar.encode %encoder, %extracted_slice_2745 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2746 = cheddar.encode %encoder, %extracted_slice_2745 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2747 = tensor.extract_slice %inserted_slice_1441[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2748 = cheddar.encode %encoder, %extracted_slice_2747 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2748 = cheddar.encode %encoder, %extracted_slice_2747 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2749 = tensor.extract_slice %inserted_slice_1445[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2750 = cheddar.encode %encoder, %extracted_slice_2749 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2750 = cheddar.encode %encoder, %extracted_slice_2749 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2751 = tensor.extract_slice %inserted_slice_1449[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2752 = cheddar.encode %encoder, %extracted_slice_2751 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2752 = cheddar.encode %encoder, %extracted_slice_2751 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2753 = tensor.extract_slice %inserted_slice_1453[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2754 = cheddar.encode %encoder, %extracted_slice_2753 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2754 = cheddar.encode %encoder, %extracted_slice_2753 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2755 = tensor.extract_slice %inserted_slice_1457[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2756 = cheddar.encode %encoder, %extracted_slice_2755 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2756 = cheddar.encode %encoder, %extracted_slice_2755 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2757 = tensor.extract_slice %inserted_slice_1461[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2758 = cheddar.encode %encoder, %extracted_slice_2757 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2758 = cheddar.encode %encoder, %extracted_slice_2757 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2759 = tensor.extract_slice %inserted_slice_1465[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2760 = cheddar.encode %encoder, %extracted_slice_2759 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2760 = cheddar.encode %encoder, %extracted_slice_2759 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2761 = tensor.extract_slice %inserted_slice_1469[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2762 = cheddar.encode %encoder, %extracted_slice_2761 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2762 = cheddar.encode %encoder, %extracted_slice_2761 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2763 = tensor.extract_slice %inserted_slice_1473[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2764 = cheddar.encode %encoder, %extracted_slice_2763 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2764 = cheddar.encode %encoder, %extracted_slice_2763 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2765 = tensor.extract_slice %inserted_slice_1477[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2766 = cheddar.encode %encoder, %extracted_slice_2765 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2766 = cheddar.encode %encoder, %extracted_slice_2765 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2767 = tensor.extract_slice %inserted_slice_1481[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2768 = cheddar.encode %encoder, %extracted_slice_2767 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2768 = cheddar.encode %encoder, %extracted_slice_2767 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2769 = tensor.extract_slice %inserted_slice_1485[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2770 = cheddar.encode %encoder, %extracted_slice_2769 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2770 = cheddar.encode %encoder, %extracted_slice_2769 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2771 = tensor.extract_slice %inserted_slice_1489[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2772 = cheddar.encode %encoder, %extracted_slice_2771 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2772 = cheddar.encode %encoder, %extracted_slice_2771 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2773 = tensor.extract_slice %inserted_slice_1493[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2774 = cheddar.encode %encoder, %extracted_slice_2773 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2774 = cheddar.encode %encoder, %extracted_slice_2773 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2775 = tensor.extract_slice %inserted_slice_1497[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2776 = cheddar.encode %encoder, %extracted_slice_2775 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2776 = cheddar.encode %encoder, %extracted_slice_2775 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2777 = tensor.extract_slice %inserted_slice_1501[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2778 = cheddar.encode %encoder, %extracted_slice_2777 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2778 = cheddar.encode %encoder, %extracted_slice_2777 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2779 = tensor.extract_slice %inserted_slice_1505[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2780 = cheddar.encode %encoder, %extracted_slice_2779 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2780 = cheddar.encode %encoder, %extracted_slice_2779 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2781 = tensor.extract_slice %inserted_slice_1509[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2782 = cheddar.encode %encoder, %extracted_slice_2781 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2782 = cheddar.encode %encoder, %extracted_slice_2781 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2783 = tensor.extract_slice %inserted_slice_1513[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2784 = cheddar.encode %encoder, %extracted_slice_2783 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2784 = cheddar.encode %encoder, %extracted_slice_2783 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2785 = tensor.extract_slice %inserted_slice_1517[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2786 = cheddar.encode %encoder, %extracted_slice_2785 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2786 = cheddar.encode %encoder, %extracted_slice_2785 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2787 = tensor.extract_slice %inserted_slice_1521[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2788 = cheddar.encode %encoder, %extracted_slice_2787 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2788 = cheddar.encode %encoder, %extracted_slice_2787 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2789 = tensor.extract_slice %inserted_slice_1525[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2790 = cheddar.encode %encoder, %extracted_slice_2789 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2790 = cheddar.encode %encoder, %extracted_slice_2789 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2791 = tensor.extract_slice %inserted_slice_1529[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2792 = cheddar.encode %encoder, %extracted_slice_2791 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2792 = cheddar.encode %encoder, %extracted_slice_2791 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2793 = tensor.extract_slice %inserted_slice_1533[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2794 = cheddar.encode %encoder, %extracted_slice_2793 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2794 = cheddar.encode %encoder, %extracted_slice_2793 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2795 = tensor.extract_slice %inserted_slice_1537[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2796 = cheddar.encode %encoder, %extracted_slice_2795 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2796 = cheddar.encode %encoder, %extracted_slice_2795 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2797 = tensor.extract_slice %inserted_slice_1541[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2798 = cheddar.encode %encoder, %extracted_slice_2797 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2798 = cheddar.encode %encoder, %extracted_slice_2797 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2799 = tensor.extract_slice %inserted_slice_1545[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2800 = cheddar.encode %encoder, %extracted_slice_2799 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2800 = cheddar.encode %encoder, %extracted_slice_2799 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2801 = tensor.extract_slice %inserted_slice_1549[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2802 = cheddar.encode %encoder, %extracted_slice_2801 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2802 = cheddar.encode %encoder, %extracted_slice_2801 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2803 = tensor.extract_slice %inserted_slice_1553[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2804 = cheddar.encode %encoder, %extracted_slice_2803 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2804 = cheddar.encode %encoder, %extracted_slice_2803 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2805 = tensor.extract_slice %inserted_slice_1557[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2806 = cheddar.encode %encoder, %extracted_slice_2805 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2806 = cheddar.encode %encoder, %extracted_slice_2805 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2807 = tensor.extract_slice %inserted_slice_1561[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2808 = cheddar.encode %encoder, %extracted_slice_2807 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2808 = cheddar.encode %encoder, %extracted_slice_2807 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2809 = tensor.extract_slice %inserted_slice_1565[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2810 = cheddar.encode %encoder, %extracted_slice_2809 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2810 = cheddar.encode %encoder, %extracted_slice_2809 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2811 = tensor.extract_slice %inserted_slice_1569[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2812 = cheddar.encode %encoder, %extracted_slice_2811 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2812 = cheddar.encode %encoder, %extracted_slice_2811 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2813 = tensor.extract_slice %inserted_slice_1573[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2814 = cheddar.encode %encoder, %extracted_slice_2813 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2814 = cheddar.encode %encoder, %extracted_slice_2813 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2815 = tensor.extract_slice %inserted_slice_1577[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2816 = cheddar.encode %encoder, %extracted_slice_2815 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2816 = cheddar.encode %encoder, %extracted_slice_2815 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2817 = tensor.extract_slice %inserted_slice_1581[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2818 = cheddar.encode %encoder, %extracted_slice_2817 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2818 = cheddar.encode %encoder, %extracted_slice_2817 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2819 = tensor.extract_slice %inserted_slice_1585[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2820 = cheddar.encode %encoder, %extracted_slice_2819 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2820 = cheddar.encode %encoder, %extracted_slice_2819 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2821 = tensor.extract_slice %inserted_slice_1589[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2822 = cheddar.encode %encoder, %extracted_slice_2821 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2822 = cheddar.encode %encoder, %extracted_slice_2821 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2823 = tensor.extract_slice %inserted_slice_1593[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2824 = cheddar.encode %encoder, %extracted_slice_2823 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2824 = cheddar.encode %encoder, %extracted_slice_2823 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2825 = tensor.extract_slice %inserted_slice_1597[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2826 = cheddar.encode %encoder, %extracted_slice_2825 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2826 = cheddar.encode %encoder, %extracted_slice_2825 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2827 = tensor.extract_slice %inserted_slice_1601[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2828 = cheddar.encode %encoder, %extracted_slice_2827 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2828 = cheddar.encode %encoder, %extracted_slice_2827 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2829 = tensor.extract_slice %inserted_slice_1605[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2830 = cheddar.encode %encoder, %extracted_slice_2829 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2830 = cheddar.encode %encoder, %extracted_slice_2829 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2831 = tensor.extract_slice %inserted_slice_1609[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2832 = cheddar.encode %encoder, %extracted_slice_2831 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2832 = cheddar.encode %encoder, %extracted_slice_2831 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2833 = tensor.extract_slice %inserted_slice_1613[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2834 = cheddar.encode %encoder, %extracted_slice_2833 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2834 = cheddar.encode %encoder, %extracted_slice_2833 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2835 = tensor.extract_slice %inserted_slice_1617[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2836 = cheddar.encode %encoder, %extracted_slice_2835 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2836 = cheddar.encode %encoder, %extracted_slice_2835 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2837 = tensor.extract_slice %inserted_slice_1621[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2838 = cheddar.encode %encoder, %extracted_slice_2837 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2838 = cheddar.encode %encoder, %extracted_slice_2837 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2839 = tensor.extract_slice %inserted_slice_1625[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2840 = cheddar.encode %encoder, %extracted_slice_2839 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2840 = cheddar.encode %encoder, %extracted_slice_2839 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2841 = tensor.extract_slice %inserted_slice_1629[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2842 = cheddar.encode %encoder, %extracted_slice_2841 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2842 = cheddar.encode %encoder, %extracted_slice_2841 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2843 = tensor.extract_slice %inserted_slice_1633[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2844 = cheddar.encode %encoder, %extracted_slice_2843 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2844 = cheddar.encode %encoder, %extracted_slice_2843 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2845 = tensor.extract_slice %inserted_slice_1637[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2846 = cheddar.encode %encoder, %extracted_slice_2845 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2846 = cheddar.encode %encoder, %extracted_slice_2845 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2847 = tensor.extract_slice %inserted_slice_1641[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2848 = cheddar.encode %encoder, %extracted_slice_2847 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2848 = cheddar.encode %encoder, %extracted_slice_2847 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2849 = tensor.extract_slice %inserted_slice_1645[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2850 = cheddar.encode %encoder, %extracted_slice_2849 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2850 = cheddar.encode %encoder, %extracted_slice_2849 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2851 = tensor.extract_slice %inserted_slice_1649[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2852 = cheddar.encode %encoder, %extracted_slice_2851 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2852 = cheddar.encode %encoder, %extracted_slice_2851 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2853 = tensor.extract_slice %inserted_slice_1653[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2854 = cheddar.encode %encoder, %extracted_slice_2853 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2854 = cheddar.encode %encoder, %extracted_slice_2853 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2855 = tensor.extract_slice %inserted_slice_1657[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2856 = cheddar.encode %encoder, %extracted_slice_2855 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2856 = cheddar.encode %encoder, %extracted_slice_2855 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2857 = tensor.extract_slice %inserted_slice_1661[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2858 = cheddar.encode %encoder, %extracted_slice_2857 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2858 = cheddar.encode %encoder, %extracted_slice_2857 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2859 = tensor.extract_slice %inserted_slice_1665[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2860 = cheddar.encode %encoder, %extracted_slice_2859 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2860 = cheddar.encode %encoder, %extracted_slice_2859 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2861 = tensor.extract_slice %inserted_slice_1669[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2862 = cheddar.encode %encoder, %extracted_slice_2861 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2862 = cheddar.encode %encoder, %extracted_slice_2861 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2863 = tensor.extract_slice %inserted_slice_1673[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2864 = cheddar.encode %encoder, %extracted_slice_2863 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2864 = cheddar.encode %encoder, %extracted_slice_2863 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2865 = tensor.extract_slice %inserted_slice_1677[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2866 = cheddar.encode %encoder, %extracted_slice_2865 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2866 = cheddar.encode %encoder, %extracted_slice_2865 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2867 = tensor.extract_slice %inserted_slice_1681[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2868 = cheddar.encode %encoder, %extracted_slice_2867 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2868 = cheddar.encode %encoder, %extracted_slice_2867 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2869 = tensor.extract_slice %inserted_slice_1685[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2870 = cheddar.encode %encoder, %extracted_slice_2869 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2870 = cheddar.encode %encoder, %extracted_slice_2869 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2871 = tensor.extract_slice %inserted_slice_1689[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2872 = cheddar.encode %encoder, %extracted_slice_2871 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2872 = cheddar.encode %encoder, %extracted_slice_2871 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2873 = tensor.extract_slice %inserted_slice_1693[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2874 = cheddar.encode %encoder, %extracted_slice_2873 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2874 = cheddar.encode %encoder, %extracted_slice_2873 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2875 = tensor.extract_slice %inserted_slice_1697[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2876 = cheddar.encode %encoder, %extracted_slice_2875 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2876 = cheddar.encode %encoder, %extracted_slice_2875 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2877 = tensor.extract_slice %inserted_slice_1701[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2878 = cheddar.encode %encoder, %extracted_slice_2877 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2878 = cheddar.encode %encoder, %extracted_slice_2877 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2879 = tensor.extract_slice %inserted_slice_1705[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2880 = cheddar.encode %encoder, %extracted_slice_2879 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2880 = cheddar.encode %encoder, %extracted_slice_2879 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2881 = tensor.extract_slice %inserted_slice_1709[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2882 = cheddar.encode %encoder, %extracted_slice_2881 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2882 = cheddar.encode %encoder, %extracted_slice_2881 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2883 = tensor.extract_slice %inserted_slice_1713[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2884 = cheddar.encode %encoder, %extracted_slice_2883 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2884 = cheddar.encode %encoder, %extracted_slice_2883 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2885 = tensor.extract_slice %inserted_slice_1717[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2886 = cheddar.encode %encoder, %extracted_slice_2885 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2886 = cheddar.encode %encoder, %extracted_slice_2885 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2887 = tensor.extract_slice %inserted_slice_1721[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2888 = cheddar.encode %encoder, %extracted_slice_2887 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2888 = cheddar.encode %encoder, %extracted_slice_2887 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2889 = tensor.extract_slice %inserted_slice_1725[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2890 = cheddar.encode %encoder, %extracted_slice_2889 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2890 = cheddar.encode %encoder, %extracted_slice_2889 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2891 = tensor.extract_slice %inserted_slice_1729[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2892 = cheddar.encode %encoder, %extracted_slice_2891 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2892 = cheddar.encode %encoder, %extracted_slice_2891 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2893 = tensor.extract_slice %inserted_slice_1733[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2894 = cheddar.encode %encoder, %extracted_slice_2893 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2894 = cheddar.encode %encoder, %extracted_slice_2893 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2895 = tensor.extract_slice %inserted_slice_1737[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2896 = cheddar.encode %encoder, %extracted_slice_2895 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2896 = cheddar.encode %encoder, %extracted_slice_2895 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2897 = tensor.extract_slice %inserted_slice_1741[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2898 = cheddar.encode %encoder, %extracted_slice_2897 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2898 = cheddar.encode %encoder, %extracted_slice_2897 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2899 = tensor.extract_slice %inserted_slice_1745[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2900 = cheddar.encode %encoder, %extracted_slice_2899 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2900 = cheddar.encode %encoder, %extracted_slice_2899 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2901 = tensor.extract_slice %inserted_slice_1749[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2902 = cheddar.encode %encoder, %extracted_slice_2901 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2902 = cheddar.encode %encoder, %extracted_slice_2901 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2903 = tensor.extract_slice %inserted_slice_1753[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2904 = cheddar.encode %encoder, %extracted_slice_2903 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2904 = cheddar.encode %encoder, %extracted_slice_2903 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2905 = tensor.extract_slice %inserted_slice_1757[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2906 = cheddar.encode %encoder, %extracted_slice_2905 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2906 = cheddar.encode %encoder, %extracted_slice_2905 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2907 = tensor.extract_slice %inserted_slice_1761[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2908 = cheddar.encode %encoder, %extracted_slice_2907 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2908 = cheddar.encode %encoder, %extracted_slice_2907 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2909 = tensor.extract_slice %inserted_slice_1765[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2910 = cheddar.encode %encoder, %extracted_slice_2909 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2910 = cheddar.encode %encoder, %extracted_slice_2909 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2911 = tensor.extract_slice %inserted_slice_1769[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2912 = cheddar.encode %encoder, %extracted_slice_2911 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2912 = cheddar.encode %encoder, %extracted_slice_2911 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2913 = tensor.extract_slice %inserted_slice_1773[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2914 = cheddar.encode %encoder, %extracted_slice_2913 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2914 = cheddar.encode %encoder, %extracted_slice_2913 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2915 = tensor.extract_slice %inserted_slice_1777[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2916 = cheddar.encode %encoder, %extracted_slice_2915 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2916 = cheddar.encode %encoder, %extracted_slice_2915 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2917 = tensor.extract_slice %inserted_slice_1781[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2918 = cheddar.encode %encoder, %extracted_slice_2917 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2918 = cheddar.encode %encoder, %extracted_slice_2917 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2919 = tensor.extract_slice %inserted_slice_1785[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2920 = cheddar.encode %encoder, %extracted_slice_2919 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2920 = cheddar.encode %encoder, %extracted_slice_2919 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2921 = tensor.extract_slice %inserted_slice_1789[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2922 = cheddar.encode %encoder, %extracted_slice_2921 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2922 = cheddar.encode %encoder, %extracted_slice_2921 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2923 = tensor.extract_slice %inserted_slice_1793[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2924 = cheddar.encode %encoder, %extracted_slice_2923 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2924 = cheddar.encode %encoder, %extracted_slice_2923 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2925 = tensor.extract_slice %inserted_slice_1797[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2926 = cheddar.encode %encoder, %extracted_slice_2925 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2926 = cheddar.encode %encoder, %extracted_slice_2925 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2927 = tensor.extract_slice %inserted_slice_1801[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2928 = cheddar.encode %encoder, %extracted_slice_2927 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2928 = cheddar.encode %encoder, %extracted_slice_2927 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2929 = tensor.extract_slice %inserted_slice_1805[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2930 = cheddar.encode %encoder, %extracted_slice_2929 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2930 = cheddar.encode %encoder, %extracted_slice_2929 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2931 = tensor.extract_slice %inserted_slice_1809[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2932 = cheddar.encode %encoder, %extracted_slice_2931 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2932 = cheddar.encode %encoder, %extracted_slice_2931 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2933 = tensor.extract_slice %inserted_slice_1813[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2934 = cheddar.encode %encoder, %extracted_slice_2933 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2934 = cheddar.encode %encoder, %extracted_slice_2933 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2935 = tensor.extract_slice %inserted_slice_1817[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2936 = cheddar.encode %encoder, %extracted_slice_2935 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2936 = cheddar.encode %encoder, %extracted_slice_2935 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2937 = tensor.extract_slice %inserted_slice_1821[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2938 = cheddar.encode %encoder, %extracted_slice_2937 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2938 = cheddar.encode %encoder, %extracted_slice_2937 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2939 = tensor.extract_slice %inserted_slice_1825[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2940 = cheddar.encode %encoder, %extracted_slice_2939 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2940 = cheddar.encode %encoder, %extracted_slice_2939 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2941 = tensor.extract_slice %inserted_slice_1829[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2942 = cheddar.encode %encoder, %extracted_slice_2941 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2942 = cheddar.encode %encoder, %extracted_slice_2941 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2943 = tensor.extract_slice %inserted_slice_1833[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2944 = cheddar.encode %encoder, %extracted_slice_2943 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2944 = cheddar.encode %encoder, %extracted_slice_2943 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2945 = tensor.extract_slice %inserted_slice_1837[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2946 = cheddar.encode %encoder, %extracted_slice_2945 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2946 = cheddar.encode %encoder, %extracted_slice_2945 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2947 = tensor.extract_slice %inserted_slice_1841[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2948 = cheddar.encode %encoder, %extracted_slice_2947 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2948 = cheddar.encode %encoder, %extracted_slice_2947 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2949 = tensor.extract_slice %inserted_slice_1845[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2950 = cheddar.encode %encoder, %extracted_slice_2949 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2950 = cheddar.encode %encoder, %extracted_slice_2949 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2951 = tensor.extract_slice %inserted_slice_1849[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2952 = cheddar.encode %encoder, %extracted_slice_2951 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2952 = cheddar.encode %encoder, %extracted_slice_2951 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2953 = tensor.extract_slice %inserted_slice_1853[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2954 = cheddar.encode %encoder, %extracted_slice_2953 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2954 = cheddar.encode %encoder, %extracted_slice_2953 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2955 = tensor.extract_slice %inserted_slice_1857[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2956 = cheddar.encode %encoder, %extracted_slice_2955 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2956 = cheddar.encode %encoder, %extracted_slice_2955 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2957 = tensor.extract_slice %inserted_slice_1861[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2958 = cheddar.encode %encoder, %extracted_slice_2957 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2958 = cheddar.encode %encoder, %extracted_slice_2957 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2959 = tensor.extract_slice %inserted_slice_1865[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2960 = cheddar.encode %encoder, %extracted_slice_2959 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2960 = cheddar.encode %encoder, %extracted_slice_2959 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2961 = tensor.extract_slice %inserted_slice_1869[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2962 = cheddar.encode %encoder, %extracted_slice_2961 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2962 = cheddar.encode %encoder, %extracted_slice_2961 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2963 = tensor.extract_slice %inserted_slice_1873[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2964 = cheddar.encode %encoder, %extracted_slice_2963 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2964 = cheddar.encode %encoder, %extracted_slice_2963 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2965 = tensor.extract_slice %inserted_slice_1877[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2966 = cheddar.encode %encoder, %extracted_slice_2965 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2966 = cheddar.encode %encoder, %extracted_slice_2965 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2967 = tensor.extract_slice %inserted_slice_1881[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2968 = cheddar.encode %encoder, %extracted_slice_2967 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2968 = cheddar.encode %encoder, %extracted_slice_2967 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2969 = tensor.extract_slice %inserted_slice_1885[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2970 = cheddar.encode %encoder, %extracted_slice_2969 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2970 = cheddar.encode %encoder, %extracted_slice_2969 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2971 = tensor.extract_slice %inserted_slice_1889[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2972 = cheddar.encode %encoder, %extracted_slice_2971 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2972 = cheddar.encode %encoder, %extracted_slice_2971 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2973 = tensor.extract_slice %inserted_slice_1893[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2974 = cheddar.encode %encoder, %extracted_slice_2973 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2974 = cheddar.encode %encoder, %extracted_slice_2973 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2975 = tensor.extract_slice %inserted_slice_1897[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2976 = cheddar.encode %encoder, %extracted_slice_2975 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2976 = cheddar.encode %encoder, %extracted_slice_2975 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2977 = tensor.extract_slice %inserted_slice_1901[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2978 = cheddar.encode %encoder, %extracted_slice_2977 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2978 = cheddar.encode %encoder, %extracted_slice_2977 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2979 = tensor.extract_slice %inserted_slice_1905[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2980 = cheddar.encode %encoder, %extracted_slice_2979 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2980 = cheddar.encode %encoder, %extracted_slice_2979 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2981 = tensor.extract_slice %inserted_slice_1909[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2982 = cheddar.encode %encoder, %extracted_slice_2981 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2982 = cheddar.encode %encoder, %extracted_slice_2981 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2983 = tensor.extract_slice %inserted_slice_1913[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2984 = cheddar.encode %encoder, %extracted_slice_2983 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2984 = cheddar.encode %encoder, %extracted_slice_2983 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2985 = tensor.extract_slice %inserted_slice_1917[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2986 = cheddar.encode %encoder, %extracted_slice_2985 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2986 = cheddar.encode %encoder, %extracted_slice_2985 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2987 = tensor.extract_slice %inserted_slice_1921[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2988 = cheddar.encode %encoder, %extracted_slice_2987 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2988 = cheddar.encode %encoder, %extracted_slice_2987 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2989 = tensor.extract_slice %inserted_slice_1925[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2990 = cheddar.encode %encoder, %extracted_slice_2989 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2990 = cheddar.encode %encoder, %extracted_slice_2989 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2991 = tensor.extract_slice %inserted_slice_1929[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2992 = cheddar.encode %encoder, %extracted_slice_2991 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2992 = cheddar.encode %encoder, %extracted_slice_2991 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2993 = tensor.extract_slice %inserted_slice_1933[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2994 = cheddar.encode %encoder, %extracted_slice_2993 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2994 = cheddar.encode %encoder, %extracted_slice_2993 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2995 = tensor.extract_slice %inserted_slice_1937[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2996 = cheddar.encode %encoder, %extracted_slice_2995 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2996 = cheddar.encode %encoder, %extracted_slice_2995 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2997 = tensor.extract_slice %inserted_slice_1941[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_2998 = cheddar.encode %encoder, %extracted_slice_2997 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_2998 = cheddar.encode %encoder, %extracted_slice_2997 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_2999 = tensor.extract_slice %inserted_slice_1945[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3000 = cheddar.encode %encoder, %extracted_slice_2999 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3000 = cheddar.encode %encoder, %extracted_slice_2999 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3001 = tensor.extract_slice %inserted_slice_1949[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3002 = cheddar.encode %encoder, %extracted_slice_3001 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3002 = cheddar.encode %encoder, %extracted_slice_3001 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3003 = tensor.extract_slice %inserted_slice_1953[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3004 = cheddar.encode %encoder, %extracted_slice_3003 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3004 = cheddar.encode %encoder, %extracted_slice_3003 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3005 = tensor.extract_slice %inserted_slice_1957[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3006 = cheddar.encode %encoder, %extracted_slice_3005 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3006 = cheddar.encode %encoder, %extracted_slice_3005 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3007 = tensor.extract_slice %inserted_slice_1961[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3008 = cheddar.encode %encoder, %extracted_slice_3007 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3008 = cheddar.encode %encoder, %extracted_slice_3007 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3009 = tensor.extract_slice %inserted_slice_1965[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3010 = cheddar.encode %encoder, %extracted_slice_3009 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3010 = cheddar.encode %encoder, %extracted_slice_3009 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3011 = tensor.extract_slice %inserted_slice_1969[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3012 = cheddar.encode %encoder, %extracted_slice_3011 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3012 = cheddar.encode %encoder, %extracted_slice_3011 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3013 = tensor.extract_slice %inserted_slice_1973[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3014 = cheddar.encode %encoder, %extracted_slice_3013 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3014 = cheddar.encode %encoder, %extracted_slice_3013 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3015 = tensor.extract_slice %inserted_slice_1977[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3016 = cheddar.encode %encoder, %extracted_slice_3015 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3016 = cheddar.encode %encoder, %extracted_slice_3015 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3017 = tensor.extract_slice %inserted_slice_1981[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3018 = cheddar.encode %encoder, %extracted_slice_3017 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3018 = cheddar.encode %encoder, %extracted_slice_3017 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3019 = tensor.extract_slice %inserted_slice_1985[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3020 = cheddar.encode %encoder, %extracted_slice_3019 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3020 = cheddar.encode %encoder, %extracted_slice_3019 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3021 = tensor.extract_slice %inserted_slice_1989[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3022 = cheddar.encode %encoder, %extracted_slice_3021 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3022 = cheddar.encode %encoder, %extracted_slice_3021 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3023 = tensor.extract_slice %inserted_slice_1993[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3024 = cheddar.encode %encoder, %extracted_slice_3023 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3024 = cheddar.encode %encoder, %extracted_slice_3023 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3025 = tensor.extract_slice %inserted_slice_1997[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3026 = cheddar.encode %encoder, %extracted_slice_3025 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3026 = cheddar.encode %encoder, %extracted_slice_3025 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3027 = tensor.extract_slice %inserted_slice_2001[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3028 = cheddar.encode %encoder, %extracted_slice_3027 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3028 = cheddar.encode %encoder, %extracted_slice_3027 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3029 = tensor.extract_slice %inserted_slice_2005[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3030 = cheddar.encode %encoder, %extracted_slice_3029 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3030 = cheddar.encode %encoder, %extracted_slice_3029 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3031 = tensor.extract_slice %inserted_slice_2009[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3032 = cheddar.encode %encoder, %extracted_slice_3031 {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3032 = cheddar.encode %encoder, %extracted_slice_3031 {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3033 = tensor.extract_slice %1[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3034 = cheddar.encode %encoder, %extracted_slice_3033 {level = 8 : i64, scale = 0x458FFFFFED7A01E3 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3034 = cheddar.encode %encoder, %extracted_slice_3033 {level = 8 : i64, scale = 1.2379399965733078E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3035 = tensor.extract_slice %2[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3036 = cheddar.encode %encoder, %extracted_slice_3035 {level = 7 : i64, scale = 0x42BFFFFFE37A00EB : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3036 = cheddar.encode %encoder, %extracted_slice_3035 {level = 7 : i64, scale = 35184370219520.918 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3037 = tensor.extract_slice %3[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3038 = cheddar.encode %encoder, %extracted_slice_3037 {level = 6 : i64, scale = 0x42BFFFFFF7F400E3 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3038 = cheddar.encode %encoder, %extracted_slice_3037 {level = 6 : i64, scale = 35184371561472.887 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3039 = tensor.extract_slice %5[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3040 = cheddar.encode %encoder, %extracted_slice_3039 {level = 6 : i64, scale = 0x42BFFFFFF7F400E3 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3040 = cheddar.encode %encoder, %extracted_slice_3039 {level = 6 : i64, scale = 35184371561472.887 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3041 = tensor.extract_slice %6[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3042 = cheddar.encode %encoder, %extracted_slice_3041 {level = 5 : i64, scale = 0x458FFFFFAF5601F2 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3042 = cheddar.encode %encoder, %extracted_slice_3041 {level = 5 : i64, scale = 1.2379398532867841E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3043 = tensor.extract_slice %7[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3044 = cheddar.encode %encoder, %extracted_slice_3043 {level = 4 : i64, scale = 0x42C0000000E80065 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_3045 = cheddar.encode %encoder, %extracted_slice_3039 {level = 4 : i64, scale = 0x42C0000000E80065 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_3046 = cheddar.encode %encoder, %extracted_slice_3041 {level = 3 : i64, scale = 0x458FFFFF8464022B : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3044 = cheddar.encode %encoder, %extracted_slice_3043 {level = 4 : i64, scale = 35184372207616.789 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3045 = cheddar.encode %encoder, %extracted_slice_3039 {level = 4 : i64, scale = 35184372207616.789 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3046 = cheddar.encode %encoder, %extracted_slice_3041 {level = 3 : i64, scale = 1.2379397542616433E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3047 = tensor.extract_slice %8[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3048 = cheddar.encode %encoder, %extracted_slice_3047 {level = 2 : i64, scale = 0x42C0000007200043 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3048 = cheddar.encode %encoder, %extracted_slice_3047 {level = 2 : i64, scale = 35184373022720.523 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3049 = tensor.extract_slice %4[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3050 = cheddar.encode %encoder, %extracted_slice_3049 {level = 6 : i64, scale = 0x458FFFFFEFE801C9 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %pt_3051 = cheddar.encode %encoder, %cst_6 {level = 3 : i64, scale = 0x42BFFFFFE6A000AA : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3050 = cheddar.encode %encoder, %extracted_slice_3049 {level = 6 : i64, scale = 1.2379400021757822E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3051 = cheddar.encode %encoder, %cst_6 {level = 3 : i64, scale = 35184370425856.664 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3052 = tensor.extract_slice %9[0, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3053 = cheddar.encode %encoder, %extracted_slice_3052 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3053 = cheddar.encode %encoder, %extracted_slice_3052 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3054 = tensor.extract_slice %9[1, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3055 = cheddar.encode %encoder, %extracted_slice_3054 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3055 = cheddar.encode %encoder, %extracted_slice_3054 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3056 = tensor.extract_slice %9[2, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3057 = cheddar.encode %encoder, %extracted_slice_3056 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3057 = cheddar.encode %encoder, %extracted_slice_3056 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3058 = tensor.extract_slice %9[3, 0] [1, 1024] [1, 1] : tensor<16x1024xf32> to tensor<1024xf32>
-    %pt_3059 = cheddar.encode %encoder, %extracted_slice_3058 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3059 = cheddar.encode %encoder, %extracted_slice_3058 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3060 = tensor.extract_slice %inserted_slice_9[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3061 = cheddar.encode %encoder, %extracted_slice_3060 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3061 = cheddar.encode %encoder, %extracted_slice_3060 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3062 = tensor.extract_slice %inserted_slice_13[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3063 = cheddar.encode %encoder, %extracted_slice_3062 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3063 = cheddar.encode %encoder, %extracted_slice_3062 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3064 = tensor.extract_slice %inserted_slice_17[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3065 = cheddar.encode %encoder, %extracted_slice_3064 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3065 = cheddar.encode %encoder, %extracted_slice_3064 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3066 = tensor.extract_slice %inserted_slice_21[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3067 = cheddar.encode %encoder, %extracted_slice_3066 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3067 = cheddar.encode %encoder, %extracted_slice_3066 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3068 = tensor.extract_slice %inserted_slice_25[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3069 = cheddar.encode %encoder, %extracted_slice_3068 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3069 = cheddar.encode %encoder, %extracted_slice_3068 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3070 = tensor.extract_slice %inserted_slice_29[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3071 = cheddar.encode %encoder, %extracted_slice_3070 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3071 = cheddar.encode %encoder, %extracted_slice_3070 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3072 = tensor.extract_slice %inserted_slice_33[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3073 = cheddar.encode %encoder, %extracted_slice_3072 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3073 = cheddar.encode %encoder, %extracted_slice_3072 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3074 = tensor.extract_slice %inserted_slice_37[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3075 = cheddar.encode %encoder, %extracted_slice_3074 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3075 = cheddar.encode %encoder, %extracted_slice_3074 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3076 = tensor.extract_slice %inserted_slice_41[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3077 = cheddar.encode %encoder, %extracted_slice_3076 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3077 = cheddar.encode %encoder, %extracted_slice_3076 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3078 = tensor.extract_slice %inserted_slice_45[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3079 = cheddar.encode %encoder, %extracted_slice_3078 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3079 = cheddar.encode %encoder, %extracted_slice_3078 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3080 = tensor.extract_slice %inserted_slice_49[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3081 = cheddar.encode %encoder, %extracted_slice_3080 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3081 = cheddar.encode %encoder, %extracted_slice_3080 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3082 = tensor.extract_slice %inserted_slice_53[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3083 = cheddar.encode %encoder, %extracted_slice_3082 {level = 1 : i64, scale = 0x42BFFFFFD8800068 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3083 = cheddar.encode %encoder, %extracted_slice_3082 {level = 1 : i64, scale = 35184369500160.406 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %extracted_slice_3084 = tensor.extract_slice %10[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_3085 = cheddar.encode %encoder, %extracted_slice_3084 {level = 1 : i64, scale = 0x458FFFFF9AB4019F : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt_3085 = cheddar.encode %encoder, %extracted_slice_3084 {level = 1 : i64, scale = 1.2379398057107462E+27 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %from_elements = tensor.from_elements %pt_3034, %pt_3042, %pt_3046, %pt_3050, %pt_3085 : tensor<5x!plaintext>
     %from_elements_3086 = tensor.from_elements %pt, %pt_2012, %pt_2014, %pt_2016, %pt_2018, %pt_2020, %pt_2022, %pt_2024, %pt_2026, %pt_2028, %pt_2030, %pt_2032, %pt_2034, %pt_2036, %pt_2038, %pt_2040, %pt_2042, %pt_2044, %pt_2046, %pt_2048, %pt_2050, %pt_2052, %pt_2054, %pt_2056, %pt_2058, %pt_2060, %pt_2062, %pt_2064, %pt_2066, %pt_2068, %pt_2070, %pt_2072, %pt_2074, %pt_2076, %pt_2078, %pt_2080 : tensor<36x!plaintext>
     %from_elements_3087 = tensor.from_elements %pt_2082, %pt_2084, %pt_2086, %pt_2088, %pt_2090, %pt_2092, %pt_2094, %pt_2096, %pt_2098, %pt_2100, %pt_2102, %pt_2104, %pt_2106, %pt_2108, %pt_2110, %pt_2112, %pt_2114, %pt_2116, %pt_2118, %pt_2120, %pt_2122, %pt_2124, %pt_2126, %pt_2128, %pt_2130, %pt_2132, %pt_2134, %pt_2136, %pt_2138, %pt_2140, %pt_2142, %pt_2144, %pt_2146, %pt_2148, %pt_2150, %pt_2152 : tensor<36x!plaintext>
@@ -3263,6 +3268,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     return %from_elements, %from_elements_3086, %from_elements_3087, %from_elements_3088, %from_elements_3089, %from_elements_3090, %from_elements_3091, %from_elements_3092, %from_elements_3093, %from_elements_3094, %from_elements_3095, %from_elements_3096, %from_elements_3097, %from_elements_3098, %from_elements_3099, %from_elements_3100 : tensor<5x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<36x!plaintext>, tensor<31x!plaintext>
   }
   func.func @mnist__preprocessed(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext>, %arg1: tensor<5x!plaintext>, %arg2: tensor<36x!plaintext>, %arg3: tensor<36x!plaintext>, %arg4: tensor<36x!plaintext>, %arg5: tensor<36x!plaintext>, %arg6: tensor<36x!plaintext>, %arg7: tensor<36x!plaintext>, %arg8: tensor<36x!plaintext>, %arg9: tensor<36x!plaintext>, %arg10: tensor<36x!plaintext>, %arg11: tensor<36x!plaintext>, %arg12: tensor<36x!plaintext>, %arg13: tensor<36x!plaintext>, %arg14: tensor<36x!plaintext>, %arg15: tensor<36x!plaintext>, %arg16: tensor<31x!plaintext>) -> tensor<1x!ciphertext> attributes {client.preprocessed_func = {func_name = "mnist"}} {
+    %cst = arith.constant 1.000000e+00 : f64
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
     %c3 = arith.constant 3 : index
@@ -3298,31 +3304,13 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %c33 = arith.constant 33 : index
     %c34 = arith.constant 34 : index
     %c35 = arith.constant 35 : index
-    %c46 = arith.constant 46 : index
-    %c64 = arith.constant 64 : index
     %c69 = arith.constant 69 : index
-    %c92 = arith.constant 92 : index
-    %c115 = arith.constant 115 : index
-    %c128 = arith.constant 128 : index
     %c138 = arith.constant 138 : index
-    %c161 = arith.constant 161 : index
-    %c184 = arith.constant 184 : index
     %c207 = arith.constant 207 : index
-    %c230 = arith.constant 230 : index
-    %c253 = arith.constant 253 : index
-    %c256 = arith.constant 256 : index
     %c276 = arith.constant 276 : index
-    %c299 = arith.constant 299 : index
-    %c322 = arith.constant 322 : index
     %c345 = arith.constant 345 : index
-    %c368 = arith.constant 368 : index
-    %c391 = arith.constant 391 : index
     %c414 = arith.constant 414 : index
-    %c437 = arith.constant 437 : index
-    %c460 = arith.constant 460 : index
     %c483 = arith.constant 483 : index
-    %c506 = arith.constant 506 : index
-    %c512 = arith.constant 512 : index
     %c0 = arith.constant 0 : index
     %extracted = tensor.extract %arg1[%c0] : tensor<5x!plaintext>
     %extracted_0 = tensor.extract %arg1[%c1] : tensor<5x!plaintext>
@@ -3955,1082 +3943,1053 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_626 = cheddar.add %ctx, %ct_623, %ct_625 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_627 = cheddar.add %ctx, %ct_621, %ct_626 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_628 = cheddar.add %ctx, %ct_616, %ct_627 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_629 = cheddar.hrot %ctx, %ct_628, %c23 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_630 = cheddar.mult_plain %ctx, %extracted_539, %extracted_50 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_631 = cheddar.mult_plain %ctx, %ct_540, %extracted_51 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_632 = cheddar.mult_plain %ctx, %ct_542, %extracted_52 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_633 = cheddar.mult_plain %ctx, %ct_544, %extracted_53 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_634 = cheddar.mult_plain %ctx, %ct_546, %extracted_54 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_635 = cheddar.mult_plain %ctx, %ct_548, %extracted_55 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_636 = cheddar.mult_plain %ctx, %ct_550, %extracted_56 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_637 = cheddar.mult_plain %ctx, %ct_552, %extracted_57 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_638 = cheddar.mult_plain %ctx, %ct_554, %extracted_58 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_639 = cheddar.mult_plain %ctx, %ct_556, %extracted_59 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_640 = cheddar.mult_plain %ctx, %ct_558, %extracted_60 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_641 = cheddar.mult_plain %ctx, %ct_560, %extracted_61 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_642 = cheddar.mult_plain %ctx, %ct_562, %extracted_62 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_643 = cheddar.mult_plain %ctx, %ct_564, %extracted_63 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_644 = cheddar.mult_plain %ctx, %ct_566, %extracted_64 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_645 = cheddar.mult_plain %ctx, %ct_568, %extracted_65 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_646 = cheddar.mult_plain %ctx, %ct_570, %extracted_66 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_647 = cheddar.mult_plain %ctx, %ct_572, %extracted_67 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_648 = cheddar.mult_plain %ctx, %ct_574, %extracted_68 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_649 = cheddar.mult_plain %ctx, %ct_576, %extracted_69 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_650 = cheddar.mult_plain %ctx, %ct_578, %extracted_70 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_651 = cheddar.mult_plain %ctx, %ct_580, %extracted_71 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_652 = cheddar.mult_plain %ctx, %ct_582, %extracted_72 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_653 = cheddar.add %ctx, %ct_630, %ct_631 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_654 = cheddar.add %ctx, %ct_632, %ct_633 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_655 = cheddar.add %ctx, %ct_654, %ct_634 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_656 = cheddar.add %ctx, %ct_653, %ct_655 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_657 = cheddar.add %ctx, %ct_635, %ct_636 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_658 = cheddar.add %ctx, %ct_657, %ct_637 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_659 = cheddar.add %ctx, %ct_638, %ct_639 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_660 = cheddar.add %ctx, %ct_659, %ct_640 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_661 = cheddar.add %ctx, %ct_658, %ct_660 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_662 = cheddar.add %ctx, %ct_656, %ct_661 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_663 = cheddar.add %ctx, %ct_641, %ct_642 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_664 = cheddar.add %ctx, %ct_663, %ct_643 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_665 = cheddar.add %ctx, %ct_644, %ct_645 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_666 = cheddar.add %ctx, %ct_665, %ct_646 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_667 = cheddar.add %ctx, %ct_664, %ct_666 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_668 = cheddar.add %ctx, %ct_647, %ct_648 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_669 = cheddar.add %ctx, %ct_668, %ct_649 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_670 = cheddar.add %ctx, %ct_650, %ct_651 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_671 = cheddar.add %ctx, %ct_670, %ct_652 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_672 = cheddar.add %ctx, %ct_669, %ct_671 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_673 = cheddar.add %ctx, %ct_667, %ct_672 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_674 = cheddar.add %ctx, %ct_662, %ct_673 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_675 = cheddar.hrot %ctx, %ct_674, %c46 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_676 = cheddar.mult_plain %ctx, %extracted_539, %extracted_73 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_677 = cheddar.mult_plain %ctx, %ct_540, %extracted_74 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_678 = cheddar.mult_plain %ctx, %ct_542, %extracted_75 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_679 = cheddar.mult_plain %ctx, %ct_544, %extracted_76 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_680 = cheddar.mult_plain %ctx, %ct_546, %extracted_77 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_681 = cheddar.mult_plain %ctx, %ct_548, %extracted_78 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_682 = cheddar.mult_plain %ctx, %ct_550, %extracted_79 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_683 = cheddar.mult_plain %ctx, %ct_552, %extracted_80 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_684 = cheddar.mult_plain %ctx, %ct_554, %extracted_81 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_685 = cheddar.mult_plain %ctx, %ct_556, %extracted_82 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_686 = cheddar.mult_plain %ctx, %ct_558, %extracted_83 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_687 = cheddar.mult_plain %ctx, %ct_560, %extracted_84 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_688 = cheddar.mult_plain %ctx, %ct_562, %extracted_85 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_689 = cheddar.mult_plain %ctx, %ct_564, %extracted_86 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_690 = cheddar.mult_plain %ctx, %ct_566, %extracted_87 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_691 = cheddar.mult_plain %ctx, %ct_568, %extracted_88 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_692 = cheddar.mult_plain %ctx, %ct_570, %extracted_89 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_693 = cheddar.mult_plain %ctx, %ct_572, %extracted_90 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_694 = cheddar.mult_plain %ctx, %ct_574, %extracted_91 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_695 = cheddar.mult_plain %ctx, %ct_576, %extracted_92 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_696 = cheddar.mult_plain %ctx, %ct_578, %extracted_93 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_697 = cheddar.mult_plain %ctx, %ct_580, %extracted_94 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_698 = cheddar.mult_plain %ctx, %ct_582, %extracted_95 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_699 = cheddar.add %ctx, %ct_676, %ct_677 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_700 = cheddar.add %ctx, %ct_678, %ct_679 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_701 = cheddar.add %ctx, %ct_700, %ct_680 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_702 = cheddar.add %ctx, %ct_699, %ct_701 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_703 = cheddar.add %ctx, %ct_681, %ct_682 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_704 = cheddar.add %ctx, %ct_703, %ct_683 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_705 = cheddar.add %ctx, %ct_684, %ct_685 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_706 = cheddar.add %ctx, %ct_705, %ct_686 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_707 = cheddar.add %ctx, %ct_704, %ct_706 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_708 = cheddar.add %ctx, %ct_702, %ct_707 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_709 = cheddar.add %ctx, %ct_687, %ct_688 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_710 = cheddar.add %ctx, %ct_709, %ct_689 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_711 = cheddar.add %ctx, %ct_690, %ct_691 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_712 = cheddar.add %ctx, %ct_711, %ct_692 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_713 = cheddar.add %ctx, %ct_710, %ct_712 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_714 = cheddar.add %ctx, %ct_693, %ct_694 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_715 = cheddar.add %ctx, %ct_714, %ct_695 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_716 = cheddar.add %ctx, %ct_696, %ct_697 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_717 = cheddar.add %ctx, %ct_716, %ct_698 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_718 = cheddar.add %ctx, %ct_715, %ct_717 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_719 = cheddar.add %ctx, %ct_713, %ct_718 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_720 = cheddar.add %ctx, %ct_708, %ct_719 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_721 = cheddar.hrot %ctx, %ct_720, %c69 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_722 = cheddar.mult_plain %ctx, %extracted_539, %extracted_96 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_723 = cheddar.mult_plain %ctx, %ct_540, %extracted_97 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_724 = cheddar.mult_plain %ctx, %ct_542, %extracted_98 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_725 = cheddar.mult_plain %ctx, %ct_544, %extracted_99 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_726 = cheddar.mult_plain %ctx, %ct_546, %extracted_100 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_727 = cheddar.mult_plain %ctx, %ct_548, %extracted_101 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_728 = cheddar.mult_plain %ctx, %ct_550, %extracted_102 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_729 = cheddar.mult_plain %ctx, %ct_552, %extracted_103 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_730 = cheddar.mult_plain %ctx, %ct_554, %extracted_104 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_731 = cheddar.mult_plain %ctx, %ct_556, %extracted_105 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_732 = cheddar.mult_plain %ctx, %ct_558, %extracted_106 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_733 = cheddar.mult_plain %ctx, %ct_560, %extracted_107 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_734 = cheddar.mult_plain %ctx, %ct_562, %extracted_108 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_735 = cheddar.mult_plain %ctx, %ct_564, %extracted_109 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_736 = cheddar.mult_plain %ctx, %ct_566, %extracted_110 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_737 = cheddar.mult_plain %ctx, %ct_568, %extracted_111 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_738 = cheddar.mult_plain %ctx, %ct_570, %extracted_112 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_739 = cheddar.mult_plain %ctx, %ct_572, %extracted_113 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_740 = cheddar.mult_plain %ctx, %ct_574, %extracted_114 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_741 = cheddar.mult_plain %ctx, %ct_576, %extracted_115 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_742 = cheddar.mult_plain %ctx, %ct_578, %extracted_116 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_743 = cheddar.mult_plain %ctx, %ct_580, %extracted_117 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_744 = cheddar.mult_plain %ctx, %ct_582, %extracted_118 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_745 = cheddar.add %ctx, %ct_722, %ct_723 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_746 = cheddar.add %ctx, %ct_724, %ct_725 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_747 = cheddar.add %ctx, %ct_746, %ct_726 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_748 = cheddar.add %ctx, %ct_745, %ct_747 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_749 = cheddar.add %ctx, %ct_727, %ct_728 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_750 = cheddar.add %ctx, %ct_749, %ct_729 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_751 = cheddar.add %ctx, %ct_730, %ct_731 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_752 = cheddar.add %ctx, %ct_751, %ct_732 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_753 = cheddar.add %ctx, %ct_750, %ct_752 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_754 = cheddar.add %ctx, %ct_748, %ct_753 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_755 = cheddar.add %ctx, %ct_733, %ct_734 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_756 = cheddar.add %ctx, %ct_755, %ct_735 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_757 = cheddar.add %ctx, %ct_736, %ct_737 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_758 = cheddar.add %ctx, %ct_757, %ct_738 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_759 = cheddar.add %ctx, %ct_756, %ct_758 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_760 = cheddar.add %ctx, %ct_739, %ct_740 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_761 = cheddar.add %ctx, %ct_760, %ct_741 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_762 = cheddar.add %ctx, %ct_742, %ct_743 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_763 = cheddar.add %ctx, %ct_762, %ct_744 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_764 = cheddar.add %ctx, %ct_761, %ct_763 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_765 = cheddar.add %ctx, %ct_759, %ct_764 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_766 = cheddar.add %ctx, %ct_754, %ct_765 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_767 = cheddar.hrot %ctx, %ct_766, %c92 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_768 = cheddar.mult_plain %ctx, %extracted_539, %extracted_119 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_769 = cheddar.mult_plain %ctx, %ct_540, %extracted_120 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_770 = cheddar.mult_plain %ctx, %ct_542, %extracted_121 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_771 = cheddar.mult_plain %ctx, %ct_544, %extracted_122 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_772 = cheddar.mult_plain %ctx, %ct_546, %extracted_123 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_773 = cheddar.mult_plain %ctx, %ct_548, %extracted_124 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_774 = cheddar.mult_plain %ctx, %ct_550, %extracted_125 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_775 = cheddar.mult_plain %ctx, %ct_552, %extracted_126 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_776 = cheddar.mult_plain %ctx, %ct_554, %extracted_127 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_777 = cheddar.mult_plain %ctx, %ct_556, %extracted_128 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_778 = cheddar.mult_plain %ctx, %ct_558, %extracted_129 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_779 = cheddar.mult_plain %ctx, %ct_560, %extracted_130 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_780 = cheddar.mult_plain %ctx, %ct_562, %extracted_131 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_781 = cheddar.mult_plain %ctx, %ct_564, %extracted_132 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_782 = cheddar.mult_plain %ctx, %ct_566, %extracted_133 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_783 = cheddar.mult_plain %ctx, %ct_568, %extracted_134 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_784 = cheddar.mult_plain %ctx, %ct_570, %extracted_135 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_785 = cheddar.mult_plain %ctx, %ct_572, %extracted_136 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_786 = cheddar.mult_plain %ctx, %ct_574, %extracted_137 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_787 = cheddar.mult_plain %ctx, %ct_576, %extracted_138 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_788 = cheddar.mult_plain %ctx, %ct_578, %extracted_139 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_789 = cheddar.mult_plain %ctx, %ct_580, %extracted_140 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_790 = cheddar.mult_plain %ctx, %ct_582, %extracted_141 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_791 = cheddar.add %ctx, %ct_768, %ct_769 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_629 = cheddar.mult_plain %ctx, %extracted_539, %extracted_50 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_630 = cheddar.mult_plain %ctx, %ct_540, %extracted_51 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_631 = cheddar.mult_plain %ctx, %ct_542, %extracted_52 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_632 = cheddar.mult_plain %ctx, %ct_544, %extracted_53 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_633 = cheddar.mult_plain %ctx, %ct_546, %extracted_54 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_634 = cheddar.mult_plain %ctx, %ct_548, %extracted_55 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_635 = cheddar.mult_plain %ctx, %ct_550, %extracted_56 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_636 = cheddar.mult_plain %ctx, %ct_552, %extracted_57 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_637 = cheddar.mult_plain %ctx, %ct_554, %extracted_58 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_638 = cheddar.mult_plain %ctx, %ct_556, %extracted_59 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_639 = cheddar.mult_plain %ctx, %ct_558, %extracted_60 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_640 = cheddar.mult_plain %ctx, %ct_560, %extracted_61 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_641 = cheddar.mult_plain %ctx, %ct_562, %extracted_62 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_642 = cheddar.mult_plain %ctx, %ct_564, %extracted_63 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_643 = cheddar.mult_plain %ctx, %ct_566, %extracted_64 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_644 = cheddar.mult_plain %ctx, %ct_568, %extracted_65 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_645 = cheddar.mult_plain %ctx, %ct_570, %extracted_66 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_646 = cheddar.mult_plain %ctx, %ct_572, %extracted_67 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_647 = cheddar.mult_plain %ctx, %ct_574, %extracted_68 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_648 = cheddar.mult_plain %ctx, %ct_576, %extracted_69 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_649 = cheddar.mult_plain %ctx, %ct_578, %extracted_70 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_650 = cheddar.mult_plain %ctx, %ct_580, %extracted_71 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_651 = cheddar.mult_plain %ctx, %ct_582, %extracted_72 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_652 = cheddar.add %ctx, %ct_629, %ct_630 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_653 = cheddar.add %ctx, %ct_631, %ct_632 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_654 = cheddar.add %ctx, %ct_653, %ct_633 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_655 = cheddar.add %ctx, %ct_652, %ct_654 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_656 = cheddar.add %ctx, %ct_634, %ct_635 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_657 = cheddar.add %ctx, %ct_656, %ct_636 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_658 = cheddar.add %ctx, %ct_637, %ct_638 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_659 = cheddar.add %ctx, %ct_658, %ct_639 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_660 = cheddar.add %ctx, %ct_657, %ct_659 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_661 = cheddar.add %ctx, %ct_655, %ct_660 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_662 = cheddar.add %ctx, %ct_640, %ct_641 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_663 = cheddar.add %ctx, %ct_662, %ct_642 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_664 = cheddar.add %ctx, %ct_643, %ct_644 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_665 = cheddar.add %ctx, %ct_664, %ct_645 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_666 = cheddar.add %ctx, %ct_663, %ct_665 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_667 = cheddar.add %ctx, %ct_646, %ct_647 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_668 = cheddar.add %ctx, %ct_667, %ct_648 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_669 = cheddar.add %ctx, %ct_649, %ct_650 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_670 = cheddar.add %ctx, %ct_669, %ct_651 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_671 = cheddar.add %ctx, %ct_668, %ct_670 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_672 = cheddar.add %ctx, %ct_666, %ct_671 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_673 = cheddar.add %ctx, %ct_661, %ct_672 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_674 = cheddar.mult_plain %ctx, %extracted_539, %extracted_73 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_675 = cheddar.mult_plain %ctx, %ct_540, %extracted_74 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_676 = cheddar.mult_plain %ctx, %ct_542, %extracted_75 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_677 = cheddar.mult_plain %ctx, %ct_544, %extracted_76 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_678 = cheddar.mult_plain %ctx, %ct_546, %extracted_77 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_679 = cheddar.mult_plain %ctx, %ct_548, %extracted_78 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_680 = cheddar.mult_plain %ctx, %ct_550, %extracted_79 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_681 = cheddar.mult_plain %ctx, %ct_552, %extracted_80 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_682 = cheddar.mult_plain %ctx, %ct_554, %extracted_81 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_683 = cheddar.mult_plain %ctx, %ct_556, %extracted_82 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_684 = cheddar.mult_plain %ctx, %ct_558, %extracted_83 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_685 = cheddar.mult_plain %ctx, %ct_560, %extracted_84 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_686 = cheddar.mult_plain %ctx, %ct_562, %extracted_85 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_687 = cheddar.mult_plain %ctx, %ct_564, %extracted_86 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_688 = cheddar.mult_plain %ctx, %ct_566, %extracted_87 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_689 = cheddar.mult_plain %ctx, %ct_568, %extracted_88 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_690 = cheddar.mult_plain %ctx, %ct_570, %extracted_89 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_691 = cheddar.mult_plain %ctx, %ct_572, %extracted_90 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_692 = cheddar.mult_plain %ctx, %ct_574, %extracted_91 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_693 = cheddar.mult_plain %ctx, %ct_576, %extracted_92 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_694 = cheddar.mult_plain %ctx, %ct_578, %extracted_93 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_695 = cheddar.mult_plain %ctx, %ct_580, %extracted_94 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_696 = cheddar.mult_plain %ctx, %ct_582, %extracted_95 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_697 = cheddar.add %ctx, %ct_674, %ct_675 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_698 = cheddar.add %ctx, %ct_676, %ct_677 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_699 = cheddar.add %ctx, %ct_698, %ct_678 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_700 = cheddar.add %ctx, %ct_697, %ct_699 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_701 = cheddar.add %ctx, %ct_679, %ct_680 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_702 = cheddar.add %ctx, %ct_701, %ct_681 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_703 = cheddar.add %ctx, %ct_682, %ct_683 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_704 = cheddar.add %ctx, %ct_703, %ct_684 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_705 = cheddar.add %ctx, %ct_702, %ct_704 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_706 = cheddar.add %ctx, %ct_700, %ct_705 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_707 = cheddar.add %ctx, %ct_685, %ct_686 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_708 = cheddar.add %ctx, %ct_707, %ct_687 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_709 = cheddar.add %ctx, %ct_688, %ct_689 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_710 = cheddar.add %ctx, %ct_709, %ct_690 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_711 = cheddar.add %ctx, %ct_708, %ct_710 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_712 = cheddar.add %ctx, %ct_691, %ct_692 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_713 = cheddar.add %ctx, %ct_712, %ct_693 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_714 = cheddar.add %ctx, %ct_694, %ct_695 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_715 = cheddar.add %ctx, %ct_714, %ct_696 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_716 = cheddar.add %ctx, %ct_713, %ct_715 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_717 = cheddar.add %ctx, %ct_711, %ct_716 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_718 = cheddar.add %ctx, %ct_706, %ct_717 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_719 = cheddar.hrot %ctx, %ct_718, %c69 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_720 = cheddar.mult_plain %ctx, %extracted_539, %extracted_96 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_721 = cheddar.mult_plain %ctx, %ct_540, %extracted_97 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_722 = cheddar.mult_plain %ctx, %ct_542, %extracted_98 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_723 = cheddar.mult_plain %ctx, %ct_544, %extracted_99 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_724 = cheddar.mult_plain %ctx, %ct_546, %extracted_100 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_725 = cheddar.mult_plain %ctx, %ct_548, %extracted_101 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_726 = cheddar.mult_plain %ctx, %ct_550, %extracted_102 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_727 = cheddar.mult_plain %ctx, %ct_552, %extracted_103 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_728 = cheddar.mult_plain %ctx, %ct_554, %extracted_104 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_729 = cheddar.mult_plain %ctx, %ct_556, %extracted_105 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_730 = cheddar.mult_plain %ctx, %ct_558, %extracted_106 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_731 = cheddar.mult_plain %ctx, %ct_560, %extracted_107 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_732 = cheddar.mult_plain %ctx, %ct_562, %extracted_108 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_733 = cheddar.mult_plain %ctx, %ct_564, %extracted_109 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_734 = cheddar.mult_plain %ctx, %ct_566, %extracted_110 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_735 = cheddar.mult_plain %ctx, %ct_568, %extracted_111 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_736 = cheddar.mult_plain %ctx, %ct_570, %extracted_112 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_737 = cheddar.mult_plain %ctx, %ct_572, %extracted_113 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_738 = cheddar.mult_plain %ctx, %ct_574, %extracted_114 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_739 = cheddar.mult_plain %ctx, %ct_576, %extracted_115 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_740 = cheddar.mult_plain %ctx, %ct_578, %extracted_116 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_741 = cheddar.mult_plain %ctx, %ct_580, %extracted_117 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_742 = cheddar.mult_plain %ctx, %ct_582, %extracted_118 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_743 = cheddar.add %ctx, %ct_720, %ct_721 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_744 = cheddar.add %ctx, %ct_722, %ct_723 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_745 = cheddar.add %ctx, %ct_744, %ct_724 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_746 = cheddar.add %ctx, %ct_743, %ct_745 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_747 = cheddar.add %ctx, %ct_725, %ct_726 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_748 = cheddar.add %ctx, %ct_747, %ct_727 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_749 = cheddar.add %ctx, %ct_728, %ct_729 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_750 = cheddar.add %ctx, %ct_749, %ct_730 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_751 = cheddar.add %ctx, %ct_748, %ct_750 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_752 = cheddar.add %ctx, %ct_746, %ct_751 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_753 = cheddar.add %ctx, %ct_731, %ct_732 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_754 = cheddar.add %ctx, %ct_753, %ct_733 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_755 = cheddar.add %ctx, %ct_734, %ct_735 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_756 = cheddar.add %ctx, %ct_755, %ct_736 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_757 = cheddar.add %ctx, %ct_754, %ct_756 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_758 = cheddar.add %ctx, %ct_737, %ct_738 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_759 = cheddar.add %ctx, %ct_758, %ct_739 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_760 = cheddar.add %ctx, %ct_740, %ct_741 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_761 = cheddar.add %ctx, %ct_760, %ct_742 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_762 = cheddar.add %ctx, %ct_759, %ct_761 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_763 = cheddar.add %ctx, %ct_757, %ct_762 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_764 = cheddar.add %ctx, %ct_752, %ct_763 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_765 = cheddar.mult_plain %ctx, %extracted_539, %extracted_119 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_766 = cheddar.mult_plain %ctx, %ct_540, %extracted_120 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_767 = cheddar.mult_plain %ctx, %ct_542, %extracted_121 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_768 = cheddar.mult_plain %ctx, %ct_544, %extracted_122 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_769 = cheddar.mult_plain %ctx, %ct_546, %extracted_123 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_770 = cheddar.mult_plain %ctx, %ct_548, %extracted_124 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_771 = cheddar.mult_plain %ctx, %ct_550, %extracted_125 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_772 = cheddar.mult_plain %ctx, %ct_552, %extracted_126 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_773 = cheddar.mult_plain %ctx, %ct_554, %extracted_127 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_774 = cheddar.mult_plain %ctx, %ct_556, %extracted_128 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_775 = cheddar.mult_plain %ctx, %ct_558, %extracted_129 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_776 = cheddar.mult_plain %ctx, %ct_560, %extracted_130 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_777 = cheddar.mult_plain %ctx, %ct_562, %extracted_131 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_778 = cheddar.mult_plain %ctx, %ct_564, %extracted_132 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_779 = cheddar.mult_plain %ctx, %ct_566, %extracted_133 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_780 = cheddar.mult_plain %ctx, %ct_568, %extracted_134 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_781 = cheddar.mult_plain %ctx, %ct_570, %extracted_135 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_782 = cheddar.mult_plain %ctx, %ct_572, %extracted_136 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_783 = cheddar.mult_plain %ctx, %ct_574, %extracted_137 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_784 = cheddar.mult_plain %ctx, %ct_576, %extracted_138 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_785 = cheddar.mult_plain %ctx, %ct_578, %extracted_139 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_786 = cheddar.mult_plain %ctx, %ct_580, %extracted_140 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_787 = cheddar.mult_plain %ctx, %ct_582, %extracted_141 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_788 = cheddar.add %ctx, %ct_765, %ct_766 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_789 = cheddar.add %ctx, %ct_767, %ct_768 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_790 = cheddar.add %ctx, %ct_789, %ct_769 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_791 = cheddar.add %ctx, %ct_788, %ct_790 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_792 = cheddar.add %ctx, %ct_770, %ct_771 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_793 = cheddar.add %ctx, %ct_792, %ct_772 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_794 = cheddar.add %ctx, %ct_791, %ct_793 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_795 = cheddar.add %ctx, %ct_773, %ct_774 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_796 = cheddar.add %ctx, %ct_795, %ct_775 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_797 = cheddar.add %ctx, %ct_776, %ct_777 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_798 = cheddar.add %ctx, %ct_797, %ct_778 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_799 = cheddar.add %ctx, %ct_796, %ct_798 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_800 = cheddar.add %ctx, %ct_794, %ct_799 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_801 = cheddar.add %ctx, %ct_779, %ct_780 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_802 = cheddar.add %ctx, %ct_801, %ct_781 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_794 = cheddar.add %ctx, %ct_773, %ct_774 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_795 = cheddar.add %ctx, %ct_794, %ct_775 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_796 = cheddar.add %ctx, %ct_793, %ct_795 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_797 = cheddar.add %ctx, %ct_791, %ct_796 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_798 = cheddar.add %ctx, %ct_776, %ct_777 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_799 = cheddar.add %ctx, %ct_798, %ct_778 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_800 = cheddar.add %ctx, %ct_779, %ct_780 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_801 = cheddar.add %ctx, %ct_800, %ct_781 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_802 = cheddar.add %ctx, %ct_799, %ct_801 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_803 = cheddar.add %ctx, %ct_782, %ct_783 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_804 = cheddar.add %ctx, %ct_803, %ct_784 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_805 = cheddar.add %ctx, %ct_802, %ct_804 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_806 = cheddar.add %ctx, %ct_785, %ct_786 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_807 = cheddar.add %ctx, %ct_806, %ct_787 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_808 = cheddar.add %ctx, %ct_788, %ct_789 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_809 = cheddar.add %ctx, %ct_808, %ct_790 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_810 = cheddar.add %ctx, %ct_807, %ct_809 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_811 = cheddar.add %ctx, %ct_805, %ct_810 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_812 = cheddar.add %ctx, %ct_800, %ct_811 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_813 = cheddar.hrot %ctx, %ct_812, %c115 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_814 = cheddar.mult_plain %ctx, %extracted_539, %extracted_142 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_815 = cheddar.mult_plain %ctx, %ct_540, %extracted_143 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_816 = cheddar.mult_plain %ctx, %ct_542, %extracted_144 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_817 = cheddar.mult_plain %ctx, %ct_544, %extracted_145 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_818 = cheddar.mult_plain %ctx, %ct_546, %extracted_146 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_819 = cheddar.mult_plain %ctx, %ct_548, %extracted_147 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_820 = cheddar.mult_plain %ctx, %ct_550, %extracted_148 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_821 = cheddar.mult_plain %ctx, %ct_552, %extracted_149 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_822 = cheddar.mult_plain %ctx, %ct_554, %extracted_150 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_823 = cheddar.mult_plain %ctx, %ct_556, %extracted_151 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_824 = cheddar.mult_plain %ctx, %ct_558, %extracted_152 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_825 = cheddar.mult_plain %ctx, %ct_560, %extracted_153 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_826 = cheddar.mult_plain %ctx, %ct_562, %extracted_154 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_827 = cheddar.mult_plain %ctx, %ct_564, %extracted_155 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_828 = cheddar.mult_plain %ctx, %ct_566, %extracted_156 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_829 = cheddar.mult_plain %ctx, %ct_568, %extracted_157 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_830 = cheddar.mult_plain %ctx, %ct_570, %extracted_158 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_831 = cheddar.mult_plain %ctx, %ct_572, %extracted_159 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_832 = cheddar.mult_plain %ctx, %ct_574, %extracted_160 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_833 = cheddar.mult_plain %ctx, %ct_576, %extracted_161 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_834 = cheddar.mult_plain %ctx, %ct_578, %extracted_162 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_835 = cheddar.mult_plain %ctx, %ct_580, %extracted_163 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_836 = cheddar.mult_plain %ctx, %ct_582, %extracted_164 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_837 = cheddar.add %ctx, %ct_814, %ct_815 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_838 = cheddar.add %ctx, %ct_816, %ct_817 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_839 = cheddar.add %ctx, %ct_838, %ct_818 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_840 = cheddar.add %ctx, %ct_837, %ct_839 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_841 = cheddar.add %ctx, %ct_819, %ct_820 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_842 = cheddar.add %ctx, %ct_841, %ct_821 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_843 = cheddar.add %ctx, %ct_822, %ct_823 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_844 = cheddar.add %ctx, %ct_843, %ct_824 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_845 = cheddar.add %ctx, %ct_842, %ct_844 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_846 = cheddar.add %ctx, %ct_840, %ct_845 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_847 = cheddar.add %ctx, %ct_825, %ct_826 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_848 = cheddar.add %ctx, %ct_847, %ct_827 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_849 = cheddar.add %ctx, %ct_828, %ct_829 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_850 = cheddar.add %ctx, %ct_849, %ct_830 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_851 = cheddar.add %ctx, %ct_848, %ct_850 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_852 = cheddar.add %ctx, %ct_831, %ct_832 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_853 = cheddar.add %ctx, %ct_852, %ct_833 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_854 = cheddar.add %ctx, %ct_834, %ct_835 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_855 = cheddar.add %ctx, %ct_854, %ct_836 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_856 = cheddar.add %ctx, %ct_853, %ct_855 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_857 = cheddar.add %ctx, %ct_851, %ct_856 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_858 = cheddar.add %ctx, %ct_846, %ct_857 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_859 = cheddar.hrot %ctx, %ct_858, %c138 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_860 = cheddar.mult_plain %ctx, %extracted_539, %extracted_165 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_861 = cheddar.mult_plain %ctx, %ct_540, %extracted_166 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_862 = cheddar.mult_plain %ctx, %ct_542, %extracted_167 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_863 = cheddar.mult_plain %ctx, %ct_544, %extracted_168 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_864 = cheddar.mult_plain %ctx, %ct_546, %extracted_169 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_865 = cheddar.mult_plain %ctx, %ct_548, %extracted_170 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_866 = cheddar.mult_plain %ctx, %ct_550, %extracted_171 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_867 = cheddar.mult_plain %ctx, %ct_552, %extracted_172 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_868 = cheddar.mult_plain %ctx, %ct_554, %extracted_173 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_869 = cheddar.mult_plain %ctx, %ct_556, %extracted_174 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_870 = cheddar.mult_plain %ctx, %ct_558, %extracted_175 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_871 = cheddar.mult_plain %ctx, %ct_560, %extracted_176 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_872 = cheddar.mult_plain %ctx, %ct_562, %extracted_177 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_873 = cheddar.mult_plain %ctx, %ct_564, %extracted_178 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_874 = cheddar.mult_plain %ctx, %ct_566, %extracted_179 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_875 = cheddar.mult_plain %ctx, %ct_568, %extracted_180 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_876 = cheddar.mult_plain %ctx, %ct_570, %extracted_181 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_877 = cheddar.mult_plain %ctx, %ct_572, %extracted_182 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_878 = cheddar.mult_plain %ctx, %ct_574, %extracted_183 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_879 = cheddar.mult_plain %ctx, %ct_576, %extracted_184 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_880 = cheddar.mult_plain %ctx, %ct_578, %extracted_185 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_881 = cheddar.mult_plain %ctx, %ct_580, %extracted_186 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_882 = cheddar.mult_plain %ctx, %ct_582, %extracted_187 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_883 = cheddar.add %ctx, %ct_860, %ct_861 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_884 = cheddar.add %ctx, %ct_862, %ct_863 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_885 = cheddar.add %ctx, %ct_884, %ct_864 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_886 = cheddar.add %ctx, %ct_883, %ct_885 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_887 = cheddar.add %ctx, %ct_865, %ct_866 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_888 = cheddar.add %ctx, %ct_887, %ct_867 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_889 = cheddar.add %ctx, %ct_868, %ct_869 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_890 = cheddar.add %ctx, %ct_889, %ct_870 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_891 = cheddar.add %ctx, %ct_888, %ct_890 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_892 = cheddar.add %ctx, %ct_886, %ct_891 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_893 = cheddar.add %ctx, %ct_871, %ct_872 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_894 = cheddar.add %ctx, %ct_893, %ct_873 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_895 = cheddar.add %ctx, %ct_874, %ct_875 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_896 = cheddar.add %ctx, %ct_895, %ct_876 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_897 = cheddar.add %ctx, %ct_894, %ct_896 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_898 = cheddar.add %ctx, %ct_877, %ct_878 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_899 = cheddar.add %ctx, %ct_898, %ct_879 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_900 = cheddar.add %ctx, %ct_880, %ct_881 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_901 = cheddar.add %ctx, %ct_900, %ct_882 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_902 = cheddar.add %ctx, %ct_899, %ct_901 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_903 = cheddar.add %ctx, %ct_897, %ct_902 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_904 = cheddar.add %ctx, %ct_892, %ct_903 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_905 = cheddar.hrot %ctx, %ct_904, %c161 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_906 = cheddar.mult_plain %ctx, %extracted_539, %extracted_188 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_907 = cheddar.mult_plain %ctx, %ct_540, %extracted_189 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_908 = cheddar.mult_plain %ctx, %ct_542, %extracted_190 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_909 = cheddar.mult_plain %ctx, %ct_544, %extracted_191 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_910 = cheddar.mult_plain %ctx, %ct_546, %extracted_192 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_911 = cheddar.mult_plain %ctx, %ct_548, %extracted_193 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_912 = cheddar.mult_plain %ctx, %ct_550, %extracted_194 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_913 = cheddar.mult_plain %ctx, %ct_552, %extracted_195 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_914 = cheddar.mult_plain %ctx, %ct_554, %extracted_196 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_915 = cheddar.mult_plain %ctx, %ct_556, %extracted_197 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_916 = cheddar.mult_plain %ctx, %ct_558, %extracted_198 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_917 = cheddar.mult_plain %ctx, %ct_560, %extracted_199 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_918 = cheddar.mult_plain %ctx, %ct_562, %extracted_200 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_919 = cheddar.mult_plain %ctx, %ct_564, %extracted_201 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_920 = cheddar.mult_plain %ctx, %ct_566, %extracted_202 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_921 = cheddar.mult_plain %ctx, %ct_568, %extracted_203 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_922 = cheddar.mult_plain %ctx, %ct_570, %extracted_204 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_923 = cheddar.mult_plain %ctx, %ct_572, %extracted_205 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_924 = cheddar.mult_plain %ctx, %ct_574, %extracted_206 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_925 = cheddar.mult_plain %ctx, %ct_576, %extracted_207 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_926 = cheddar.mult_plain %ctx, %ct_578, %extracted_208 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_927 = cheddar.mult_plain %ctx, %ct_580, %extracted_209 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_928 = cheddar.mult_plain %ctx, %ct_582, %extracted_210 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_929 = cheddar.add %ctx, %ct_906, %ct_907 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_930 = cheddar.add %ctx, %ct_908, %ct_909 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_931 = cheddar.add %ctx, %ct_930, %ct_910 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_805 = cheddar.add %ctx, %ct_785, %ct_786 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_806 = cheddar.add %ctx, %ct_805, %ct_787 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_807 = cheddar.add %ctx, %ct_804, %ct_806 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_808 = cheddar.add %ctx, %ct_802, %ct_807 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_809 = cheddar.add %ctx, %ct_797, %ct_808 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_810 = cheddar.mult_plain %ctx, %extracted_539, %extracted_142 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_811 = cheddar.mult_plain %ctx, %ct_540, %extracted_143 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_812 = cheddar.mult_plain %ctx, %ct_542, %extracted_144 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_813 = cheddar.mult_plain %ctx, %ct_544, %extracted_145 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_814 = cheddar.mult_plain %ctx, %ct_546, %extracted_146 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_815 = cheddar.mult_plain %ctx, %ct_548, %extracted_147 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_816 = cheddar.mult_plain %ctx, %ct_550, %extracted_148 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_817 = cheddar.mult_plain %ctx, %ct_552, %extracted_149 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_818 = cheddar.mult_plain %ctx, %ct_554, %extracted_150 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_819 = cheddar.mult_plain %ctx, %ct_556, %extracted_151 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_820 = cheddar.mult_plain %ctx, %ct_558, %extracted_152 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_821 = cheddar.mult_plain %ctx, %ct_560, %extracted_153 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_822 = cheddar.mult_plain %ctx, %ct_562, %extracted_154 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_823 = cheddar.mult_plain %ctx, %ct_564, %extracted_155 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_824 = cheddar.mult_plain %ctx, %ct_566, %extracted_156 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_825 = cheddar.mult_plain %ctx, %ct_568, %extracted_157 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_826 = cheddar.mult_plain %ctx, %ct_570, %extracted_158 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_827 = cheddar.mult_plain %ctx, %ct_572, %extracted_159 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_828 = cheddar.mult_plain %ctx, %ct_574, %extracted_160 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_829 = cheddar.mult_plain %ctx, %ct_576, %extracted_161 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_830 = cheddar.mult_plain %ctx, %ct_578, %extracted_162 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_831 = cheddar.mult_plain %ctx, %ct_580, %extracted_163 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_832 = cheddar.mult_plain %ctx, %ct_582, %extracted_164 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_833 = cheddar.add %ctx, %ct_810, %ct_811 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_834 = cheddar.add %ctx, %ct_812, %ct_813 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_835 = cheddar.add %ctx, %ct_834, %ct_814 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_836 = cheddar.add %ctx, %ct_833, %ct_835 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_837 = cheddar.add %ctx, %ct_815, %ct_816 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_838 = cheddar.add %ctx, %ct_837, %ct_817 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_839 = cheddar.add %ctx, %ct_818, %ct_819 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_840 = cheddar.add %ctx, %ct_839, %ct_820 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_841 = cheddar.add %ctx, %ct_838, %ct_840 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_842 = cheddar.add %ctx, %ct_836, %ct_841 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_843 = cheddar.add %ctx, %ct_821, %ct_822 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_844 = cheddar.add %ctx, %ct_843, %ct_823 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_845 = cheddar.add %ctx, %ct_824, %ct_825 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_846 = cheddar.add %ctx, %ct_845, %ct_826 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_847 = cheddar.add %ctx, %ct_844, %ct_846 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_848 = cheddar.add %ctx, %ct_827, %ct_828 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_849 = cheddar.add %ctx, %ct_848, %ct_829 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_850 = cheddar.add %ctx, %ct_830, %ct_831 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_851 = cheddar.add %ctx, %ct_850, %ct_832 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_852 = cheddar.add %ctx, %ct_849, %ct_851 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_853 = cheddar.add %ctx, %ct_847, %ct_852 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_854 = cheddar.add %ctx, %ct_842, %ct_853 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_855 = cheddar.hrot %ctx, %ct_854, %c138 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_856 = cheddar.mult_plain %ctx, %extracted_539, %extracted_165 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_857 = cheddar.mult_plain %ctx, %ct_540, %extracted_166 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_858 = cheddar.mult_plain %ctx, %ct_542, %extracted_167 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_859 = cheddar.mult_plain %ctx, %ct_544, %extracted_168 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_860 = cheddar.mult_plain %ctx, %ct_546, %extracted_169 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_861 = cheddar.mult_plain %ctx, %ct_548, %extracted_170 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_862 = cheddar.mult_plain %ctx, %ct_550, %extracted_171 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_863 = cheddar.mult_plain %ctx, %ct_552, %extracted_172 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_864 = cheddar.mult_plain %ctx, %ct_554, %extracted_173 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_865 = cheddar.mult_plain %ctx, %ct_556, %extracted_174 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_866 = cheddar.mult_plain %ctx, %ct_558, %extracted_175 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_867 = cheddar.mult_plain %ctx, %ct_560, %extracted_176 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_868 = cheddar.mult_plain %ctx, %ct_562, %extracted_177 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_869 = cheddar.mult_plain %ctx, %ct_564, %extracted_178 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_870 = cheddar.mult_plain %ctx, %ct_566, %extracted_179 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_871 = cheddar.mult_plain %ctx, %ct_568, %extracted_180 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_872 = cheddar.mult_plain %ctx, %ct_570, %extracted_181 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_873 = cheddar.mult_plain %ctx, %ct_572, %extracted_182 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_874 = cheddar.mult_plain %ctx, %ct_574, %extracted_183 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_875 = cheddar.mult_plain %ctx, %ct_576, %extracted_184 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_876 = cheddar.mult_plain %ctx, %ct_578, %extracted_185 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_877 = cheddar.mult_plain %ctx, %ct_580, %extracted_186 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_878 = cheddar.mult_plain %ctx, %ct_582, %extracted_187 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_879 = cheddar.add %ctx, %ct_856, %ct_857 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_880 = cheddar.add %ctx, %ct_858, %ct_859 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_881 = cheddar.add %ctx, %ct_880, %ct_860 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_882 = cheddar.add %ctx, %ct_879, %ct_881 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_883 = cheddar.add %ctx, %ct_861, %ct_862 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_884 = cheddar.add %ctx, %ct_883, %ct_863 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_885 = cheddar.add %ctx, %ct_864, %ct_865 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_886 = cheddar.add %ctx, %ct_885, %ct_866 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_887 = cheddar.add %ctx, %ct_884, %ct_886 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_888 = cheddar.add %ctx, %ct_882, %ct_887 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_889 = cheddar.add %ctx, %ct_867, %ct_868 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_890 = cheddar.add %ctx, %ct_889, %ct_869 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_891 = cheddar.add %ctx, %ct_870, %ct_871 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_892 = cheddar.add %ctx, %ct_891, %ct_872 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_893 = cheddar.add %ctx, %ct_890, %ct_892 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_894 = cheddar.add %ctx, %ct_873, %ct_874 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_895 = cheddar.add %ctx, %ct_894, %ct_875 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_896 = cheddar.add %ctx, %ct_876, %ct_877 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_897 = cheddar.add %ctx, %ct_896, %ct_878 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_898 = cheddar.add %ctx, %ct_895, %ct_897 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_899 = cheddar.add %ctx, %ct_893, %ct_898 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_900 = cheddar.add %ctx, %ct_888, %ct_899 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_901 = cheddar.mult_plain %ctx, %extracted_539, %extracted_188 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_902 = cheddar.mult_plain %ctx, %ct_540, %extracted_189 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_903 = cheddar.mult_plain %ctx, %ct_542, %extracted_190 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_904 = cheddar.mult_plain %ctx, %ct_544, %extracted_191 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_905 = cheddar.mult_plain %ctx, %ct_546, %extracted_192 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_906 = cheddar.mult_plain %ctx, %ct_548, %extracted_193 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_907 = cheddar.mult_plain %ctx, %ct_550, %extracted_194 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_908 = cheddar.mult_plain %ctx, %ct_552, %extracted_195 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_909 = cheddar.mult_plain %ctx, %ct_554, %extracted_196 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_910 = cheddar.mult_plain %ctx, %ct_556, %extracted_197 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_911 = cheddar.mult_plain %ctx, %ct_558, %extracted_198 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_912 = cheddar.mult_plain %ctx, %ct_560, %extracted_199 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_913 = cheddar.mult_plain %ctx, %ct_562, %extracted_200 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_914 = cheddar.mult_plain %ctx, %ct_564, %extracted_201 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_915 = cheddar.mult_plain %ctx, %ct_566, %extracted_202 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_916 = cheddar.mult_plain %ctx, %ct_568, %extracted_203 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_917 = cheddar.mult_plain %ctx, %ct_570, %extracted_204 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_918 = cheddar.mult_plain %ctx, %ct_572, %extracted_205 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_919 = cheddar.mult_plain %ctx, %ct_574, %extracted_206 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_920 = cheddar.mult_plain %ctx, %ct_576, %extracted_207 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_921 = cheddar.mult_plain %ctx, %ct_578, %extracted_208 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_922 = cheddar.mult_plain %ctx, %ct_580, %extracted_209 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_923 = cheddar.mult_plain %ctx, %ct_582, %extracted_210 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_924 = cheddar.add %ctx, %ct_901, %ct_902 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_925 = cheddar.add %ctx, %ct_903, %ct_904 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_926 = cheddar.add %ctx, %ct_925, %ct_905 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_927 = cheddar.add %ctx, %ct_924, %ct_926 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_928 = cheddar.add %ctx, %ct_906, %ct_907 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_929 = cheddar.add %ctx, %ct_928, %ct_908 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_930 = cheddar.add %ctx, %ct_909, %ct_910 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_931 = cheddar.add %ctx, %ct_930, %ct_911 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_932 = cheddar.add %ctx, %ct_929, %ct_931 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_933 = cheddar.add %ctx, %ct_911, %ct_912 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_934 = cheddar.add %ctx, %ct_933, %ct_913 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_935 = cheddar.add %ctx, %ct_914, %ct_915 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_936 = cheddar.add %ctx, %ct_935, %ct_916 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_937 = cheddar.add %ctx, %ct_934, %ct_936 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_938 = cheddar.add %ctx, %ct_932, %ct_937 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_939 = cheddar.add %ctx, %ct_917, %ct_918 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_940 = cheddar.add %ctx, %ct_939, %ct_919 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_941 = cheddar.add %ctx, %ct_920, %ct_921 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_942 = cheddar.add %ctx, %ct_941, %ct_922 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_933 = cheddar.add %ctx, %ct_927, %ct_932 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_934 = cheddar.add %ctx, %ct_912, %ct_913 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_935 = cheddar.add %ctx, %ct_934, %ct_914 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_936 = cheddar.add %ctx, %ct_915, %ct_916 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_937 = cheddar.add %ctx, %ct_936, %ct_917 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_938 = cheddar.add %ctx, %ct_935, %ct_937 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_939 = cheddar.add %ctx, %ct_918, %ct_919 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_940 = cheddar.add %ctx, %ct_939, %ct_920 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_941 = cheddar.add %ctx, %ct_921, %ct_922 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_942 = cheddar.add %ctx, %ct_941, %ct_923 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_943 = cheddar.add %ctx, %ct_940, %ct_942 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_944 = cheddar.add %ctx, %ct_923, %ct_924 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_945 = cheddar.add %ctx, %ct_944, %ct_925 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_946 = cheddar.add %ctx, %ct_926, %ct_927 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_947 = cheddar.add %ctx, %ct_946, %ct_928 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_948 = cheddar.add %ctx, %ct_945, %ct_947 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_949 = cheddar.add %ctx, %ct_943, %ct_948 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_950 = cheddar.add %ctx, %ct_938, %ct_949 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_951 = cheddar.hrot %ctx, %ct_950, %c184 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_952 = cheddar.mult_plain %ctx, %extracted_539, %extracted_211 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_953 = cheddar.mult_plain %ctx, %ct_540, %extracted_212 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_954 = cheddar.mult_plain %ctx, %ct_542, %extracted_213 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_955 = cheddar.mult_plain %ctx, %ct_544, %extracted_214 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_956 = cheddar.mult_plain %ctx, %ct_546, %extracted_215 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_957 = cheddar.mult_plain %ctx, %ct_548, %extracted_216 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_958 = cheddar.mult_plain %ctx, %ct_550, %extracted_217 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_959 = cheddar.mult_plain %ctx, %ct_552, %extracted_218 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_960 = cheddar.mult_plain %ctx, %ct_554, %extracted_219 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_961 = cheddar.mult_plain %ctx, %ct_556, %extracted_220 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_962 = cheddar.mult_plain %ctx, %ct_558, %extracted_221 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_963 = cheddar.mult_plain %ctx, %ct_560, %extracted_222 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_964 = cheddar.mult_plain %ctx, %ct_562, %extracted_223 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_965 = cheddar.mult_plain %ctx, %ct_564, %extracted_224 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_966 = cheddar.mult_plain %ctx, %ct_566, %extracted_225 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_967 = cheddar.mult_plain %ctx, %ct_568, %extracted_226 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_968 = cheddar.mult_plain %ctx, %ct_570, %extracted_227 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_969 = cheddar.mult_plain %ctx, %ct_572, %extracted_228 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_970 = cheddar.mult_plain %ctx, %ct_574, %extracted_229 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_971 = cheddar.mult_plain %ctx, %ct_576, %extracted_230 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_972 = cheddar.mult_plain %ctx, %ct_578, %extracted_231 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_973 = cheddar.mult_plain %ctx, %ct_580, %extracted_232 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_974 = cheddar.mult_plain %ctx, %ct_582, %extracted_233 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_975 = cheddar.add %ctx, %ct_952, %ct_953 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_976 = cheddar.add %ctx, %ct_954, %ct_955 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_977 = cheddar.add %ctx, %ct_976, %ct_956 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_978 = cheddar.add %ctx, %ct_975, %ct_977 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_944 = cheddar.add %ctx, %ct_938, %ct_943 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_945 = cheddar.add %ctx, %ct_933, %ct_944 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_946 = cheddar.mult_plain %ctx, %extracted_539, %extracted_211 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_947 = cheddar.mult_plain %ctx, %ct_540, %extracted_212 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_948 = cheddar.mult_plain %ctx, %ct_542, %extracted_213 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_949 = cheddar.mult_plain %ctx, %ct_544, %extracted_214 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_950 = cheddar.mult_plain %ctx, %ct_546, %extracted_215 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_951 = cheddar.mult_plain %ctx, %ct_548, %extracted_216 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_952 = cheddar.mult_plain %ctx, %ct_550, %extracted_217 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_953 = cheddar.mult_plain %ctx, %ct_552, %extracted_218 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_954 = cheddar.mult_plain %ctx, %ct_554, %extracted_219 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_955 = cheddar.mult_plain %ctx, %ct_556, %extracted_220 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_956 = cheddar.mult_plain %ctx, %ct_558, %extracted_221 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_957 = cheddar.mult_plain %ctx, %ct_560, %extracted_222 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_958 = cheddar.mult_plain %ctx, %ct_562, %extracted_223 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_959 = cheddar.mult_plain %ctx, %ct_564, %extracted_224 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_960 = cheddar.mult_plain %ctx, %ct_566, %extracted_225 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_961 = cheddar.mult_plain %ctx, %ct_568, %extracted_226 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_962 = cheddar.mult_plain %ctx, %ct_570, %extracted_227 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_963 = cheddar.mult_plain %ctx, %ct_572, %extracted_228 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_964 = cheddar.mult_plain %ctx, %ct_574, %extracted_229 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_965 = cheddar.mult_plain %ctx, %ct_576, %extracted_230 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_966 = cheddar.mult_plain %ctx, %ct_578, %extracted_231 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_967 = cheddar.mult_plain %ctx, %ct_580, %extracted_232 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_968 = cheddar.mult_plain %ctx, %ct_582, %extracted_233 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_969 = cheddar.add %ctx, %ct_946, %ct_947 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_970 = cheddar.add %ctx, %ct_948, %ct_949 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_971 = cheddar.add %ctx, %ct_970, %ct_950 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_972 = cheddar.add %ctx, %ct_969, %ct_971 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_973 = cheddar.add %ctx, %ct_951, %ct_952 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_974 = cheddar.add %ctx, %ct_973, %ct_953 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_975 = cheddar.add %ctx, %ct_954, %ct_955 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_976 = cheddar.add %ctx, %ct_975, %ct_956 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_977 = cheddar.add %ctx, %ct_974, %ct_976 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_978 = cheddar.add %ctx, %ct_972, %ct_977 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_979 = cheddar.add %ctx, %ct_957, %ct_958 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_980 = cheddar.add %ctx, %ct_979, %ct_959 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_981 = cheddar.add %ctx, %ct_960, %ct_961 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_982 = cheddar.add %ctx, %ct_981, %ct_962 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_983 = cheddar.add %ctx, %ct_980, %ct_982 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_984 = cheddar.add %ctx, %ct_978, %ct_983 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_985 = cheddar.add %ctx, %ct_963, %ct_964 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_986 = cheddar.add %ctx, %ct_985, %ct_965 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_987 = cheddar.add %ctx, %ct_966, %ct_967 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_988 = cheddar.add %ctx, %ct_987, %ct_968 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_989 = cheddar.add %ctx, %ct_986, %ct_988 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_990 = cheddar.add %ctx, %ct_969, %ct_970 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_991 = cheddar.add %ctx, %ct_990, %ct_971 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_992 = cheddar.add %ctx, %ct_972, %ct_973 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_993 = cheddar.add %ctx, %ct_992, %ct_974 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_994 = cheddar.add %ctx, %ct_991, %ct_993 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_995 = cheddar.add %ctx, %ct_989, %ct_994 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_996 = cheddar.add %ctx, %ct_984, %ct_995 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_997 = cheddar.hrot %ctx, %ct_996, %c207 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_998 = cheddar.mult_plain %ctx, %extracted_539, %extracted_234 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_999 = cheddar.mult_plain %ctx, %ct_540, %extracted_235 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1000 = cheddar.mult_plain %ctx, %ct_542, %extracted_236 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1001 = cheddar.mult_plain %ctx, %ct_544, %extracted_237 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1002 = cheddar.mult_plain %ctx, %ct_546, %extracted_238 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1003 = cheddar.mult_plain %ctx, %ct_548, %extracted_239 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1004 = cheddar.mult_plain %ctx, %ct_550, %extracted_240 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1005 = cheddar.mult_plain %ctx, %ct_552, %extracted_241 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1006 = cheddar.mult_plain %ctx, %ct_554, %extracted_242 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1007 = cheddar.mult_plain %ctx, %ct_556, %extracted_243 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1008 = cheddar.mult_plain %ctx, %ct_558, %extracted_244 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1009 = cheddar.mult_plain %ctx, %ct_560, %extracted_245 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1010 = cheddar.mult_plain %ctx, %ct_562, %extracted_246 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1011 = cheddar.mult_plain %ctx, %ct_564, %extracted_247 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1012 = cheddar.mult_plain %ctx, %ct_566, %extracted_248 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1013 = cheddar.mult_plain %ctx, %ct_568, %extracted_249 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1014 = cheddar.mult_plain %ctx, %ct_570, %extracted_250 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1015 = cheddar.mult_plain %ctx, %ct_572, %extracted_251 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1016 = cheddar.mult_plain %ctx, %ct_574, %extracted_252 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1017 = cheddar.mult_plain %ctx, %ct_576, %extracted_253 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1018 = cheddar.mult_plain %ctx, %ct_578, %extracted_254 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1019 = cheddar.mult_plain %ctx, %ct_580, %extracted_255 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1020 = cheddar.mult_plain %ctx, %ct_582, %extracted_256 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1021 = cheddar.add %ctx, %ct_998, %ct_999 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1022 = cheddar.add %ctx, %ct_1000, %ct_1001 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1023 = cheddar.add %ctx, %ct_1022, %ct_1002 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1024 = cheddar.add %ctx, %ct_1021, %ct_1023 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_984 = cheddar.add %ctx, %ct_963, %ct_964 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_985 = cheddar.add %ctx, %ct_984, %ct_965 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_986 = cheddar.add %ctx, %ct_966, %ct_967 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_987 = cheddar.add %ctx, %ct_986, %ct_968 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_988 = cheddar.add %ctx, %ct_985, %ct_987 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_989 = cheddar.add %ctx, %ct_983, %ct_988 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_990 = cheddar.add %ctx, %ct_978, %ct_989 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_991 = cheddar.hrot %ctx, %ct_990, %c207 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_992 = cheddar.mult_plain %ctx, %extracted_539, %extracted_234 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_993 = cheddar.mult_plain %ctx, %ct_540, %extracted_235 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_994 = cheddar.mult_plain %ctx, %ct_542, %extracted_236 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_995 = cheddar.mult_plain %ctx, %ct_544, %extracted_237 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_996 = cheddar.mult_plain %ctx, %ct_546, %extracted_238 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_997 = cheddar.mult_plain %ctx, %ct_548, %extracted_239 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_998 = cheddar.mult_plain %ctx, %ct_550, %extracted_240 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_999 = cheddar.mult_plain %ctx, %ct_552, %extracted_241 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1000 = cheddar.mult_plain %ctx, %ct_554, %extracted_242 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1001 = cheddar.mult_plain %ctx, %ct_556, %extracted_243 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1002 = cheddar.mult_plain %ctx, %ct_558, %extracted_244 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1003 = cheddar.mult_plain %ctx, %ct_560, %extracted_245 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1004 = cheddar.mult_plain %ctx, %ct_562, %extracted_246 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1005 = cheddar.mult_plain %ctx, %ct_564, %extracted_247 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1006 = cheddar.mult_plain %ctx, %ct_566, %extracted_248 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1007 = cheddar.mult_plain %ctx, %ct_568, %extracted_249 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1008 = cheddar.mult_plain %ctx, %ct_570, %extracted_250 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1009 = cheddar.mult_plain %ctx, %ct_572, %extracted_251 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1010 = cheddar.mult_plain %ctx, %ct_574, %extracted_252 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1011 = cheddar.mult_plain %ctx, %ct_576, %extracted_253 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1012 = cheddar.mult_plain %ctx, %ct_578, %extracted_254 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1013 = cheddar.mult_plain %ctx, %ct_580, %extracted_255 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1014 = cheddar.mult_plain %ctx, %ct_582, %extracted_256 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1015 = cheddar.add %ctx, %ct_992, %ct_993 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1016 = cheddar.add %ctx, %ct_994, %ct_995 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1017 = cheddar.add %ctx, %ct_1016, %ct_996 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1018 = cheddar.add %ctx, %ct_1015, %ct_1017 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1019 = cheddar.add %ctx, %ct_997, %ct_998 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1020 = cheddar.add %ctx, %ct_1019, %ct_999 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1021 = cheddar.add %ctx, %ct_1000, %ct_1001 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1022 = cheddar.add %ctx, %ct_1021, %ct_1002 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1023 = cheddar.add %ctx, %ct_1020, %ct_1022 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1024 = cheddar.add %ctx, %ct_1018, %ct_1023 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1025 = cheddar.add %ctx, %ct_1003, %ct_1004 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1026 = cheddar.add %ctx, %ct_1025, %ct_1005 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1027 = cheddar.add %ctx, %ct_1006, %ct_1007 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1028 = cheddar.add %ctx, %ct_1027, %ct_1008 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1029 = cheddar.add %ctx, %ct_1026, %ct_1028 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1030 = cheddar.add %ctx, %ct_1024, %ct_1029 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1031 = cheddar.add %ctx, %ct_1009, %ct_1010 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1032 = cheddar.add %ctx, %ct_1031, %ct_1011 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1033 = cheddar.add %ctx, %ct_1012, %ct_1013 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1034 = cheddar.add %ctx, %ct_1033, %ct_1014 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1035 = cheddar.add %ctx, %ct_1032, %ct_1034 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1036 = cheddar.add %ctx, %ct_1015, %ct_1016 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1037 = cheddar.add %ctx, %ct_1036, %ct_1017 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1038 = cheddar.add %ctx, %ct_1018, %ct_1019 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1039 = cheddar.add %ctx, %ct_1038, %ct_1020 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1040 = cheddar.add %ctx, %ct_1037, %ct_1039 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1041 = cheddar.add %ctx, %ct_1035, %ct_1040 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1042 = cheddar.add %ctx, %ct_1030, %ct_1041 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1043 = cheddar.hrot %ctx, %ct_1042, %c230 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1044 = cheddar.mult_plain %ctx, %extracted_539, %extracted_257 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1045 = cheddar.mult_plain %ctx, %ct_540, %extracted_258 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1046 = cheddar.mult_plain %ctx, %ct_542, %extracted_259 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1047 = cheddar.mult_plain %ctx, %ct_544, %extracted_260 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1048 = cheddar.mult_plain %ctx, %ct_546, %extracted_261 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1049 = cheddar.mult_plain %ctx, %ct_548, %extracted_262 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1050 = cheddar.mult_plain %ctx, %ct_550, %extracted_263 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1051 = cheddar.mult_plain %ctx, %ct_552, %extracted_264 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1052 = cheddar.mult_plain %ctx, %ct_554, %extracted_265 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1053 = cheddar.mult_plain %ctx, %ct_556, %extracted_266 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1054 = cheddar.mult_plain %ctx, %ct_558, %extracted_267 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1055 = cheddar.mult_plain %ctx, %ct_560, %extracted_268 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1056 = cheddar.mult_plain %ctx, %ct_562, %extracted_269 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1057 = cheddar.mult_plain %ctx, %ct_564, %extracted_270 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1058 = cheddar.mult_plain %ctx, %ct_566, %extracted_271 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1059 = cheddar.mult_plain %ctx, %ct_568, %extracted_272 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1060 = cheddar.mult_plain %ctx, %ct_570, %extracted_273 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1061 = cheddar.mult_plain %ctx, %ct_572, %extracted_274 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1062 = cheddar.mult_plain %ctx, %ct_574, %extracted_275 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1063 = cheddar.mult_plain %ctx, %ct_576, %extracted_276 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1064 = cheddar.mult_plain %ctx, %ct_578, %extracted_277 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1065 = cheddar.mult_plain %ctx, %ct_580, %extracted_278 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1066 = cheddar.mult_plain %ctx, %ct_582, %extracted_279 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1067 = cheddar.add %ctx, %ct_1044, %ct_1045 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1068 = cheddar.add %ctx, %ct_1046, %ct_1047 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1069 = cheddar.add %ctx, %ct_1068, %ct_1048 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1070 = cheddar.add %ctx, %ct_1067, %ct_1069 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1071 = cheddar.add %ctx, %ct_1049, %ct_1050 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1072 = cheddar.add %ctx, %ct_1071, %ct_1051 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1073 = cheddar.add %ctx, %ct_1052, %ct_1053 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1074 = cheddar.add %ctx, %ct_1073, %ct_1054 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1075 = cheddar.add %ctx, %ct_1072, %ct_1074 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1076 = cheddar.add %ctx, %ct_1070, %ct_1075 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1077 = cheddar.add %ctx, %ct_1055, %ct_1056 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1078 = cheddar.add %ctx, %ct_1077, %ct_1057 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1079 = cheddar.add %ctx, %ct_1058, %ct_1059 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1080 = cheddar.add %ctx, %ct_1079, %ct_1060 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1081 = cheddar.add %ctx, %ct_1078, %ct_1080 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1082 = cheddar.add %ctx, %ct_1061, %ct_1062 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1083 = cheddar.add %ctx, %ct_1082, %ct_1063 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1084 = cheddar.add %ctx, %ct_1064, %ct_1065 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1085 = cheddar.add %ctx, %ct_1084, %ct_1066 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1086 = cheddar.add %ctx, %ct_1083, %ct_1085 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1087 = cheddar.add %ctx, %ct_1081, %ct_1086 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1088 = cheddar.add %ctx, %ct_1076, %ct_1087 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1089 = cheddar.hrot %ctx, %ct_1088, %c253 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1090 = cheddar.mult_plain %ctx, %extracted_539, %extracted_280 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1091 = cheddar.mult_plain %ctx, %ct_540, %extracted_281 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1092 = cheddar.mult_plain %ctx, %ct_542, %extracted_282 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1093 = cheddar.mult_plain %ctx, %ct_544, %extracted_283 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1094 = cheddar.mult_plain %ctx, %ct_546, %extracted_284 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1095 = cheddar.mult_plain %ctx, %ct_548, %extracted_285 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1096 = cheddar.mult_plain %ctx, %ct_550, %extracted_286 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1097 = cheddar.mult_plain %ctx, %ct_552, %extracted_287 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1098 = cheddar.mult_plain %ctx, %ct_554, %extracted_288 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1099 = cheddar.mult_plain %ctx, %ct_556, %extracted_289 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1100 = cheddar.mult_plain %ctx, %ct_558, %extracted_290 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1101 = cheddar.mult_plain %ctx, %ct_560, %extracted_291 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1102 = cheddar.mult_plain %ctx, %ct_562, %extracted_292 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1103 = cheddar.mult_plain %ctx, %ct_564, %extracted_293 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1104 = cheddar.mult_plain %ctx, %ct_566, %extracted_294 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1105 = cheddar.mult_plain %ctx, %ct_568, %extracted_295 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1106 = cheddar.mult_plain %ctx, %ct_570, %extracted_296 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1107 = cheddar.mult_plain %ctx, %ct_572, %extracted_297 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1108 = cheddar.mult_plain %ctx, %ct_574, %extracted_298 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1109 = cheddar.mult_plain %ctx, %ct_576, %extracted_299 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1110 = cheddar.mult_plain %ctx, %ct_578, %extracted_300 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1111 = cheddar.mult_plain %ctx, %ct_580, %extracted_301 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1112 = cheddar.mult_plain %ctx, %ct_582, %extracted_302 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1113 = cheddar.add %ctx, %ct_1090, %ct_1091 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1114 = cheddar.add %ctx, %ct_1092, %ct_1093 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1115 = cheddar.add %ctx, %ct_1114, %ct_1094 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1116 = cheddar.add %ctx, %ct_1113, %ct_1115 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1117 = cheddar.add %ctx, %ct_1095, %ct_1096 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1118 = cheddar.add %ctx, %ct_1117, %ct_1097 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1119 = cheddar.add %ctx, %ct_1098, %ct_1099 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1120 = cheddar.add %ctx, %ct_1119, %ct_1100 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1121 = cheddar.add %ctx, %ct_1118, %ct_1120 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1122 = cheddar.add %ctx, %ct_1116, %ct_1121 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1123 = cheddar.add %ctx, %ct_1101, %ct_1102 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1124 = cheddar.add %ctx, %ct_1123, %ct_1103 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1125 = cheddar.add %ctx, %ct_1104, %ct_1105 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1126 = cheddar.add %ctx, %ct_1125, %ct_1106 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1127 = cheddar.add %ctx, %ct_1124, %ct_1126 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1128 = cheddar.add %ctx, %ct_1107, %ct_1108 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1129 = cheddar.add %ctx, %ct_1128, %ct_1109 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1130 = cheddar.add %ctx, %ct_1110, %ct_1111 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1131 = cheddar.add %ctx, %ct_1130, %ct_1112 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1132 = cheddar.add %ctx, %ct_1129, %ct_1131 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1133 = cheddar.add %ctx, %ct_1127, %ct_1132 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1134 = cheddar.add %ctx, %ct_1122, %ct_1133 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1135 = cheddar.hrot %ctx, %ct_1134, %c276 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1136 = cheddar.mult_plain %ctx, %extracted_539, %extracted_303 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1137 = cheddar.mult_plain %ctx, %ct_540, %extracted_304 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1138 = cheddar.mult_plain %ctx, %ct_542, %extracted_305 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1139 = cheddar.mult_plain %ctx, %ct_544, %extracted_306 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1140 = cheddar.mult_plain %ctx, %ct_546, %extracted_307 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1141 = cheddar.mult_plain %ctx, %ct_548, %extracted_308 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1142 = cheddar.mult_plain %ctx, %ct_550, %extracted_309 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1143 = cheddar.mult_plain %ctx, %ct_552, %extracted_310 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1144 = cheddar.mult_plain %ctx, %ct_554, %extracted_311 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1145 = cheddar.mult_plain %ctx, %ct_556, %extracted_312 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1146 = cheddar.mult_plain %ctx, %ct_558, %extracted_313 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1147 = cheddar.mult_plain %ctx, %ct_560, %extracted_314 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1148 = cheddar.mult_plain %ctx, %ct_562, %extracted_315 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1149 = cheddar.mult_plain %ctx, %ct_564, %extracted_316 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1150 = cheddar.mult_plain %ctx, %ct_566, %extracted_317 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1151 = cheddar.mult_plain %ctx, %ct_568, %extracted_318 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1152 = cheddar.mult_plain %ctx, %ct_570, %extracted_319 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1153 = cheddar.mult_plain %ctx, %ct_572, %extracted_320 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1154 = cheddar.mult_plain %ctx, %ct_574, %extracted_321 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1155 = cheddar.mult_plain %ctx, %ct_576, %extracted_322 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1156 = cheddar.mult_plain %ctx, %ct_578, %extracted_323 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1157 = cheddar.mult_plain %ctx, %ct_580, %extracted_324 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1158 = cheddar.mult_plain %ctx, %ct_582, %extracted_325 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1159 = cheddar.add %ctx, %ct_1136, %ct_1137 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1160 = cheddar.add %ctx, %ct_1138, %ct_1139 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1161 = cheddar.add %ctx, %ct_1160, %ct_1140 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1162 = cheddar.add %ctx, %ct_1159, %ct_1161 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1163 = cheddar.add %ctx, %ct_1141, %ct_1142 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1164 = cheddar.add %ctx, %ct_1163, %ct_1143 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1165 = cheddar.add %ctx, %ct_1144, %ct_1145 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1166 = cheddar.add %ctx, %ct_1165, %ct_1146 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1167 = cheddar.add %ctx, %ct_1164, %ct_1166 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1168 = cheddar.add %ctx, %ct_1162, %ct_1167 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1169 = cheddar.add %ctx, %ct_1147, %ct_1148 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1170 = cheddar.add %ctx, %ct_1169, %ct_1149 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1171 = cheddar.add %ctx, %ct_1150, %ct_1151 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1172 = cheddar.add %ctx, %ct_1171, %ct_1152 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1173 = cheddar.add %ctx, %ct_1170, %ct_1172 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1174 = cheddar.add %ctx, %ct_1153, %ct_1154 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1175 = cheddar.add %ctx, %ct_1174, %ct_1155 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1176 = cheddar.add %ctx, %ct_1156, %ct_1157 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1177 = cheddar.add %ctx, %ct_1176, %ct_1158 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1178 = cheddar.add %ctx, %ct_1175, %ct_1177 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1179 = cheddar.add %ctx, %ct_1173, %ct_1178 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1180 = cheddar.add %ctx, %ct_1168, %ct_1179 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1181 = cheddar.hrot %ctx, %ct_1180, %c299 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1182 = cheddar.mult_plain %ctx, %extracted_539, %extracted_326 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1183 = cheddar.mult_plain %ctx, %ct_540, %extracted_327 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1184 = cheddar.mult_plain %ctx, %ct_542, %extracted_328 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1185 = cheddar.mult_plain %ctx, %ct_544, %extracted_329 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1186 = cheddar.mult_plain %ctx, %ct_546, %extracted_330 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1187 = cheddar.mult_plain %ctx, %ct_548, %extracted_331 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1188 = cheddar.mult_plain %ctx, %ct_550, %extracted_332 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1189 = cheddar.mult_plain %ctx, %ct_552, %extracted_333 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1190 = cheddar.mult_plain %ctx, %ct_554, %extracted_334 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1191 = cheddar.mult_plain %ctx, %ct_556, %extracted_335 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1192 = cheddar.mult_plain %ctx, %ct_558, %extracted_336 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1193 = cheddar.mult_plain %ctx, %ct_560, %extracted_337 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1194 = cheddar.mult_plain %ctx, %ct_562, %extracted_338 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1195 = cheddar.mult_plain %ctx, %ct_564, %extracted_339 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1196 = cheddar.mult_plain %ctx, %ct_566, %extracted_340 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1197 = cheddar.mult_plain %ctx, %ct_568, %extracted_341 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1198 = cheddar.mult_plain %ctx, %ct_570, %extracted_342 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1199 = cheddar.mult_plain %ctx, %ct_572, %extracted_343 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1200 = cheddar.mult_plain %ctx, %ct_574, %extracted_344 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1201 = cheddar.mult_plain %ctx, %ct_576, %extracted_345 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1202 = cheddar.mult_plain %ctx, %ct_578, %extracted_346 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1203 = cheddar.mult_plain %ctx, %ct_580, %extracted_347 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1204 = cheddar.mult_plain %ctx, %ct_582, %extracted_348 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1205 = cheddar.add %ctx, %ct_1182, %ct_1183 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1030 = cheddar.add %ctx, %ct_1009, %ct_1010 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1031 = cheddar.add %ctx, %ct_1030, %ct_1011 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1032 = cheddar.add %ctx, %ct_1012, %ct_1013 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1033 = cheddar.add %ctx, %ct_1032, %ct_1014 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1034 = cheddar.add %ctx, %ct_1031, %ct_1033 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1035 = cheddar.add %ctx, %ct_1029, %ct_1034 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1036 = cheddar.add %ctx, %ct_1024, %ct_1035 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1037 = cheddar.mult_plain %ctx, %extracted_539, %extracted_257 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1038 = cheddar.mult_plain %ctx, %ct_540, %extracted_258 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1039 = cheddar.mult_plain %ctx, %ct_542, %extracted_259 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1040 = cheddar.mult_plain %ctx, %ct_544, %extracted_260 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1041 = cheddar.mult_plain %ctx, %ct_546, %extracted_261 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1042 = cheddar.mult_plain %ctx, %ct_548, %extracted_262 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1043 = cheddar.mult_plain %ctx, %ct_550, %extracted_263 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1044 = cheddar.mult_plain %ctx, %ct_552, %extracted_264 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1045 = cheddar.mult_plain %ctx, %ct_554, %extracted_265 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1046 = cheddar.mult_plain %ctx, %ct_556, %extracted_266 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1047 = cheddar.mult_plain %ctx, %ct_558, %extracted_267 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1048 = cheddar.mult_plain %ctx, %ct_560, %extracted_268 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1049 = cheddar.mult_plain %ctx, %ct_562, %extracted_269 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1050 = cheddar.mult_plain %ctx, %ct_564, %extracted_270 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1051 = cheddar.mult_plain %ctx, %ct_566, %extracted_271 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1052 = cheddar.mult_plain %ctx, %ct_568, %extracted_272 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1053 = cheddar.mult_plain %ctx, %ct_570, %extracted_273 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1054 = cheddar.mult_plain %ctx, %ct_572, %extracted_274 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1055 = cheddar.mult_plain %ctx, %ct_574, %extracted_275 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1056 = cheddar.mult_plain %ctx, %ct_576, %extracted_276 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1057 = cheddar.mult_plain %ctx, %ct_578, %extracted_277 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1058 = cheddar.mult_plain %ctx, %ct_580, %extracted_278 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1059 = cheddar.mult_plain %ctx, %ct_582, %extracted_279 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1060 = cheddar.add %ctx, %ct_1037, %ct_1038 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1061 = cheddar.add %ctx, %ct_1039, %ct_1040 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1062 = cheddar.add %ctx, %ct_1061, %ct_1041 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1063 = cheddar.add %ctx, %ct_1060, %ct_1062 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1064 = cheddar.add %ctx, %ct_1042, %ct_1043 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1065 = cheddar.add %ctx, %ct_1064, %ct_1044 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1066 = cheddar.add %ctx, %ct_1045, %ct_1046 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1067 = cheddar.add %ctx, %ct_1066, %ct_1047 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1068 = cheddar.add %ctx, %ct_1065, %ct_1067 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1069 = cheddar.add %ctx, %ct_1063, %ct_1068 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1070 = cheddar.add %ctx, %ct_1048, %ct_1049 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1071 = cheddar.add %ctx, %ct_1070, %ct_1050 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1072 = cheddar.add %ctx, %ct_1051, %ct_1052 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1073 = cheddar.add %ctx, %ct_1072, %ct_1053 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1074 = cheddar.add %ctx, %ct_1071, %ct_1073 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1075 = cheddar.add %ctx, %ct_1054, %ct_1055 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1076 = cheddar.add %ctx, %ct_1075, %ct_1056 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1077 = cheddar.add %ctx, %ct_1057, %ct_1058 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1078 = cheddar.add %ctx, %ct_1077, %ct_1059 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1079 = cheddar.add %ctx, %ct_1076, %ct_1078 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1080 = cheddar.add %ctx, %ct_1074, %ct_1079 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1081 = cheddar.add %ctx, %ct_1069, %ct_1080 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1082 = cheddar.mult_plain %ctx, %extracted_539, %extracted_280 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1083 = cheddar.mult_plain %ctx, %ct_540, %extracted_281 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1084 = cheddar.mult_plain %ctx, %ct_542, %extracted_282 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1085 = cheddar.mult_plain %ctx, %ct_544, %extracted_283 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1086 = cheddar.mult_plain %ctx, %ct_546, %extracted_284 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1087 = cheddar.mult_plain %ctx, %ct_548, %extracted_285 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1088 = cheddar.mult_plain %ctx, %ct_550, %extracted_286 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1089 = cheddar.mult_plain %ctx, %ct_552, %extracted_287 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1090 = cheddar.mult_plain %ctx, %ct_554, %extracted_288 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1091 = cheddar.mult_plain %ctx, %ct_556, %extracted_289 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1092 = cheddar.mult_plain %ctx, %ct_558, %extracted_290 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1093 = cheddar.mult_plain %ctx, %ct_560, %extracted_291 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1094 = cheddar.mult_plain %ctx, %ct_562, %extracted_292 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1095 = cheddar.mult_plain %ctx, %ct_564, %extracted_293 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1096 = cheddar.mult_plain %ctx, %ct_566, %extracted_294 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1097 = cheddar.mult_plain %ctx, %ct_568, %extracted_295 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1098 = cheddar.mult_plain %ctx, %ct_570, %extracted_296 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1099 = cheddar.mult_plain %ctx, %ct_572, %extracted_297 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1100 = cheddar.mult_plain %ctx, %ct_574, %extracted_298 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1101 = cheddar.mult_plain %ctx, %ct_576, %extracted_299 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1102 = cheddar.mult_plain %ctx, %ct_578, %extracted_300 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1103 = cheddar.mult_plain %ctx, %ct_580, %extracted_301 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1104 = cheddar.mult_plain %ctx, %ct_582, %extracted_302 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1105 = cheddar.add %ctx, %ct_1082, %ct_1083 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1106 = cheddar.add %ctx, %ct_1084, %ct_1085 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1107 = cheddar.add %ctx, %ct_1106, %ct_1086 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1108 = cheddar.add %ctx, %ct_1105, %ct_1107 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1109 = cheddar.add %ctx, %ct_1087, %ct_1088 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1110 = cheddar.add %ctx, %ct_1109, %ct_1089 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1111 = cheddar.add %ctx, %ct_1090, %ct_1091 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1112 = cheddar.add %ctx, %ct_1111, %ct_1092 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1113 = cheddar.add %ctx, %ct_1110, %ct_1112 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1114 = cheddar.add %ctx, %ct_1108, %ct_1113 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1115 = cheddar.add %ctx, %ct_1093, %ct_1094 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1116 = cheddar.add %ctx, %ct_1115, %ct_1095 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1117 = cheddar.add %ctx, %ct_1096, %ct_1097 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1118 = cheddar.add %ctx, %ct_1117, %ct_1098 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1119 = cheddar.add %ctx, %ct_1116, %ct_1118 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1120 = cheddar.add %ctx, %ct_1099, %ct_1100 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1121 = cheddar.add %ctx, %ct_1120, %ct_1101 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1122 = cheddar.add %ctx, %ct_1102, %ct_1103 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1123 = cheddar.add %ctx, %ct_1122, %ct_1104 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1124 = cheddar.add %ctx, %ct_1121, %ct_1123 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1125 = cheddar.add %ctx, %ct_1119, %ct_1124 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1126 = cheddar.add %ctx, %ct_1114, %ct_1125 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1127 = cheddar.hrot %ctx, %ct_1126, %c276 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1128 = cheddar.mult_plain %ctx, %extracted_539, %extracted_303 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1129 = cheddar.mult_plain %ctx, %ct_540, %extracted_304 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1130 = cheddar.mult_plain %ctx, %ct_542, %extracted_305 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1131 = cheddar.mult_plain %ctx, %ct_544, %extracted_306 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1132 = cheddar.mult_plain %ctx, %ct_546, %extracted_307 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1133 = cheddar.mult_plain %ctx, %ct_548, %extracted_308 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1134 = cheddar.mult_plain %ctx, %ct_550, %extracted_309 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1135 = cheddar.mult_plain %ctx, %ct_552, %extracted_310 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1136 = cheddar.mult_plain %ctx, %ct_554, %extracted_311 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1137 = cheddar.mult_plain %ctx, %ct_556, %extracted_312 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1138 = cheddar.mult_plain %ctx, %ct_558, %extracted_313 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1139 = cheddar.mult_plain %ctx, %ct_560, %extracted_314 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1140 = cheddar.mult_plain %ctx, %ct_562, %extracted_315 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1141 = cheddar.mult_plain %ctx, %ct_564, %extracted_316 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1142 = cheddar.mult_plain %ctx, %ct_566, %extracted_317 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1143 = cheddar.mult_plain %ctx, %ct_568, %extracted_318 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1144 = cheddar.mult_plain %ctx, %ct_570, %extracted_319 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1145 = cheddar.mult_plain %ctx, %ct_572, %extracted_320 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1146 = cheddar.mult_plain %ctx, %ct_574, %extracted_321 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1147 = cheddar.mult_plain %ctx, %ct_576, %extracted_322 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1148 = cheddar.mult_plain %ctx, %ct_578, %extracted_323 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1149 = cheddar.mult_plain %ctx, %ct_580, %extracted_324 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1150 = cheddar.mult_plain %ctx, %ct_582, %extracted_325 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1151 = cheddar.add %ctx, %ct_1128, %ct_1129 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1152 = cheddar.add %ctx, %ct_1130, %ct_1131 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1153 = cheddar.add %ctx, %ct_1152, %ct_1132 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1154 = cheddar.add %ctx, %ct_1151, %ct_1153 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1155 = cheddar.add %ctx, %ct_1133, %ct_1134 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1156 = cheddar.add %ctx, %ct_1155, %ct_1135 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1157 = cheddar.add %ctx, %ct_1136, %ct_1137 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1158 = cheddar.add %ctx, %ct_1157, %ct_1138 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1159 = cheddar.add %ctx, %ct_1156, %ct_1158 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1160 = cheddar.add %ctx, %ct_1154, %ct_1159 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1161 = cheddar.add %ctx, %ct_1139, %ct_1140 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1162 = cheddar.add %ctx, %ct_1161, %ct_1141 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1163 = cheddar.add %ctx, %ct_1142, %ct_1143 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1164 = cheddar.add %ctx, %ct_1163, %ct_1144 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1165 = cheddar.add %ctx, %ct_1162, %ct_1164 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1166 = cheddar.add %ctx, %ct_1145, %ct_1146 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1167 = cheddar.add %ctx, %ct_1166, %ct_1147 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1168 = cheddar.add %ctx, %ct_1148, %ct_1149 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1169 = cheddar.add %ctx, %ct_1168, %ct_1150 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1170 = cheddar.add %ctx, %ct_1167, %ct_1169 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1171 = cheddar.add %ctx, %ct_1165, %ct_1170 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1172 = cheddar.add %ctx, %ct_1160, %ct_1171 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1173 = cheddar.mult_plain %ctx, %extracted_539, %extracted_326 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1174 = cheddar.mult_plain %ctx, %ct_540, %extracted_327 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1175 = cheddar.mult_plain %ctx, %ct_542, %extracted_328 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1176 = cheddar.mult_plain %ctx, %ct_544, %extracted_329 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1177 = cheddar.mult_plain %ctx, %ct_546, %extracted_330 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1178 = cheddar.mult_plain %ctx, %ct_548, %extracted_331 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1179 = cheddar.mult_plain %ctx, %ct_550, %extracted_332 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1180 = cheddar.mult_plain %ctx, %ct_552, %extracted_333 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1181 = cheddar.mult_plain %ctx, %ct_554, %extracted_334 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1182 = cheddar.mult_plain %ctx, %ct_556, %extracted_335 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1183 = cheddar.mult_plain %ctx, %ct_558, %extracted_336 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1184 = cheddar.mult_plain %ctx, %ct_560, %extracted_337 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1185 = cheddar.mult_plain %ctx, %ct_562, %extracted_338 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1186 = cheddar.mult_plain %ctx, %ct_564, %extracted_339 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1187 = cheddar.mult_plain %ctx, %ct_566, %extracted_340 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1188 = cheddar.mult_plain %ctx, %ct_568, %extracted_341 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1189 = cheddar.mult_plain %ctx, %ct_570, %extracted_342 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1190 = cheddar.mult_plain %ctx, %ct_572, %extracted_343 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1191 = cheddar.mult_plain %ctx, %ct_574, %extracted_344 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1192 = cheddar.mult_plain %ctx, %ct_576, %extracted_345 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1193 = cheddar.mult_plain %ctx, %ct_578, %extracted_346 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1194 = cheddar.mult_plain %ctx, %ct_580, %extracted_347 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1195 = cheddar.mult_plain %ctx, %ct_582, %extracted_348 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1196 = cheddar.add %ctx, %ct_1173, %ct_1174 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1197 = cheddar.add %ctx, %ct_1175, %ct_1176 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1198 = cheddar.add %ctx, %ct_1197, %ct_1177 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1199 = cheddar.add %ctx, %ct_1196, %ct_1198 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1200 = cheddar.add %ctx, %ct_1178, %ct_1179 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1201 = cheddar.add %ctx, %ct_1200, %ct_1180 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1202 = cheddar.add %ctx, %ct_1181, %ct_1182 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1203 = cheddar.add %ctx, %ct_1202, %ct_1183 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1204 = cheddar.add %ctx, %ct_1201, %ct_1203 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1205 = cheddar.add %ctx, %ct_1199, %ct_1204 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1206 = cheddar.add %ctx, %ct_1184, %ct_1185 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1207 = cheddar.add %ctx, %ct_1206, %ct_1186 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1208 = cheddar.add %ctx, %ct_1205, %ct_1207 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1209 = cheddar.add %ctx, %ct_1187, %ct_1188 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1210 = cheddar.add %ctx, %ct_1209, %ct_1189 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1208 = cheddar.add %ctx, %ct_1187, %ct_1188 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1209 = cheddar.add %ctx, %ct_1208, %ct_1189 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1210 = cheddar.add %ctx, %ct_1207, %ct_1209 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1211 = cheddar.add %ctx, %ct_1190, %ct_1191 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1212 = cheddar.add %ctx, %ct_1211, %ct_1192 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1213 = cheddar.add %ctx, %ct_1210, %ct_1212 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1214 = cheddar.add %ctx, %ct_1208, %ct_1213 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1215 = cheddar.add %ctx, %ct_1193, %ct_1194 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1216 = cheddar.add %ctx, %ct_1215, %ct_1195 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1217 = cheddar.add %ctx, %ct_1196, %ct_1197 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1218 = cheddar.add %ctx, %ct_1217, %ct_1198 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1219 = cheddar.add %ctx, %ct_1216, %ct_1218 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1220 = cheddar.add %ctx, %ct_1199, %ct_1200 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1221 = cheddar.add %ctx, %ct_1220, %ct_1201 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1222 = cheddar.add %ctx, %ct_1202, %ct_1203 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1223 = cheddar.add %ctx, %ct_1222, %ct_1204 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1224 = cheddar.add %ctx, %ct_1221, %ct_1223 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1225 = cheddar.add %ctx, %ct_1219, %ct_1224 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1226 = cheddar.add %ctx, %ct_1214, %ct_1225 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1227 = cheddar.hrot %ctx, %ct_1226, %c322 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1228 = cheddar.mult_plain %ctx, %extracted_539, %extracted_349 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1229 = cheddar.mult_plain %ctx, %ct_540, %extracted_350 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1230 = cheddar.mult_plain %ctx, %ct_542, %extracted_351 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1231 = cheddar.mult_plain %ctx, %ct_544, %extracted_352 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1232 = cheddar.mult_plain %ctx, %ct_546, %extracted_353 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1233 = cheddar.mult_plain %ctx, %ct_548, %extracted_354 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1234 = cheddar.mult_plain %ctx, %ct_550, %extracted_355 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1235 = cheddar.mult_plain %ctx, %ct_552, %extracted_356 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1236 = cheddar.mult_plain %ctx, %ct_554, %extracted_357 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1237 = cheddar.mult_plain %ctx, %ct_556, %extracted_358 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1238 = cheddar.mult_plain %ctx, %ct_558, %extracted_359 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1239 = cheddar.mult_plain %ctx, %ct_560, %extracted_360 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1240 = cheddar.mult_plain %ctx, %ct_562, %extracted_361 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1241 = cheddar.mult_plain %ctx, %ct_564, %extracted_362 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1242 = cheddar.mult_plain %ctx, %ct_566, %extracted_363 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1243 = cheddar.mult_plain %ctx, %ct_568, %extracted_364 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1244 = cheddar.mult_plain %ctx, %ct_570, %extracted_365 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1245 = cheddar.mult_plain %ctx, %ct_572, %extracted_366 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1246 = cheddar.mult_plain %ctx, %ct_574, %extracted_367 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1247 = cheddar.mult_plain %ctx, %ct_576, %extracted_368 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1248 = cheddar.mult_plain %ctx, %ct_578, %extracted_369 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1249 = cheddar.mult_plain %ctx, %ct_580, %extracted_370 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1250 = cheddar.mult_plain %ctx, %ct_582, %extracted_371 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1251 = cheddar.add %ctx, %ct_1228, %ct_1229 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1252 = cheddar.add %ctx, %ct_1230, %ct_1231 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1253 = cheddar.add %ctx, %ct_1252, %ct_1232 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1254 = cheddar.add %ctx, %ct_1251, %ct_1253 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1255 = cheddar.add %ctx, %ct_1233, %ct_1234 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1256 = cheddar.add %ctx, %ct_1255, %ct_1235 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1257 = cheddar.add %ctx, %ct_1236, %ct_1237 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1258 = cheddar.add %ctx, %ct_1257, %ct_1238 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1259 = cheddar.add %ctx, %ct_1256, %ct_1258 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1260 = cheddar.add %ctx, %ct_1254, %ct_1259 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1261 = cheddar.add %ctx, %ct_1239, %ct_1240 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1262 = cheddar.add %ctx, %ct_1261, %ct_1241 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1263 = cheddar.add %ctx, %ct_1242, %ct_1243 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1264 = cheddar.add %ctx, %ct_1263, %ct_1244 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1265 = cheddar.add %ctx, %ct_1262, %ct_1264 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1266 = cheddar.add %ctx, %ct_1245, %ct_1246 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1267 = cheddar.add %ctx, %ct_1266, %ct_1247 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1268 = cheddar.add %ctx, %ct_1248, %ct_1249 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1269 = cheddar.add %ctx, %ct_1268, %ct_1250 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1270 = cheddar.add %ctx, %ct_1267, %ct_1269 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1271 = cheddar.add %ctx, %ct_1265, %ct_1270 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1272 = cheddar.add %ctx, %ct_1260, %ct_1271 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1273 = cheddar.hrot %ctx, %ct_1272, %c345 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1274 = cheddar.mult_plain %ctx, %extracted_539, %extracted_372 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1275 = cheddar.mult_plain %ctx, %ct_540, %extracted_373 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1276 = cheddar.mult_plain %ctx, %ct_542, %extracted_374 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1277 = cheddar.mult_plain %ctx, %ct_544, %extracted_375 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1278 = cheddar.mult_plain %ctx, %ct_546, %extracted_376 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1279 = cheddar.mult_plain %ctx, %ct_548, %extracted_377 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1280 = cheddar.mult_plain %ctx, %ct_550, %extracted_378 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1281 = cheddar.mult_plain %ctx, %ct_552, %extracted_379 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1282 = cheddar.mult_plain %ctx, %ct_554, %extracted_380 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1283 = cheddar.mult_plain %ctx, %ct_556, %extracted_381 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1284 = cheddar.mult_plain %ctx, %ct_558, %extracted_382 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1285 = cheddar.mult_plain %ctx, %ct_560, %extracted_383 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1286 = cheddar.mult_plain %ctx, %ct_562, %extracted_384 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1287 = cheddar.mult_plain %ctx, %ct_564, %extracted_385 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1288 = cheddar.mult_plain %ctx, %ct_566, %extracted_386 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1289 = cheddar.mult_plain %ctx, %ct_568, %extracted_387 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1290 = cheddar.mult_plain %ctx, %ct_570, %extracted_388 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1291 = cheddar.mult_plain %ctx, %ct_572, %extracted_389 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1292 = cheddar.mult_plain %ctx, %ct_574, %extracted_390 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1293 = cheddar.mult_plain %ctx, %ct_576, %extracted_391 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1294 = cheddar.mult_plain %ctx, %ct_578, %extracted_392 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1295 = cheddar.mult_plain %ctx, %ct_580, %extracted_393 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1296 = cheddar.mult_plain %ctx, %ct_582, %extracted_394 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1297 = cheddar.add %ctx, %ct_1274, %ct_1275 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1298 = cheddar.add %ctx, %ct_1276, %ct_1277 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1299 = cheddar.add %ctx, %ct_1298, %ct_1278 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1300 = cheddar.add %ctx, %ct_1297, %ct_1299 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1301 = cheddar.add %ctx, %ct_1279, %ct_1280 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1302 = cheddar.add %ctx, %ct_1301, %ct_1281 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1303 = cheddar.add %ctx, %ct_1282, %ct_1283 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1304 = cheddar.add %ctx, %ct_1303, %ct_1284 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1305 = cheddar.add %ctx, %ct_1302, %ct_1304 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1306 = cheddar.add %ctx, %ct_1300, %ct_1305 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1307 = cheddar.add %ctx, %ct_1285, %ct_1286 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1308 = cheddar.add %ctx, %ct_1307, %ct_1287 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1309 = cheddar.add %ctx, %ct_1288, %ct_1289 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1310 = cheddar.add %ctx, %ct_1309, %ct_1290 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1311 = cheddar.add %ctx, %ct_1308, %ct_1310 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1312 = cheddar.add %ctx, %ct_1291, %ct_1292 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1313 = cheddar.add %ctx, %ct_1312, %ct_1293 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1314 = cheddar.add %ctx, %ct_1294, %ct_1295 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1315 = cheddar.add %ctx, %ct_1314, %ct_1296 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1316 = cheddar.add %ctx, %ct_1313, %ct_1315 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1317 = cheddar.add %ctx, %ct_1311, %ct_1316 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1318 = cheddar.add %ctx, %ct_1306, %ct_1317 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1319 = cheddar.hrot %ctx, %ct_1318, %c368 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1320 = cheddar.mult_plain %ctx, %extracted_539, %extracted_395 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1321 = cheddar.mult_plain %ctx, %ct_540, %extracted_396 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1322 = cheddar.mult_plain %ctx, %ct_542, %extracted_397 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1323 = cheddar.mult_plain %ctx, %ct_544, %extracted_398 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1324 = cheddar.mult_plain %ctx, %ct_546, %extracted_399 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1325 = cheddar.mult_plain %ctx, %ct_548, %extracted_400 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1326 = cheddar.mult_plain %ctx, %ct_550, %extracted_401 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1327 = cheddar.mult_plain %ctx, %ct_552, %extracted_402 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1328 = cheddar.mult_plain %ctx, %ct_554, %extracted_403 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1329 = cheddar.mult_plain %ctx, %ct_556, %extracted_404 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1330 = cheddar.mult_plain %ctx, %ct_558, %extracted_405 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1331 = cheddar.mult_plain %ctx, %ct_560, %extracted_406 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1332 = cheddar.mult_plain %ctx, %ct_562, %extracted_407 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1333 = cheddar.mult_plain %ctx, %ct_564, %extracted_408 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1334 = cheddar.mult_plain %ctx, %ct_566, %extracted_409 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1335 = cheddar.mult_plain %ctx, %ct_568, %extracted_410 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1336 = cheddar.mult_plain %ctx, %ct_570, %extracted_411 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1337 = cheddar.mult_plain %ctx, %ct_572, %extracted_412 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1338 = cheddar.mult_plain %ctx, %ct_574, %extracted_413 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1339 = cheddar.mult_plain %ctx, %ct_576, %extracted_414 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1340 = cheddar.mult_plain %ctx, %ct_578, %extracted_415 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1341 = cheddar.mult_plain %ctx, %ct_580, %extracted_416 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1342 = cheddar.mult_plain %ctx, %ct_582, %extracted_417 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1343 = cheddar.add %ctx, %ct_1320, %ct_1321 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1344 = cheddar.add %ctx, %ct_1322, %ct_1323 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1345 = cheddar.add %ctx, %ct_1344, %ct_1324 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1213 = cheddar.add %ctx, %ct_1193, %ct_1194 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1214 = cheddar.add %ctx, %ct_1213, %ct_1195 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1215 = cheddar.add %ctx, %ct_1212, %ct_1214 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1216 = cheddar.add %ctx, %ct_1210, %ct_1215 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1217 = cheddar.add %ctx, %ct_1205, %ct_1216 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1218 = cheddar.mult_plain %ctx, %extracted_539, %extracted_349 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1219 = cheddar.mult_plain %ctx, %ct_540, %extracted_350 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1220 = cheddar.mult_plain %ctx, %ct_542, %extracted_351 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1221 = cheddar.mult_plain %ctx, %ct_544, %extracted_352 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1222 = cheddar.mult_plain %ctx, %ct_546, %extracted_353 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1223 = cheddar.mult_plain %ctx, %ct_548, %extracted_354 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1224 = cheddar.mult_plain %ctx, %ct_550, %extracted_355 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1225 = cheddar.mult_plain %ctx, %ct_552, %extracted_356 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1226 = cheddar.mult_plain %ctx, %ct_554, %extracted_357 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1227 = cheddar.mult_plain %ctx, %ct_556, %extracted_358 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1228 = cheddar.mult_plain %ctx, %ct_558, %extracted_359 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1229 = cheddar.mult_plain %ctx, %ct_560, %extracted_360 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1230 = cheddar.mult_plain %ctx, %ct_562, %extracted_361 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1231 = cheddar.mult_plain %ctx, %ct_564, %extracted_362 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1232 = cheddar.mult_plain %ctx, %ct_566, %extracted_363 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1233 = cheddar.mult_plain %ctx, %ct_568, %extracted_364 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1234 = cheddar.mult_plain %ctx, %ct_570, %extracted_365 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1235 = cheddar.mult_plain %ctx, %ct_572, %extracted_366 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1236 = cheddar.mult_plain %ctx, %ct_574, %extracted_367 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1237 = cheddar.mult_plain %ctx, %ct_576, %extracted_368 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1238 = cheddar.mult_plain %ctx, %ct_578, %extracted_369 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1239 = cheddar.mult_plain %ctx, %ct_580, %extracted_370 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1240 = cheddar.mult_plain %ctx, %ct_582, %extracted_371 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1241 = cheddar.add %ctx, %ct_1218, %ct_1219 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1242 = cheddar.add %ctx, %ct_1220, %ct_1221 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1243 = cheddar.add %ctx, %ct_1242, %ct_1222 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1244 = cheddar.add %ctx, %ct_1241, %ct_1243 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1245 = cheddar.add %ctx, %ct_1223, %ct_1224 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1246 = cheddar.add %ctx, %ct_1245, %ct_1225 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1247 = cheddar.add %ctx, %ct_1226, %ct_1227 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1248 = cheddar.add %ctx, %ct_1247, %ct_1228 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1249 = cheddar.add %ctx, %ct_1246, %ct_1248 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1250 = cheddar.add %ctx, %ct_1244, %ct_1249 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1251 = cheddar.add %ctx, %ct_1229, %ct_1230 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1252 = cheddar.add %ctx, %ct_1251, %ct_1231 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1253 = cheddar.add %ctx, %ct_1232, %ct_1233 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1254 = cheddar.add %ctx, %ct_1253, %ct_1234 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1255 = cheddar.add %ctx, %ct_1252, %ct_1254 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1256 = cheddar.add %ctx, %ct_1235, %ct_1236 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1257 = cheddar.add %ctx, %ct_1256, %ct_1237 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1258 = cheddar.add %ctx, %ct_1238, %ct_1239 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1259 = cheddar.add %ctx, %ct_1258, %ct_1240 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1260 = cheddar.add %ctx, %ct_1257, %ct_1259 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1261 = cheddar.add %ctx, %ct_1255, %ct_1260 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1262 = cheddar.add %ctx, %ct_1250, %ct_1261 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1263 = cheddar.hrot %ctx, %ct_1262, %c345 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1264 = cheddar.mult_plain %ctx, %extracted_539, %extracted_372 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1265 = cheddar.mult_plain %ctx, %ct_540, %extracted_373 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1266 = cheddar.mult_plain %ctx, %ct_542, %extracted_374 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1267 = cheddar.mult_plain %ctx, %ct_544, %extracted_375 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1268 = cheddar.mult_plain %ctx, %ct_546, %extracted_376 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1269 = cheddar.mult_plain %ctx, %ct_548, %extracted_377 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1270 = cheddar.mult_plain %ctx, %ct_550, %extracted_378 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1271 = cheddar.mult_plain %ctx, %ct_552, %extracted_379 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1272 = cheddar.mult_plain %ctx, %ct_554, %extracted_380 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1273 = cheddar.mult_plain %ctx, %ct_556, %extracted_381 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1274 = cheddar.mult_plain %ctx, %ct_558, %extracted_382 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1275 = cheddar.mult_plain %ctx, %ct_560, %extracted_383 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1276 = cheddar.mult_plain %ctx, %ct_562, %extracted_384 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1277 = cheddar.mult_plain %ctx, %ct_564, %extracted_385 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1278 = cheddar.mult_plain %ctx, %ct_566, %extracted_386 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1279 = cheddar.mult_plain %ctx, %ct_568, %extracted_387 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1280 = cheddar.mult_plain %ctx, %ct_570, %extracted_388 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1281 = cheddar.mult_plain %ctx, %ct_572, %extracted_389 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1282 = cheddar.mult_plain %ctx, %ct_574, %extracted_390 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1283 = cheddar.mult_plain %ctx, %ct_576, %extracted_391 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1284 = cheddar.mult_plain %ctx, %ct_578, %extracted_392 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1285 = cheddar.mult_plain %ctx, %ct_580, %extracted_393 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1286 = cheddar.mult_plain %ctx, %ct_582, %extracted_394 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1287 = cheddar.add %ctx, %ct_1264, %ct_1265 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1288 = cheddar.add %ctx, %ct_1266, %ct_1267 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1289 = cheddar.add %ctx, %ct_1288, %ct_1268 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1290 = cheddar.add %ctx, %ct_1287, %ct_1289 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1291 = cheddar.add %ctx, %ct_1269, %ct_1270 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1292 = cheddar.add %ctx, %ct_1291, %ct_1271 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1293 = cheddar.add %ctx, %ct_1272, %ct_1273 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1294 = cheddar.add %ctx, %ct_1293, %ct_1274 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1295 = cheddar.add %ctx, %ct_1292, %ct_1294 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1296 = cheddar.add %ctx, %ct_1290, %ct_1295 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1297 = cheddar.add %ctx, %ct_1275, %ct_1276 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1298 = cheddar.add %ctx, %ct_1297, %ct_1277 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1299 = cheddar.add %ctx, %ct_1278, %ct_1279 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1300 = cheddar.add %ctx, %ct_1299, %ct_1280 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1301 = cheddar.add %ctx, %ct_1298, %ct_1300 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1302 = cheddar.add %ctx, %ct_1281, %ct_1282 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1303 = cheddar.add %ctx, %ct_1302, %ct_1283 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1304 = cheddar.add %ctx, %ct_1284, %ct_1285 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1305 = cheddar.add %ctx, %ct_1304, %ct_1286 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1306 = cheddar.add %ctx, %ct_1303, %ct_1305 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1307 = cheddar.add %ctx, %ct_1301, %ct_1306 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1308 = cheddar.add %ctx, %ct_1296, %ct_1307 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1309 = cheddar.mult_plain %ctx, %extracted_539, %extracted_395 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1310 = cheddar.mult_plain %ctx, %ct_540, %extracted_396 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1311 = cheddar.mult_plain %ctx, %ct_542, %extracted_397 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1312 = cheddar.mult_plain %ctx, %ct_544, %extracted_398 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1313 = cheddar.mult_plain %ctx, %ct_546, %extracted_399 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1314 = cheddar.mult_plain %ctx, %ct_548, %extracted_400 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1315 = cheddar.mult_plain %ctx, %ct_550, %extracted_401 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1316 = cheddar.mult_plain %ctx, %ct_552, %extracted_402 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1317 = cheddar.mult_plain %ctx, %ct_554, %extracted_403 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1318 = cheddar.mult_plain %ctx, %ct_556, %extracted_404 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1319 = cheddar.mult_plain %ctx, %ct_558, %extracted_405 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1320 = cheddar.mult_plain %ctx, %ct_560, %extracted_406 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1321 = cheddar.mult_plain %ctx, %ct_562, %extracted_407 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1322 = cheddar.mult_plain %ctx, %ct_564, %extracted_408 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1323 = cheddar.mult_plain %ctx, %ct_566, %extracted_409 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1324 = cheddar.mult_plain %ctx, %ct_568, %extracted_410 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1325 = cheddar.mult_plain %ctx, %ct_570, %extracted_411 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1326 = cheddar.mult_plain %ctx, %ct_572, %extracted_412 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1327 = cheddar.mult_plain %ctx, %ct_574, %extracted_413 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1328 = cheddar.mult_plain %ctx, %ct_576, %extracted_414 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1329 = cheddar.mult_plain %ctx, %ct_578, %extracted_415 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1330 = cheddar.mult_plain %ctx, %ct_580, %extracted_416 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1331 = cheddar.mult_plain %ctx, %ct_582, %extracted_417 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1332 = cheddar.add %ctx, %ct_1309, %ct_1310 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1333 = cheddar.add %ctx, %ct_1311, %ct_1312 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1334 = cheddar.add %ctx, %ct_1333, %ct_1313 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1335 = cheddar.add %ctx, %ct_1332, %ct_1334 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1336 = cheddar.add %ctx, %ct_1314, %ct_1315 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1337 = cheddar.add %ctx, %ct_1336, %ct_1316 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1338 = cheddar.add %ctx, %ct_1317, %ct_1318 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1339 = cheddar.add %ctx, %ct_1338, %ct_1319 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1340 = cheddar.add %ctx, %ct_1337, %ct_1339 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1341 = cheddar.add %ctx, %ct_1335, %ct_1340 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1342 = cheddar.add %ctx, %ct_1320, %ct_1321 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1343 = cheddar.add %ctx, %ct_1342, %ct_1322 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1344 = cheddar.add %ctx, %ct_1323, %ct_1324 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1345 = cheddar.add %ctx, %ct_1344, %ct_1325 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1346 = cheddar.add %ctx, %ct_1343, %ct_1345 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1347 = cheddar.add %ctx, %ct_1325, %ct_1326 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1348 = cheddar.add %ctx, %ct_1347, %ct_1327 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1349 = cheddar.add %ctx, %ct_1328, %ct_1329 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1350 = cheddar.add %ctx, %ct_1349, %ct_1330 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1347 = cheddar.add %ctx, %ct_1326, %ct_1327 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1348 = cheddar.add %ctx, %ct_1347, %ct_1328 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1349 = cheddar.add %ctx, %ct_1329, %ct_1330 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1350 = cheddar.add %ctx, %ct_1349, %ct_1331 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1351 = cheddar.add %ctx, %ct_1348, %ct_1350 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1352 = cheddar.add %ctx, %ct_1346, %ct_1351 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1353 = cheddar.add %ctx, %ct_1331, %ct_1332 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1354 = cheddar.add %ctx, %ct_1353, %ct_1333 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1355 = cheddar.add %ctx, %ct_1334, %ct_1335 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1356 = cheddar.add %ctx, %ct_1355, %ct_1336 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1357 = cheddar.add %ctx, %ct_1354, %ct_1356 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1358 = cheddar.add %ctx, %ct_1337, %ct_1338 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1359 = cheddar.add %ctx, %ct_1358, %ct_1339 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1360 = cheddar.add %ctx, %ct_1340, %ct_1341 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1361 = cheddar.add %ctx, %ct_1360, %ct_1342 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1362 = cheddar.add %ctx, %ct_1359, %ct_1361 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1363 = cheddar.add %ctx, %ct_1357, %ct_1362 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1364 = cheddar.add %ctx, %ct_1352, %ct_1363 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1365 = cheddar.hrot %ctx, %ct_1364, %c391 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1366 = cheddar.mult_plain %ctx, %extracted_539, %extracted_418 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1367 = cheddar.mult_plain %ctx, %ct_540, %extracted_419 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1368 = cheddar.mult_plain %ctx, %ct_542, %extracted_420 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1369 = cheddar.mult_plain %ctx, %ct_544, %extracted_421 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1370 = cheddar.mult_plain %ctx, %ct_546, %extracted_422 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1371 = cheddar.mult_plain %ctx, %ct_548, %extracted_423 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1372 = cheddar.mult_plain %ctx, %ct_550, %extracted_424 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1373 = cheddar.mult_plain %ctx, %ct_552, %extracted_425 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1374 = cheddar.mult_plain %ctx, %ct_554, %extracted_426 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1375 = cheddar.mult_plain %ctx, %ct_556, %extracted_427 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1376 = cheddar.mult_plain %ctx, %ct_558, %extracted_428 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1377 = cheddar.mult_plain %ctx, %ct_560, %extracted_429 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1378 = cheddar.mult_plain %ctx, %ct_562, %extracted_430 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1379 = cheddar.mult_plain %ctx, %ct_564, %extracted_431 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1380 = cheddar.mult_plain %ctx, %ct_566, %extracted_432 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1381 = cheddar.mult_plain %ctx, %ct_568, %extracted_433 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1382 = cheddar.mult_plain %ctx, %ct_570, %extracted_434 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1383 = cheddar.mult_plain %ctx, %ct_572, %extracted_435 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1384 = cheddar.mult_plain %ctx, %ct_574, %extracted_436 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1385 = cheddar.mult_plain %ctx, %ct_576, %extracted_437 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1386 = cheddar.mult_plain %ctx, %ct_578, %extracted_438 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1387 = cheddar.mult_plain %ctx, %ct_580, %extracted_439 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1388 = cheddar.mult_plain %ctx, %ct_582, %extracted_440 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1389 = cheddar.add %ctx, %ct_1366, %ct_1367 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1390 = cheddar.add %ctx, %ct_1368, %ct_1369 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1391 = cheddar.add %ctx, %ct_1390, %ct_1370 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1392 = cheddar.add %ctx, %ct_1389, %ct_1391 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1393 = cheddar.add %ctx, %ct_1371, %ct_1372 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1394 = cheddar.add %ctx, %ct_1393, %ct_1373 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1395 = cheddar.add %ctx, %ct_1374, %ct_1375 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1396 = cheddar.add %ctx, %ct_1395, %ct_1376 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1397 = cheddar.add %ctx, %ct_1394, %ct_1396 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1398 = cheddar.add %ctx, %ct_1392, %ct_1397 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1399 = cheddar.add %ctx, %ct_1377, %ct_1378 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1400 = cheddar.add %ctx, %ct_1399, %ct_1379 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1401 = cheddar.add %ctx, %ct_1380, %ct_1381 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1402 = cheddar.add %ctx, %ct_1401, %ct_1382 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1403 = cheddar.add %ctx, %ct_1400, %ct_1402 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1404 = cheddar.add %ctx, %ct_1383, %ct_1384 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1405 = cheddar.add %ctx, %ct_1404, %ct_1385 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1406 = cheddar.add %ctx, %ct_1386, %ct_1387 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1407 = cheddar.add %ctx, %ct_1406, %ct_1388 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1408 = cheddar.add %ctx, %ct_1405, %ct_1407 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1409 = cheddar.add %ctx, %ct_1403, %ct_1408 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1410 = cheddar.add %ctx, %ct_1398, %ct_1409 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1411 = cheddar.hrot %ctx, %ct_1410, %c414 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1412 = cheddar.mult_plain %ctx, %extracted_539, %extracted_441 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1413 = cheddar.mult_plain %ctx, %ct_540, %extracted_442 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1414 = cheddar.mult_plain %ctx, %ct_542, %extracted_443 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1415 = cheddar.mult_plain %ctx, %ct_544, %extracted_444 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1416 = cheddar.mult_plain %ctx, %ct_546, %extracted_445 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1417 = cheddar.mult_plain %ctx, %ct_548, %extracted_446 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1418 = cheddar.mult_plain %ctx, %ct_550, %extracted_447 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1419 = cheddar.mult_plain %ctx, %ct_552, %extracted_448 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1420 = cheddar.mult_plain %ctx, %ct_554, %extracted_449 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1421 = cheddar.mult_plain %ctx, %ct_556, %extracted_450 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1422 = cheddar.mult_plain %ctx, %ct_558, %extracted_451 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1423 = cheddar.mult_plain %ctx, %ct_560, %extracted_452 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1424 = cheddar.mult_plain %ctx, %ct_562, %extracted_453 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1425 = cheddar.mult_plain %ctx, %ct_564, %extracted_454 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1426 = cheddar.mult_plain %ctx, %ct_566, %extracted_455 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1427 = cheddar.mult_plain %ctx, %ct_568, %extracted_456 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1428 = cheddar.mult_plain %ctx, %ct_570, %extracted_457 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1429 = cheddar.mult_plain %ctx, %ct_572, %extracted_458 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1430 = cheddar.mult_plain %ctx, %ct_574, %extracted_459 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1431 = cheddar.mult_plain %ctx, %ct_576, %extracted_460 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1432 = cheddar.mult_plain %ctx, %ct_578, %extracted_461 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1433 = cheddar.mult_plain %ctx, %ct_580, %extracted_462 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1434 = cheddar.mult_plain %ctx, %ct_582, %extracted_463 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1435 = cheddar.add %ctx, %ct_1412, %ct_1413 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1436 = cheddar.add %ctx, %ct_1414, %ct_1415 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1437 = cheddar.add %ctx, %ct_1436, %ct_1416 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1438 = cheddar.add %ctx, %ct_1435, %ct_1437 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1439 = cheddar.add %ctx, %ct_1417, %ct_1418 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1440 = cheddar.add %ctx, %ct_1439, %ct_1419 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1441 = cheddar.add %ctx, %ct_1420, %ct_1421 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1442 = cheddar.add %ctx, %ct_1441, %ct_1422 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1443 = cheddar.add %ctx, %ct_1440, %ct_1442 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1444 = cheddar.add %ctx, %ct_1438, %ct_1443 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1445 = cheddar.add %ctx, %ct_1423, %ct_1424 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1446 = cheddar.add %ctx, %ct_1445, %ct_1425 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1447 = cheddar.add %ctx, %ct_1426, %ct_1427 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1448 = cheddar.add %ctx, %ct_1447, %ct_1428 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1449 = cheddar.add %ctx, %ct_1446, %ct_1448 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1450 = cheddar.add %ctx, %ct_1429, %ct_1430 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1451 = cheddar.add %ctx, %ct_1450, %ct_1431 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1452 = cheddar.add %ctx, %ct_1432, %ct_1433 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1453 = cheddar.add %ctx, %ct_1452, %ct_1434 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1454 = cheddar.add %ctx, %ct_1451, %ct_1453 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1455 = cheddar.add %ctx, %ct_1449, %ct_1454 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1456 = cheddar.add %ctx, %ct_1444, %ct_1455 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1457 = cheddar.hrot %ctx, %ct_1456, %c437 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1458 = cheddar.mult_plain %ctx, %extracted_539, %extracted_464 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1459 = cheddar.mult_plain %ctx, %ct_540, %extracted_465 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1460 = cheddar.mult_plain %ctx, %ct_542, %extracted_466 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1461 = cheddar.mult_plain %ctx, %ct_544, %extracted_467 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1462 = cheddar.mult_plain %ctx, %ct_546, %extracted_468 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1463 = cheddar.mult_plain %ctx, %ct_548, %extracted_469 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1464 = cheddar.mult_plain %ctx, %ct_550, %extracted_470 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1465 = cheddar.mult_plain %ctx, %ct_552, %extracted_471 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1466 = cheddar.mult_plain %ctx, %ct_554, %extracted_472 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1467 = cheddar.mult_plain %ctx, %ct_556, %extracted_473 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1468 = cheddar.mult_plain %ctx, %ct_558, %extracted_474 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1469 = cheddar.mult_plain %ctx, %ct_560, %extracted_475 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1470 = cheddar.mult_plain %ctx, %ct_562, %extracted_476 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1471 = cheddar.mult_plain %ctx, %ct_564, %extracted_477 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1472 = cheddar.mult_plain %ctx, %ct_566, %extracted_478 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1473 = cheddar.mult_plain %ctx, %ct_568, %extracted_479 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1474 = cheddar.mult_plain %ctx, %ct_570, %extracted_480 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1475 = cheddar.mult_plain %ctx, %ct_572, %extracted_481 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1476 = cheddar.mult_plain %ctx, %ct_574, %extracted_482 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1477 = cheddar.mult_plain %ctx, %ct_576, %extracted_483 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1478 = cheddar.mult_plain %ctx, %ct_578, %extracted_484 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1479 = cheddar.mult_plain %ctx, %ct_580, %extracted_485 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1480 = cheddar.mult_plain %ctx, %ct_582, %extracted_486 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1481 = cheddar.add %ctx, %ct_1458, %ct_1459 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1482 = cheddar.add %ctx, %ct_1460, %ct_1461 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1483 = cheddar.add %ctx, %ct_1482, %ct_1462 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1484 = cheddar.add %ctx, %ct_1481, %ct_1483 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1485 = cheddar.add %ctx, %ct_1463, %ct_1464 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1486 = cheddar.add %ctx, %ct_1485, %ct_1465 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1487 = cheddar.add %ctx, %ct_1466, %ct_1467 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1488 = cheddar.add %ctx, %ct_1487, %ct_1468 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1489 = cheddar.add %ctx, %ct_1486, %ct_1488 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1490 = cheddar.add %ctx, %ct_1484, %ct_1489 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1491 = cheddar.add %ctx, %ct_1469, %ct_1470 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1492 = cheddar.add %ctx, %ct_1491, %ct_1471 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1493 = cheddar.add %ctx, %ct_1472, %ct_1473 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1494 = cheddar.add %ctx, %ct_1493, %ct_1474 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1495 = cheddar.add %ctx, %ct_1492, %ct_1494 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1496 = cheddar.add %ctx, %ct_1475, %ct_1476 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1497 = cheddar.add %ctx, %ct_1496, %ct_1477 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1498 = cheddar.add %ctx, %ct_1478, %ct_1479 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1499 = cheddar.add %ctx, %ct_1498, %ct_1480 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1500 = cheddar.add %ctx, %ct_1497, %ct_1499 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1501 = cheddar.add %ctx, %ct_1495, %ct_1500 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1502 = cheddar.add %ctx, %ct_1490, %ct_1501 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1503 = cheddar.hrot %ctx, %ct_1502, %c460 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1504 = cheddar.mult_plain %ctx, %extracted_539, %extracted_487 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1505 = cheddar.mult_plain %ctx, %ct_540, %extracted_488 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1506 = cheddar.mult_plain %ctx, %ct_542, %extracted_489 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1507 = cheddar.mult_plain %ctx, %ct_544, %extracted_490 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1508 = cheddar.mult_plain %ctx, %ct_546, %extracted_491 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1509 = cheddar.mult_plain %ctx, %ct_548, %extracted_492 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1510 = cheddar.mult_plain %ctx, %ct_550, %extracted_493 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1511 = cheddar.mult_plain %ctx, %ct_552, %extracted_494 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1512 = cheddar.mult_plain %ctx, %ct_554, %extracted_495 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1513 = cheddar.mult_plain %ctx, %ct_556, %extracted_496 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1514 = cheddar.mult_plain %ctx, %ct_558, %extracted_497 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1515 = cheddar.mult_plain %ctx, %ct_560, %extracted_498 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1516 = cheddar.mult_plain %ctx, %ct_562, %extracted_499 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1517 = cheddar.mult_plain %ctx, %ct_564, %extracted_500 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1518 = cheddar.mult_plain %ctx, %ct_566, %extracted_501 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1519 = cheddar.mult_plain %ctx, %ct_568, %extracted_502 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1520 = cheddar.mult_plain %ctx, %ct_570, %extracted_503 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1521 = cheddar.mult_plain %ctx, %ct_572, %extracted_504 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1522 = cheddar.mult_plain %ctx, %ct_574, %extracted_505 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1523 = cheddar.mult_plain %ctx, %ct_576, %extracted_506 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1524 = cheddar.mult_plain %ctx, %ct_578, %extracted_507 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1525 = cheddar.mult_plain %ctx, %ct_580, %extracted_508 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1526 = cheddar.mult_plain %ctx, %ct_582, %extracted_509 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1527 = cheddar.add %ctx, %ct_1504, %ct_1505 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1528 = cheddar.add %ctx, %ct_1506, %ct_1507 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1529 = cheddar.add %ctx, %ct_1528, %ct_1508 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1530 = cheddar.add %ctx, %ct_1527, %ct_1529 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1531 = cheddar.add %ctx, %ct_1509, %ct_1510 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1532 = cheddar.add %ctx, %ct_1531, %ct_1511 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1533 = cheddar.add %ctx, %ct_1512, %ct_1513 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1534 = cheddar.add %ctx, %ct_1533, %ct_1514 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1535 = cheddar.add %ctx, %ct_1532, %ct_1534 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1536 = cheddar.add %ctx, %ct_1530, %ct_1535 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1537 = cheddar.add %ctx, %ct_1515, %ct_1516 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1538 = cheddar.add %ctx, %ct_1537, %ct_1517 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1539 = cheddar.add %ctx, %ct_1518, %ct_1519 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1540 = cheddar.add %ctx, %ct_1539, %ct_1520 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1541 = cheddar.add %ctx, %ct_1538, %ct_1540 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1542 = cheddar.add %ctx, %ct_1521, %ct_1522 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1543 = cheddar.add %ctx, %ct_1542, %ct_1523 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1544 = cheddar.add %ctx, %ct_1524, %ct_1525 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1545 = cheddar.add %ctx, %ct_1544, %ct_1526 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1353 = cheddar.add %ctx, %ct_1341, %ct_1352 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1354 = cheddar.mult_plain %ctx, %extracted_539, %extracted_418 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1355 = cheddar.mult_plain %ctx, %ct_540, %extracted_419 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1356 = cheddar.mult_plain %ctx, %ct_542, %extracted_420 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1357 = cheddar.mult_plain %ctx, %ct_544, %extracted_421 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1358 = cheddar.mult_plain %ctx, %ct_546, %extracted_422 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1359 = cheddar.mult_plain %ctx, %ct_548, %extracted_423 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1360 = cheddar.mult_plain %ctx, %ct_550, %extracted_424 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1361 = cheddar.mult_plain %ctx, %ct_552, %extracted_425 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1362 = cheddar.mult_plain %ctx, %ct_554, %extracted_426 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1363 = cheddar.mult_plain %ctx, %ct_556, %extracted_427 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1364 = cheddar.mult_plain %ctx, %ct_558, %extracted_428 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1365 = cheddar.mult_plain %ctx, %ct_560, %extracted_429 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1366 = cheddar.mult_plain %ctx, %ct_562, %extracted_430 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1367 = cheddar.mult_plain %ctx, %ct_564, %extracted_431 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1368 = cheddar.mult_plain %ctx, %ct_566, %extracted_432 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1369 = cheddar.mult_plain %ctx, %ct_568, %extracted_433 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1370 = cheddar.mult_plain %ctx, %ct_570, %extracted_434 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1371 = cheddar.mult_plain %ctx, %ct_572, %extracted_435 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1372 = cheddar.mult_plain %ctx, %ct_574, %extracted_436 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1373 = cheddar.mult_plain %ctx, %ct_576, %extracted_437 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1374 = cheddar.mult_plain %ctx, %ct_578, %extracted_438 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1375 = cheddar.mult_plain %ctx, %ct_580, %extracted_439 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1376 = cheddar.mult_plain %ctx, %ct_582, %extracted_440 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1377 = cheddar.add %ctx, %ct_1354, %ct_1355 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1378 = cheddar.add %ctx, %ct_1356, %ct_1357 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1379 = cheddar.add %ctx, %ct_1378, %ct_1358 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1380 = cheddar.add %ctx, %ct_1377, %ct_1379 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1381 = cheddar.add %ctx, %ct_1359, %ct_1360 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1382 = cheddar.add %ctx, %ct_1381, %ct_1361 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1383 = cheddar.add %ctx, %ct_1362, %ct_1363 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1384 = cheddar.add %ctx, %ct_1383, %ct_1364 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1385 = cheddar.add %ctx, %ct_1382, %ct_1384 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1386 = cheddar.add %ctx, %ct_1380, %ct_1385 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1387 = cheddar.add %ctx, %ct_1365, %ct_1366 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1388 = cheddar.add %ctx, %ct_1387, %ct_1367 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1389 = cheddar.add %ctx, %ct_1368, %ct_1369 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1390 = cheddar.add %ctx, %ct_1389, %ct_1370 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1391 = cheddar.add %ctx, %ct_1388, %ct_1390 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1392 = cheddar.add %ctx, %ct_1371, %ct_1372 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1393 = cheddar.add %ctx, %ct_1392, %ct_1373 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1394 = cheddar.add %ctx, %ct_1374, %ct_1375 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1395 = cheddar.add %ctx, %ct_1394, %ct_1376 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1396 = cheddar.add %ctx, %ct_1393, %ct_1395 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1397 = cheddar.add %ctx, %ct_1391, %ct_1396 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1398 = cheddar.add %ctx, %ct_1386, %ct_1397 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1399 = cheddar.hrot %ctx, %ct_1398, %c414 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1400 = cheddar.mult_plain %ctx, %extracted_539, %extracted_441 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1401 = cheddar.mult_plain %ctx, %ct_540, %extracted_442 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1402 = cheddar.mult_plain %ctx, %ct_542, %extracted_443 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1403 = cheddar.mult_plain %ctx, %ct_544, %extracted_444 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1404 = cheddar.mult_plain %ctx, %ct_546, %extracted_445 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1405 = cheddar.mult_plain %ctx, %ct_548, %extracted_446 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1406 = cheddar.mult_plain %ctx, %ct_550, %extracted_447 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1407 = cheddar.mult_plain %ctx, %ct_552, %extracted_448 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1408 = cheddar.mult_plain %ctx, %ct_554, %extracted_449 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1409 = cheddar.mult_plain %ctx, %ct_556, %extracted_450 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1410 = cheddar.mult_plain %ctx, %ct_558, %extracted_451 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1411 = cheddar.mult_plain %ctx, %ct_560, %extracted_452 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1412 = cheddar.mult_plain %ctx, %ct_562, %extracted_453 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1413 = cheddar.mult_plain %ctx, %ct_564, %extracted_454 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1414 = cheddar.mult_plain %ctx, %ct_566, %extracted_455 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1415 = cheddar.mult_plain %ctx, %ct_568, %extracted_456 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1416 = cheddar.mult_plain %ctx, %ct_570, %extracted_457 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1417 = cheddar.mult_plain %ctx, %ct_572, %extracted_458 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1418 = cheddar.mult_plain %ctx, %ct_574, %extracted_459 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1419 = cheddar.mult_plain %ctx, %ct_576, %extracted_460 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1420 = cheddar.mult_plain %ctx, %ct_578, %extracted_461 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1421 = cheddar.mult_plain %ctx, %ct_580, %extracted_462 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1422 = cheddar.mult_plain %ctx, %ct_582, %extracted_463 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1423 = cheddar.add %ctx, %ct_1400, %ct_1401 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1424 = cheddar.add %ctx, %ct_1402, %ct_1403 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1425 = cheddar.add %ctx, %ct_1424, %ct_1404 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1426 = cheddar.add %ctx, %ct_1423, %ct_1425 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1427 = cheddar.add %ctx, %ct_1405, %ct_1406 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1428 = cheddar.add %ctx, %ct_1427, %ct_1407 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1429 = cheddar.add %ctx, %ct_1408, %ct_1409 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1430 = cheddar.add %ctx, %ct_1429, %ct_1410 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1431 = cheddar.add %ctx, %ct_1428, %ct_1430 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1432 = cheddar.add %ctx, %ct_1426, %ct_1431 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1433 = cheddar.add %ctx, %ct_1411, %ct_1412 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1434 = cheddar.add %ctx, %ct_1433, %ct_1413 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1435 = cheddar.add %ctx, %ct_1414, %ct_1415 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1436 = cheddar.add %ctx, %ct_1435, %ct_1416 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1437 = cheddar.add %ctx, %ct_1434, %ct_1436 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1438 = cheddar.add %ctx, %ct_1417, %ct_1418 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1439 = cheddar.add %ctx, %ct_1438, %ct_1419 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1440 = cheddar.add %ctx, %ct_1420, %ct_1421 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1441 = cheddar.add %ctx, %ct_1440, %ct_1422 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1442 = cheddar.add %ctx, %ct_1439, %ct_1441 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1443 = cheddar.add %ctx, %ct_1437, %ct_1442 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1444 = cheddar.add %ctx, %ct_1432, %ct_1443 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1445 = cheddar.mult_plain %ctx, %extracted_539, %extracted_464 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1446 = cheddar.mult_plain %ctx, %ct_540, %extracted_465 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1447 = cheddar.mult_plain %ctx, %ct_542, %extracted_466 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1448 = cheddar.mult_plain %ctx, %ct_544, %extracted_467 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1449 = cheddar.mult_plain %ctx, %ct_546, %extracted_468 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1450 = cheddar.mult_plain %ctx, %ct_548, %extracted_469 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1451 = cheddar.mult_plain %ctx, %ct_550, %extracted_470 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1452 = cheddar.mult_plain %ctx, %ct_552, %extracted_471 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1453 = cheddar.mult_plain %ctx, %ct_554, %extracted_472 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1454 = cheddar.mult_plain %ctx, %ct_556, %extracted_473 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1455 = cheddar.mult_plain %ctx, %ct_558, %extracted_474 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1456 = cheddar.mult_plain %ctx, %ct_560, %extracted_475 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1457 = cheddar.mult_plain %ctx, %ct_562, %extracted_476 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1458 = cheddar.mult_plain %ctx, %ct_564, %extracted_477 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1459 = cheddar.mult_plain %ctx, %ct_566, %extracted_478 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1460 = cheddar.mult_plain %ctx, %ct_568, %extracted_479 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1461 = cheddar.mult_plain %ctx, %ct_570, %extracted_480 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1462 = cheddar.mult_plain %ctx, %ct_572, %extracted_481 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1463 = cheddar.mult_plain %ctx, %ct_574, %extracted_482 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1464 = cheddar.mult_plain %ctx, %ct_576, %extracted_483 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1465 = cheddar.mult_plain %ctx, %ct_578, %extracted_484 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1466 = cheddar.mult_plain %ctx, %ct_580, %extracted_485 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1467 = cheddar.mult_plain %ctx, %ct_582, %extracted_486 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1468 = cheddar.add %ctx, %ct_1445, %ct_1446 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1469 = cheddar.add %ctx, %ct_1447, %ct_1448 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1470 = cheddar.add %ctx, %ct_1469, %ct_1449 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1471 = cheddar.add %ctx, %ct_1468, %ct_1470 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1472 = cheddar.add %ctx, %ct_1450, %ct_1451 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1473 = cheddar.add %ctx, %ct_1472, %ct_1452 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1474 = cheddar.add %ctx, %ct_1453, %ct_1454 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1475 = cheddar.add %ctx, %ct_1474, %ct_1455 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1476 = cheddar.add %ctx, %ct_1473, %ct_1475 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1477 = cheddar.add %ctx, %ct_1471, %ct_1476 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1478 = cheddar.add %ctx, %ct_1456, %ct_1457 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1479 = cheddar.add %ctx, %ct_1478, %ct_1458 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1480 = cheddar.add %ctx, %ct_1459, %ct_1460 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1481 = cheddar.add %ctx, %ct_1480, %ct_1461 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1482 = cheddar.add %ctx, %ct_1479, %ct_1481 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1483 = cheddar.add %ctx, %ct_1462, %ct_1463 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1484 = cheddar.add %ctx, %ct_1483, %ct_1464 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1485 = cheddar.add %ctx, %ct_1465, %ct_1466 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1486 = cheddar.add %ctx, %ct_1485, %ct_1467 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1487 = cheddar.add %ctx, %ct_1484, %ct_1486 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1488 = cheddar.add %ctx, %ct_1482, %ct_1487 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1489 = cheddar.add %ctx, %ct_1477, %ct_1488 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1490 = cheddar.mult_plain %ctx, %extracted_539, %extracted_487 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1491 = cheddar.mult_plain %ctx, %ct_540, %extracted_488 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1492 = cheddar.mult_plain %ctx, %ct_542, %extracted_489 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1493 = cheddar.mult_plain %ctx, %ct_544, %extracted_490 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1494 = cheddar.mult_plain %ctx, %ct_546, %extracted_491 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1495 = cheddar.mult_plain %ctx, %ct_548, %extracted_492 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1496 = cheddar.mult_plain %ctx, %ct_550, %extracted_493 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1497 = cheddar.mult_plain %ctx, %ct_552, %extracted_494 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1498 = cheddar.mult_plain %ctx, %ct_554, %extracted_495 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1499 = cheddar.mult_plain %ctx, %ct_556, %extracted_496 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1500 = cheddar.mult_plain %ctx, %ct_558, %extracted_497 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1501 = cheddar.mult_plain %ctx, %ct_560, %extracted_498 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1502 = cheddar.mult_plain %ctx, %ct_562, %extracted_499 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1503 = cheddar.mult_plain %ctx, %ct_564, %extracted_500 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1504 = cheddar.mult_plain %ctx, %ct_566, %extracted_501 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1505 = cheddar.mult_plain %ctx, %ct_568, %extracted_502 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1506 = cheddar.mult_plain %ctx, %ct_570, %extracted_503 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1507 = cheddar.mult_plain %ctx, %ct_572, %extracted_504 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1508 = cheddar.mult_plain %ctx, %ct_574, %extracted_505 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1509 = cheddar.mult_plain %ctx, %ct_576, %extracted_506 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1510 = cheddar.mult_plain %ctx, %ct_578, %extracted_507 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1511 = cheddar.mult_plain %ctx, %ct_580, %extracted_508 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1512 = cheddar.mult_plain %ctx, %ct_582, %extracted_509 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1513 = cheddar.add %ctx, %ct_1490, %ct_1491 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1514 = cheddar.add %ctx, %ct_1492, %ct_1493 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1515 = cheddar.add %ctx, %ct_1514, %ct_1494 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1516 = cheddar.add %ctx, %ct_1513, %ct_1515 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1517 = cheddar.add %ctx, %ct_1495, %ct_1496 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1518 = cheddar.add %ctx, %ct_1517, %ct_1497 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1519 = cheddar.add %ctx, %ct_1498, %ct_1499 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1520 = cheddar.add %ctx, %ct_1519, %ct_1500 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1521 = cheddar.add %ctx, %ct_1518, %ct_1520 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1522 = cheddar.add %ctx, %ct_1516, %ct_1521 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1523 = cheddar.add %ctx, %ct_1501, %ct_1502 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1524 = cheddar.add %ctx, %ct_1523, %ct_1503 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1525 = cheddar.add %ctx, %ct_1504, %ct_1505 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1526 = cheddar.add %ctx, %ct_1525, %ct_1506 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1527 = cheddar.add %ctx, %ct_1524, %ct_1526 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1528 = cheddar.add %ctx, %ct_1507, %ct_1508 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1529 = cheddar.add %ctx, %ct_1528, %ct_1509 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1530 = cheddar.add %ctx, %ct_1510, %ct_1511 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1531 = cheddar.add %ctx, %ct_1530, %ct_1512 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1532 = cheddar.add %ctx, %ct_1529, %ct_1531 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1533 = cheddar.add %ctx, %ct_1527, %ct_1532 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1534 = cheddar.add %ctx, %ct_1522, %ct_1533 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1535 = cheddar.hrot %ctx, %ct_1534, %c483 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1536 = cheddar.mult_plain %ctx, %extracted_539, %extracted_510 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1537 = cheddar.mult_plain %ctx, %ct_540, %extracted_511 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1538 = cheddar.mult_plain %ctx, %ct_542, %extracted_512 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1539 = cheddar.mult_plain %ctx, %ct_544, %extracted_513 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1540 = cheddar.mult_plain %ctx, %ct_546, %extracted_514 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1541 = cheddar.mult_plain %ctx, %ct_548, %extracted_515 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1542 = cheddar.add %ctx, %ct_1536, %ct_1537 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1543 = cheddar.add %ctx, %ct_1542, %ct_1538 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1544 = cheddar.add %ctx, %ct_1539, %ct_1540 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1545 = cheddar.add %ctx, %ct_1544, %ct_1541 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1546 = cheddar.add %ctx, %ct_1543, %ct_1545 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1547 = cheddar.add %ctx, %ct_1541, %ct_1546 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1548 = cheddar.add %ctx, %ct_1536, %ct_1547 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1549 = cheddar.hrot %ctx, %ct_1548, %c483 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1550 = cheddar.mult_plain %ctx, %extracted_539, %extracted_510 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1551 = cheddar.mult_plain %ctx, %ct_540, %extracted_511 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1552 = cheddar.mult_plain %ctx, %ct_542, %extracted_512 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1553 = cheddar.mult_plain %ctx, %ct_544, %extracted_513 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1554 = cheddar.mult_plain %ctx, %ct_546, %extracted_514 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1555 = cheddar.mult_plain %ctx, %ct_548, %extracted_515 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1556 = cheddar.add %ctx, %ct_1550, %ct_1551 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1557 = cheddar.add %ctx, %ct_1556, %ct_1552 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1558 = cheddar.add %ctx, %ct_1553, %ct_1554 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1559 = cheddar.add %ctx, %ct_1558, %ct_1555 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1547 = cheddar.add %ctx, %ct, %ct_541 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1548 = cheddar.add %ctx, %ct_543, %ct_545 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1549 = cheddar.add %ctx, %ct_1548, %ct_547 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1550 = cheddar.add %ctx, %ct_1547, %ct_1549 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1551 = cheddar.add %ctx, %ct_549, %ct_551 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1552 = cheddar.add %ctx, %ct_1551, %ct_553 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1553 = cheddar.add %ctx, %ct_555, %ct_557 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1554 = cheddar.add %ctx, %ct_1553, %ct_559 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1555 = cheddar.add %ctx, %ct_1552, %ct_1554 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1556 = cheddar.add %ctx, %ct_1550, %ct_1555 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1557 = cheddar.add %ctx, %ct_561, %ct_563 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1558 = cheddar.add %ctx, %ct_565, %ct_567 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1559 = cheddar.add %ctx, %ct_1558, %ct_569 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1560 = cheddar.add %ctx, %ct_1557, %ct_1559 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1561 = cheddar.hrot %ctx, %ct_1560, %c506 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1562 = cheddar.add %ctx, %ct, %ct_541 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1563 = cheddar.add %ctx, %ct_543, %ct_545 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1564 = cheddar.add %ctx, %ct_1563, %ct_547 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1561 = cheddar.add %ctx, %ct_571, %ct_573 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1562 = cheddar.add %ctx, %ct_1561, %ct_575 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1563 = cheddar.add %ctx, %ct_577, %ct_579 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1564 = cheddar.add %ctx, %ct_1563, %ct_581 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1565 = cheddar.add %ctx, %ct_1562, %ct_1564 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1566 = cheddar.add %ctx, %ct_549, %ct_551 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1567 = cheddar.add %ctx, %ct_1566, %ct_553 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1568 = cheddar.add %ctx, %ct_555, %ct_557 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1569 = cheddar.add %ctx, %ct_1568, %ct_559 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1570 = cheddar.add %ctx, %ct_1567, %ct_1569 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1571 = cheddar.add %ctx, %ct_1565, %ct_1570 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1572 = cheddar.add %ctx, %ct_561, %ct_563 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1573 = cheddar.add %ctx, %ct_565, %ct_567 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1574 = cheddar.add %ctx, %ct_1573, %ct_569 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1575 = cheddar.add %ctx, %ct_1572, %ct_1574 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1576 = cheddar.add %ctx, %ct_571, %ct_573 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1577 = cheddar.add %ctx, %ct_1576, %ct_575 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1578 = cheddar.add %ctx, %ct_577, %ct_579 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1579 = cheddar.add %ctx, %ct_1578, %ct_581 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1580 = cheddar.add %ctx, %ct_1577, %ct_1579 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1581 = cheddar.add %ctx, %ct_1575, %ct_1580 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1582 = cheddar.add %ctx, %ct_1571, %ct_1581 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1583 = cheddar.add %ctx, %ct_583, %ct_629 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1584 = cheddar.add %ctx, %ct_675, %ct_721 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1585 = cheddar.add %ctx, %ct_1584, %ct_767 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1586 = cheddar.add %ctx, %ct_1583, %ct_1585 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1587 = cheddar.add %ctx, %ct_813, %ct_859 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1588 = cheddar.add %ctx, %ct_1587, %ct_905 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1589 = cheddar.add %ctx, %ct_951, %ct_997 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1590 = cheddar.add %ctx, %ct_1589, %ct_1043 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1591 = cheddar.add %ctx, %ct_1588, %ct_1590 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1592 = cheddar.add %ctx, %ct_1586, %ct_1591 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1593 = cheddar.add %ctx, %ct_1089, %ct_1135 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1594 = cheddar.add %ctx, %ct_1593, %ct_1181 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1595 = cheddar.add %ctx, %ct_1227, %ct_1273 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1596 = cheddar.add %ctx, %ct_1595, %ct_1319 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1597 = cheddar.add %ctx, %ct_1594, %ct_1596 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1598 = cheddar.add %ctx, %ct_1365, %ct_1411 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1599 = cheddar.add %ctx, %ct_1598, %ct_1457 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1600 = cheddar.add %ctx, %ct_1503, %ct_1549 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1601 = cheddar.add %ctx, %ct_1600, %ct_1561 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1602 = cheddar.add %ctx, %ct_1599, %ct_1601 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1603 = cheddar.add %ctx, %ct_1597, %ct_1602 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1604 = cheddar.add %ctx, %ct_1592, %ct_1603 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1605 = cheddar.add %ctx, %ct_1582, %ct_1604 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1606 = cheddar.hrot %ctx, %ct_1605, %c512 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1607 = cheddar.add_plain %ctx, %ct_1605, %extracted : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1608 = cheddar.add %ctx, %ct_1607, %ct_1606 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1566 = cheddar.add %ctx, %ct_1560, %ct_1565 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1567 = cheddar.add %ctx, %ct_1556, %ct_1566 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1568 = cheddar.hrot_add %ctx, %ct_628, %ct_583 {distance = 23 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1569 = cheddar.hrot_add %ctx, %ct_673, %ct_719 {distance = 46 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1570 = cheddar.hrot_add %ctx, %ct_764, %ct_1569 {distance = 92 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1571 = cheddar.add %ctx, %ct_1568, %ct_1570 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1572 = cheddar.hrot_add %ctx, %ct_809, %ct_855 {distance = 115 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1573 = cheddar.hrot_add %ctx, %ct_900, %ct_1572 {distance = 161 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1574 = cheddar.hrot_add %ctx, %ct_945, %ct_991 {distance = 184 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1575 = cheddar.hrot_add %ctx, %ct_1036, %ct_1574 {distance = 230 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1576 = cheddar.add %ctx, %ct_1573, %ct_1575 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1577 = cheddar.add %ctx, %ct_1571, %ct_1576 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1578 = cheddar.hrot_add %ctx, %ct_1081, %ct_1127 {distance = 253 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1579 = cheddar.hrot_add %ctx, %ct_1172, %ct_1578 {distance = 299 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1580 = cheddar.hrot_add %ctx, %ct_1217, %ct_1263 {distance = 322 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1581 = cheddar.hrot_add %ctx, %ct_1308, %ct_1580 {distance = 368 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1582 = cheddar.add %ctx, %ct_1579, %ct_1581 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1583 = cheddar.hrot_add %ctx, %ct_1353, %ct_1399 {distance = 391 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1584 = cheddar.hrot_add %ctx, %ct_1444, %ct_1583 {distance = 437 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1585 = cheddar.hrot_add %ctx, %ct_1489, %ct_1535 {distance = 460 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1586 = cheddar.hrot_add %ctx, %ct_1546, %ct_1585 {distance = 506 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1587 = cheddar.add %ctx, %ct_1584, %ct_1586 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1588 = cheddar.add %ctx, %ct_1582, %ct_1587 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1589 = cheddar.add %ctx, %ct_1577, %ct_1588 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1590 = cheddar.add %ctx, %ct_1567, %ct_1589 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1591 = cheddar.add_plain %ctx, %ct_1590, %extracted : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1592 = cheddar.hrot_add %ctx, %ct_1590, %ct_1591 {distance = 512 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1593 = cheddar.rescale %ctx, %ct_1592 : (!context, !ciphertext) -> !ciphertext
+    %ct_1594 = cheddar.mult_plain %ctx, %ct_1593, %extracted_516 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1595 = cheddar.rescale %ctx, %ct_1594 : (!context, !ciphertext) -> !ciphertext
+    %ct_1596 = cheddar.mult_plain %ctx, %ct_1595, %extracted_517 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1597 = cheddar.mult_plain %ctx, %ct_1595, %extracted_518 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1598 = cheddar.rescale %ctx, %ct_1597 : (!context, !ciphertext) -> !ciphertext
+    %ct_1599 = cheddar.level_down %ctx, %ct_1594 {targetLevel = 6 : i64} : (!context, !ciphertext) -> !ciphertext
+    %ct_1600 = cheddar.rescale %ctx, %ct_1599 : (!context, !ciphertext) -> !ciphertext
+    %ct_1601 = cheddar.mult %ctx, %ct_1598, %ct_1600 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1602 = cheddar.sub_plain %ctx, %ct_1601, %extracted_0 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1603 = cheddar.relinearize %ctx, %ct_1602, %evk : (!context, !ciphertext, !eval_key) -> !ciphertext
+    %ct_1604 = cheddar.rescale %ctx, %ct_1603 : (!context, !ciphertext) -> !ciphertext
+    %ct_1605 = cheddar.mult_plain %ctx, %ct_1604, %extracted_519 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1606 = cheddar.mult_plain %ctx, %ct_1604, %extracted_520 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1607 = cheddar.rescale %ctx, %ct_1606 : (!context, !ciphertext) -> !ciphertext
+    %ct_1608 = cheddar.level_down %ctx, %ct_1603 {targetLevel = 4 : i64} : (!context, !ciphertext) -> !ciphertext
     %ct_1609 = cheddar.rescale %ctx, %ct_1608 : (!context, !ciphertext) -> !ciphertext
-    %ct_1610 = cheddar.mult_plain %ctx, %ct_1609, %extracted_516 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1611 = cheddar.rescale %ctx, %ct_1610 : (!context, !ciphertext) -> !ciphertext
-    %ct_1612 = cheddar.mult_plain %ctx, %ct_1611, %extracted_517 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1613 = cheddar.mult_plain %ctx, %ct_1611, %extracted_518 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1614 = cheddar.rescale %ctx, %ct_1613 : (!context, !ciphertext) -> !ciphertext
-    %ct_1615 = cheddar.level_down %ctx, %ct_1610 {targetLevel = 6 : i64} : (!context, !ciphertext) -> !ciphertext
-    %ct_1616 = cheddar.rescale %ctx, %ct_1615 : (!context, !ciphertext) -> !ciphertext
-    %ct_1617 = cheddar.mult %ctx, %ct_1614, %ct_1616 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1618 = cheddar.sub_plain %ctx, %ct_1617, %extracted_0 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1619 = cheddar.relinearize %ctx, %ct_1618, %evk : (!context, !ciphertext, !eval_key) -> !ciphertext
-    %ct_1620 = cheddar.rescale %ctx, %ct_1619 : (!context, !ciphertext) -> !ciphertext
-    %ct_1621 = cheddar.mult_plain %ctx, %ct_1620, %extracted_519 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1622 = cheddar.mult_plain %ctx, %ct_1620, %extracted_520 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1610 = cheddar.mult %ctx, %ct_1607, %ct_1609 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1611 = cheddar.sub_plain %ctx, %ct_1610, %extracted_1 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1612 = cheddar.relinearize %ctx, %ct_1611, %evk : (!context, !ciphertext, !eval_key) -> !ciphertext
+    %ct_1613 = cheddar.rescale %ctx, %ct_1612 : (!context, !ciphertext) -> !ciphertext
+    %ct_1614 = cheddar.mult_plain %ctx, %ct_1613, %extracted_521 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1615 = cheddar.add_plain %ctx, %ct_1596, %extracted_2 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1616 = cheddar.level_down %ctx, %ct_1605 {targetLevel = 3 : i64} : (!context, !ciphertext) -> !ciphertext
+    %ct_1617 = cheddar.mult_plain %ctx, %ct_1616, %extracted_522 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1618 = cheddar.rescale %ctx, %ct_1617 : (!context, !ciphertext) -> !ciphertext
+    %const = cheddar.encode_constant %encoder, %cst {level = 2 : i64, scale = 1.0000000744039537 : f64} : (!encoder, f64) -> !constant
+    %ct_1619 = cheddar.mult_const %ctx, %ct_1614, %const : (!context, !ciphertext, !constant) -> !ciphertext
+    %ct_1620 = cheddar.add %ctx, %ct_1618, %ct_1619 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1621 = cheddar.level_down %ctx, %ct_1615 {targetLevel = 3 : i64} : (!context, !ciphertext) -> !ciphertext
+    %ct_1622 = cheddar.mult_plain %ctx, %ct_1621, %extracted_522 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1623 = cheddar.rescale %ctx, %ct_1622 : (!context, !ciphertext) -> !ciphertext
-    %ct_1624 = cheddar.level_down %ctx, %ct_1619 {targetLevel = 4 : i64} : (!context, !ciphertext) -> !ciphertext
-    %ct_1625 = cheddar.rescale %ctx, %ct_1624 : (!context, !ciphertext) -> !ciphertext
-    %ct_1626 = cheddar.mult %ctx, %ct_1623, %ct_1625 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1627 = cheddar.sub_plain %ctx, %ct_1626, %extracted_1 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1628 = cheddar.relinearize %ctx, %ct_1627, %evk : (!context, !ciphertext, !eval_key) -> !ciphertext
-    %ct_1629 = cheddar.rescale %ctx, %ct_1628 : (!context, !ciphertext) -> !ciphertext
-    %ct_1630 = cheddar.mult_plain %ctx, %ct_1629, %extracted_521 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1631 = cheddar.add_plain %ctx, %ct_1612, %extracted_2 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1632 = cheddar.level_down %ctx, %ct_1621 {targetLevel = 3 : i64} : (!context, !ciphertext) -> !ciphertext
-    %ct_1633 = cheddar.mult_plain %ctx, %ct_1632, %extracted_522 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1634 = cheddar.rescale %ctx, %ct_1633 : (!context, !ciphertext) -> !ciphertext
-    // HACK #7: scale-align the level-down operand to the rescale operand before
-    // this ct-ct add (nominal scale mgmt leaves them ~7e-8 apart; CHEDDAR's
-    // exact-scale check rejects that). Hand-inserted; precise scale management
-    // would emit this automatically. See HACKS.md.
-    %cst_adj0 = arith.constant 1.000000e+00 : f64
-    %const_adj0 = cheddar.encode_constant %encoder, %cst_adj0 {level = 2 : i64, scale = 1.0000000744039537 : f64} : (!encoder, f64) -> !cheddar.constant
-    %ct_1630_adj = cheddar.mult_const %ctx, %ct_1630, %const_adj0 : (!context, !ciphertext, !cheddar.constant) -> !ciphertext
-    %ct_1635 = cheddar.add %ctx, %ct_1634, %ct_1630_adj : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1636 = cheddar.level_down %ctx, %ct_1631 {targetLevel = 3 : i64} : (!context, !ciphertext) -> !ciphertext
-    %ct_1637 = cheddar.mult_plain %ctx, %ct_1636, %extracted_522 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1638 = cheddar.rescale %ctx, %ct_1637 : (!context, !ciphertext) -> !ciphertext
-    %cst_adj1 = arith.constant 1.000000e+00 : f64
-    %const_adj1 = cheddar.encode_constant %encoder, %cst_adj1 {level = 2 : i64, scale = 1.0000000197760561 : f64} : (!encoder, f64) -> !cheddar.constant
-    %ct_1635_adj = cheddar.mult_const %ctx, %ct_1635, %const_adj1 : (!context, !ciphertext, !cheddar.constant) -> !ciphertext
-    %ct_1639 = cheddar.add %ctx, %ct_1638, %ct_1635_adj : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1640 = cheddar.rescale %ctx, %ct_1639 : (!context, !ciphertext) -> !ciphertext
-    %ct_1641 = cheddar.mult_plain %ctx, %ct_1640, %extracted_523 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1642 = cheddar.hrot %ctx, %ct_1639, %c1 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1643 = cheddar.rescale %ctx, %ct_1642 : (!context, !ciphertext) -> !ciphertext
-    %ct_1644 = cheddar.mult_plain %ctx, %ct_1643, %extracted_524 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1645 = cheddar.hrot %ctx, %ct_1639, %c2 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1646 = cheddar.rescale %ctx, %ct_1645 : (!context, !ciphertext) -> !ciphertext
-    %ct_1647 = cheddar.mult_plain %ctx, %ct_1646, %extracted_525 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1648 = cheddar.hrot %ctx, %ct_1639, %c3 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1649 = cheddar.rescale %ctx, %ct_1648 : (!context, !ciphertext) -> !ciphertext
-    %ct_1650 = cheddar.mult_plain %ctx, %ct_1649, %extracted_526 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1651 = cheddar.mult_plain %ctx, %ct_1640, %extracted_527 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1652 = cheddar.mult_plain %ctx, %ct_1643, %extracted_528 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1653 = cheddar.mult_plain %ctx, %ct_1646, %extracted_529 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1654 = cheddar.mult_plain %ctx, %ct_1649, %extracted_530 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1655 = cheddar.add %ctx, %ct_1651, %ct_1652 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1656 = cheddar.add %ctx, %ct_1653, %ct_1654 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1657 = cheddar.add %ctx, %ct_1655, %ct_1656 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1658 = cheddar.hrot %ctx, %ct_1657, %c4 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1659 = cheddar.mult_plain %ctx, %ct_1640, %extracted_531 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1660 = cheddar.mult_plain %ctx, %ct_1643, %extracted_532 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1661 = cheddar.mult_plain %ctx, %ct_1646, %extracted_533 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1662 = cheddar.mult_plain %ctx, %ct_1649, %extracted_534 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1663 = cheddar.add %ctx, %ct_1659, %ct_1660 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1664 = cheddar.add %ctx, %ct_1661, %ct_1662 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1665 = cheddar.add %ctx, %ct_1663, %ct_1664 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1666 = cheddar.hrot %ctx, %ct_1665, %c8 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1667 = cheddar.mult_plain %ctx, %ct_1640, %extracted_535 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1668 = cheddar.mult_plain %ctx, %ct_1643, %extracted_536 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1669 = cheddar.mult_plain %ctx, %ct_1646, %extracted_537 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1670 = cheddar.mult_plain %ctx, %ct_1649, %extracted_538 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1671 = cheddar.add %ctx, %ct_1667, %ct_1668 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1672 = cheddar.add %ctx, %ct_1669, %ct_1670 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1673 = cheddar.add %ctx, %ct_1671, %ct_1672 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1674 = cheddar.hrot %ctx, %ct_1673, %c12 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1675 = cheddar.add %ctx, %ct_1641, %ct_1644 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1676 = cheddar.add %ctx, %ct_1675, %ct_1647 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1677 = cheddar.add %ctx, %ct_1650, %ct_1658 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1678 = cheddar.add %ctx, %ct_1666, %ct_1674 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1679 = cheddar.add %ctx, %ct_1677, %ct_1678 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1680 = cheddar.add %ctx, %ct_1676, %ct_1679 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1681 = cheddar.hrot %ctx, %ct_1680, %c256 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1682 = cheddar.add %ctx, %ct_1680, %ct_1681 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1683 = cheddar.hrot %ctx, %ct_1682, %c128 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1684 = cheddar.add %ctx, %ct_1682, %ct_1683 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1685 = cheddar.hrot %ctx, %ct_1684, %c64 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1686 = cheddar.add %ctx, %ct_1684, %ct_1685 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1687 = cheddar.hrot %ctx, %ct_1686, %c32 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1688 = cheddar.add %ctx, %ct_1686, %ct_1687 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1689 = cheddar.hrot %ctx, %ct_1688, %c16 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_1690 = cheddar.add_plain %ctx, %ct_1688, %extracted_3 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1691 = cheddar.add %ctx, %ct_1690, %ct_1689 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %const_1624 = cheddar.encode_constant %encoder, %cst {level = 2 : i64, scale = 1.0000000197760561 : f64} : (!encoder, f64) -> !constant
+    %ct_1625 = cheddar.mult_const %ctx, %ct_1620, %const_1624 : (!context, !ciphertext, !constant) -> !ciphertext
+    %ct_1626 = cheddar.add %ctx, %ct_1623, %ct_1625 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1627 = cheddar.rescale %ctx, %ct_1626 : (!context, !ciphertext) -> !ciphertext
+    %ct_1628 = cheddar.mult_plain %ctx, %ct_1627, %extracted_523 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1629 = cheddar.hrot %ctx, %ct_1626, %c1 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1630 = cheddar.rescale %ctx, %ct_1629 : (!context, !ciphertext) -> !ciphertext
+    %ct_1631 = cheddar.mult_plain %ctx, %ct_1630, %extracted_524 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1632 = cheddar.hrot %ctx, %ct_1626, %c2 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1633 = cheddar.rescale %ctx, %ct_1632 : (!context, !ciphertext) -> !ciphertext
+    %ct_1634 = cheddar.mult_plain %ctx, %ct_1633, %extracted_525 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1635 = cheddar.hrot %ctx, %ct_1626, %c3 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1636 = cheddar.rescale %ctx, %ct_1635 : (!context, !ciphertext) -> !ciphertext
+    %ct_1637 = cheddar.mult_plain %ctx, %ct_1636, %extracted_526 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1638 = cheddar.mult_plain %ctx, %ct_1627, %extracted_527 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1639 = cheddar.mult_plain %ctx, %ct_1630, %extracted_528 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1640 = cheddar.mult_plain %ctx, %ct_1633, %extracted_529 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1641 = cheddar.mult_plain %ctx, %ct_1636, %extracted_530 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1642 = cheddar.add %ctx, %ct_1638, %ct_1639 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1643 = cheddar.add %ctx, %ct_1640, %ct_1641 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1644 = cheddar.add %ctx, %ct_1642, %ct_1643 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1645 = cheddar.mult_plain %ctx, %ct_1627, %extracted_531 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1646 = cheddar.mult_plain %ctx, %ct_1630, %extracted_532 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1647 = cheddar.mult_plain %ctx, %ct_1633, %extracted_533 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1648 = cheddar.mult_plain %ctx, %ct_1636, %extracted_534 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1649 = cheddar.add %ctx, %ct_1645, %ct_1646 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1650 = cheddar.add %ctx, %ct_1647, %ct_1648 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1651 = cheddar.add %ctx, %ct_1649, %ct_1650 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1652 = cheddar.mult_plain %ctx, %ct_1627, %extracted_535 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1653 = cheddar.mult_plain %ctx, %ct_1630, %extracted_536 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1654 = cheddar.mult_plain %ctx, %ct_1633, %extracted_537 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1655 = cheddar.mult_plain %ctx, %ct_1636, %extracted_538 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1656 = cheddar.add %ctx, %ct_1652, %ct_1653 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1657 = cheddar.add %ctx, %ct_1654, %ct_1655 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1658 = cheddar.add %ctx, %ct_1656, %ct_1657 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1659 = cheddar.hrot %ctx, %ct_1658, %c12 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1660 = cheddar.add %ctx, %ct_1628, %ct_1631 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1661 = cheddar.add %ctx, %ct_1660, %ct_1634 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1662 = cheddar.hrot_add %ctx, %ct_1644, %ct_1637 {distance = 4 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1663 = cheddar.hrot_add %ctx, %ct_1651, %ct_1659 {distance = 8 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1664 = cheddar.add %ctx, %ct_1662, %ct_1663 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1665 = cheddar.add %ctx, %ct_1661, %ct_1664 : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1666 = cheddar.hrot_add %ctx, %ct_1665, %ct_1665 {distance = 256 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1667 = cheddar.hrot_add %ctx, %ct_1666, %ct_1666 {distance = 128 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1668 = cheddar.hrot_add %ctx, %ct_1667, %ct_1667 {distance = 64 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1669 = cheddar.hrot_add %ctx, %ct_1668, %ct_1668 {distance = 32 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1670 = cheddar.add_plain %ctx, %ct_1669, %extracted_3 : (!context, !ciphertext, !plaintext) -> !ciphertext
+    %ct_1671 = cheddar.hrot_add %ctx, %ct_1669, %ct_1670 {distance = 16 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %0 = tensor.empty() : tensor<1x!ciphertext>
-    %ct_1692 = cheddar.rescale %ctx, %ct_1691 : (!context, !ciphertext) -> !ciphertext
-    %inserted = tensor.insert %ct_1692 into %0[%c0] : tensor<1x!ciphertext>
+    %ct_1672 = cheddar.rescale %ctx, %ct_1671 : (!context, !ciphertext) -> !ciphertext
+    %inserted = tensor.insert %ct_1672 into %0[%c0] : tensor<1x!ciphertext>
     return %inserted : tensor<1x!ciphertext>
   }
   func.func public @mnist(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<512x784xf32> {mhlo.sharding = "{replicated}"}, %arg1: tensor<512xf32> {mhlo.sharding = "{replicated}"}, %arg2: tensor<10x512xf32> {mhlo.sharding = "{replicated}"}, %arg3: tensor<10xf32> {mhlo.sharding = "{replicated}"}, %arg4: tensor<1x!ciphertext> {tensor_ext.original_type = #tensor_ext.original_type<originalType = tensor<1x784xf32>, layout = #tensor_ext.layout<"{ [i0, i1] -> [ct, slot] : i0 = 0 and ct = 0 and (-i1 + slot) mod 1024 = 0 and 0 <= i1 <= 783 and 0 <= slot <= 1023 }">>}) -> (tensor<1x!ciphertext> {jax.result_info = "result[0]", tensor_ext.original_type = #original_type}) {
@@ -5051,7 +5010,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
       scf.yield %inserted : tensor<1x1024xf32>
     }
     %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice {level = 8 : i64, scale = 0x42BFFFFFF6BD00F0 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %pt = cheddar.encode %encoder, %extracted_slice {level = 8 : i64, scale = 35184371481856.938 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
     %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
     %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
     return %from_elements : tensor<1x!ciphertext>
