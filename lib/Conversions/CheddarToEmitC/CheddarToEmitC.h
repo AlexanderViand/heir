@@ -12,6 +12,13 @@ namespace mlir::heir {
 // `memref<Nx!cheddar.*>` after bufferization. Call once at tool startup.
 void registerCheddarToEmitCExternalModels(DialectRegistry& registry);
 
+// Attaches the cheddar `ConvertToEmitCPatternInterface` so that
+// `--convert-to-emitc` lowers cheddar ops (and keeps `func.func` boundaries via
+// a structural type conversion) to EmitC. Call once at tool startup. Run
+// `--convert-to-emitc=filter-dialects=cheddar,arith,scf,memref` followed by the
+// `cheddar-emitc-boundary` pass.
+void registerCheddarConvertToEmitCInterface(DialectRegistry& registry);
+
 #define GEN_PASS_DECL
 #include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h.inc"
 

@@ -3,31 +3,27 @@
 
 include "mlir/Pass/PassBase.td"
 
-def CheddarToEmitC : Pass<"cheddar-to-emitc"> {
-  let summary = "Lower the cheddar dialect to EmitC.";
+def CheddarToEmitC : Pass<"cheddar-emitc-boundary"> {
+  let summary = "Fix up EmitC function boundaries for the CHEDDAR move-only ABI.";
 
   let description = [{
-    Translates each cheddar op into an out-parameter-style `Context`/
-    `UserInterface` method call expressed in the EmitC dialect.
-    `mlir-translate --mlir-to-cpp` renders the resulting IR as host-side
-    C++ against the CHEDDAR library API.
-
-    Bufferized loop kernels are handled in the same conversion: the SCF and
-    Arith EmitC patterns are run alongside the cheddar patterns so that the
-    shared type converter sees cheddar types (e.g. an `scf.for` carrying an
-    `!cheddar.*` iter_arg lowers to a move-assigned `emitc.variable`, and
-    loop-index values feed `memref` subscripts without a stranded
-    `index -> emitc.size_t` cast).
+    Runs after `--convert-to-emitc` (which lowers the cheddar/arith/scf/memref
+    ops via their `ConvertToEmitCPatternInterface` implementations). The cheddar
+    payload types are move-only and live in `emitc.lvalue`/`emitc.array` local
+    buffers, but a function cannot carry an `lvalue`/array argument. This pass
+    re-types each payload-buffer function argument to a C++ reference
+    (`const T&` for a read-only input, `T&`/`std::array<T,N>&` for a written
+    out-param/in-place buffer), re-emits cross-function calls to such functions
+    as `emitc.verbatim` text calls (their operand types no longer match the
+    reference-typed parameters), and strips HEIR-internal `tensor_ext.*`
+    boundary metadata that `mlir-translate --mlir-to-cpp` cannot parse.
 
     (* example filepath=tests/Conversions/CheddarToEmitC/doctest.mlir *)
   }];
 
   let dependentDialects = [
-    "::mlir::arith::ArithDialect",
     "::mlir::emitc::EmitCDialect",
     "::mlir::func::FuncDialect",
-    "::mlir::memref::MemRefDialect",
-    "::mlir::scf::SCFDialect",
   ];
 }
 

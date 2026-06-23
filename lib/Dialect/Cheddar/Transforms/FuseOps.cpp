@@ -6,7 +6,9 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "mlir/include/mlir/Dialect/Bufferization/IR/Bufferization.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Utils/StaticValueUtils.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinTypes.h"        // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"         // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"        // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"           // from @llvm-project
@@ -18,6 +20,11 @@ namespace mlir::heir::cheddar {
 //===----------------------------------------------------------------------===//
 // Fusion patterns
 //===----------------------------------------------------------------------===//
+//
+// These run at the cheddar tensor (pre-bufferization, destination-passing)
+// level. A fusion that *replaces* an op reuses that op's `$output` operand as
+// the fused op's destination; a fusion that inserts a *new* intermediate op
+// allocates a fresh `bufferization.alloc_tensor` destination for it.
 
 // Pattern: mult + relinearize + rescale -> hmult(rescale=true)
 struct FuseMultRelinRescale : public OpRewritePattern<RescaleOp> {
@@ -27,16 +34,17 @@ struct FuseMultRelinRescale : public OpRewritePattern<RescaleOp> {
                                 PatternRewriter &rewriter) const override {
     // Check that the input to rescale is a relinearize
     auto relinOp = rescaleOp.getInput().getDefiningOp<RelinearizeOp>();
-    if (!relinOp || !relinOp.getResult().hasOneUse()) return failure();
+    if (!relinOp || !relinOp->getResult(0).hasOneUse()) return failure();
 
     // Check that the input to relinearize is a mult
     auto multOp = relinOp.getInput().getDefiningOp<MultOp>();
-    if (!multOp || !multOp.getResult().hasOneUse()) return failure();
+    if (!multOp || !multOp->getResult(0).hasOneUse()) return failure();
 
-    // Fuse into HMult with rescale=true
+    // Fuse into HMult with rescale=true, writing into rescale's destination.
     rewriter.replaceOpWithNewOp<HMultOp>(
-        rescaleOp, rescaleOp.getOutput().getType(), multOp.getCtx(),
+        rescaleOp, rescaleOp->getResultTypes(), multOp.getCtx(),
         multOp.getLhs(), multOp.getRhs(), relinOp.getMultKey(),
+        rescaleOp.getOutput(),
         /*rescale=*/rewriter.getBoolAttr(true));
 
     // Clean up now-dead ops
@@ -54,17 +62,17 @@ struct FuseMultRelin : public OpRewritePattern<RelinearizeOp> {
                                 PatternRewriter &rewriter) const override {
     // Don't match if this relin feeds into a rescale (handled by
     // FuseMultRelinRescale).
-    if (relinOp.getResult().hasOneUse()) {
-      auto *user = *relinOp.getResult().getUsers().begin();
+    if (relinOp->getResult(0).hasOneUse()) {
+      auto *user = *relinOp->getResult(0).getUsers().begin();
       if (isa<RescaleOp>(user)) return failure();
     }
 
     auto multOp = relinOp.getInput().getDefiningOp<MultOp>();
-    if (!multOp || !multOp.getResult().hasOneUse()) return failure();
+    if (!multOp || !multOp->getResult(0).hasOneUse()) return failure();
 
     rewriter.replaceOpWithNewOp<HMultOp>(
-        relinOp, relinOp.getOutput().getType(), multOp.getCtx(),
-        multOp.getLhs(), multOp.getRhs(), relinOp.getMultKey(),
+        relinOp, relinOp->getResultTypes(), multOp.getCtx(), multOp.getLhs(),
+        multOp.getRhs(), relinOp.getMultKey(), relinOp.getOutput(),
         /*rescale=*/rewriter.getBoolAttr(false));
 
     rewriter.eraseOp(multOp);
@@ -80,11 +88,12 @@ struct FuseMultRelinRescaleFused
   LogicalResult matchAndRewrite(RelinearizeRescaleOp relinRescaleOp,
                                 PatternRewriter &rewriter) const override {
     auto multOp = relinRescaleOp.getInput().getDefiningOp<MultOp>();
-    if (!multOp || !multOp.getResult().hasOneUse()) return failure();
+    if (!multOp || !multOp->getResult(0).hasOneUse()) return failure();
 
     rewriter.replaceOpWithNewOp<HMultOp>(
-        relinRescaleOp, relinRescaleOp.getOutput().getType(), multOp.getCtx(),
+        relinRescaleOp, relinRescaleOp->getResultTypes(), multOp.getCtx(),
         multOp.getLhs(), multOp.getRhs(), relinRescaleOp.getMultKey(),
+        relinRescaleOp.getOutput(),
         /*rescale=*/rewriter.getBoolAttr(true));
 
     rewriter.eraseOp(multOp);
@@ -105,14 +114,14 @@ struct FuseHRotAdd : public OpRewritePattern<AddOp> {
     Value otherOperand;
 
     if (auto lhsHrot = addOp.getLhs().getDefiningOp<HRotOp>()) {
-      if (lhsHrot.getResult().hasOneUse()) {
+      if (lhsHrot->getResult(0).hasOneUse()) {
         hrotOp = lhsHrot;
         otherOperand = addOp.getRhs();
       }
     }
     if (!hrotOp) {
       if (auto rhsHrot = addOp.getRhs().getDefiningOp<HRotOp>()) {
-        if (rhsHrot.getResult().hasOneUse()) {
+        if (rhsHrot->getResult(0).hasOneUse()) {
           hrotOp = rhsHrot;
           otherOperand = addOp.getLhs();
         }
@@ -132,9 +141,9 @@ struct FuseHRotAdd : public OpRewritePattern<AddOp> {
       return failure();
     }
 
-    rewriter.replaceOpWithNewOp<HRotAddOp>(addOp, addOp.getOutput().getType(),
-                                           hrotOp.getCtx(), hrotOp.getInput(),
-                                           otherOperand, distanceAttr);
+    rewriter.replaceOpWithNewOp<HRotAddOp>(
+        addOp, addOp->getResultTypes(), hrotOp.getCtx(), hrotOp.getInput(),
+        otherOperand, addOp.getOutput(), distanceAttr);
     rewriter.eraseOp(hrotOp);
     return success();
   }
@@ -150,14 +159,14 @@ struct FuseHConjAdd : public OpRewritePattern<AddOp> {
     Value otherOperand;
 
     if (auto lhsHconj = addOp.getLhs().getDefiningOp<HConjOp>()) {
-      if (lhsHconj.getResult().hasOneUse()) {
+      if (lhsHconj->getResult(0).hasOneUse()) {
         hconjOp = lhsHconj;
         otherOperand = addOp.getRhs();
       }
     }
     if (!hconjOp) {
       if (auto rhsHconj = addOp.getRhs().getDefiningOp<HConjOp>()) {
-        if (rhsHconj.getResult().hasOneUse()) {
+        if (rhsHconj->getResult(0).hasOneUse()) {
           hconjOp = rhsHconj;
           otherOperand = addOp.getLhs();
         }
@@ -165,9 +174,9 @@ struct FuseHConjAdd : public OpRewritePattern<AddOp> {
     }
     if (!hconjOp) return failure();
 
-    rewriter.replaceOpWithNewOp<HConjAddOp>(addOp, addOp.getOutput().getType(),
-                                            hconjOp.getCtx(),
-                                            hconjOp.getInput(), otherOperand);
+    rewriter.replaceOpWithNewOp<HConjAddOp>(
+        addOp, addOp->getResultTypes(), hconjOp.getCtx(), hconjOp.getInput(),
+        otherOperand, addOp.getOutput());
     rewriter.eraseOp(hconjOp);
     return success();
   }
@@ -189,21 +198,26 @@ struct HoistRelinBeforePlainOp : public OpRewritePattern<RelinearizeOp> {
   LogicalResult matchAndRewrite(RelinearizeOp relinOp,
                                 PatternRewriter &rewriter) const override {
     auto plainOp = relinOp.getInput().template getDefiningOp<PlainOp>();
-    if (!plainOp || !plainOp.getResult().hasOneUse()) return failure();
+    if (!plainOp || !plainOp->getResult(0).hasOneUse()) return failure();
 
     auto multOp = plainOp.getCiphertext().template getDefiningOp<MultOp>();
-    if (!multOp || !multOp.getResult().hasOneUse()) return failure();
+    if (!multOp || !multOp->getResult(0).hasOneUse()) return failure();
 
-    // Insert relinearize right after the mult (before the plain op).
+    // Insert relinearize right after the mult (before the plain op). The new
+    // relin is a fresh intermediate, so it needs its own destination buffer.
     rewriter.setInsertionPointAfter(multOp);
+    auto tensorTy = cast<RankedTensorType>(multOp->getResult(0).getType());
+    Value newRelinDest = bufferization::AllocTensorOp::create(
+        rewriter, relinOp.getLoc(), tensorTy, ValueRange{});
     auto newRelin = RelinearizeOp::create(
-        rewriter, relinOp.getLoc(), relinOp.getOutput().getType(),
-        multOp.getCtx(), multOp.getResult(), relinOp.getMultKey());
+        rewriter, relinOp.getLoc(), relinOp->getResultTypes(), multOp.getCtx(),
+        multOp->getResult(0), relinOp.getMultKey(), newRelinDest);
 
-    // Replace the plain op's ciphertext input with the relinearized result.
-    rewriter.replaceOpWithNewOp<PlainOp>(relinOp, relinOp.getOutput().getType(),
-                                         plainOp.getCtx(), newRelin.getResult(),
-                                         plainOp.getPlaintext());
+    // Replace the plain op's ciphertext input with the relinearized result;
+    // the fused plain op writes into the original relin's destination.
+    rewriter.replaceOpWithNewOp<PlainOp>(
+        relinOp, relinOp->getResultTypes(), plainOp.getCtx(),
+        newRelin->getResult(0), plainOp.getPlaintext(), relinOp.getOutput());
     rewriter.eraseOp(plainOp);
     return success();
   }

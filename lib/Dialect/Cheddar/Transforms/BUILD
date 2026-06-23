@@ -12,7 +12,9 @@ cc_library(
     hdrs = ["BufferizableOpInterfaceImpl.h"],
     deps = [
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@llvm-project//mlir:BufferizationDialect",
         "@llvm-project//mlir:BufferizationInterfaces",
+        "@llvm-project//mlir:DestinationStyleOpInterface",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Support",
     ],
@@ -40,6 +42,7 @@ cc_library(
     deps = [
         ":fuse_ops_inc_gen",
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@llvm-project//mlir:BufferizationDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
