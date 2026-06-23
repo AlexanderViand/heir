@@ -20,14 +20,14 @@ func.func @prepare_keys(%ui: !cheddar.user_interface) {
 
 // Encrypt/decrypt are out-param method calls (emitc.member_call_opaque, which
 // picks `.`/`->` from the receiver type). Encode/decode bridge a message
-// buffer through a std::vector<Complex> and so stay as emitc.verbatim; the
-// emitter emits encode's `scale` attribute verbatim (here Δ = 2^36 = 68719476736).
+// buffer through a std::vector<Complex> and so stay as emitc.verbatim; encode
+// uses the encoder's canonical scale for the requested level.
 
 // CHECK: func.func @encode_chain
 func.func @encode_chain(%enc: !cheddar.encoder, %msg: tensor<4xf64>,
                         %ui: !cheddar.user_interface)
     -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}.Encode({}, 5, 68719476736, {});"
+  // CHECK: emitc.verbatim "{}.Encode({}, 5, {}.GetScale(5), {});"
   %pt = cheddar.encode %enc, %msg {level = 5 : i64, scale = 68719476736.0 : f64}
       : (!cheddar.encoder, tensor<4xf64>) -> !cheddar.plaintext
   // CHECK: emitc.member_call_opaque %arg2 "Encrypt"

@@ -10,6 +10,7 @@
 #include "llvm/include/llvm/ADT/DenseMap.h"            // from @llvm-project
 #include "llvm/include/llvm/ADT/DenseSet.h"            // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"         // from @llvm-project
+#include "llvm/include/llvm/ADT/StringMap.h"           // from @llvm-project
 #include "llvm/include/llvm/Support/FormatVariadic.h"  // from @llvm-project
 #include "llvm/include/llvm/Support/raw_ostream.h"     // from @llvm-project
 #include "mlir/include/mlir/Conversion/ArithToEmitC/ArithToEmitC.h"  // from @llvm-project
@@ -103,6 +104,26 @@ bool isMoveOnlyArray(Type t, StringRef& eltNameOut, int64_t& sizeOut) {
   return true;
 }
 
+Type stdArrayType(MLIRContext* ctx, StringRef eltName, int64_t size) {
+  return OpaqueType::get(
+      ctx, ("std::array<" + eltName + ", " + std::to_string(size) + ">").str());
+}
+
+Type stdArrayRefType(MLIRContext* ctx, StringRef eltName, int64_t size) {
+  return OpaqueType::get(
+      ctx,
+      ("std::array<" + eltName + ", " + std::to_string(size) + ">&").str());
+}
+
+void elideMoveOnlyLoads(Operation* root) {
+  root->walk([](emitc::LoadOp load) {
+    StringRef name;
+    if (!isMoveOnlyOpaque(load.getType(), name)) return;
+    load.getResult().replaceAllUsesWith(load.getOperand());
+    load.erase();
+  });
+}
+
 // Mark which results are produced in place. A move-only payload result whose
 // return operand is an entry-block argument means the function hands back
 // storage it was given (e.g. `mad_unsafe` mutates its accumulator argument and
@@ -114,6 +135,7 @@ bool isMoveOnlyArray(Type t, StringRef& eltNameOut, int64_t& sizeOut) {
 void detectInoutResults(FunctionType funcType,
                         SmallVectorImpl<func::ReturnOp>& returns, Block& entry,
                         SmallVectorImpl<bool>& resultIsInout,
+                        SmallVectorImpl<int>& resultInoutArg,
                         SmallVectorImpl<bool>& argIsInout) {
   for (unsigned i = 0, e = funcType.getNumResults(); i < e; ++i) {
     StringRef name;
@@ -131,9 +153,35 @@ void detectInoutResults(FunctionType funcType,
     });
     if (allMatch) {
       resultIsInout[i] = true;
+      resultInoutArg[i] = expectedArgIdx;
       argIsInout[expectedArgIdx] = true;
     }
   }
+}
+
+enum class DpsKind { kRetained, kInout, kScalar, kArray, kFloatArray };
+
+struct ResultRewriteInfo {
+  DpsKind kind = DpsKind::kRetained;
+  Type oldType;
+  Type localType;
+  int inoutArg = -1;
+};
+
+struct FunctionRewriteInfo {
+  SmallVector<Type> retainedResults;
+  SmallVector<ResultRewriteInfo> results;
+  bool inputsChanged = false;
+  bool hasDpsResults = false;
+};
+
+std::string placeholders(size_t count) {
+  std::string result;
+  for (size_t i = 0; i < count; ++i) {
+    if (i > 0) result += ", ";
+    result += "{}";
+  }
+  return result;
 }
 
 // Cheddar types map to the textual C++ type that the CHEDDAR library uses.
@@ -1208,26 +1256,28 @@ struct CheddarToEmitCPass
     // the operand name -- so the resulting C++ ends up referencing the
     // local variable by name, binding naturally to the `const T&` parameters
     // of the receiver methods.
-    getOperation()->walk([](emitc::LoadOp load) {
-      StringRef name;
-      if (!isMoveOnlyOpaque(load.getType(), name)) return;
-      load.getResult().replaceAllUsesWith(load.getOperand());
-      load.erase();
-    });
+    elideMoveOnlyLoads(getOperation());
 
     auto& ctxRef = *ctx;
-    getOperation()->walk([&ctxRef, &writtenArrayArgs](func::FuncOp op) {
+    llvm::StringMap<FunctionRewriteInfo> functionRewriteInfo;
+    getOperation()->walk([&ctxRef, &writtenArrayArgs,
+                          &functionRewriteInfo](func::FuncOp op) {
       if (op.isExternal()) return;
       auto funcType = op.getFunctionType();
       Block& entry = op.getBody().front();
+
+      FunctionRewriteInfo rewriteInfo;
+      rewriteInfo.results.reserve(funcType.getNumResults());
 
       SmallVector<func::ReturnOp> returns;
       op.walk([&](func::ReturnOp r) { returns.push_back(r); });
 
       // Detect in-place (destination) results first so Pass 1 tightens them.
       SmallVector<bool> resultIsInout(funcType.getNumResults(), false);
+      SmallVector<int> resultInoutArg(funcType.getNumResults(), -1);
       SmallVector<bool> argIsInout(funcType.getNumInputs(), false);
-      detectInoutResults(funcType, returns, entry, resultIsInout, argIsInout);
+      detectInoutResults(funcType, returns, entry, resultIsInout,
+                         resultInoutArg, argIsInout);
 
       // Pass 1: tighten input types at the C++ boundary. Move-only payload
       // scalars become `const T&`, except in-place/returned args which stay
@@ -1269,44 +1319,53 @@ struct CheddarToEmitCPass
           inputsChanged = true;
         }
       }
+      rewriteInfo.inputsChanged = inputsChanged;
 
       // Pass 2: lift move-only results off the return type. In-place results
       // are dropped entirely (the value already lives in the mutable arg from
       // Pass 1). Other move-only scalars/arrays are re-appended as trailing
       // `T&` / `std::array<T, N>&` out-params, since move-only values and C
       // arrays can't be returned by value in C++.
-      enum DpsKind { kInout, kScalar, kArray, kFloatArray };
       SmallVector<size_t> dpsResultIdxs;
       SmallVector<DpsKind> dpsKind;
       SmallVector<Value> dpsOutParam;  // null for kInout
       SmallVector<Type> retainedResults;
       SmallVector<Type> appendedInputs;
       for (auto [i, t] : llvm::enumerate(funcType.getResults())) {
+        ResultRewriteInfo resultInfo;
+        resultInfo.oldType = t;
         StringRef name;
         int64_t arraySize = 0;
         if (resultIsInout[i]) {
           dpsResultIdxs.push_back(i);
-          dpsKind.push_back(kInout);
+          dpsKind.push_back(DpsKind::kInout);
           dpsOutParam.push_back(Value{});
+          resultInfo.kind = DpsKind::kInout;
+          resultInfo.inoutArg = resultInoutArg[i];
+          rewriteInfo.results.push_back(resultInfo);
           continue;
         }
         if (isMoveOnlyOpaque(t, name)) {
           Type refT = emitc::OpaqueType::get(&ctxRef, (name + "&").str());
           appendedInputs.push_back(refT);
           dpsResultIdxs.push_back(i);
-          dpsKind.push_back(kScalar);
+          dpsKind.push_back(DpsKind::kScalar);
           dpsOutParam.push_back(entry.addArgument(refT, op.getLoc()));
+          resultInfo.kind = DpsKind::kScalar;
+          resultInfo.localType = emitc::LValueType::get(t);
+          rewriteInfo.results.push_back(resultInfo);
           continue;
         }
         if (isMoveOnlyArray(t, name, arraySize)) {
-          std::string typeName =
-              ("std::array<" + name + ", " + std::to_string(arraySize) + ">&")
-                  .str();
-          Type refT = emitc::OpaqueType::get(&ctxRef, typeName);
+          Type refT = stdArrayRefType(&ctxRef, name, arraySize);
           appendedInputs.push_back(refT);
           dpsResultIdxs.push_back(i);
-          dpsKind.push_back(kArray);
+          dpsKind.push_back(DpsKind::kArray);
           dpsOutParam.push_back(entry.addArgument(refT, op.getLoc()));
+          resultInfo.kind = DpsKind::kArray;
+          resultInfo.localType =
+              emitc::LValueType::get(stdArrayType(&ctxRef, name, arraySize));
+          rewriteInfo.results.push_back(resultInfo);
           continue;
         }
         // A plain (non-move-only) float array result -- e.g. the decoded
@@ -1318,13 +1377,20 @@ struct CheddarToEmitCPass
             Type ptrT = emitc::PointerType::get(arrT.getElementType());
             appendedInputs.push_back(ptrT);
             dpsResultIdxs.push_back(i);
-            dpsKind.push_back(kFloatArray);
+            dpsKind.push_back(DpsKind::kFloatArray);
             dpsOutParam.push_back(entry.addArgument(ptrT, op.getLoc()));
+            resultInfo.kind = DpsKind::kFloatArray;
+            resultInfo.localType = t;
+            rewriteInfo.results.push_back(resultInfo);
             continue;
           }
         }
+        resultInfo.kind = DpsKind::kRetained;
+        rewriteInfo.results.push_back(resultInfo);
         retainedResults.push_back(t);
       }
+      rewriteInfo.retainedResults = retainedResults;
+      rewriteInfo.hasDpsResults = !dpsResultIdxs.empty();
 
       if (!inputsChanged && dpsResultIdxs.empty()) return;
 
@@ -1332,6 +1398,7 @@ struct CheddarToEmitCPass
       finalInputs.append(newInputs.begin(), newInputs.end());
       finalInputs.append(appendedInputs.begin(), appendedInputs.end());
       op.setType(FunctionType::get(&ctxRef, finalInputs, retainedResults));
+      functionRewriteInfo[op.getName()] = rewriteInfo;
 
       if (dpsResultIdxs.empty()) return;
 
@@ -1346,11 +1413,11 @@ struct CheddarToEmitCPass
         for (auto [i, val] : llvm::enumerate(ret.getOperands())) {
           if (cursor < dpsResultIdxs.size() && dpsResultIdxs[cursor] == i) {
             switch (dpsKind[cursor]) {
-              case kInout:
+              case DpsKind::kInout:
                 // Value already lives in the mutable in-place argument; the
                 // return just drops it.
                 break;
-              case kArray:
+              case DpsKind::kArray:
                 // Bulk move from the local emitc.array into the std::array
                 // out-param via `std::move(begin, end, out.begin())`.
                 emitc::VerbatimOp::create(
@@ -1358,7 +1425,7 @@ struct CheddarToEmitCPass
                     "std::move(std::begin({}), std::end({}), {}.begin());",
                     ValueRange{val, val, dpsOutParam[cursor]});
                 break;
-              case kFloatArray: {
+              case DpsKind::kFloatArray: {
                 // Copy the local float array's elements into the `T*`
                 // out-param. `&val[0]...[0]` flattens the (row-major) C array
                 // to a pointer to its first element.
@@ -1376,7 +1443,7 @@ struct CheddarToEmitCPass
                     ValueRange{dpsOutParam[cursor], val});
                 break;
               }
-              case kScalar: {
+              case DpsKind::kScalar: {
                 // Prefer the load's source lvalue (skips a spurious copy);
                 // fall back to the value otherwise.
                 Value source = val;
@@ -1389,6 +1456,8 @@ struct CheddarToEmitCPass
                     ValueRange{dpsOutParam[cursor], source});
                 break;
               }
+              case DpsKind::kRetained:
+                llvm_unreachable("retained result is not a DPS result");
             }
             ++cursor;
           } else {
@@ -1402,6 +1471,107 @@ struct CheddarToEmitCPass
         if (load.use_empty()) load.erase();
       }
     });
+
+    SmallVector<func::CallOp> callsToRewrite;
+    getOperation()->walk([&](func::CallOp call) {
+      if (functionRewriteInfo.contains(call.getCallee()))
+        callsToRewrite.push_back(call);
+    });
+    for (func::CallOp call : callsToRewrite) {
+      auto infoIt = functionRewriteInfo.find(call.getCallee());
+      if (infoIt == functionRewriteInfo.end()) continue;
+      const FunctionRewriteInfo& info = infoIt->second;
+
+      OpBuilder b(call);
+      Location loc = call.getLoc();
+
+      SmallVector<Value> retainedLocals;
+      retainedLocals.reserve(info.retainedResults.size());
+      for (Type resultType : info.retainedResults) {
+        if (isa<emitc::ArrayType>(resultType)) {
+          retainedLocals.push_back(VariableOp::create(
+              b, loc, resultType, OpaqueAttr::get(b.getContext(), "")));
+          continue;
+        }
+        retainedLocals.push_back(declareLocal(b, loc, resultType));
+      }
+
+      SmallVector<Value> callOperands(call.getOperands().begin(),
+                                      call.getOperands().end());
+      SmallVector<Value> replacements(call.getNumResults(), Value{});
+      SmallVector<bool> replacementNeedsLoad(call.getNumResults(), false);
+      size_t retainedIdx = 0;
+      for (auto [i, resultInfo] : llvm::enumerate(info.results)) {
+        switch (resultInfo.kind) {
+          case DpsKind::kRetained: {
+            Value local = retainedLocals[retainedIdx++];
+            if (isa<emitc::ArrayType>(resultInfo.oldType)) {
+              replacements[i] = local;
+            } else {
+              replacements[i] = local;
+              replacementNeedsLoad[i] = true;
+            }
+            break;
+          }
+          case DpsKind::kInout:
+            replacements[i] = call.getOperand(resultInfo.inoutArg);
+            break;
+          case DpsKind::kScalar: {
+            Value out = VariableOp::create(b, loc, resultInfo.localType,
+                                           OpaqueAttr::get(b.getContext(), ""));
+            callOperands.push_back(out);
+            replacements[i] = out;
+            replacementNeedsLoad[i] = true;
+            break;
+          }
+          case DpsKind::kArray: {
+            Value out = VariableOp::create(b, loc, resultInfo.localType,
+                                           OpaqueAttr::get(b.getContext(), ""));
+            callOperands.push_back(out);
+            replacements[i] = out;
+            break;
+          }
+          case DpsKind::kFloatArray: {
+            Value out = VariableOp::create(b, loc, resultInfo.localType,
+                                           OpaqueAttr::get(b.getContext(), ""));
+            callOperands.push_back(out);
+            replacements[i] = out;
+            break;
+          }
+        }
+      }
+
+      SmallVector<Value> verbatimOperands;
+      verbatimOperands.append(retainedLocals.begin(), retainedLocals.end());
+      verbatimOperands.append(callOperands.begin(), callOperands.end());
+
+      std::string callText =
+          (call.getCallee() + "(" + placeholders(callOperands.size()) + ");")
+              .str();
+      std::string fmt;
+      if (retainedLocals.empty()) {
+        fmt = callText;
+      } else if (retainedLocals.size() == 1) {
+        fmt = "{} = " + callText;
+      } else {
+        fmt = "std::tie(" + placeholders(retainedLocals.size()) +
+              ") = " + callText;
+      }
+      emitc::VerbatimOp::create(b, loc, fmt, verbatimOperands);
+
+      for (auto [i, resultInfo] : llvm::enumerate(info.results)) {
+        if (!replacementNeedsLoad[i]) continue;
+        replacements[i] =
+            loadAfter(b, loc, resultInfo.oldType, replacements[i]);
+      }
+
+      for (auto [oldResult, replacement] :
+           llvm::zip_equal(call.getResults(), replacements)) {
+        if (replacement) oldResult.replaceAllUsesWith(replacement);
+      }
+      call.erase();
+    }
+    elideMoveOnlyLoads(getOperation());
 
     // Strip leftover `tensor_ext.*` metadata (original-type / layout
     // annotations carried on the client function boundaries). They are

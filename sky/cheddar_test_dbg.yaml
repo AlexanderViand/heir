@@ -41,6 +41,5 @@ setup: |
 run: |
   set -ex
   bazel fetch //... --//:enable_cheddar=1
-  CC=clang bazel test \
-    //tests/Examples/cheddar/... \
+  CC=clang bazel test ... \
     --//:enable_cheddar=1 --test_output=streamed
