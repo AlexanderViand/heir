@@ -358,10 +358,10 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     auto encoder = getContextualArg<cheddar::EncoderType>(op.getOperation());
     if (failed(encoder)) return encoder;
 
-    // Forward the scaling factor verbatim. The plaintext type's
-    // InverseCanonicalEncoding carries the exact scale value (an APInt) that
-    // CHEDDAR encodes at; we hand it through as the f64 CHEDDAR expects. We do
-    // not invent a default: a CKKS plaintext without a scale is malformed.
+    // We still require an InverseCanonicalEncoding to confirm this is a CKKS
+    // plaintext; its (nominal) scaling factor is forwarded into the op's
+    // vestigial scale attr, but the emitter ignores it and encodes at the
+    // canonical per-level scale ctx->param_.GetScale(level) instead.
     auto ptType = dyn_cast<lwe::LWEPlaintextType>(op.getOutput().getType());
     auto invEncoding = ptType ? dyn_cast<lwe::InverseCanonicalEncodingAttr>(
                                     ptType.getPlaintextSpace().getEncoding())
@@ -369,13 +369,13 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
     if (!invEncoding)
       return op.emitOpError()
              << "cannot lower to cheddar.encode: plaintext has no "
-                "InverseCanonicalEncoding scaling factor to forward as the "
-                "CHEDDAR encode scale";
-    double scale = invEncoding.getScalingFactor().getValue().roundToDouble();
+                "InverseCanonicalEncoding (not a CKKS plaintext)";
+    double scale = static_cast<double>(invEncoding.getScalingFactor());
 
-    // Per-use level from the scale-management analysis (the optional
-    // RLWEEncodeOp level attr). Requires running torch-linalg-to-ckks with
-    // ckks-scale-policy=precise.
+    // Per-use level: the RLWEEncodeOp level attr is set from the consuming
+    // ciphertext's modulus chain (Patterns.cpp / ContextAwareConversionUtils),
+    // i.e. the level the standard level analysis assigned. The cheddar emitter
+    // uses it to encode at the canonical per-level scale GetScale(level).
     int64_t level = op.getLevel() ? op.getLevel().value() : 0;
 
     auto ptTy = cheddar::PlaintextType::get(getContext());

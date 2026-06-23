@@ -722,13 +722,12 @@ struct ConvertEncode : public OpConversionPattern<cheddar::EncodeOp> {
     std::string begin =
         isa<emitc::PointerType>(msg.getType()) ? "{}" : "&{}[0]";
 
-    // The emitter is intentionally dumb about scale: it emits the IR's `scale`
-    // attribute verbatim. CHEDDAR keeps an EXACT canonical per-level scale
-    // (rescale divides by the exact prime product, so it drifts from a clean
-    // 2^k) and rejects mismatches beyond 1e-12, so the cheddar-level IR must
-    // already carry that exact value -- baked in by precise scale management
-    // upstream (or, for now, a scale-baking pre-pass on the test IR).
-    std::string scaleExpr = floatLit(op.getScaleAttr());
+    // Encode at CHEDDAR's canonical per-level scale: param_.GetScale(level)
+    // returns the exact prime-derived scale for this level, computed at emit
+    // time from the encoder's parameter set. This replaces forwarding a nominal
+    // 2^k literal (which drifts from CHEDDAR's exact scale and previously had
+    // to be patched up by a scale-baking pre-pass). The op's scale attr is now
+    // vestigial. TODO(cheddar): drop the scale attr from cheddar.encode.
 
     // Let emitc allocate the message vector (unique name, scoped); fill it
     // from the float range, then call Encode. All brace-free statements -- no
@@ -740,9 +739,10 @@ struct ConvertEncode : public OpConversionPattern<cheddar::EncodeOp> {
                        "{} = std::vector<Complex>(" + begin + ", " + begin +
                            " + " + std::to_string(n) + ");",
                        ValueRange{vec, msg, msg});
-    VerbatimOp::create(rewriter, op.getLoc(),
-                       "{}.Encode({}, " + lvl + ", " + scaleExpr + ", {});",
-                       ValueRange{adaptor.getEncoder(), out, vec});
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        "{}.Encode({}, " + lvl + ", {}.GetScale(" + lvl + "), {});",
+        ValueRange{adaptor.getEncoder(), out, adaptor.getEncoder(), vec});
 
     rewriter.replaceOp(op, loadAfter(rewriter, op.getLoc(), t, out));
     return success();
@@ -762,11 +762,14 @@ struct ConvertEncodeConstant
     // level and scale literals -- emitOutParamCall cannot place an SSA operand
     // after the trailing literals, so emit the call directly in the correct
     // order.
-    std::string fmt = "{}.EncodeConstant({}, " + intLit(op.getLevelAttr()) +
-                      ", " + floatLit(op.getScaleAttr()) + ", {});";
-    VerbatimOp::create(
-        rewriter, op.getLoc(), fmt,
-        ValueRange{adaptor.getEncoder(), out, adaptor.getValue()});
+    // Encode at the canonical per-level scale (param_.GetScale(level)); see
+    // ConvertEncode. The op's scale attr is vestigial under this scheme.
+    std::string lvl = intLit(op.getLevelAttr());
+    std::string fmt =
+        "{}.EncodeConstant({}, " + lvl + ", {}.GetScale(" + lvl + "), {});";
+    VerbatimOp::create(rewriter, op.getLoc(), fmt,
+                       ValueRange{adaptor.getEncoder(), out,
+                                  adaptor.getEncoder(), adaptor.getValue()});
     rewriter.replaceOp(op, loadAfter(rewriter, op.getLoc(), t, out));
     return success();
   }
