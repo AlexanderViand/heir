@@ -10,7 +10,7 @@
 // The IR's encode scales are baked to CHEDDAR's exact canonical
 // `GetScale(level)^k` by bake_scales.py (the emitter emits them verbatim);
 // unlike the relu mnist model, the Quad activation needs no further scale
-// hand-edits. See HACKS.md #5.
+// hand-edits.
 //
 // Weights come from a build-time torch dump of the checked-in orion_mlp.pth
 // (orion_mlp_weights.bin, BN already folded); images/labels are read straight
@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -198,8 +199,12 @@ TEST(CheddarOrionMlpE2E, GpuRun) {
     std::array<Ct, 1> in, out;
     orion_mlp__encrypt__arg0(ctx.get(), ctx->encoder_, ui.get(), evk, img,
                              ui.get(), in);
+    auto t0 = std::chrono::high_resolution_clock::now();
     orion_mlp(ctx.get(), ctx->encoder_, ui.get(), evk, in, w_fc1, b_fc1, w_fc2,
               b_fc2, w_fc3, b_fc3, out);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    std::printf("unrolled-lowering inference (img %d): %.1f ms\n", i,
+                std::chrono::duration<double, std::milli>(t1 - t0).count());
     float logits[10] = {0};
     orion_mlp__decrypt__result0(ctx.get(), ctx->encoder_, ui.get(), evk, out,
                                 ui.get(), logits);
