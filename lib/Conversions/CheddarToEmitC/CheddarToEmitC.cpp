@@ -14,6 +14,7 @@
 #include "llvm/include/llvm/ADT/SmallVector.h"  // from @llvm-project
 #include "llvm/include/llvm/ADT/StringSet.h"    // from @llvm-project
 #include "mlir/include/mlir/Conversion/ConvertToEmitC/ToEmitCInterface.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/MemRefToEmitC/MemRefToEmitC.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"   // from @llvm-project
 #include "mlir/include/mlir/Dialect/EmitC/IR/EmitC.h"   // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
@@ -58,6 +59,35 @@ std::string payloadTypeName(Type t) {
   if (isa<cheddar::ConstantType>(t)) return "Constant<word>";
   if (isa<cheddar::EvalKeyType>(t)) return "EvaluationKey<word>";
   return "";
+}
+
+// The scalar C++ element type name for a memref element: a cheddar payload, or
+// a plain float. "" if `t` is neither (the buffer is left to upstream / fails).
+std::string scalarCppName(Type t) {
+  std::string p = payloadTypeName(t);
+  if (!p.empty()) return p;
+  if (auto f = dyn_cast<FloatType>(t)) {
+    if (f.getWidth() == 32) return "float";
+    if (f.getWidth() == 64) return "double";
+  }
+  return "";
+}
+
+// Build the (nested) `std::array` C++ type for a buffer shape + element name.
+// shape [1, 1024], elt "float" -> "std::array<std::array<float, 1024>, 1>".
+std::string stdArrayName(ArrayRef<int64_t> shape, StringRef elt) {
+  std::string s = elt.str();
+  for (int64_t d : llvm::reverse(shape))
+    s = "std::array<" + s + ", " + std::to_string(d) + ">";
+  return s;
+}
+
+// True if an emitc opaque value type names a (move-only) cheddar payload, i.e.
+// the buffer's elements are move-only. Used to choose move vs copy semantics.
+bool opaqueNamesPayload(StringRef name) {
+  return name.contains("Ciphertext<word>") ||
+         name.contains("Plaintext<word>") || name.contains("Constant<word>") ||
+         name.contains("EvaluationKey<word>");
 }
 
 std::string intLit(IntegerAttr a) { return std::to_string(a.getInt()); }
@@ -190,36 +220,38 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
   });
   tc.addConversion(
       [ctx](IndexType) -> Type { return emitc::SizeTType::get(ctx); });
-  // memref<!cheddar.X> after bufferization, and strided float slices.
-  tc.addConversion([&tc, ctx](MemRefType type) -> std::optional<Type> {
-    std::string name = payloadTypeName(type.getElementType());
-    if (!name.empty()) {
-      Type payload = OpaqueType::get(ctx, name);
-      if (type.getRank() == 0) return Type(LValueType::get(payload));
-      if (type.hasStaticShape() && type.getRank() == 1)
-        return Type(emitc::ArrayType::get(type.getShape(), payload));
+  // Bufferized buffers split by element kind:
+  //  * move-only cheddar PAYLOAD (ciphertext/plaintext/constant/key): a place
+  //    carried as `lvalue<opaque>` -- rank-0 -> `T name;`; rank>=1 -> a
+  //    (nested) `std::array` (`std::array<T,N> name;`). std::array (not a C
+  //    array) so it binds to the `std::array<T,N>&` function-boundary refs and
+  //    the harness; subscripting works via the patched emitc.subscript
+  //    (lvalue<opaque> base).
+  //  * FLOAT message/weight buffers: a C array (`emitc.array`). emitc.global
+  //    (weight constants) requires an emitc.array type and emitc subscripts C
+  //    arrays natively, so floats stay C arrays; a strided subview slice
+  //    feeding cheddar.encode becomes a raw pointer.
+  // Layout is otherwise ignored (a payload subview slice is contiguous, so its
+  // shape alone names the std::array). Other memrefs are left to upstream.
+  tc.addConversion([ctx](MemRefType type) -> std::optional<Type> {
+    Type eltType = type.getElementType();
+    std::string elt = scalarCppName(eltType);
+    if (elt.empty()) return std::nullopt;
+    bool payload = !payloadTypeName(eltType).empty();
+    if (type.getRank() == 0)
+      return Type(LValueType::get(OpaqueType::get(ctx, elt)));
+    if (payload) {
+      if (!type.hasStaticShape() || llvm::is_contained(type.getShape(), 0))
+        return Type();
+      return Type(LValueType::get(
+          OpaqueType::get(ctx, stdArrayName(type.getShape(), elt))));
+    }
+    // Float: a strided subview slice -> raw pointer; otherwise a C array.
+    if (isa<StridedLayoutAttr>(type.getLayout()))
+      return Type(emitc::PointerType::get(eltType));
+    if (!type.hasStaticShape() || llvm::is_contained(type.getShape(), 0))
       return Type();
-    }
-    // A strided/offset float slice feeding cheddar.encode -> a raw pointer.
-    if (!type.getLayout().isIdentity()) {
-      Type converted = tc.convertType(type.getElementType());
-      if (converted && isa<FloatType>(converted) &&
-          isa<StridedLayoutAttr>(type.getLayout()))
-        return Type(emitc::PointerType::get(converted));
-      return Type();
-    }
-    // Static identity-layout float memrefs -> a fixed-size C array (stack), so
-    // memref.alloc becomes an `emitc.variable` (our ConvertAllocArray) rather
-    // than a heap `aligned_alloc` (upstream MemRefToEmitC, whose `T*`->array
-    // cast cannot be reconciled). Mirrors the array mapping for payload
-    // memrefs.
-    if (type.hasStaticShape() && type.getRank() > 0 &&
-        !llvm::is_contained(type.getShape(), 0)) {
-      Type elt = tc.convertType(type.getElementType());
-      if (!elt) return Type();
-      return Type(emitc::ArrayType::get(type.getShape(), elt));
-    }
-    return std::nullopt;
+    return Type(emitc::ArrayType::get(type.getShape(), eltType));
   });
 }
 
@@ -331,6 +363,8 @@ struct ConvertEncode : public OpConversionPattern<cheddar::EncodeOp> {
     int64_t n = 1;
     if (auto sh = dyn_cast<ShapedType>(op.getMessage().getType()))
       for (int64_t d : sh.getShape()) n *= d;
+    // The message is a float buffer: a raw pointer (subview slice) -> `{}`, or
+    // a C array (whole buffer) -> `&{}[0]`.
     std::string begin =
         isa<emitc::PointerType>(msg.getType()) ? "{}" : "&{}[0]";
     Value vec =
@@ -377,9 +411,11 @@ struct ConvertDecode : public OpConversionPattern<cheddar::DecodeOp> {
       cheddar::DecodeOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
     Value dst = adaptor.getValue();
-    auto arrayTy = dyn_cast<emitc::ArrayType>(dst.getType());
-    if (!arrayTy || !isa<FloatType>(arrayTy.getElementType())) return failure();
-    auto shape = arrayTy.getShape();
+    if (!isa<emitc::ArrayType, emitc::LValueType>(dst.getType()))
+      return failure();
+    auto memTy = dyn_cast<MemRefType>(op.getValue().getType());
+    if (!memTy || !isa<FloatType>(memTy.getElementType())) return failure();
+    auto shape = memTy.getShape();
     std::string idxPrefix;
     for (size_t i = 0; i + 1 < shape.size(); ++i) {
       if (shape[i] != 1) return failure();
@@ -555,168 +591,180 @@ struct ConvertEvalPoly : public OpConversionPattern<cheddar::EvalPolyOp> {
 // memref op patterns (payload + float)
 //===----------------------------------------------------------------------===//
 
-// memref.alloc of a rank-0 payload buffer -> a scalar local `T name;`.
-struct ConvertAllocScalar : public OpConversionPattern<mlir::memref::AllocOp> {
+// memref.alloc of a cheddar buffer (payload or float, scalar or std::array) ->
+// a stack `emitc.variable` of the converted lvalue<opaque> type, i.e.
+// `T name;` / `std::array<T,N> name;`. We own this (rather than upstream
+// MemRefToEmitC, which heap-allocs a pointer) so the buffer is a value that
+// binds to the `std::array<T,N>&` boundaries and is subscriptable.
+struct ConvertAllocLocal : public OpConversionPattern<mlir::memref::AllocOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
       mlir::memref::AllocOp op, OpAdaptor /*adaptor*/,
       ConversionPatternRewriter& rewriter) const override {
     Type converted = getTypeConverter()->convertType(op.getType());
-    if (!isa_and_present<emitc::LValueType>(converted)) return failure();
+    // payload buffer (lvalue<opaque>) or float C array (emitc.array): both are
+    // valid emitc.variable result types -> a stack local. (We own this so float
+    // allocs become stack arrays, not upstream's heap malloc/aligned_alloc.)
+    if (!isa_and_present<emitc::LValueType>(converted) &&
+        !isa_and_present<emitc::ArrayType>(converted))
+      return failure();
     rewriter.replaceOpWithNewOp<emitc::VariableOp>(
         op, converted, emitc::OpaqueAttr::get(rewriter.getContext(), ""));
     return success();
   }
 };
 
-// memref.alloc of a rank-1 payload buffer -> `T name[N];`.
-struct ConvertAllocArray : public OpConversionPattern<mlir::memref::AllocOp> {
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult matchAndRewrite(
-      mlir::memref::AllocOp op, OpAdaptor /*adaptor*/,
-      ConversionPatternRewriter& rewriter) const override {
-    Type converted = getTypeConverter()->convertType(op.getType());
-    auto arrayTy = dyn_cast_or_null<emitc::ArrayType>(converted);
-    if (!arrayTy || !isa<emitc::OpaqueType>(arrayTy.getElementType()))
-      return failure();
-    rewriter.replaceOpWithNewOp<emitc::VariableOp>(
-        op, arrayTy, emitc::OpaqueAttr::get(rewriter.getContext(), ""));
-    return success();
-  }
-};
-
-// memref.dealloc of a payload buffer is a no-op (RAII handles cleanup).
+// memref.dealloc of a cheddar buffer (lvalue<opaque>) is a no-op -- the
+// scope-bound emitc.variable is freed automatically. Erase it.
 struct EraseDealloc : public OpConversionPattern<mlir::memref::DeallocOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
       mlir::memref::DeallocOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    Type elt;
-    if (auto a = dyn_cast<emitc::ArrayType>(adaptor.getMemref().getType()))
-      elt = a.getElementType();
-    else if (auto l =
-                 dyn_cast<emitc::LValueType>(adaptor.getMemref().getType()))
-      elt = l.getValueType();
-    if (!isa_and_present<emitc::OpaqueType>(elt)) return failure();
+    auto l = dyn_cast<emitc::LValueType>(adaptor.getMemref().getType());
+    if (!l || !isa<emitc::OpaqueType>(l.getValueType())) return failure();
     rewriter.eraseOp(op);
     return success();
   }
 };
 
-// memref.load on a rank-1 payload buffer -> subscript (an lvalue, fed to
-// member_call operands directly).
+// memref.load on a std::array buffer (lvalue<opaque>) -> `base[i...]` via
+// emitc.subscript. For a payload element the subscript (an lvalue) is fed to
+// member_call operands directly; for a float element a memref.load yields a
+// value, so add an emitc.load.
 struct ConvertLoadArray : public OpConversionPattern<mlir::memref::LoadOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
       mlir::memref::LoadOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto arrayTy = dyn_cast<emitc::ArrayType>(adaptor.getMemref().getType());
-    if (!arrayTy || !isa<emitc::OpaqueType>(arrayTy.getElementType()))
-      return failure();
-    auto lvalT = emitc::LValueType::get(arrayTy.getElementType());
-    rewriter.replaceOpWithNewOp<emitc::SubscriptOp>(
-        op, lvalT, adaptor.getMemref(), adaptor.getIndices());
+    Type baseTy = adaptor.getMemref().getType();
+    bool isPayloadBuf = isa<emitc::LValueType>(baseTy);
+    if (!isPayloadBuf && !isa<emitc::ArrayType>(baseTy)) return failure();
+    if (adaptor.getIndices().empty()) return failure();
+    Type elt =
+        getTypeConverter()->convertType(op.getMemRefType().getElementType());
+    if (!elt) return failure();
+    auto sub = emitc::SubscriptOp::create(
+        rewriter, op.getLoc(), emitc::LValueType::get(elt), adaptor.getMemref(),
+        adaptor.getIndices());
+    if (isa<emitc::OpaqueType>(elt)) {
+      rewriter.replaceOp(op, sub.getResult());  // payload: lvalue, no copy
+      return success();
+    }
+    rewriter.replaceOpWithNewOp<emitc::LoadOp>(op, elt, sub.getResult());
     return success();
   }
 };
 
-// memref.store of a payload into a rank-1 buffer -> `arr[i] = std::move(src);`.
+// memref.store into a std::array buffer -> `base[i...] = ...`. A payload
+// element is move-assigned (`arr[i] = std::move(src);`); a float element is a
+// plain `emitc.assign`.
 struct ConvertStoreArray : public OpConversionPattern<mlir::memref::StoreOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
       mlir::memref::StoreOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto arrayTy = dyn_cast<emitc::ArrayType>(adaptor.getMemref().getType());
-    if (!arrayTy || !isa<emitc::OpaqueType>(arrayTy.getElementType()))
+    Type baseTy = adaptor.getMemref().getType();
+    if (!isa<emitc::LValueType>(baseTy) && !isa<emitc::ArrayType>(baseTy))
       return failure();
-    auto lvalT = emitc::LValueType::get(arrayTy.getElementType());
-    auto sub =
-        emitc::SubscriptOp::create(rewriter, op.getLoc(), lvalT,
-                                   adaptor.getMemref(), adaptor.getIndices());
-    VerbatimOp::create(rewriter, op.getLoc(), "{} = std::move({});",
-                       ValueRange{sub.getResult(), adaptor.getValue()});
+    if (adaptor.getIndices().empty()) return failure();
+    Type elt =
+        getTypeConverter()->convertType(op.getMemRefType().getElementType());
+    if (!elt) return failure();
+    auto sub = emitc::SubscriptOp::create(
+        rewriter, op.getLoc(), emitc::LValueType::get(elt), adaptor.getMemref(),
+        adaptor.getIndices());
+    if (isa<emitc::OpaqueType>(elt)) {
+      VerbatimOp::create(rewriter, op.getLoc(), "{} = std::move({});",
+                         ValueRange{sub.getResult(), adaptor.getValue()});
+    } else {
+      emitc::AssignOp::create(rewriter, op.getLoc(), sub.getResult(),
+                              adaptor.getValue());
+    }
     rewriter.eraseOp(op);
     return success();
   }
 };
 
-// memref.copy of a payload buffer -> a move, not a (deleted) copy. These appear
-// after buffer-results-to-out-params when a function returns a buffer it didn't
-// allocate in place (e.g. a callee's out-param result, or an input buffer):
-// the source is dead afterward, so moving is correct and a C++ copy (illegal
-// for the move-only payload) is avoided.
-//   * rank-0 (lvalue) scalar:  `dst = std::move(src);`
-//   * rank-1 (array):          `std::move(std::begin(src), std::end(src),
-//                                         std::begin(dst));`
-struct ConvertCopyPayloadMove
-    : public OpConversionPattern<mlir::memref::CopyOp> {
+// memref.copy of a cheddar buffer (both operands lvalue<opaque>). Move-only
+// payload buffers are MOVED, not copied (a C++ copy is deleted); float buffers
+// use std::array copy-assignment. (Payload copies appear after
+// buffer-results-to-out-params when a function returns a buffer it didn't
+// allocate in place; the source is dead afterward, so moving is correct.)
+//   * payload scalar:  `dst = std::move(src);`
+//   * payload array:   `std::move(std::begin(src), std::end(src),
+//                                 std::begin(dst));`
+//   * float (scalar/array): `dst = src;`  (std::array is copy-assignable)
+struct ConvertCopy : public OpConversionPattern<mlir::memref::CopyOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
       mlir::memref::CopyOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
     Value src = adaptor.getSource();
     Value tgt = adaptor.getTarget();
-    auto isScalarPayload = [](Value v) {
+    auto opaqueOf = [](Value v) -> emitc::OpaqueType {
       auto l = dyn_cast<emitc::LValueType>(v.getType());
-      return l && isa<emitc::OpaqueType>(l.getValueType());
+      return l ? dyn_cast<emitc::OpaqueType>(l.getValueType())
+               : emitc::OpaqueType();
     };
-    auto isArrayPayload = [](Value v) {
-      auto a = dyn_cast<emitc::ArrayType>(v.getType());
-      return a && isa<emitc::OpaqueType>(a.getElementType());
-    };
-    if (isScalarPayload(src) && isScalarPayload(tgt)) {
-      VerbatimOp::create(rewriter, op.getLoc(), "{} = std::move({});",
+    emitc::OpaqueType so = opaqueOf(src), to = opaqueOf(tgt);
+    if (!so || !to) return failure();
+    StringRef name = to.getValue();
+    bool isArray = name.starts_with("std::array");
+    if (opaqueNamesPayload(name)) {
+      if (isArray)
+        VerbatimOp::create(
+            rewriter, op.getLoc(),
+            "std::move(std::begin({}), std::end({}), std::begin({}));",
+            ValueRange{src, src, tgt});
+      else
+        VerbatimOp::create(rewriter, op.getLoc(), "{} = std::move({});",
+                           ValueRange{tgt, src});
+    } else {
+      VerbatimOp::create(rewriter, op.getLoc(), "{} = {};",
                          ValueRange{tgt, src});
-      rewriter.eraseOp(op);
-      return success();
     }
-    if (isArrayPayload(src) && isArrayPayload(tgt)) {
-      VerbatimOp::create(
-          rewriter, op.getLoc(),
-          "std::move(std::begin({}), std::end({}), std::begin({}));",
-          ValueRange{src, src, tgt});
-      rewriter.eraseOp(op);
-      return success();
-    }
-    return failure();
+    rewriter.eraseOp(op);
+    return success();
   }
 };
 
-// memref.subview producing a rank-0 scalar slice of a payload array (the
-// rank-reducing extract_slice/insert_slice used to pull a single ciphertext out
-// of / into a `tensor<1x!cheddar.X>` packing container) -> `base[o...]`, an
-// lvalue subscript. Downstream cheddar ops and payload copies reference it by
-// name, so no value is materialised.
-struct ConvertSubViewPayloadScalar
+// memref.subview slicing a std::array buffer (lvalue<opaque>) -> `base[o...]`,
+// an lvalue subscript. The rank-reducing extract/insert slices used to pull a
+// single ciphertext out of a `tensor<1x!cheddar.X>` packing container, or a row
+// out of a `<1x1024xf32>` buffer, drop the leading (size-1) dims: emit a
+// subscript indexing those dropped dims by their static offset, yielding the
+// (converted) inner buffer / scalar.
+struct ConvertSubViewSubscript
     : public OpConversionPattern<mlir::memref::SubViewOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
       mlir::memref::SubViewOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
     Value base = adaptor.getSource();
-    auto arrayTy = dyn_cast<emitc::ArrayType>(base.getType());
-    if (!arrayTy || !isa<emitc::OpaqueType>(arrayTy.getElementType()))
-      return failure();
-    // Only a fully-indexed, rank-reducing-to-scalar slice is supported (one
-    // static offset per source dim, result rank 0).
-    if (cast<MemRefType>(op.getType()).getRank() != 0) return failure();
+    if (!isa<emitc::LValueType>(base.getType())) return failure();
+    Type resultTy = getTypeConverter()->convertType(op.getType());
+    if (!isa_and_present<emitc::LValueType>(resultTy)) return failure();
+    int64_t srcRank = op.getSourceType().getRank();
+    int64_t resRank = cast<MemRefType>(op.getType()).getRank();
+    int64_t dropped = srcRank - resRank;
+    if (dropped <= 0) return failure();
     auto offsets = op.getStaticOffsets();
-    if (static_cast<int64_t>(offsets.size()) != arrayTy.getShape().size())
-      return failure();
-    for (int64_t o : offsets)
-      if (ShapedType::isDynamic(o)) return failure();
+    if (static_cast<int64_t>(offsets.size()) != srcRank) return failure();
     auto sizeT = emitc::SizeTType::get(getContext());
     SmallVector<Value> idx;
-    for (int64_t o : offsets)
+    for (int64_t i = 0; i < dropped; ++i) {
+      if (ShapedType::isDynamic(offsets[i])) return failure();
       idx.push_back(emitc::LiteralOp::create(rewriter, op.getLoc(), sizeT,
-                                             std::to_string(o)));
-    auto lvalT = emitc::LValueType::get(arrayTy.getElementType());
-    rewriter.replaceOpWithNewOp<emitc::SubscriptOp>(op, lvalT, base, idx);
+                                             std::to_string(offsets[i])));
+    }
+    rewriter.replaceOpWithNewOp<emitc::SubscriptOp>(op, resultTy, base, idx);
     return success();
   }
 };
 
-// memref.subview producing a strided slice of a float buffer -> `&base[o...]`.
+// memref.subview producing a strided slice of a float C-array buffer ->
+// `&base[o...]`, a raw pointer (the message slice fed to cheddar.encode).
 struct ConvertSubViewToPointer
     : public OpConversionPattern<mlir::memref::SubViewOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -788,33 +836,8 @@ struct ConvertExpandShapeFloatCopy
   }
 };
 
-// Like upstream ConvertGlobal but tolerates an alignment attribute (bufferized
-// constant globals carry `alignment = 64`; emitc.global has no alignas).
-struct ConvertGlobalDropAlign
-    : public OpConversionPattern<mlir::memref::GlobalOp> {
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult matchAndRewrite(
-      mlir::memref::GlobalOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter& rewriter) const override {
-    if (!op.getType().hasStaticShape()) return failure();
-    Type resultTy = getTypeConverter()->convertType(op.getType());
-    if (!resultTy) return failure();
-    auto vis = SymbolTable::getSymbolVisibility(op);
-    if (vis != SymbolTable::Visibility::Public &&
-        vis != SymbolTable::Visibility::Private)
-      return failure();
-    bool staticSpecifier = vis == SymbolTable::Visibility::Private;
-    Attribute initialValue = adaptor.getInitialValueAttr();
-    if (isa_and_present<UnitAttr>(initialValue)) initialValue = {};
-    rewriter.replaceOpWithNewOp<emitc::GlobalOp>(
-        op, adaptor.getSymName(), resultTy, initialValue,
-        /*externSpecifier=*/!staticSpecifier, staticSpecifier,
-        adaptor.getConstant());
-    return success();
-  }
-};
-
-// memref.copy between float buffers -> an element-wise loop.
+// memref.copy between float buffers (C arrays / pointers) -> an element-wise
+// loop (the move-only payload copy is handled by ConvertCopy).
 struct ConvertMemRefCopyFloat
     : public OpConversionPattern<mlir::memref::CopyOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -846,6 +869,34 @@ struct ConvertMemRefCopyFloat
                       "[_i];";
     VerbatimOp::create(rewriter, op.getLoc(), fmt, ValueRange{tgt, src});
     rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// Like upstream ConvertGlobal but tolerates an alignment attribute (bufferized
+// constant float globals carry `alignment = 64`; emitc.global has no alignas).
+// Float globals convert to emitc.array (a C array), which emitc.global accepts
+// and emitc subscripts/get_globals natively.
+struct ConvertGlobalDropAlign
+    : public OpConversionPattern<mlir::memref::GlobalOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      mlir::memref::GlobalOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    if (!op.getType().hasStaticShape()) return failure();
+    Type resultTy = getTypeConverter()->convertType(op.getType());
+    if (!isa_and_present<emitc::ArrayType>(resultTy)) return failure();
+    auto vis = SymbolTable::getSymbolVisibility(op);
+    if (vis != SymbolTable::Visibility::Public &&
+        vis != SymbolTable::Visibility::Private)
+      return failure();
+    bool staticSpecifier = vis == SymbolTable::Visibility::Private;
+    Attribute initialValue = adaptor.getInitialValueAttr();
+    if (isa_and_present<UnitAttr>(initialValue)) initialValue = {};
+    rewriter.replaceOpWithNewOp<emitc::GlobalOp>(
+        op, adaptor.getSymName(), resultTy, initialValue,
+        /*externSpecifier=*/!staticSpecifier, staticSpecifier,
+        adaptor.getConstant());
     return success();
   }
 };
@@ -917,13 +968,22 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
     // it illegal so ConvertGlobalDropAlign lowers it.
     target.addIllegalOp<mlir::memref::GlobalOp>();
 
-    // Payload memref ops + float-buffer ops (benefit 2 to win over the upstream
-    // MemRefToEmitC patterns the memref interface contributes).
-    patterns.add<ConvertAllocScalar, ConvertAllocArray, EraseDealloc,
-                 ConvertLoadArray, ConvertStoreArray, ConvertCopyPayloadMove,
-                 ConvertSubViewPayloadScalar, ConvertSubViewToPointer,
-                 ConvertExpandShapeFloatCopy, ConvertGlobalDropAlign,
-                 ConvertMemRefCopyFloat>(typeConverter, ctx, /*benefit=*/2);
+    // The cheddar interface owns memref->emitc lowering (the memref dialect's
+    // own interface is a no-op; see registerCheddarConvertToEmitCInterface).
+    // Pull in the stock MemRefToEmitC patterns for the plain float ops
+    // (alloc/load/store/global) at default benefit; the custom payload/float
+    // patterns below at benefit 2 win where they apply. (This helper does not
+    // touch the type converter -- the memref type conversions live in
+    // addCheddarEmitCTypeConversions.)
+    mlir::populateMemRefToEmitCConversionPatterns(patterns, typeConverter);
+
+    // Payload memref ops + float-buffer ops (benefit 2 to win over the stock
+    // MemRefToEmitC patterns added just above).
+    patterns.add<ConvertAllocLocal, EraseDealloc, ConvertLoadArray,
+                 ConvertStoreArray, ConvertCopy, ConvertMemRefCopyFloat,
+                 ConvertSubViewSubscript, ConvertSubViewToPointer,
+                 ConvertExpandShapeFloatCopy, ConvertGlobalDropAlign>(
+        typeConverter, ctx, /*benefit=*/2);
 
     patterns.add<ConvertCreateContext, ConvertPrepareRotKey, ConvertEncode,
                  ConvertEncodeConstant, ConvertDecode, ConvertHRot,
@@ -970,24 +1030,33 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
 // cheddar-emitc-boundary pass
 //===----------------------------------------------------------------------===//
 
-// Build the C++ reference type for a converted payload-buffer arg:
-//   lvalue<opaque T> -> `T&` / `const T&`
-//   emitc.array<NxT> -> `std::array<T, N>&` / `const std::array<T, N>&`
+// Build the C++ reference type for a converted buffer arg. Every cheddar buffer
+// converts to `lvalue<opaque T>` (T a scalar payload or a `std::array<...>`):
+//   lvalue<opaque T> -> `T&` (written) / `const T&` (read-only).
+// A func/emitc.func cannot carry an lvalue arg, so this is applied to the
+// boundary by the cheddar-emitc-boundary pass.
 Type referenceArgType(MLIRContext* ctx, Type converted, bool written) {
-  std::string base;
+  // Payload buffer args: lvalue<opaque> -> `T&` / `const T&` (T is a scalar
+  // payload or a std::array of payloads).
   if (auto l = dyn_cast<emitc::LValueType>(converted)) {
-    if (auto o = dyn_cast<emitc::OpaqueType>(l.getValueType()))
-      base = o.getValue().str();
-  } else if (auto a = dyn_cast<emitc::ArrayType>(converted)) {
-    if (auto o = dyn_cast<emitc::OpaqueType>(a.getElementType());
-        o && a.getShape().size() == 1)
-      base = ("std::array<" + o.getValue() + ", " +
-              std::to_string(a.getShape()[0]) + ">")
-                 .str();
+    auto o = dyn_cast<emitc::OpaqueType>(l.getValueType());
+    if (!o) return {};
+    std::string base = o.getValue().str();
+    return OpaqueType::get(ctx,
+                           written ? (base + "&") : ("const " + base + "&"));
   }
-  if (base.empty()) return {};
-  std::string name = written ? (base + "&") : ("const " + base + "&");
-  return OpaqueType::get(ctx, name);
+  // Non-copyable handle args passed by value would force a move/copy at the
+  // call boundary (Encoder is a reference-holding view; EvkMap and
+  // EvaluationKey are move-only) and mismatch the C++ harness's `const T&`
+  // declarations. They only ever appear as read-only inputs, so tighten to
+  // `const T&`.
+  if (auto o = dyn_cast<emitc::OpaqueType>(converted)) {
+    StringRef n = o.getValue();
+    if (n == "Encoder<word>" || n == "EvkMap<word>" ||
+        n == "EvaluationKey<word>")
+      return OpaqueType::get(ctx, ("const " + n + "&").str());
+  }
+  return {};
 }
 
 // A value is "written" if used as the destination (out) of an emitted call:
@@ -1106,6 +1175,17 @@ void registerCheddarConvertToEmitCInterface(DialectRegistry& registry) {
   // a structural conversion; see NoOpToEmitCInterface).
   registry.addExtension(+[](MLIRContext* ctx, func::FuncDialect* dialect) {
     dialect->addInterfaces<NoOpToEmitCInterface>();
+  });
+  // Likewise satisfy the memref dialect's promise with a no-op: the cheddar
+  // interface OWNS memref->emitc lowering (it calls
+  // populateMemRefToEmitCConversionPatterns itself plus higher-benefit custom
+  // patterns, with its own memref type conversions). Letting the stock
+  // MemRefToEmitC interface also register would add a competing set of
+  // patterns/type-conversions to the shared converter whose visitation order
+  // isn't controlled, producing irreconcilable ptr<->array casts on float
+  // buffers. So `registerConvertMemRefToEmitCInterface` must NOT be called.
+  registry.addExtension(+[](MLIRContext* ctx, mlir::memref::MemRefDialect* d) {
+    d->addInterfaces<NoOpToEmitCInterface>();
   });
 }
 

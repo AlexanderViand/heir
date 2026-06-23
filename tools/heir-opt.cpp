@@ -320,7 +320,10 @@ int main(int argc, char** argv) {
   mlir::heir::registerCheddarConvertToEmitCInterface(registry);
   mlir::registerConvertArithToEmitCInterface(registry);
   mlir::registerConvertSCFToEmitCInterface(registry);
-  mlir::registerConvertMemRefToEmitCInterface(registry);
+  // NOTE: the stock MemRefToEmitC interface is intentionally NOT registered.
+  // registerCheddarConvertToEmitCInterface attaches a no-op interface to the
+  // memref dialect and the cheddar interface owns memref->emitc lowering, so
+  // there is no competing pattern/type-conversion set (see CheddarToEmitC.cpp).
 
   // Bufferization and external models
   bufferization::registerBufferizationPasses();

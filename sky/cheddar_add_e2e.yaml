@@ -1,0 +1,47 @@
+# SkyPilot config for running ONLY the cheddar add_e2e end-to-end test in
+# default (debug) compilation mode on a GPU instance. Mirrors
+# sky/cheddar_test_dbg.yaml but targets a single test target, so it doesn't
+# trip over the other cheddar e2e examples that are not yet migrated to the
+# destination-passing-style cheddar dialect.
+#
+# Usage: sky launch -c heir-cheddar-dbg -i 10 sky/cheddar_add_e2e.yaml
+#
+# Uses nvidia/cuda Ubuntu 24.04 base image for clang + CUDA compatibility.
+
+name: heir-cheddar-dbg
+
+# assumes we'll call this from the repo root
+workdir: .
+
+resources:
+  accelerators: A10G:1
+  cpus: 64+
+  memory: 128+
+  disk_size: 200
+  cloud: aws
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+  autostop:
+    idle_minutes: 10
+
+setup: |
+  set -ex
+
+  apt-get update -qq
+  apt-get install -y -qq \
+    clang lld libomp-dev llvm \
+    zlib1g-dev \
+    libtommath-dev libjsoncpp-dev \
+    libcusparselt0 \
+    git wget pip
+
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
+  fi
+
+run: |
+  set -ex
+  bazel fetch //tests/Examples/cheddar/add_e2e:add_e2e_test --//:enable_cheddar=1
+  CC=clang bazel test //tests/Examples/cheddar/add_e2e:add_e2e_test \
+    --//:enable_cheddar=1 --test_output=all
+  echo "## DONE ##"

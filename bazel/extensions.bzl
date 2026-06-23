@@ -21,6 +21,9 @@ def _llvm_deps_impl(_):
             # through the automated integration process). The patch file is
             # automatically generated, and should not be removed even if empty.
             "@heir//patches:llvm.patch",
+            # Hand-maintained (NOT auto-generated): lets `emitc.subscript` take
+            # an `!emitc.lvalue` base, needed by the cheddar EmitC emitter.
+            "@heir//patches:emitc_subscript_lvalue.patch",
         ],
         patch_args = ["-p1"],
     )
