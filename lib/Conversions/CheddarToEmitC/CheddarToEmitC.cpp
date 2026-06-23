@@ -137,6 +137,17 @@ Value addressOfFirstElement(OpBuilder& b, Location loc, Value array) {
       b, loc, emitc::PointerType::get(arrayTy.getElementType()), firstElement);
 }
 
+// A flat `<elt>*` to a float buffer's first element: `addressOfFirstElement`
+// for a C array, the value itself if already a pointer (e.g. a subview slice).
+// Emitting this as an SSA `address_of(subscript(buf, 0..0))` -- rather than
+// baking `&buf[0]..[0]` into a verbatim string -- lets the
+// cheddar-emitc-boundary pass recognize and flatten a result out-param (it
+// rewrites that exact pattern to the bare pointer arg).
+Value flatFloatPointer(OpBuilder& b, Location loc, Value buf) {
+  if (isa<emitc::PointerType>(buf.getType())) return buf;
+  return addressOfFirstElement(b, loc, buf);
+}
+
 // Emit `receiver.method(out, args..., extra)` (or `receiver->method(...)` for a
 // pointer receiver). Trailing literal text (`extra`) is appended as one opaque
 // constant arg.
@@ -872,17 +883,14 @@ struct ConvertMemRefCopyFloat
     int64_t n = 1;
     if (auto sh = dyn_cast<ShapedType>(op.getSource().getType()))
       for (int64_t d : sh.getShape()) n *= d;
-    auto begin = [](Value v) -> std::string {
-      if (isa<emitc::PointerType>(v.getType())) return "({})";
-      auto a = cast<emitc::ArrayType>(v.getType());
-      std::string s = "(&{}";
-      for (size_t i = 0; i < a.getShape().size(); ++i) s += "[0]";
-      return s + ")";
-    };
+    // Index both buffers through flat `<elt>*` SSA pointers so a result
+    // out-param target (later flattened to `float*` at the boundary) stays
+    // valid; the printed C++ is unchanged for ordinary C-array copies.
+    Value tgtPtr = flatFloatPointer(rewriter, op.getLoc(), tgt);
+    Value srcPtr = flatFloatPointer(rewriter, op.getLoc(), src);
     std::string fmt = "for (size_t _i = 0; _i < " + std::to_string(n) +
-                      "; ++_i) " + begin(tgt) + "[_i] = " + begin(src) +
-                      "[_i];";
-    VerbatimOp::create(rewriter, op.getLoc(), fmt, ValueRange{tgt, src});
+                      "; ++_i) ({})[_i] = ({})[_i];";
+    VerbatimOp::create(rewriter, op.getLoc(), fmt, ValueRange{tgtPtr, srcPtr});
     rewriter.eraseOp(op);
     return success();
   }
@@ -908,10 +916,16 @@ struct ConvertGlobalDropAlign
     bool staticSpecifier = vis == SymbolTable::Visibility::Private;
     Attribute initialValue = adaptor.getInitialValueAttr();
     if (isa_and_present<UnitAttr>(initialValue)) initialValue = {};
+    // Emit the global non-const even when the source memref is `constant`.
+    // A read-only float buffer arg (e.g. `_assign_layout`'s input) prints as a
+    // plain `float v[1][512]` param -- func.func args carry no const qualifier
+    // in this emitter -- so a `static const float[...]` global cannot bind to
+    // it (`no matching function`). The globals are machine-generated and never
+    // mutated, so dropping `const` is safe and keeps them callable everywhere.
     rewriter.replaceOpWithNewOp<emitc::GlobalOp>(
         op, adaptor.getSymName(), resultTy, initialValue,
         /*externSpecifier=*/!staticSpecifier, staticSpecifier,
-        adaptor.getConstant());
+        /*constSpecifier=*/false);
     return success();
   }
 };
@@ -1074,6 +1088,41 @@ Type referenceArgType(MLIRContext* ctx, Type converted, bool written) {
   return {};
 }
 
+// A float-element *result* out-param (carries `bufferize.result`) must match
+// the C++ harness's flat `float*` convention -- the pre-DPS emitter lifted
+// float-array results to `float*`. buffer-results-to-out-params instead hands
+// us a multi-dim C array (`float v[1][10]`), whose param type decays to
+// `float(*)[10]` != `float*` and fails to link. Retype such args to `<elt>*`
+// and rewrite the body's `&arg[0]..[0]` (addressOfFirstElement -- the only way
+// the decode copy touches the buffer) to `arg`. Float *inputs* (images,
+// weights; no `bufferize.result`) keep their multi-dim shape. Returns the
+// pointer type, or {} if the arg isn't a flat-able float-array result.
+Type flattenFloatResultArg(BlockArgument arg) {
+  auto arr = dyn_cast<emitc::ArrayType>(arg.getType());
+  if (!arr || !isa<FloatType>(arr.getElementType())) return {};
+  // Every use must be `address_of(subscript(arg, 0..0))`, so flattening to a
+  // pointer is sound (a residual multi-index subscript on a pointer would be
+  // invalid C++); otherwise bail and leave the arg as a C array.
+  SmallVector<std::pair<emitc::AddressOfOp, emitc::SubscriptOp>> toRewrite;
+  for (OpOperand& use : arg.getUses()) {
+    auto sub = dyn_cast<emitc::SubscriptOp>(use.getOwner());
+    if (!sub || sub.getValue() != arg || !sub.getResult().hasOneUse())
+      return {};
+    auto addr =
+        dyn_cast<emitc::AddressOfOp>(*sub.getResult().getUsers().begin());
+    if (!addr) return {};
+    toRewrite.push_back({addr, sub});
+  }
+  auto ptrTy = emitc::PointerType::get(arr.getElementType());
+  arg.setType(ptrTy);
+  for (auto& [addr, sub] : toRewrite) {
+    addr.getResult().replaceAllUsesWith(arg);
+    addr.erase();
+    sub.erase();
+  }
+  return ptrTy;
+}
+
 // A value is "written" if used as the destination (out) of an emitted call:
 // member_call_opaque places the dest at operand 1 (after the receiver), a
 // call_opaque shim (RunLinearTransform/RunEvalPoly) at operand 0, or an
@@ -1128,11 +1177,28 @@ struct CheddarToEmitCPass
       Block& entry = fn.getBody().front();
       SmallVector<Type> inputs(fn.getFunctionType().getInputs().begin(),
                                fn.getFunctionType().getInputs().end());
+      // Only the client-decrypt boundary func (whose float result the
+      // hand-written harness declares as `float*`) gets its float-array result
+      // flattened. Internal helpers (e.g. `_assign_layout`) also have
+      // `bufferize.result` float outputs, but their callers are generated code
+      // that passes multi-dim C arrays -- flattening those to `float*` would
+      // break the in-module call (`no matching function`).
+      bool clientDecrypt = fn->hasAttr("client.dec_func");
       bool changed = false;
       for (unsigned i = 0; i < inputs.size(); ++i) {
         bool written = isPayloadArgWritten(fn, i);
         Type ref = referenceArgType(ctx, inputs[i], written);
-        if (!ref) continue;
+        if (!ref) {
+          // Not a payload/handle arg. The client-decrypt float-array result
+          // out-param is flattened to a `<elt>*` to match the harness.
+          if (clientDecrypt && fn.getArgAttr(i, "bufferize.result")) {
+            if (Type ptr = flattenFloatResultArg(entry.getArgument(i))) {
+              inputs[i] = ptr;
+              changed = true;
+            }
+          }
+          continue;
+        }
         inputs[i] = ref;
         entry.getArgument(i).setType(ref);
         changed = true;
