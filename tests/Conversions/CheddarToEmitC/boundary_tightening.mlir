@@ -82,3 +82,23 @@ func.func @caller(%enc: !cheddar.encoder, %msg: memref<4xf32>)
       : (!cheddar.encoder, memref<4xf32>) -> memref<1x!cheddar.plaintext>
   return %0 : memref<1x!cheddar.plaintext>
 }
+
+// -----
+
+// A call to a function whose float array result is lifted to a trailing
+// `float*` out-param must pass `&out[0]`, not the local C array itself.
+// CHECK: func.func @float_pack
+// CHECK-SAME: !emitc.ptr<f32>
+// CHECK: func.func @float_caller
+// CHECK-SAME: !emitc.ptr<f32>
+// CHECK: %[[BUF:.*]] = "emitc.variable"() <{value = #emitc.opaque<"">}> : () -> !emitc.array<4xf32>
+// CHECK: %[[PTR:.*]] = emitc.address_of
+// CHECK: emitc.verbatim "float_pack({}, {});" args {{.*}}%[[PTR]]
+func.func @float_pack(%msg: memref<4xf32>) -> memref<4xf32> {
+  return %msg : memref<4xf32>
+}
+
+func.func @float_caller(%msg: memref<4xf32>) -> memref<4xf32> {
+  %0 = call @float_pack(%msg) : (memref<4xf32>) -> memref<4xf32>
+  return %0 : memref<4xf32>
+}

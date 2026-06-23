@@ -184,6 +184,20 @@ std::string placeholders(size_t count) {
   return result;
 }
 
+Value addressOfFirstElement(OpBuilder& b, Location loc, Value array) {
+  auto arrayTy = cast<emitc::ArrayType>(array.getType());
+  auto sizeT = emitc::SizeTType::get(b.getContext());
+  SmallVector<Value> zeroIdxs;
+  for (size_t i = 0; i < arrayTy.getShape().size(); ++i) {
+    zeroIdxs.push_back(emitc::LiteralOp::create(b, loc, sizeT, "0"));
+  }
+  auto lvalueTy = emitc::LValueType::get(arrayTy.getElementType());
+  Value firstElement =
+      emitc::SubscriptOp::create(b, loc, lvalueTy, array, zeroIdxs);
+  return emitc::AddressOfOp::create(
+      b, loc, emitc::PointerType::get(arrayTy.getElementType()), firstElement);
+}
+
 // Cheddar types map to the textual C++ type that the CHEDDAR library uses.
 // Move-only types (Ciphertext/Plaintext/Constant) are *also* mapped to
 // `opaque<X>`; local variables wrap them in `lvalue<X>` only at the point of
@@ -1534,7 +1548,7 @@ struct CheddarToEmitCPass
           case DpsKind::kFloatArray: {
             Value out = VariableOp::create(b, loc, resultInfo.localType,
                                            OpaqueAttr::get(b.getContext(), ""));
-            callOperands.push_back(out);
+            callOperands.push_back(addressOfFirstElement(b, loc, out));
             replacements[i] = out;
             break;
           }
