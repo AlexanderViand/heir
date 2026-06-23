@@ -1,0 +1,50 @@
+# Two-phase CHEDDAR test run (debug/default compilation) on a GPU instance:
+# phase 1 = cheddar example tests (fast gate), phase 2 = the full suite.
+# Both phases run regardless of the other's outcome; the job fails if either does.
+# Usage: sky launch -c heir-cheddar-dbg -i 30 --retry-until-up sky/cheddar_seq_dbg.yaml
+
+name: heir-cheddar-dbg
+
+workdir: .
+
+resources:
+  accelerators: A10G:1
+  cpus: 64+
+  memory: 128+
+  disk_size: 200
+  cloud: aws
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+  autostop:
+    idle_minutes: 30
+
+setup: |
+  set -ex
+
+  apt-get update -qq
+  apt-get install -y -qq \
+    clang lld libomp-dev llvm \
+    zlib1g-dev \
+    libtommath-dev libjsoncpp-dev \
+    libcusparselt0 \
+    git wget pip
+
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
+  fi
+
+run: |
+  set -ex
+  bazel fetch //... --//:enable_cheddar=1
+  set +e
+  echo "===== PHASE 1: cheddar tests ====="
+  CC=clang bazel test //tests/Examples/cheddar/... \
+    --//:enable_cheddar=1 --keep_going --test_output=errors --test_summary=short
+  ched=$?
+  echo "===== PHASE 2: all tests ====="
+  CC=clang bazel test //... \
+    --//:enable_cheddar=1 --keep_going --test_output=errors --test_summary=short
+  all=$?
+  echo "===== SUMMARY (dbg): cheddar exit=$ched  all exit=$all ====="
+  [ $ched -ne 0 ] && exit $ched
+  exit $all
