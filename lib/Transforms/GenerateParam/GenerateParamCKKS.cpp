@@ -143,10 +143,11 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
       return;
     }
 
-    // for lattigo, defaults to extended encryption technique
-    if (moduleIsLattigo(getOperation())) {
+    // for lattigo (and cheddar, which reuses lattigo's 64-bit CKKS param path),
+    // defaults to extended encryption technique
+    if (moduleIsLattigo(getOperation()) || moduleIsCheddar(getOperation())) {
       encryptionTechniqueExtended = true;
-      LDBG() << "For lattigo, fixing extended encryption technique";
+      LDBG() << "For lattigo/cheddar, fixing extended encryption technique";
 
       // Lattigo bootstrapping requires LogN >= 14, i.e., ringDim >= 16384.
       // Since ringDim is computed from slotNumber (minRingDim = 2 *
