@@ -5,7 +5,9 @@
 
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
+#include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
@@ -538,6 +540,33 @@ BackendPipelineBuilder toLattigoPipelineBuilder() {
 
     // Lower Linalg to loops
     pm.addNestedPass<func::FuncOp>(createConvertLinalgToLoopsPass());
+  };
+}
+
+BackendPipelineBuilder toCheddarPipelineBuilder() {
+  return [=](OpPassManager& pm, const BackendOptions& /*options*/) {
+    // Convert CKKS to LWE
+    pm.addPass(ckks::createCKKSToLWE());
+
+    // Convert LWE to CHEDDAR
+    pm.addPass(lwe::createLWEToCheddar());
+
+    // Simplify, in case the lowering revealed redundancy
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+
+    // Re-expose the scheme parameters as cheddar.* module attributes and drop
+    // the CKKS module attributes.
+    pm.addPass(cheddar::createCheddarConfigureCryptoContext());
+
+    pm.addPass(createRemoveUnusedPureCall());
+    pm.addPass(createCSEPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createSymbolDCEPass());
+
+    // NOTE: this pipeline stops at the cheddar dialect. Bufferization of looped
+    // kernels and the cheddar-to-emitc / mlir-to-cpp lowering are applied as
+    // separate heir-opt / heir-translate steps (see the cheddar e2e tests).
   };
 }
 
