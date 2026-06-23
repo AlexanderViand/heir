@@ -214,7 +214,10 @@ struct HoistRelinBeforePlainOp : public OpRewritePattern<RelinearizeOp> {
         multOp->getResult(0), relinOp.getMultKey(), newRelinDest);
 
     // Replace the plain op's ciphertext input with the relinearized result;
-    // the fused plain op writes into the original relin's destination.
+    // the fused plain op writes into the original relin's destination. Build it
+    // at relinOp's position (not the moved insertion point above) so that
+    // destination -- defined just before relinOp -- dominates the new op.
+    rewriter.setInsertionPoint(relinOp);
     rewriter.replaceOpWithNewOp<PlainOp>(
         relinOp, relinOp->getResultTypes(), plainOp.getCtx(),
         newRelin->getResult(0), plainOp.getPlaintext(), relinOp.getOutput());
