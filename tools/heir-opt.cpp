@@ -298,13 +298,11 @@ int main(int argc, char** argv) {
   registerPass(
       []() -> std::unique_ptr<Pass> { return createConvertToLLVMPass(); });
 
-  // SCF/Arith/MemRef -> EmitC for bufferized loop kernels are lowered inside
-  // the `cheddar-to-emitc` conversion itself (see CheddarToEmitC.cpp), so no
-  // separate per-dialect EmitC passes are registered here.
-  //
-  // Attaches MemRefElementTypeInterface to emitc::OpaqueType so the
-  // cheddar-to-emitc type converter can form memref<Nx!emitc.opaque<...>>
-  // as the converted form of memref<Nx!cheddar.*>.
+  // Attaches MemRefElementTypeInterface to emitc::OpaqueType (a marker-only
+  // external model). The cheddar EmitC lowering runs via stock
+  // `--convert-to-emitc` (cheddar's ConvertToEmitCPatternInterface owns the
+  // cheddar ops, func, and memref; arith/scf plug in via their own interfaces)
+  // plus the `cheddar-emitc-boundary` cleanup pass.
   mlir::heir::registerCheddarToEmitCExternalModels(registry);
 
   // ConvertToEmitC dialect interfaces: cheddar plugs into --convert-to-emitc

@@ -1,4 +1,4 @@
-// RUN: heir-opt --cheddar-to-emitc --split-input-file --verify-diagnostics %s
+// RUN: heir-opt --cheddar-emitc-boundary --split-input-file --verify-diagnostics %s
 
 // The getter-style setup ops return a const reference to a move-only /
 // non-assignable CHEDDAR value (EvkMap, EvaluationKey, Encoder, UserInterface),

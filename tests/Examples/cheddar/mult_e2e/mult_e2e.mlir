@@ -20,11 +20,12 @@
 module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>, cheddar.Q = array<i64: 36028797018652673, 35184372121601>, cheddar.logDefaultScale = 45 : i64, cheddar.logN = 13 : i64, scheme.actual_slot_count = 4096 : i64, scheme.requested_slot_count = 1024 : i64} {
   func.func @mult(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}, %arg1: tensor<1x!ciphertext> {tensor_ext.original_type = #original_type}) -> (tensor<1x!ciphertext> {secret.secret, tensor_ext.original_type = #original_type}) {
     %c0 = arith.constant 0 : index
-    %extracted = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
-    %extracted_0 = tensor.extract %arg1[%c0] : tensor<1x!ciphertext>
+    %extracted = tensor.extract_slice %arg0[0] [1] [1] : tensor<1x!ciphertext> to tensor<!ciphertext>
+    %extracted_0 = tensor.extract_slice %arg1[0] [1] [1] : tensor<1x!ciphertext> to tensor<!ciphertext>
     %0 = tensor.empty() : tensor<1x!ciphertext>
-    %ct = cheddar.hmult %ctx, %extracted, %extracted_0, %evk : (!context, !ciphertext, !ciphertext, !eval_key) -> !ciphertext
-    %inserted = tensor.insert %ct into %0[%c0] : tensor<1x!ciphertext>
+    %dps_1 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct = cheddar.hmult %ctx, %extracted, %extracted_0, %evk, %dps_1 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, !eval_key, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %inserted = tensor.insert_slice %ct into %0[0] [1] [1] : tensor<!ciphertext> into tensor<1x!ciphertext>
     return %inserted : tensor<1x!ciphertext>
   }
   func.func @mult__encrypt__arg0(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1024xf32>, %ui_0: !user_interface) -> tensor<1x!ciphertext> attributes {client.enc_func = {func_name = "mult", index = 0 : i64}} {
@@ -40,9 +41,12 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
       scf.yield %inserted : tensor<1x1024xf32>
     }
     %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
-    %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
+    %dps_2 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt = cheddar.encode %encoder, %extracted_slice, %dps_2 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
+    %dps_3 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct = cheddar.encrypt %ui, %pt, %dps_3 : (!user_interface, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %fe_4 = tensor.empty() : tensor<1x!ciphertext>
+    %from_elements = tensor.insert_slice %ct into %fe_4[0] [1] [1] : tensor<!ciphertext> into tensor<1x!ciphertext>
     return %from_elements : tensor<1x!ciphertext>
   }
   func.func @mult__encrypt__arg1(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1024xf32>, %ui_0: !user_interface) -> tensor<1x!ciphertext> attributes {client.enc_func = {func_name = "mult", index = 1 : i64}} {
@@ -58,9 +62,12 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
       scf.yield %inserted : tensor<1x1024xf32>
     }
     %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
-    %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
+    %dps_5 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt = cheddar.encode %encoder, %extracted_slice, %dps_5 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
+    %dps_6 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct = cheddar.encrypt %ui, %pt, %dps_6 : (!user_interface, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %fe_7 = tensor.empty() : tensor<1x!ciphertext>
+    %from_elements = tensor.insert_slice %ct into %fe_7[0] [1] [1] : tensor<!ciphertext> into tensor<1x!ciphertext>
     return %from_elements : tensor<1x!ciphertext>
   }
   func.func @mult__decrypt__result0(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext>, %ui_0: !user_interface) -> tensor<1024xf32> attributes {client.dec_func = {func_name = "mult", index = 0 : i64}} {
@@ -69,10 +76,11 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %c1_i32 = arith.constant 1 : i32
     %c0_i32 = arith.constant 0 : i32
     %cst = arith.constant dense<0.000000e+00> : tensor<1024xf32>
-    %extracted = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
-    %pt = cheddar.decrypt %ui, %extracted : (!user_interface, !ciphertext) -> !plaintext
+    %extracted = tensor.extract_slice %arg0[0] [1] [1] : tensor<1x!ciphertext> to tensor<!ciphertext>
+    %dps_8 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt = cheddar.decrypt %ui, %extracted, %dps_8 : (!user_interface, tensor<!ciphertext>, tensor<!plaintext>) -> tensor<!plaintext>
     %0 = tensor.empty() : tensor<1x1024xf32>
-    %1 = cheddar.decode %encoder, %pt, %0 : (!encoder, !plaintext, tensor<1x1024xf32>) -> tensor<1x1024xf32>
+    %1 = cheddar.decode %encoder, %pt, %0 : (!encoder, tensor<!plaintext>, tensor<1x1024xf32>) -> tensor<1x1024xf32>
     %2 = scf.for %arg1 = %c0_i32 to %c1024_i32 step %c1_i32 iter_args(%arg2 = %cst) -> (tensor<1024xf32>)  : i32 {
       %3 = arith.index_cast %arg1 : i32 to index
       %extracted_1 = tensor.extract %1[%c0, %3] : tensor<1x1024xf32>

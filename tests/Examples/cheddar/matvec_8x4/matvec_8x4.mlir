@@ -56,38 +56,55 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %inserted_slice_4 = tensor.insert_slice %extracted_slice_2 into %1[0, 2] [1, 1022] [1, 1] : tensor<1x1022xf32> into tensor<1x1024xf32>
     %inserted_slice_5 = tensor.insert_slice %extracted_slice_3 into %inserted_slice_4[0, 0] [1, 2] [1, 1] : tensor<1x2xf32> into tensor<1x1024xf32>
     %extracted_slice_6 = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<4x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice_6 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %dps_1 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt = cheddar.encode %encoder, %extracted_slice_6, %dps_1 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
     %extracted_slice_7 = tensor.extract_slice %0[1, 0] [1, 1024] [1, 1] : tensor<4x1024xf32> to tensor<1024xf32>
-    %pt_8 = cheddar.encode %encoder, %extracted_slice_7 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %dps_2 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt_8 = cheddar.encode %encoder, %extracted_slice_7, %dps_2 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
     %extracted_slice_9 = tensor.extract_slice %inserted_slice_1[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_10 = cheddar.encode %encoder, %extracted_slice_9 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
+    %dps_3 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt_10 = cheddar.encode %encoder, %extracted_slice_9, %dps_3 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
     %extracted_slice_11 = tensor.extract_slice %inserted_slice_5[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt_12 = cheddar.encode %encoder, %extracted_slice_11 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %from_elements = tensor.from_elements %pt : tensor<1x!plaintext>
-    %from_elements_13 = tensor.from_elements %pt_8 : tensor<1x!plaintext>
-    %from_elements_14 = tensor.from_elements %pt_10 : tensor<1x!plaintext>
-    %from_elements_15 = tensor.from_elements %pt_12 : tensor<1x!plaintext>
+    %dps_4 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt_12 = cheddar.encode %encoder, %extracted_slice_11, %dps_4 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
+    %fe_5 = tensor.empty() : tensor<1x!plaintext>
+    %from_elements = tensor.insert_slice %pt into %fe_5[0] [1] [1] : tensor<!plaintext> into tensor<1x!plaintext>
+    %fe_6 = tensor.empty() : tensor<1x!plaintext>
+    %from_elements_13 = tensor.insert_slice %pt_8 into %fe_6[0] [1] [1] : tensor<!plaintext> into tensor<1x!plaintext>
+    %fe_7 = tensor.empty() : tensor<1x!plaintext>
+    %from_elements_14 = tensor.insert_slice %pt_10 into %fe_7[0] [1] [1] : tensor<!plaintext> into tensor<1x!plaintext>
+    %fe_8 = tensor.empty() : tensor<1x!plaintext>
+    %from_elements_15 = tensor.insert_slice %pt_12 into %fe_8[0] [1] [1] : tensor<!plaintext> into tensor<1x!plaintext>
     return %from_elements, %from_elements_13, %from_elements_14, %from_elements_15 : tensor<1x!plaintext>, tensor<1x!plaintext>, tensor<1x!plaintext>, tensor<1x!plaintext>
   }
   func.func @matvec__preprocessed(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext>, %arg1: tensor<1x!plaintext>, %arg2: tensor<1x!plaintext>, %arg3: tensor<1x!plaintext>, %arg4: tensor<1x!plaintext>) -> tensor<1x!ciphertext> attributes {client.preprocessed_func = {func_name = "matvec"}} {
     %c1 = arith.constant 1 : index
     %c0 = arith.constant 0 : index
-    %extracted = tensor.extract %arg1[%c0] : tensor<1x!plaintext>
-    %extracted_0 = tensor.extract %arg2[%c0] : tensor<1x!plaintext>
-    %extracted_1 = tensor.extract %arg3[%c0] : tensor<1x!plaintext>
-    %extracted_2 = tensor.extract %arg4[%c0] : tensor<1x!plaintext>
-    %extracted_3 = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
-    %ct = cheddar.mult_plain %ctx, %extracted_3, %extracted : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_4 = cheddar.hrot %ctx, %extracted_3, %c1 : (!context, !ciphertext, index) -> !ciphertext
-    %ct_5 = cheddar.mult_plain %ctx, %ct_4, %extracted_0 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_6 = cheddar.mult_plain %ctx, %extracted_3, %extracted_1 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_7 = cheddar.mult_plain %ctx, %ct_4, %extracted_2 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_8 = cheddar.add %ctx, %ct_6, %ct_7 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_9 = cheddar.add %ctx, %ct, %ct_5 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_10 = cheddar.hrot_add %ctx, %ct_8, %ct_9 {distance = 2 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %extracted = tensor.extract_slice %arg1[0] [1] [1] : tensor<1x!plaintext> to tensor<!plaintext>
+    %extracted_0 = tensor.extract_slice %arg2[0] [1] [1] : tensor<1x!plaintext> to tensor<!plaintext>
+    %extracted_1 = tensor.extract_slice %arg3[0] [1] [1] : tensor<1x!plaintext> to tensor<!plaintext>
+    %extracted_2 = tensor.extract_slice %arg4[0] [1] [1] : tensor<1x!plaintext> to tensor<!plaintext>
+    %extracted_3 = tensor.extract_slice %arg0[0] [1] [1] : tensor<1x!ciphertext> to tensor<!ciphertext>
+    %dps_9 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct = cheddar.mult_plain %ctx, %extracted_3, %extracted, %dps_9 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %dps_10 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_4 = cheddar.hrot %ctx, %extracted_3, %dps_10, %c1 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
+    %dps_11 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_5 = cheddar.mult_plain %ctx, %ct_4, %extracted_0, %dps_11 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %dps_12 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_6 = cheddar.mult_plain %ctx, %extracted_3, %extracted_1, %dps_12 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %dps_13 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_7 = cheddar.mult_plain %ctx, %ct_4, %extracted_2, %dps_13 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %dps_14 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_8 = cheddar.add %ctx, %ct_6, %ct_7, %dps_14 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %dps_15 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_9 = cheddar.add %ctx, %ct, %ct_5, %dps_15 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %dps_16 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_10 = cheddar.hrot_add %ctx, %ct_8, %ct_9, %dps_16 {distance = 2 : i64} : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
     %0 = tensor.empty() : tensor<1x!ciphertext>
-    %ct_11 = cheddar.rescale %ctx, %ct_10 : (!context, !ciphertext) -> !ciphertext
-    %inserted = tensor.insert %ct_11 into %0[%c0] : tensor<1x!ciphertext>
+    %dps_17 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct_11 = cheddar.rescale %ctx, %ct_10, %dps_17 : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %inserted = tensor.insert_slice %ct_11 into %0[0] [1] [1] : tensor<!ciphertext> into tensor<1x!ciphertext>
     return %inserted : tensor<1x!ciphertext>
   }
   func.func @matvec(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext> {tensor_ext.original_type = #tensor_ext.original_type<originalType = tensor<4xf32>, layout = #tensor_ext.layout<"{ [i0] -> [ct, slot] : ct = 0 and (-i0 + slot) mod 4 = 0 and 0 <= i0 <= 3 and 0 <= slot <= 1023 }">>}, %arg1: tensor<8x4xf32>) -> (tensor<1x!ciphertext> {secret.secret, tensor_ext.original_type = #original_type}) {
@@ -111,9 +128,12 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
       scf.yield %inserted : tensor<1x1024xf32>
     }
     %extracted_slice = tensor.extract_slice %0[0, 0] [1, 1024] [1, 1] : tensor<1x1024xf32> to tensor<1024xf32>
-    %pt = cheddar.encode %encoder, %extracted_slice {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>) -> !plaintext
-    %ct = cheddar.encrypt %ui, %pt : (!user_interface, !plaintext) -> !ciphertext
-    %from_elements = tensor.from_elements %ct : tensor<1x!ciphertext>
+    %dps_18 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt = cheddar.encode %encoder, %extracted_slice, %dps_18 {level = 1 : i64, scale = 0x42C0000000000000 : f64} : (!encoder, tensor<1024xf32>, tensor<!plaintext>) -> tensor<!plaintext>
+    %dps_19 = bufferization.alloc_tensor() : tensor<!ciphertext>
+    %ct = cheddar.encrypt %ui, %pt, %dps_19 : (!user_interface, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %fe_20 = tensor.empty() : tensor<1x!ciphertext>
+    %from_elements = tensor.insert_slice %ct into %fe_20[0] [1] [1] : tensor<!ciphertext> into tensor<1x!ciphertext>
     return %from_elements : tensor<1x!ciphertext>
   }
   func.func @matvec__decrypt__result0(%ctx: !context, %encoder: !encoder, %ui: !user_interface, %evk: !eval_key, %arg0: tensor<1x!ciphertext>, %ui_0: !user_interface) -> tensor<8xf32> attributes {client.dec_func = {func_name = "matvec", index = 0 : i64}} {
@@ -123,10 +143,11 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %c1_i32 = arith.constant 1 : i32
     %c0_i32 = arith.constant 0 : i32
     %cst = arith.constant dense<0.000000e+00> : tensor<8xf32>
-    %extracted = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
-    %pt = cheddar.decrypt %ui, %extracted : (!user_interface, !ciphertext) -> !plaintext
+    %extracted = tensor.extract_slice %arg0[0] [1] [1] : tensor<1x!ciphertext> to tensor<!ciphertext>
+    %dps_21 = bufferization.alloc_tensor() : tensor<!plaintext>
+    %pt = cheddar.decrypt %ui, %extracted, %dps_21 : (!user_interface, tensor<!ciphertext>, tensor<!plaintext>) -> tensor<!plaintext>
     %0 = tensor.empty() : tensor<1x1024xf32>
-    %1 = cheddar.decode %encoder, %pt, %0 : (!encoder, !plaintext, tensor<1x1024xf32>) -> tensor<1x1024xf32>
+    %1 = cheddar.decode %encoder, %pt, %0 : (!encoder, tensor<!plaintext>, tensor<1x1024xf32>) -> tensor<1x1024xf32>
     %2 = scf.for %arg1 = %c0_i32 to %c1024_i32 step %c1_i32 iter_args(%arg2 = %cst) -> (tensor<8xf32>)  : i32 {
       %3 = arith.remsi %arg1, %c8_i32 : i32
       %4 = arith.index_cast %arg1 : i32 to index

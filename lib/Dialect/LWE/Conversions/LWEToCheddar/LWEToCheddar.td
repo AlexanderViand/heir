@@ -23,6 +23,7 @@ def LWEToCheddar : Pass<"lwe-to-cheddar"> {
     "mlir::heir::lwe::LWEDialect",
     "mlir::heir::orion::OrionDialect",
     "mlir::tensor::TensorDialect",
+    "mlir::bufferization::BufferizationDialect",
   ];
 }
 

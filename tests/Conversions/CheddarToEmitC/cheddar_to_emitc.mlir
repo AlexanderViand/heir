@@ -1,272 +1,198 @@
-// RUN: heir-opt --cheddar-to-emitc %s | FileCheck %s
+// RUN: heir-opt "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map" "--buffer-results-to-out-params=hoist-static-allocs=true modify-public-functions=true add-result-attr=true" --fold-memref-alias-ops --canonicalize --convert-to-emitc --cheddar-emitc-boundary --reconcile-unrealized-casts %s | FileCheck %s
 
-// CreateContext is a static factory. PrepareRotKey is a void method. The
-// getter-style setup ops (create_user_interface / get_encoder / get_evk_map /
-// get_mult_key) are unsupported and rejected; see unsupported_getters.mlir.
+// End-to-end op coverage for the cheddar -> EmitC lowering, now driven by stock
+// `--convert-to-emitc` (cheddar's dialect interface) + the
+// `--cheddar-emitc-boundary` pass, over destination-passing-style cheddar ops.
+// Every payload-producing op carries a `bufferization.alloc_tensor` `$output`
+// destination; bufferization + `--buffer-results-to-out-params` turn func
+// results into trailing out-params, and the boundary pass re-types move-only
+// payload args as C++ references (`const T&` inputs, `T&` out-params).
 
+!ciphertext = !cheddar.ciphertext
+!plaintext = !cheddar.plaintext
+!constant = !cheddar.constant
+!context = !cheddar.context
+!encoder = !cheddar.encoder
+!eval_key = !cheddar.eval_key
+!evk_map = !cheddar.evk_map
+!user_interface = !cheddar.user_interface
+!parameter = !cheddar.parameter
+!boot_context = !cheddar.boot_context
+
+// CreateContext is a static factory (not destination-passing): it produces a
+// `Context<word>*`, so it stays `T x = T::Create(args);`.
 // CHECK: func.func @create_context
 // CHECK: emitc.call_opaque "Context<word>::Create"
-func.func @create_context(%params: !cheddar.parameter) -> !cheddar.context {
-  %ctx = cheddar.create_context %params : (!cheddar.parameter) -> !cheddar.context
-  return %ctx : !cheddar.context
+func.func @create_context(%params: !parameter) -> !context {
+  %ctx = cheddar.create_context %params : (!parameter) -> !context
+  return %ctx : !context
 }
 
 // CHECK: func.func @prepare_keys
-func.func @prepare_keys(%ui: !cheddar.user_interface) {
-  // CHECK: emitc.verbatim "{}->PrepareRotationKey(3, 5);" args %arg0
-  cheddar.prepare_rot_key %ui {distance = 3 : i64, maxLevel = 5 : i64} : (!cheddar.user_interface) -> ()
+// CHECK: emitc.verbatim "{}->PrepareRotationKey(3, 5);"
+func.func @prepare_keys(%ui: !user_interface) {
+  cheddar.prepare_rot_key %ui {distance = 3 : i64, maxLevel = 5 : i64} : (!user_interface) -> ()
   return
 }
 
-// Encrypt/decrypt are out-param method calls (emitc.member_call_opaque, which
-// picks `.`/`->` from the receiver type). Encode/decode bridge a message
-// buffer through a std::vector<Complex> and so stay as emitc.verbatim; encode
-// uses the encoder's canonical scale for the requested level.
-
-// CHECK: func.func @encode_chain
-func.func @encode_chain(%enc: !cheddar.encoder, %msg: tensor<4xf64>,
-                        %ui: !cheddar.user_interface)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}.Encode({}, 5, {}.GetScale(5), {});"
-  %pt = cheddar.encode %enc, %msg {level = 5 : i64, scale = 68719476736.0 : f64}
-      : (!cheddar.encoder, tensor<4xf64>) -> !cheddar.plaintext
-  // CHECK: emitc.member_call_opaque %arg2 "Encrypt"
-  %ct = cheddar.encrypt %ui, %pt
-      : (!cheddar.user_interface, !cheddar.plaintext) -> !cheddar.ciphertext
-  return %ct : !cheddar.ciphertext
+// A two-op chain: each op is `ctx->Method(out, a, b)`. The first op's result is
+// an intermediate local (`emitc.variable`); the second writes the function
+// out-param. Inputs are `const Ciphertext<word>&`, the out-param is mutable.
+// CHECK: func.func @arith(
+// CHECK-SAME: !emitc.ptr<!emitc.opaque<"Context<word>">>
+// CHECK-SAME: !emitc.opaque<"const Ciphertext<word>&">
+// CHECK-SAME: !emitc.opaque<"Ciphertext<word>&">
+// CHECK: emitc.member_call_opaque %arg0 "Add"(%[[V:.*]], %arg1, %arg2)
+// CHECK: emitc.member_call_opaque %arg0 "Mult"(%arg3, %[[V]], %arg2)
+func.func @arith(%ctx: !context, %a: tensor<!ciphertext>, %b: tensor<!ciphertext>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.add %ctx, %a, %b, %d0 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %d1 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %s = cheddar.mult %ctx, %r, %b, %d1 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %s : tensor<!ciphertext>
 }
 
-// Decode is DPS: %dst is the destination buffer (a <1x...xN> memref -> emitc
-// array), the result aliases it. The emitter fills a temporary
-// std::vector<Complex>, then copies the real parts into %dst.
-
-// CHECK: func.func @decode_chain
-func.func @decode_chain(%enc: !cheddar.encoder, %ui: !cheddar.user_interface,
-                        %ct: !cheddar.ciphertext, %dst: memref<1x4xf32>) {
-  // CHECK: emitc.member_call_opaque %arg1 "Decrypt"
-  %pt = cheddar.decrypt %ui, %ct
-      : (!cheddar.user_interface, !cheddar.ciphertext) -> !cheddar.plaintext
-  // CHECK: emitc.verbatim "{}.Decode({}, {});"
-  %msg = cheddar.decode %enc, %pt, %dst
-      : (!cheddar.encoder, !cheddar.plaintext, memref<1x4xf32>) -> memref<1x4xf32>
-  return
+// CHEDDAR's Context overloads Add/Sub/Mult on the second operand type, so the
+// `*_plain` / `*_const` ops dispatch to the base method name.
+// CHECK: func.func @plain_const
+// CHECK: emitc.member_call_opaque %arg0 "Add"
+// CHECK: emitc.member_call_opaque %arg0 "Mult"
+func.func @plain_const(%ctx: !context, %ct: tensor<!ciphertext>, %pt: tensor<!plaintext>, %c: tensor<!constant>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r1 = cheddar.add_plain %ctx, %ct, %pt, %d0 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %d1 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r2 = cheddar.mult_const %ctx, %r1, %c, %d1 : (!context, tensor<!ciphertext>, tensor<!constant>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r2 : tensor<!ciphertext>
 }
 
-// Chaining: each out-param op declares its own `emitc.variable` (the C++
-// destination) and the member_call_opaque writes into it. Downstream consumers
-// reference that variable by name -- the conversion elides the load that would
-// otherwise copy-init a move-only type.
-// CHECK: func.func @arith_chain
-func.func @arith_chain(%ctx: !cheddar.context, %a: !cheddar.ciphertext,
-                       %b: !cheddar.ciphertext) -> !cheddar.ciphertext {
-  // CHECK: %[[ADDV:.*]] = "emitc.variable"
-  // CHECK: emitc.member_call_opaque %arg0 "Add"(%[[ADDV]], %arg1, %arg2)
-  %r = cheddar.add %ctx, %a, %b
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
-  // CHECK: %[[MULTV:.*]] = "emitc.variable"
-  // CHECK: emitc.member_call_opaque %arg0 "Mult"(%[[MULTV]], %[[ADDV]], %arg2)
-  %s = cheddar.mult %ctx, %r, %b
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %s : !cheddar.ciphertext
-}
-
-// CHECK: func.func @ct_pt_ct_const
-func.func @ct_pt_ct_const(%ctx: !cheddar.context, %ct: !cheddar.ciphertext,
-                          %pt: !cheddar.plaintext, %c: !cheddar.constant)
-    -> !cheddar.ciphertext {
-  // CHEDDAR's Context overloads Add/Sub/Mult on the second-operand type, so
-  // *_plain / *_const ops dispatch to the base method name and rely on C++ to
-  // pick the right overload.
-  // CHECK: emitc.member_call_opaque %arg0 "Add"
-  %r1 = cheddar.add_plain %ctx, %ct, %pt
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.plaintext) -> !cheddar.ciphertext
-  // CHECK: emitc.member_call_opaque %arg0 "Sub"
-  %r2 = cheddar.sub_plain %ctx, %r1, %pt
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.plaintext) -> !cheddar.ciphertext
-  // CHECK: emitc.member_call_opaque %arg0 "Mult"
-  %r3 = cheddar.mult_plain %ctx, %r2, %pt
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.plaintext) -> !cheddar.ciphertext
-  // CHECK: emitc.member_call_opaque %arg0 "Add"
-  %r4 = cheddar.add_const %ctx, %r3, %c
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.constant) -> !cheddar.ciphertext
-  // CHECK: emitc.member_call_opaque %arg0 "Mult"
-  %r5 = cheddar.mult_const %ctx, %r4, %c
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.constant) -> !cheddar.ciphertext
-  return %r5 : !cheddar.ciphertext
-}
-
+// The level_down target level is appended as a trailing opaque constant arg.
 // CHECK: func.func @unary
-func.func @unary(%ctx: !cheddar.context, %ct: !cheddar.ciphertext)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.member_call_opaque %arg0 "Neg"
-  %n = cheddar.neg %ctx, %ct : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
-  // CHECK: emitc.member_call_opaque %arg0 "Rescale"
-  %r = cheddar.rescale %ctx, %n : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
-  // The target level is appended as a trailing opaque constant argument.
-  // CHECK: emitc.member_call_opaque %arg0 "LevelDown"
-  // CHECK-SAME: #emitc.opaque<"2">
-  %l = cheddar.level_down %ctx, %r {targetLevel = 2 : i64}
-      : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %l : !cheddar.ciphertext
+// CHECK: emitc.member_call_opaque %arg0 "Neg"
+// CHECK: emitc.member_call_opaque %arg0 "LevelDown"
+// CHECK-SAME: #emitc.opaque<"2">
+func.func @unary(%ctx: !context, %ct: tensor<!ciphertext>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %n = cheddar.neg %ctx, %ct, %d0 : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %d1 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %l = cheddar.level_down %ctx, %n, %d1 {targetLevel = 2 : i64} : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %l : tensor<!ciphertext>
 }
 
 // CHECK: func.func @relin
-func.func @relin(%ctx: !cheddar.context, %ct: !cheddar.ciphertext,
-                 %k: !cheddar.eval_key) -> !cheddar.ciphertext {
-  // CHECK: emitc.member_call_opaque %arg0 "Relinearize"
-  %r1 = cheddar.relinearize %ctx, %ct, %k
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
-  // CHECK: emitc.member_call_opaque %arg0 "RelinearizeRescale"
-  %r2 = cheddar.relinearize_rescale %ctx, %r1, %k
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.eval_key) -> !cheddar.ciphertext
-  return %r2 : !cheddar.ciphertext
+// CHECK: emitc.member_call_opaque %arg0 "Relinearize"
+// CHECK: emitc.member_call_opaque %arg0 "Rescale"
+func.func @relin(%ctx: !context, %ct: tensor<!ciphertext>, %k: !eval_key) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r1 = cheddar.relinearize %ctx, %ct, %k, %d0 : (!context, tensor<!ciphertext>, !eval_key, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %d1 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r2 = cheddar.rescale %ctx, %r1, %d1 : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r2 : tensor<!ciphertext>
 }
 
-// HMult: the explicit `rescale` flag is appended as the trailing opaque
-// constant argument `true` / `false`.
-
-// CHECK: func.func @hmult_with_rescale
-func.func @hmult_with_rescale(%ctx: !cheddar.context, %a: !cheddar.ciphertext,
-                              %b: !cheddar.ciphertext, %k: !cheddar.eval_key)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.member_call_opaque %arg0 "HMult"
-  // CHECK-SAME: #emitc.opaque<"true">
-  %r = cheddar.hmult %ctx, %a, %b, %k {rescale = true}
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext, !cheddar.eval_key)
-      -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// The HMult `rescale` flag is appended as the trailing opaque constant arg.
+// CHECK: func.func @hmult
+// CHECK: emitc.member_call_opaque %arg0 "HMult"
+// CHECK-SAME: #emitc.opaque<"true">
+func.func @hmult(%ctx: !context, %a: tensor<!ciphertext>, %b: tensor<!ciphertext>, %k: !eval_key) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.hmult %ctx, %a, %b, %k, %d0 {rescale = true} : (!context, tensor<!ciphertext>, tensor<!ciphertext>, !eval_key, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
-// CHECK: func.func @hmult_no_rescale
-func.func @hmult_no_rescale(%ctx: !cheddar.context, %a: !cheddar.ciphertext,
-                            %b: !cheddar.ciphertext, %k: !cheddar.eval_key)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.member_call_opaque %arg0 "HMult"
-  // CHECK-SAME: #emitc.opaque<"false">
-  %r = cheddar.hmult %ctx, %a, %b, %k {rescale = false}
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext, !cheddar.eval_key)
-      -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// MadUnsafe is in-place on its accumulator. Here the accumulator is an input
+// arg returned as the result, so it is mutable and the out-param is filled by a
+// move from it.
+// CHECK: func.func @mad
+// CHECK: emitc.member_call_opaque %arg0 "MadUnsafe"(%arg1, %arg2, %arg3)
+// CHECK: emitc.verbatim "{} = std::move({});"
+func.func @mad(%ctx: !context, %acc: tensor<!ciphertext>, %in: tensor<!ciphertext>, %c: tensor<!constant>) -> tensor<!ciphertext> {
+  %r = cheddar.mad_unsafe %ctx, %acc, %in, %c : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!constant>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
-// HRot/HConj keep their `emitc.verbatim` form: the rotation/conjugation key is
-// a nested `{}->GetRotationKey(d)` lookup that a plain member_call_opaque arg
-// list can't express. Static-distance bakes the distance into the format
-// string twice (key lookup + rotation arg).
+// Encode bridges a float message buffer through a std::vector<Complex> (stays
+// verbatim, using the encoder's canonical per-level scale); encrypt is an
+// out-param method call.
+// CHECK: func.func @enc_chain
+// CHECK: emitc.verbatim "{}.Encode({}, 5, {}.GetScale(5), {});"
+// CHECK: emitc.member_call_opaque %arg2 "Encrypt"
+func.func @enc_chain(%enc: !encoder, %msg: tensor<4xf64>, %ui: !user_interface) -> tensor<!ciphertext> {
+  %dp = bufferization.alloc_tensor() : tensor<!plaintext>
+  %pt = cheddar.encode %enc, %msg, %dp {level = 5 : i64, scale = 68719476736.0 : f64} : (!encoder, tensor<4xf64>, tensor<!plaintext>) -> tensor<!plaintext>
+  %dc = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %ct = cheddar.encrypt %ui, %pt, %dc : (!user_interface, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %ct : tensor<!ciphertext>
+}
 
+// Decrypt is an out-param method call; decode reads into a temporary
+// std::vector<Complex> then copies the real parts into the float buffer.
+// CHECK: func.func @dec_chain
+// CHECK: emitc.member_call_opaque %arg1 "Decrypt"
+// CHECK: emitc.verbatim "{}.Decode({}, {});"
+func.func @dec_chain(%enc: !encoder, %ui: !user_interface, %ct: tensor<!ciphertext>, %dst: tensor<1x4xf32>) -> tensor<1x4xf32> {
+  %dp = bufferization.alloc_tensor() : tensor<!plaintext>
+  %pt = cheddar.decrypt %ui, %ct, %dp : (!user_interface, tensor<!ciphertext>, tensor<!plaintext>) -> tensor<!plaintext>
+  %msg = cheddar.decode %enc, %pt, %dst : (!encoder, tensor<!plaintext>, tensor<1x4xf32>) -> tensor<1x4xf32>
+  return %msg : tensor<1x4xf32>
+}
+
+// HRot/HConj keep their verbatim form (the rotation/conjugation key is a nested
+// `ui->GetRotationKey(d)` lookup). Static distance bakes the distance into the
+// format string; dynamic distance threads the SSA value twice.
 // CHECK: func.func @hrot_static
-func.func @hrot_static(%ctx: !cheddar.context, %ui: !cheddar.user_interface,
-                       %ct: !cheddar.ciphertext) -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey(5), 5);"
-  %r = cheddar.hrot %ctx, %ct {static_distance = 5 : i64}
-      : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey(5), 5);"
+func.func @hrot_static(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertext>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.hrot %ctx, %ct, %d0 {static_distance = 5 : i64} : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
-// HRot dynamic-distance: the SSA distance value appears twice in the
-// `args` list (once for the key, once for the rotation argument).
-
-// CHECK: func.func @hrot_dynamic
-func.func @hrot_dynamic(%ctx: !cheddar.context, %ui: !cheddar.user_interface,
-                        %ct: !cheddar.ciphertext, %d: index)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey({}), {});"
-  // CHECK-SAME: %arg3, %arg3
-  %r = cheddar.hrot %ctx, %ct, %d
-      : (!cheddar.context, !cheddar.ciphertext, index) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
-}
-
-// CHECK: func.func @hrot_add
-func.func @hrot_add(%ctx: !cheddar.context, %ui: !cheddar.user_interface,
-                    %a: !cheddar.ciphertext, %b: !cheddar.ciphertext)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}->HRotAdd({}, {}, {}, {}->GetRotationKey(7), 7);"
-  %r = cheddar.hrot_add %ctx, %a, %b {distance = 7 : i64}
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
-}
-
-// CHECK: func.func @hconj
-func.func @hconj(%ctx: !cheddar.context, %ui: !cheddar.user_interface,
-                 %ct: !cheddar.ciphertext) -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}->HConj({}, {}, {}->GetConjugationKey());"
-  %r = cheddar.hconj %ctx, %ct
-      : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// CHECK: func.func @hrot_dyn
+// CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey({}), {});"
+// CHECK-SAME: %arg3, %arg3
+func.func @hrot_dyn(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertext>, %d: index) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.hrot %ctx, %ct, %d0, %d : (!context, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
 // CHECK: func.func @hconj_add
-func.func @hconj_add(%ctx: !cheddar.context, %ui: !cheddar.user_interface,
-                     %a: !cheddar.ciphertext, %b: !cheddar.ciphertext)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());"
-  %r = cheddar.hconj_add %ctx, %a, %b
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// CHECK: emitc.verbatim "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());"
+func.func @hconj_add(%ctx: !context, %ui: !user_interface, %a: tensor<!ciphertext>, %b: tensor<!ciphertext>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.hconj_add %ctx, %a, %b, %d0 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
-// MadUnsafe is in-place: no new variable is declared for the result; the
-// SSA result aliases the accumulator input. It stays an emitc.verbatim.
-
-// CHECK: func.func @mad
-func.func @mad(%ctx: !cheddar.context, %acc: !cheddar.ciphertext,
-               %in: !cheddar.ciphertext, %c: !cheddar.constant)
-    -> !cheddar.ciphertext {
-  // CHECK: emitc.verbatim "{}->MadUnsafe({}, {}, {});" args %arg0, %arg1, %arg2, %arg3
-  // CHECK-NOT: emitc.variable
-  %r = cheddar.mad_unsafe %ctx, %acc, %in, %c
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.ciphertext, !cheddar.constant)
-      -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
-}
-
+// Boot is a BootContext method; cheddar.boot requires a !cheddar.boot_context
+// (lowered to BootContext<word>*) so no downcast is needed.
 // CHECK: func.func @boot
-func.func @boot(%ctx: !cheddar.boot_context, %ct: !cheddar.ciphertext,
-                %evk: !cheddar.evk_map) -> !cheddar.ciphertext {
-  // Boot is a BootContext method, and cheddar.boot requires a
-  // !cheddar.boot_context (lowered to BootContext<word>*), so the call needs no
-  // downcast. See ConvertBoot in CheddarToEmitC.cpp.
-  // CHECK: emitc.verbatim "{}->Boot({}, {}, {});"
-  %r = cheddar.boot %ctx, %ct, %evk
-      : (!cheddar.boot_context, !cheddar.ciphertext, !cheddar.evk_map) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// CHECK: emitc.member_call_opaque %arg0 "Boot"
+func.func @boot(%ctx: !boot_context, %ct: tensor<!ciphertext>, %evk: !evk_map) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.boot %ctx, %ct, %evk, %d0 : (!boot_context, tensor<!ciphertext>, !evk_map, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
-// Array/list attrs are appended as one trailing opaque constant argument (an
-// initializer-list literal). We check the substrings rather than the full
-// opaque (FileCheck's `{{...}}` is a regex marker, and the literal contains
-// `{{`).
-
-// CHECK: func.func @linear_transform
-func.func @linear_transform(%ctx: !cheddar.context, %ct: !cheddar.ciphertext,
-                            %evk: !cheddar.evk_map, %d: tensor<2x4xf64>)
-    -> !cheddar.ciphertext {
-  // There is no Context::LinearTransform method (it's a class), so the emitter
-  // lowers to one structured call to the HEIR-side RunLinearTransform shim,
-  // carrying {indices}, level, bs, gs as a trailing literal and the slot width +
-  // `word` as template args.
-  // CHECK: emitc.call_opaque "RunLinearTransform"
-  // CHECK-SAME: 0, 1}, 5, 2, 1
-  // CHECK-SAME: word
-  %r = cheddar.linear_transform %ctx, %ct, %evk, %d
-      {diagonal_indices = array<i32: 0, 1>, level = 5 : i64, bs = 2 : i64, gs = 1 : i64}
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.evk_map, tensor<2x4xf64>)
-      -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// linear_transform / eval_poly have no Context method (they are classes), so
+// they lower to one structured call to the HEIR-side RunLinearTransform /
+// RunEvalPoly shim, carrying the trailing literal args + template args.
+// CHECK: func.func @lintrans
+// CHECK: emitc.call_opaque "RunLinearTransform"
+// CHECK-SAME: 0, 1}, 5, 2, 1
+// CHECK-SAME: word
+func.func @lintrans(%ctx: !context, %ct: tensor<!ciphertext>, %evk: !evk_map, %dg: tensor<2x4xf64>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.linear_transform %ctx, %ct, %evk, %dg, %d0 {diagonal_indices = array<i32: 0, 1>, level = 5 : i64, bs = 2 : i64, gs = 1 : i64} : (!context, tensor<!ciphertext>, !evk_map, tensor<2x4xf64>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }
 
 // CHECK: func.func @eval_poly
-func.func @eval_poly(%ctx: !cheddar.context, %ct: !cheddar.ciphertext,
-                     %evk: !cheddar.evk_map) -> !cheddar.ciphertext {
-  // No Context::EvalPoly method (it's a class), so the emitter lowers to one
-  // structured call to the HEIR-side RunEvalPoly shim, carrying {coefficients},
-  // level and outputLevel as a trailing literal and `word` as a template arg.
-  // CHECK: emitc.call_opaque "RunEvalPoly"
-  // CHECK-SAME: 2, 3}, 4, 3
-  // CHECK-SAME: word
-  %r = cheddar.eval_poly %ctx, %ct, %evk
-      {coefficients = [1.0 : f64, 2.0 : f64, 3.0 : f64], level = 4 : i64, outputLevel = 3 : i64}
-      : (!cheddar.context, !cheddar.ciphertext, !cheddar.evk_map) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+// CHECK: emitc.call_opaque "RunEvalPoly"
+// CHECK-SAME: 2, 3}, 4, 3
+// CHECK-SAME: word
+func.func @eval_poly(%ctx: !context, %ct: tensor<!ciphertext>, %evk: !evk_map) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.eval_poly %ctx, %ct, %evk, %d0 {coefficients = [1.0 : f64, 2.0 : f64, 3.0 : f64], level = 4 : i64, outputLevel = 3 : i64} : (!context, tensor<!ciphertext>, !evk_map, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }

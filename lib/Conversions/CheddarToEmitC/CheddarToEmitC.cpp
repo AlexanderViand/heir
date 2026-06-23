@@ -749,14 +749,29 @@ struct ConvertSubViewSubscript
     int64_t resRank = cast<MemRefType>(op.getType()).getRank();
     int64_t dropped = srcRank - resRank;
     if (dropped <= 0) return failure();
-    auto offsets = op.getStaticOffsets();
-    if (static_cast<int64_t>(offsets.size()) != srcRank) return failure();
+    // Subscript the dropped (leading) dims by their offsets. Offsets may be
+    // static (a literal index) or dynamic (a loop induction variable, e.g. from
+    // a `tensor.insert_slice` in an scf.for) -- emitc.subscript accepts dynamic
+    // index operands, so thread the converted dynamic offset value through.
+    auto mixedOffsets = op.getMixedOffsets();
+    if (static_cast<int64_t>(mixedOffsets.size()) != srcRank) return failure();
+    ValueRange dynOffsets = adaptor.getOffsets();
     auto sizeT = emitc::SizeTType::get(getContext());
     SmallVector<Value> idx;
-    for (int64_t i = 0; i < dropped; ++i) {
-      if (ShapedType::isDynamic(offsets[i])) return failure();
-      idx.push_back(emitc::LiteralOp::create(rewriter, op.getLoc(), sizeT,
-                                             std::to_string(offsets[i])));
+    unsigned dynCursor = 0;
+    for (int64_t i = 0; i < srcRank; ++i) {
+      bool isDyn = isa<Value>(mixedOffsets[i]);
+      if (i < dropped) {
+        if (isDyn) {
+          idx.push_back(dynOffsets[dynCursor]);
+        } else {
+          int64_t o =
+              cast<IntegerAttr>(cast<Attribute>(mixedOffsets[i])).getInt();
+          idx.push_back(emitc::LiteralOp::create(rewriter, op.getLoc(), sizeT,
+                                                 std::to_string(o)));
+        }
+      }
+      if (isDyn) ++dynCursor;
     }
     rewriter.replaceOpWithNewOp<emitc::SubscriptOp>(op, resultTy, base, idx);
     return success();
@@ -1062,15 +1077,21 @@ Type referenceArgType(MLIRContext* ctx, Type converted, bool written) {
 // A value is "written" if used as the destination (out) of an emitted call:
 // member_call_opaque places the dest at operand 1 (after the receiver), a
 // call_opaque shim (RunLinearTransform/RunEvalPoly) at operand 0, or an
-// assignment verbatim (`{} = ...`) at operand 0.
+// assignment verbatim (`{} = ...`) at operand 0. A move-only payload that is
+// the *source* of a `std::move(...)` verbatim (emitted by ConvertCopy when a
+// function returns a buffer it didn't allocate, e.g. a returned-unchanged arg)
+// must likewise be a non-const lvalue -- `std::move` cannot bind a `const T&`
+// -- so any operand of a move verbatim counts as written.
 bool valueWrittenAsDest(Value v) {
   for (OpOperand& use : v.getUses()) {
     Operation* owner = use.getOwner();
     unsigned idx = use.getOperandNumber();
     if (isa<MemberCallOpaqueOp>(owner) && idx == 1) return true;
     if (isa<CallOpaqueOp>(owner) && idx == 0) return true;
-    if (auto vb = dyn_cast<VerbatimOp>(owner))
-      if (idx == 0 && vb.getValue().contains("=")) return true;
+    if (auto vb = dyn_cast<VerbatimOp>(owner)) {
+      StringRef s = vb.getValue();
+      if ((idx == 0 && s.contains("=")) || s.contains("std::move")) return true;
+    }
   }
   return false;
 }

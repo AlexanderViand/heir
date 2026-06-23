@@ -1,16 +1,18 @@
-// RUN: heir-opt --cheddar-to-emitc --verify-diagnostics %s
+// RUN: heir-opt --convert-to-emitc --verify-diagnostics %s
 
 // HRot/HRotAdd/HConj/HConjAdd discover the UserInterface from the enclosing
-// function's argument list at lowering time. Functions that lack such an
-// argument cannot be legalized.
+// function's argument list at lowering time. A function that lacks such an
+// argument cannot be legalized: the rotation pattern emits its own diagnostic
+// and the op fails to legalize.
 
-func.func @hrot_without_ui(%ctx: !cheddar.context, %ct: !cheddar.ciphertext)
-    -> !cheddar.ciphertext {
-  // The conversion framework emits "failed to legalize"; whether the
-  // pattern's own diagnostic ("enclosing function is missing UserInterface
-  // arg") is also surfaced depends on MLIR's internal dispatch.
-  // expected-error@+1 {{'cheddar.hrot'}}
-  %r = cheddar.hrot %ctx, %ct {static_distance = 1 : i64}
-      : (!cheddar.context, !cheddar.ciphertext) -> !cheddar.ciphertext
-  return %r : !cheddar.ciphertext
+!ciphertext = !cheddar.ciphertext
+!context = !cheddar.context
+
+func.func @hrot_without_ui(%ctx: !context, %ct: memref<!ciphertext>,
+                           %out: memref<!ciphertext>) {
+  // expected-error @below {{'cheddar.hrot' op enclosing function is missing UserInterface arg}}
+  // expected-error @below {{failed to legalize operation 'cheddar.hrot'}}
+  cheddar.hrot %ctx, %ct, %out {static_distance = 1 : i64}
+      : (!context, memref<!ciphertext>, memref<!ciphertext>) -> ()
+  return
 }

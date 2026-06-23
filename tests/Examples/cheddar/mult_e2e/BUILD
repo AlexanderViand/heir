@@ -18,9 +18,11 @@ heir_opt(
     generated_filename = "mult_e2e_emitc.mlir",
     pass_flags = [
         "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map",
+        "--buffer-results-to-out-params=hoist-static-allocs=true modify-public-functions=true add-result-attr=true",
         "--fold-memref-alias-ops",
         "--canonicalize",
-        "--cheddar-to-emitc",
+        "--convert-to-emitc",
+        "--cheddar-emitc-boundary",
         "--reconcile-unrealized-casts",
     ],
 )
