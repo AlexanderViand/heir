@@ -9,26 +9,18 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-# Drives the kernel through:
-#   1. one-shot bufferization, lowering tensor<8x!cheddar.*> to
-#      memref<8x!cheddar.*> with in-place reuse where liveness allows.
-#   2. canonicalize, which drops the bufferization's degenerate scf.for
-#      iter_arg.
-#   3. scf -> emitc / arith -> emitc lowering for the loop body.
-#   4. cheddar-to-emitc for the dialect ops + memref-of-cheddar shape,
-#      which also lifts the function signature to DPS (the matvec result
-#      memref becomes a `std::array<Ct, 8>&` out-param).
-#   5. reconcile-unrealized-casts to clean up the index<->size_t bridges
-#      that SCFToEmitC and the cheddar type converter cooperate on.
+# End-to-end: public 8x4 matrix times a secret 4-vector. The cheddar-level IR is a full module (client
+# encrypt/decrypt helpers + compute), so the harness just calls the generated
+# functions; lower it the rest of the way to emitc.
 heir_opt(
     name = "matvec_8x4_emitc",
     src = "matvec_8x4.mlir",
     generated_filename = "matvec_8x4_emitc.mlir",
     pass_flags = [
-        "--one-shot-bufferize=bufferize-function-boundaries=true",
+        "--one-shot-bufferize=bufferize-function-boundaries=true function-boundary-type-conversion=identity-layout-map",
+        "--inline=inlining-threshold=4294967295",
+        "--fold-memref-alias-ops",
         "--canonicalize",
-        "--convert-scf-to-emitc",
-        "--convert-arith-to-emitc",
         "--cheddar-to-emitc",
         "--reconcile-unrealized-casts",
     ],
@@ -48,14 +40,18 @@ genrule(
     cmd = """cat > $@ <<'PRELUDE_EOF'
 // AUTO-GENERATED: do not edit. See tests/Examples/cheddar/matvec_8x4/BUILD.
 #include <array>
+#include <complex>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <vector>
 #include "core/Context.h"
 #include "core/Encode.h"
 #include "core/Parameter.h"
 #include "UserInterface.h"
 using namespace cheddar;
 using word = uint64_t;
+using Complex = std::complex<double>;
 PRELUDE_EOF
 cat $(location :matvec_8x4_raw.cc) >> $@
 """,
@@ -80,6 +76,5 @@ cc_test(
         ":matvec_8x4_lib",
         "@cheddar",
         "@googletest//:gtest_main",
-        "@heir//tests/Examples/cheddar:cheddar_test_fixture",
     ],
 )

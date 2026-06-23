@@ -1,60 +1,92 @@
-// End-to-end test for the CHEDDAR ciphertext-ciphertext multiplication
-// path: `cheddar.mult` (degree-3 output) + `cheddar.relinearize_rescale`,
-// and the fused `cheddar.hmult`.  Verifies they produce equivalent results.
+// End-to-end GPU run of an element-wise ciphertext product via the cheddar
+// backend. The whole lowered module is exercised -- the generated client
+// helpers `mult__encrypt__arg{0,1}` / `mult__decrypt__result0` plus the `mult`
+// compute kernel -- so the harness does no raw-CHEDDAR-API boundary work: it
+// builds the context, calls the generated functions, and checks the decrypted
+// product against the plaintext one.
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cmath>
+#include <complex>
+#include <cstdint>
+#include <cstdio>
+#include <memory>
+#include <random>
 #include <utility>
 #include <vector>
 
-#include "tests/Examples/cheddar/cheddar_test_fixture.h"
+#include "UserInterface.h"
+#include "core/Context.h"
+#include "core/Encode.h"
+#include "core/Parameter.h"
 
-using cheddar::Context;
-using cheddar_test::Ct;
-using cheddar_test::Evk;
-using cheddar_test::word;
+using word = uint64_t;
+using Ct = cheddar::Ciphertext<word>;
+using Evk = cheddar::EvaluationKey<word>;
+using UI = cheddar::UserInterface<word>;
 
-// Generated kernels.
-void mult_kernel(Context<word>* ctx, const Evk& mult_key, const Ct& a,
-                 const Ct& b, Ct& out);
-void hmult_kernel(Context<word>* ctx, const Evk& mult_key, const Ct& a,
-                  const Ct& b, Ct& out);
+void mult__encrypt__arg0(cheddar::Context<word>* ctx,
+                         const cheddar::Encoder<word>& encoder, UI* ui,
+                         const Evk& evk, float a[1024], UI* ui2,
+                         std::array<Ct, 1>& out);
+void mult__encrypt__arg1(cheddar::Context<word>* ctx,
+                         const cheddar::Encoder<word>& encoder, UI* ui,
+                         const Evk& evk, float b[1024], UI* ui2,
+                         std::array<Ct, 1>& out);
+void mult(cheddar::Context<word>* ctx, const cheddar::Encoder<word>& encoder,
+          UI* ui, const Evk& evk, const std::array<Ct, 1>& a,
+          const std::array<Ct, 1>& b, std::array<Ct, 1>& out);
+void mult__decrypt__result0(cheddar::Context<word>* ctx,
+                            const cheddar::Encoder<word>& encoder, UI* ui,
+                            const Evk& evk, const std::array<Ct, 1>& in,
+                            UI* ui2, float* out);
 
 namespace {
-
-constexpr double kTol = 0.05;
-
+constexpr int kN = 1024;
+constexpr int kMaxLevel = 1;
+cheddar::Parameter<word> MakeParam() {
+  std::vector<word> main_primes = {36028797018652673ULL, 35184372121601ULL};
+  std::vector<word> aux_primes = {1152921504606994433ULL};
+  std::vector<std::pair<int, int>> level_config;
+  for (int i = 1; i <= static_cast<int>(main_primes.size()); ++i)
+    level_config.emplace_back(i, 0);
+  return cheddar::Parameter<word>(
+      /*logN=*/13, /*scale=*/static_cast<double>(1ULL << 45), kMaxLevel,
+      level_config, main_primes, aux_primes);
+}
 }  // namespace
 
-TEST(CheddarMultE2E, Mult) {
-  auto f = cheddar_test::MakeFixture();
-  std::vector<double> a = {1.0, 2.0, 3.0, 4.0};
-  std::vector<double> b = {0.5, 1.5, 2.5, 3.5};
-
-  auto ct_a = cheddar_test::EncryptVec(f, a, f.top_level);
-  auto ct_b = cheddar_test::EncryptVec(f, b, f.top_level);
-  Ct ct_r;
-  mult_kernel(f.ctx.get(), f.ui->GetMultiplicationKey(), ct_a, ct_b, ct_r);
-  auto result = cheddar_test::DecryptVec(f, ct_r, a.size());
-
-  for (size_t i = 0; i < a.size(); ++i) {
-    EXPECT_NEAR(result[i], a[i] * b[i], kTol);
+TEST(CheddarMultE2E, GpuRun) {
+  std::mt19937 gen(123);
+  std::uniform_real_distribution<double> dist(-1.0, 1.0);
+  static float a[1024], b[1024];
+  static float ref[1024];
+  for (int i = 0; i < kN; ++i) {
+    a[i] = static_cast<float>(dist(gen));
+    b[i] = static_cast<float>(dist(gen));
+    ref[i] = a[i] * b[i];
   }
-}
 
-TEST(CheddarMultE2E, HMult) {
-  auto f = cheddar_test::MakeFixture();
-  std::vector<double> a = {1.0, 2.0, 3.0, 4.0};
-  std::vector<double> b = {0.5, 1.5, 2.5, 3.5};
+  auto param = MakeParam();
+  auto ctx = cheddar::Context<word>::Create(param);
+  auto ui = std::make_unique<UI>(ctx);
+  const Evk& evk = ui->GetMultiplicationKey();
 
-  auto ct_a = cheddar_test::EncryptVec(f, a, f.top_level);
-  auto ct_b = cheddar_test::EncryptVec(f, b, f.top_level);
-  Ct ct_r;
-  hmult_kernel(f.ctx.get(), f.ui->GetMultiplicationKey(), ct_a, ct_b, ct_r);
-  auto result = cheddar_test::DecryptVec(f, ct_r, a.size());
+  std::array<Ct, 1> ca, cb, cout;
+  mult__encrypt__arg0(ctx.get(), ctx->encoder_, ui.get(), evk, a, ui.get(), ca);
+  mult__encrypt__arg1(ctx.get(), ctx->encoder_, ui.get(), evk, b, ui.get(), cb);
+  mult(ctx.get(), ctx->encoder_, ui.get(), evk, ca, cb, cout);
+  static float result[1024];
+  mult__decrypt__result0(ctx.get(), ctx->encoder_, ui.get(), evk, cout,
+                         ui.get(), result);
 
-  for (size_t i = 0; i < a.size(); ++i) {
-    EXPECT_NEAR(result[i], a[i] * b[i], kTol);
-  }
+  double max_abs = 0;
+  for (int i = 0; i < kN; ++i)
+    max_abs =
+        std::max(max_abs, std::abs(static_cast<double>(result[i]) - ref[i]));
+  std::printf("mult: max|d|=%.6e (e.g. fhe[0]=%.5f ref[0]=%.5f)\n", max_abs,
+              result[0], ref[0]);
+  EXPECT_LT(max_abs, 1e-2);
 }
