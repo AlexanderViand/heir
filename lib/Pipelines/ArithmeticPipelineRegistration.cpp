@@ -7,6 +7,7 @@
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
+#include "lib/Dialect/Cheddar/Transforms/PrepareLinearTransforms.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
@@ -748,6 +749,10 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
 
     // Convert LWE to CHEDDAR
     pm.addPass(lwe::createLWEToCheddar());
+
+    // Construct and encode data-independent linear transforms once in the
+    // split preprocessing function, not once per encrypted inference.
+    pm.addPass(cheddar::createCheddarPrepareLinearTransforms());
 
     // Lower split-preprocessing storage to memrefs of cheddar plaintexts
     // (mirrors PreprocessingToLattigo/Openfhe in their backend builders).

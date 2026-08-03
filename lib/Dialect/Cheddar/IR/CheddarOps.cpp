@@ -64,6 +64,40 @@ LinearTransformOp::getRotationIndices() {
   return result;
 }
 
+::llvm::SmallVector<::mlir::OpFoldResult>
+ApplyPreparedLinearTransformOp::getRotationIndices() {
+  // The prepared transform has exactly the same BSGS rotation decomposition
+  // as the raw transform. Keep the static metadata on the apply op so key
+  // configuration does not need to inspect the preprocessing function.
+  // All current linear transforms operate over the full CKKS slot vector and
+  // their wrapped diagonal indices include slot-k entries. The decomposition
+  // below itself is independent of the exact slot count because the stored
+  // indices are already normalized by LWEToCheddar.
+  int64_t stride = 0;
+  llvm::SmallVector<int64_t> rots;
+  for (int32_t d : getDiagonalIndicesAttr().asArrayRef()) {
+    int64_t r = d;
+    rots.push_back(r);
+    stride = std::gcd(stride, r);
+  }
+  llvm::DenseSet<int64_t> rotations;
+  if (stride > 0) {
+    int64_t granularity = stride * getBs().getInt();
+    for (int64_t r : rots) {
+      int64_t baby = r % granularity;
+      int64_t giant = r - baby;
+      if (baby != 0) rotations.insert(baby);
+      if (giant != 0) rotations.insert(giant);
+    }
+  }
+  SmallVector<OpFoldResult> result;
+  result.reserve(rotations.size());
+  auto* mlirCtx = (*this)->getContext();
+  for (int64_t rot : rotations)
+    result.push_back(IntegerAttr::get(IndexType::get(mlirCtx), rot));
+  return result;
+}
+
 LogicalResult LinearTransformOp::verify() {
   // `diagonals` is the matrix as a set of non-zero diagonals: one row per
   // diagonal, each row `slots` wide. getRotationIndices() and the emitter both

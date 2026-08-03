@@ -65,6 +65,8 @@ std::string payloadTypeName(Type t) {
   if (isa<cheddar::PlaintextType>(t)) return "Plaintext<word>";
   if (isa<cheddar::ConstantType>(t)) return "Constant<word>";
   if (isa<cheddar::EvalKeyType>(t)) return "EvaluationKey<word>";
+  if (isa<cheddar::LinearTransformType>(t))
+    return "std::shared_ptr<cheddar::LinearTransform<word>>";
   return "";
 }
 
@@ -109,7 +111,8 @@ std::string owningHandleTypeName(Type t) {
 bool opaqueNamesPayload(StringRef name) {
   return name.contains("Ciphertext<word>") ||
          name.contains("Plaintext<word>") || name.contains("Constant<word>") ||
-         name.contains("EvaluationKey<word>");
+         name.contains("EvaluationKey<word>") ||
+         name.contains("LinearTransform<word>");
 }
 
 std::string intLit(IntegerAttr a) { return std::to_string(a.getInt()); }
@@ -233,6 +236,10 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
   });
   tc.addConversion([ctx](cheddar::ConstantType) -> Type {
     return OpaqueType::get(ctx, "Constant<word>");
+  });
+  tc.addConversion([ctx](cheddar::LinearTransformType) -> Type {
+    return OpaqueType::get(ctx,
+                           "std::shared_ptr<cheddar::LinearTransform<word>>");
   });
   tc.addConversion(
       [ctx](IndexType) -> Type { return emitc::SizeTType::get(ctx); });
@@ -733,6 +740,66 @@ struct ConvertLinearTransform
                          rewriter.getStringAttr("RunLinearTransform"), operands,
                          rewriter.getArrayAttr(args),
                          rewriter.getArrayAttr(templateArgs));
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// cheddar.prepare_linear_transform ->
+// PrepareLinearTransform<W, word>(out, ctx, diagonals, {indices}, level, bs,
+// gs). This call lives in the split __preprocessing function.
+struct ConvertPrepareLinearTransform
+    : public OpConversionPattern<cheddar::PrepareLinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::PrepareLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto diagTy = cast<ShapedType>(op.getDiagonals().getType());
+    int64_t width = diagTy.getShape()[1];
+    std::string idxList;
+    for (auto [i, idx] :
+         llvm::enumerate(op.getDiagonalIndicesAttr().asArrayRef())) {
+      if (i > 0) idxList += ", ";
+      idxList += std::to_string(idx);
+    }
+    SmallVector<Value> operands{adaptor.getOutput(), adaptor.getCtx(),
+                                adaptor.getDiagonals()};
+    std::string trailing = "{" + idxList + "}, " + intLit(op.getLevelAttr()) +
+                           ", " + intLit(op.getBsAttr()) + ", " +
+                           intLit(op.getGsAttr());
+    SmallVector<Attribute> args;
+    for (size_t i = 0; i < operands.size(); ++i)
+      args.push_back(rewriter.getIndexAttr(i));
+    args.push_back(emitc::OpaqueAttr::get(rewriter.getContext(), trailing));
+    SmallVector<Attribute> templateArgs{
+        emitc::OpaqueAttr::get(rewriter.getContext(), std::to_string(width)),
+        emitc::OpaqueAttr::get(rewriter.getContext(), "word")};
+    CallOpaqueOp::create(rewriter, op.getLoc(), TypeRange{},
+                         rewriter.getStringAttr("PrepareLinearTransform"),
+                         operands, rewriter.getArrayAttr(args),
+                         rewriter.getArrayAttr(templateArgs));
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// cheddar.apply_prepared_linear_transform -> RunPreparedLinearTransform.
+struct ConvertApplyPreparedLinearTransform
+    : public OpConversionPattern<cheddar::ApplyPreparedLinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::ApplyPreparedLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    SmallVector<Value> operands{adaptor.getOutput(), adaptor.getCtx(),
+                                adaptor.getInput(), adaptor.getEvkMap(),
+                                adaptor.getTransform()};
+    SmallVector<Attribute> args;
+    for (size_t i = 0; i < operands.size(); ++i)
+      args.push_back(rewriter.getIndexAttr(i));
+    CallOpaqueOp::create(rewriter, op.getLoc(), TypeRange{},
+                         rewriter.getStringAttr("RunPreparedLinearTransform"),
+                         operands, rewriter.getArrayAttr(args),
+                         /*template_args=*/ArrayAttr{});
     rewriter.eraseOp(op);
     return success();
   }
@@ -1380,7 +1447,9 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
                  ConvertCreateBootContext, ConvertPrepareBootstrap,
                  ConvertEncode, ConvertEncodeConstant, ConvertDecode,
                  ConvertHRot, ConvertHRotAdd, ConvertHConj, ConvertHConjAdd,
-                 ConvertLinearTransform, ConvertEvalPoly>(typeConverter, ctx);
+                 ConvertLinearTransform, ConvertPrepareLinearTransform,
+                 ConvertApplyPreparedLinearTransform, ConvertEvalPoly>(
+        typeConverter, ctx);
     patterns.add<ConvertSetupAssign<cheddar::CreateContextOp>>(
         typeConverter, ctx, "Context<word>::Create");
     patterns.add<ConvertSetupAssign<cheddar::CreateUserInterfaceOp>>(
@@ -1535,6 +1604,7 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
 #include <complex>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <vector>
   // Evaluate with min_ks=true when the fork supports it: scale-snu CHEDDAR's
   // hoisted BSGS silently corrupts transforms at deep levels (beta == 1) when
@@ -1580,6 +1650,37 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
     PrepareLintransRotKeyImpl(ui, d, level, chain_max, 0);
   }
   template <int W, typename wordT, typename diagT>
+  static void PrepareLinearTransform(
+      std::shared_ptr<cheddar::LinearTransform<wordT>>& out,
+      cheddar::Context<wordT>* ctx, diagT diag[][W],
+      std::initializer_list<int> idx, int level, int bs, int gs) {
+    cheddar::StripedMatrix m(W, W);
+    int d = 0;
+    for (int k : idx) {
+      m[k] = std::vector<std::complex<double>>(diag[d], diag[d] + W);
+      ++d;
+    }
+    cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
+    out = std::make_shared<cheddar::LinearTransform<wordT>>(
+        cp, m, level, ctx->param_.GetScale(level), bs, gs);
+  }
+  template <typename wordT>
+  static void RunPreparedLinearTransform(
+      cheddar::Ciphertext<wordT>& out, cheddar::Context<wordT>* ctx,
+      const cheddar::Ciphertext<wordT>& in,
+      const cheddar::EvkMap<wordT>& evk_map,
+      const std::shared_ptr<cheddar::LinearTransform<wordT>>& transform) {
+    cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
+    RunLinearTransformEval(*transform, cp, out, in, evk_map, 0);
+    // CHEDDAR forks differ on whether Evaluate rescales internally (cyclops
+    // does via ModDownAndRescale; scale-snu cheddar leaves scale^2).
+    if (out.GetNP().num_main_ == in.GetNP().num_main_) {
+      cheddar::Ciphertext<wordT> rescaled;
+      ctx->Rescale(rescaled, out);
+      out = std::move(rescaled);
+    }
+  }
+  template <int W, typename wordT, typename diagT>
   static void RunLinearTransform(cheddar::Ciphertext<wordT>& out,
                                  cheddar::Context<wordT>* ctx,
                                  const cheddar::Ciphertext<wordT>& in,
@@ -1592,9 +1693,9 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
     // gone (destructing then SIGSEGVs on process exit).
     static auto* cache =
         new std::map<const void*, cheddar::LinearTransform<wordT>>();
-    cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
     auto it = cache->find(diag);
     if (it == cache->end()) {
+      cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
       cheddar::StripedMatrix m(W, W);
       int d = 0;
       for (int k : idx) {
@@ -1607,15 +1708,9 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
                              cp, m, level, ctx->param_.GetScale(level), bs, gs))
                .first;
     }
-    RunLinearTransformEval(it->second, cp, out, in, evk_map, 0);
-    // CHEDDAR forks differ on whether Evaluate rescales internally (cyclops
-    // does via ModDownAndRescale; scale-snu cheddar leaves scale^2). The
-    // shim's contract is a rescaled output: rescale iff the library did not.
-    if (out.GetNP().num_main_ == in.GetNP().num_main_) {
-      cheddar::Ciphertext<wordT> rescaled;
-      ctx->Rescale(rescaled, out);
-      out = std::move(rescaled);
-    }
+    auto borrowed = std::shared_ptr<cheddar::LinearTransform<wordT>>(
+        &it->second, [](cheddar::LinearTransform<wordT>*) {});
+    RunPreparedLinearTransform(out, ctx, in, evk_map, borrowed);
   }
 )cpp";
 
@@ -1637,7 +1732,7 @@ struct CheddarToEmitCPass
     auto module = cast<ModuleOp>(getOperation());
     bool usesLinearTransform = false;
     module->walk([&](emitc::CallOpaqueOp call) {
-      if (call.getCallee().starts_with("RunLinearTransform"))
+      if (call.getCallee().contains("LinearTransform"))
         usesLinearTransform = true;
     });
     // The __configure key prep also calls into the shim (the

@@ -173,6 +173,33 @@ func.func @linear_transform(%ctx: !context, %ct: tensor<!ciphertext>,
   return %0 : tensor<!ciphertext>
 }
 
+// Split-preprocessing form: construction/encoding and evaluation are separate
+// calls connected by an owning shared LinearTransform handle.
+func.func @prepare_linear_transform(%ctx: !context, %d: tensor<2x4xf64>)
+    -> tensor<!cheddar.linear_transform> {
+  %out = bufferization.alloc_tensor() : tensor<!cheddar.linear_transform>
+  %0 = cheddar.prepare_linear_transform %ctx, %d, %out
+      {diagonal_indices = array<i32: 0, 1>, level = 5 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<2x4xf64>, tensor<!cheddar.linear_transform>)
+      -> tensor<!cheddar.linear_transform>
+  return %0 : tensor<!cheddar.linear_transform>
+}
+
+func.func @apply_prepared_linear_transform(
+    %ctx: !context, %ct: tensor<!ciphertext>, %evk: !cheddar.evk_map,
+    %transform: tensor<!cheddar.linear_transform>) -> tensor<!ciphertext> {
+  %out = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %0 = cheddar.apply_prepared_linear_transform
+      %ctx, %ct, %evk, %transform, %out
+      {diagonal_indices = array<i32: 0, 1>, level = 5 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<!ciphertext>, !cheddar.evk_map,
+         tensor<!cheddar.linear_transform>, tensor<!ciphertext>)
+      -> tensor<!ciphertext>
+  return %0 : tensor<!ciphertext>
+}
+
 func.func @eval_poly(%ctx: !context, %enc: !encoder, %ct: tensor<!ciphertext>,
                      %evk: !cheddar.evk_map) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>

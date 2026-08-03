@@ -224,6 +224,13 @@ struct CheddarConfigureCryptoContext
               ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
           }
         });
+        moduleOp.walk([&](ApplyPreparedLinearTransformOp ltOp) {
+          int64_t ltLevel = ltOp.getLevel().getInt();
+          for (OpFoldResult idx : ltOp.getRotationIndices()) {
+            if (auto attr = dyn_cast<Attribute>(idx))
+              ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
+          }
+        });
         SmallVector<std::pair<int64_t, int64_t>> ltRotationKeys(
             ltKeySet.begin(), ltKeySet.end());
         llvm::sort(ltRotationKeys);
@@ -239,7 +246,9 @@ struct CheddarConfigureCryptoContext
         DenseSet<int64_t> nonLtRotations;
         bool keepAllMaxKeys = false;
         moduleOp.walk([&](RotationOpInterface rotOp) {
-          if (isa<LinearTransformOp>(rotOp.getOperation())) return;
+          if (isa<LinearTransformOp, ApplyPreparedLinearTransformOp>(
+                  rotOp.getOperation()))
+            return;
           for (OpFoldResult idx : rotOp.getRotationIndices()) {
             std::optional<int64_t> d;
             if (auto attr = dyn_cast<Attribute>(idx))

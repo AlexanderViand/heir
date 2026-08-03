@@ -195,6 +195,36 @@ func.func @lintrans(%ctx: !context, %ct: tensor<!ciphertext>, %evk: !evk_map, %d
   return %r : tensor<!ciphertext>
 }
 
+// CHECK: func.func @prepare_lintrans
+// CHECK-SAME: !emitc.opaque<"std::shared_ptr<cheddar::LinearTransform<word>>&">
+// CHECK: emitc.call_opaque "PrepareLinearTransform"
+// CHECK: func.func @apply_prepared_lintrans
+// CHECK: emitc.call_opaque "RunPreparedLinearTransform"
+func.func @prepare_lintrans(%ctx: !context, %dg: tensor<2x4xf64>)
+    -> tensor<!cheddar.linear_transform> {
+  %d0 = bufferization.alloc_tensor() : tensor<!cheddar.linear_transform>
+  %r = cheddar.prepare_linear_transform %ctx, %dg, %d0
+      {diagonal_indices = array<i32: 0, 1>, level = 5 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<2x4xf64>, tensor<!cheddar.linear_transform>)
+      -> tensor<!cheddar.linear_transform>
+  return %r : tensor<!cheddar.linear_transform>
+}
+
+func.func @apply_prepared_lintrans(
+    %ctx: !context, %ct: tensor<!ciphertext>, %evk: !evk_map,
+    %transform: tensor<!cheddar.linear_transform>) -> tensor<!ciphertext> {
+  %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
+  %r = cheddar.apply_prepared_linear_transform
+      %ctx, %ct, %evk, %transform, %d0
+      {diagonal_indices = array<i32: 0, 1>, level = 5 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<!ciphertext>, !evk_map,
+         tensor<!cheddar.linear_transform>, tensor<!ciphertext>)
+      -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
+}
+
 // eval_poly lowers to the real cheddar::EvalPoly<word> class -- there is no
 // `RunEvalPoly` in cheddar. It mirrors cheddar's own EvalMod: the level/scale
 // are taken from the actual input ciphertext (NPToLevel(in.GetNP()),

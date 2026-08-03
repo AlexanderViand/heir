@@ -85,6 +85,7 @@ void mlir::heir::cheddar::registerBufferizableOpInterfaceExternalModels(
               SubPlainOp, MultPlainOp, AddConstOp, MultConstOp, NegOp,
               RescaleOp, LevelDownOp, RelinearizeOp, RelinearizeRescaleOp,
               HMultOp, HRotOp, HRotAddOp, HConjOp, HConjAddOp, MadUnsafeOp,
-              BootOp, LinearTransformOp, EvalPolyOp>(ctx);
+              BootOp, LinearTransformOp, PrepareLinearTransformOp,
+              ApplyPreparedLinearTransformOp, EvalPolyOp>(ctx);
   });
 }
