@@ -556,6 +556,15 @@ void mlirToRLWEPipeline(OpPassManager& pm,
 
   // Add a __preprocessed helper for offline pre-packing of plaintexts
   if (options.enableSplitPreprocessing) {
+    // Normalize loops to a 0-based, unit-step iteration space first.
+    // split-preprocessing records each preprocessing.store index as the
+    // enclosing loop's induction variable, and the storage layout sizes each
+    // site by trip count -- so the index must be the 0-based iteration count.
+    // A later normalization (e.g. of a bootstrap-grouped "1 to 7 step 3" loop)
+    // would otherwise rewrite the captured index to affine.apply(iv) *after*
+    // it was recorded, leaving getLinearIndex to over-count and address out of
+    // bounds. Normalizing here keeps the captured index 0-based.
+    pm.addNestedPass<func::FuncOp>(affine::createAffineLoopNormalizePass(true));
     pm.addPass(createSplitPreprocessing());
     pm.addPass(preprocessing::createValidatePreprocessing());
   }
