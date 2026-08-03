@@ -187,6 +187,21 @@ LogicalResult LattigoEmitter::translate(Operation& op) {
     return emitError(op.getLoc(),
                      llvm::formatv("Failed to translate op {0}", op.getName()));
   }
+  // Most value-producing ops declare a Go variable for each result (either
+  // `name := ...` or `name, err := ...`). Several emit that declaration
+  // directly via `os <<` and never record the name in declaredVars. When
+  // SelectVariableNames maps a later value to the same Go name (buffer reuse),
+  // a single-assignment site (emitAssignment, e.g. the CopyNew for a
+  // DropLevel/NegateNew) would then redeclare it with `:=` -> a Go
+  // "no new variables on left side of :=" compile error. Record every
+  // result name here so such a reuse correctly emits `=` instead. The
+  // `name, err :=` form stays valid on first emission because its err name is
+  // always fresh.
+  for (Value result : op.getResults()) {
+    if (variableNames->contains(result)) {
+      declaredVars.insert(getName(result));
+    }
+  }
   return success();
 }
 
@@ -2468,6 +2483,12 @@ LogicalResult LattigoEmitter::printOperation(CKKSChebyshevOp op) {
   os << bignumPoly << ", ";
   os << "rlwe.NewScale(" << op.getTargetScale().getInt() << "))\n";
   printErrPanic(errName);
+  // Register the result so that a later in-place reuse of this ciphertext
+  // buffer is emitted via `=` rather than a second `:=` (which Go rejects with
+  // "no new variables on left side of :="). Mirrors CKKSRotateNewOp et al.
+  if (resultName != "_") {
+    declaredVars.insert(resultName);
+  }
   return success();
 }
 
