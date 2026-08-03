@@ -771,11 +771,16 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     // which can drop a rescale and corrupt the level chain ("num primes
     // mismatch"); the unfused path is slower but correct, which is what a debug
     // trace needs.
-    if (!options.debug) pm.addPass(cheddar::createCheddarFuseOps());
+    if (!options.debug && options.cheddarFuseOps)
+      pm.addPass(cheddar::createCheddarFuseOps());
 
     // Re-expose the scheme parameters as cheddar.* module attributes and drop
     // the CKKS module attributes.
-    pm.addPass(cheddar::createCheddarConfigureCryptoContext());
+    auto cheddarConfigureOptions =
+        cheddar::CheddarConfigureCryptoContextOptions{};
+    cheddarConfigureOptions.logMessageRatio = options.cheddarLogMessageRatio;
+    pm.addPass(
+        cheddar::createCheddarConfigureCryptoContext(cheddarConfigureOptions));
 
     pm.addPass(createRemoveUnusedPureCall());
     pm.addPass(createCSEPass());

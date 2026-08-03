@@ -235,6 +235,23 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       llvm::cl::desc("Insert function calls to an externally-defined debug "
                      "function (cf. --lwe-add-debug-port)"),
       llvm::cl::init(false)};
+  // Cheddar-only: fuse ops into compound GPU kernels (default). The fused
+  // kernels are numerically coarser on some runtimes: on the cyclops fork a
+  // deep bootstrap cascade accumulates ~3x more error fused than unfused, so
+  // callers can trade eval speed for precision.
+  PassOptions::Option<bool> cheddarFuseOps{
+      *this, "cheddar-fuse-ops",
+      llvm::cl::desc("Fuse CHEDDAR ops into compound GPU kernels"),
+      llvm::cl::init(true)};
+  // Cheddar-only: bootstrap message headroom ~ log2(max|m|)+margin, forwarded
+  // to cheddar-configure-crypto-context's log-message-ratio (governs EvalMod
+  // precision; -1 = the pass default). Smaller = more pre-EvalMod scale-up =
+  // more precision, as long as 2^ratio still bounds the boot inputs.
+  PassOptions::Option<int> cheddarLogMessageRatio{
+      *this, "cheddar-log-message-ratio",
+      llvm::cl::desc("Bootstrap message headroom passed to CHEDDAR's "
+                     "BootParameter (-1 = pass default)"),
+      llvm::cl::init(-1)};
   // Cheddar-only: continue past the cheddar dialect all the way to EmitC C++
   // (bufferize -> convert-to-emitc -> boundary fixups -> reconcile). Other
   // backends ignore this.
