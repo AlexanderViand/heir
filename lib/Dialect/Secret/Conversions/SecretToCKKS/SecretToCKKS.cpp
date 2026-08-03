@@ -25,6 +25,7 @@
 #include "lib/Dialect/Secret/Conversions/Patterns.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
 #include "lib/Dialect/Secret/IR/SecretTypes.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtDialect.h"
 #include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "lib/Utils/AttributeUtils.h"
 #include "lib/Utils/ContextAwareConversionUtils.h"
@@ -36,20 +37,22 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"       // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/AsmState.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/Builders.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Diagnostics.h"            // from @llvm-project
-#include "mlir/include/mlir/IR/Matchers.h"               // from @llvm-project
-#include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
-#include "mlir/include/mlir/IR/TypeUtilities.h"          // from @llvm-project
-#include "mlir/include/mlir/IR/Value.h"                  // from @llvm-project
-#include "mlir/include/mlir/IR/ValueRange.h"             // from @llvm-project
-#include "mlir/include/mlir/IR/Visitors.h"               // from @llvm-project
-#include "mlir/include/mlir/Support/LLVM.h"              // from @llvm-project
-#include "mlir/include/mlir/Support/LogicalResult.h"     // from @llvm-project
+#include "mlir/include/mlir/IR/DialectResourceBlobManager.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/Matchers.h"            // from @llvm-project
+#include "mlir/include/mlir/IR/PatternMatch.h"        // from @llvm-project
+#include "mlir/include/mlir/IR/TypeUtilities.h"       // from @llvm-project
+#include "mlir/include/mlir/IR/Value.h"               // from @llvm-project
+#include "mlir/include/mlir/IR/ValueRange.h"          // from @llvm-project
+#include "mlir/include/mlir/IR/Visitors.h"            // from @llvm-project
+#include "mlir/include/mlir/Support/LLVM.h"           // from @llvm-project
+#include "mlir/include/mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "mlir/include/mlir/Transforms/DialectConversion.h"  // from @llvm-project
 
 // IWYU pragma: begin_keep
@@ -289,6 +292,39 @@ class ConvertChebyshevEval
   }
 };
 
+// Returns the raw little-endian element data of a constant's value attribute,
+// or failure when it isn't accessible (splat-compressed attrs, unresolved
+// dense resources, non-dense attrs).
+static FailureOr<ArrayRef<char>> rawConstantData(Attribute value) {
+  if (auto dense = dyn_cast<DenseIntOrFPElementsAttr>(value)) {
+    if (dense.isSplat()) return failure();
+    return dense.getRawData();
+  }
+  if (auto resource = dyn_cast<DenseResourceElementsAttr>(value)) {
+    if (AsmResourceBlob* blob = resource.getRawHandle().getBlob())
+      return blob->getData();
+  }
+  return failure();
+}
+
+// Builds a dense attr holding the given rows of a [*, cols] constant whose
+// raw data is `raw`.
+static DenseElementsAttr gatherRows(ArrayRef<char> raw,
+                                    ArrayRef<int32_t> rowIndices, int64_t cols,
+                                    Type elementType) {
+  int64_t elemBytes = elementType.getIntOrFloatBitWidth() / 8;
+  int64_t rowBytes = cols * elemBytes;
+  SmallVector<char> gathered;
+  gathered.reserve(rowIndices.size() * rowBytes);
+  for (int32_t row : rowIndices) {
+    ArrayRef<char> rowData = raw.slice((int64_t)row * rowBytes, rowBytes);
+    gathered.append(rowData.begin(), rowData.end());
+  }
+  auto type = RankedTensorType::get(
+      {static_cast<int64_t>(rowIndices.size()), cols}, elementType);
+  return DenseElementsAttr::getFromRawBuffer(type, gathered);
+}
+
 // A lintrans-marked tensor_ext.rotate_and_reduce (produced by
 // convert-to-ciphertext-semantics under use-lintrans-kernels) lowers to
 // orion.linear_transform, evaluated by the backend's optimized
@@ -343,9 +379,40 @@ class ConvertRotateAndReduce
     }
     int64_t level = ctTy.getModulusChain().getCurrent();
 
-    // Dense weights: every diagonal is present.
-    SmallVector<int32_t> diagonalIndices(numDiagonals);
-    std::iota(diagonalIndices.begin(), diagonalIndices.end(), 0);
+    // A conv kernel expanded to a diagonal matvec (Toeplitz matrix) is mostly
+    // all-zero diagonals: convert-to-ciphertext-semantics records the nonzero
+    // rows' offsets in a tensor_ext.diagonal_indices attr. When the diagonal
+    // tensor is a compile-time constant (the usual case: assign_layout
+    // materializes weights at compile time), compact it down to those rows,
+    // so the backend kernel neither encodes nor rotates for zeros. Row i of
+    // the compacted tensor is diagonal diagonalIndices[i] — the positional
+    // convention the orion frontend and the backend emitters use, which is
+    // also why the full tensor must keep the full index range: without
+    // compaction the rows would be misattributed.
+    SmallVector<int32_t> diagonalIndices;
+    if (auto indicesAttr = rarOp->getAttrOfType<DenseI32ArrayAttr>(
+            tensor_ext::TensorExtDialect::kDiagonalIndicesAttrName)) {
+      if (auto cstOp = diagonals.getDefiningOp<arith::ConstantOp>()) {
+        FailureOr<ArrayRef<char>> raw = rawConstantData(cstOp.getValue());
+        if (succeeded(raw)) {
+          ArrayRef<int32_t> indices = indicesAttr.asArrayRef();
+          DenseElementsAttr compacted =
+              gatherRows(*raw, indices, slots, diagType.getElementType());
+          OpBuilder::InsertionGuard guard(rewriter);
+          rewriter.setInsertionPointAfter(cstOp);
+          diagonals =
+              arith::ConstantOp::create(rewriter, cstOp.getLoc(), compacted)
+                  .getResult();
+          diagonalIndices.assign(indices.begin(), indices.end());
+        }
+      }
+    }
+    if (diagonalIndices.empty()) {
+      // Dense weights, or diagonals we cannot compact (runtime-materialized):
+      // every row of the tensor is its own diagonal.
+      diagonalIndices.resize(numDiagonals);
+      std::iota(diagonalIndices.begin(), diagonalIndices.end(), 0);
+    }
 
     auto lintransOp = orion::LinearTransformOp::create(
         rewriter, op.getLoc(), outputTypes[0], input, diagonals,

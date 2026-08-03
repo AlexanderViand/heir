@@ -27,6 +27,12 @@ def TensorExt_Dialect : Dialect {
     // use-lintrans-kernels); implement-rotate-and-reduce skips these.
     constexpr const static ::llvm::StringLiteral
         kLintransAttrName = "tensor_ext.lintrans";
+    // On a lintrans-marked rotate_and_reduce whose plaintexts hold only the
+    // nonzero diagonals of the (mostly-zero) expanded matrix, records each
+    // row's original diagonal offset (DenseI32ArrayAttr). Absent means row i
+    // is diagonal i.
+    constexpr const static ::llvm::StringLiteral
+        kDiagonalIndicesAttrName = "tensor_ext.diagonal_indices";
   }];
 
 

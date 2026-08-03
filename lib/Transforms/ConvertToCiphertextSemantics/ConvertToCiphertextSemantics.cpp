@@ -802,6 +802,97 @@ struct ConvertLinalgDot : public ConversionBase<linalg::DotOp> {
   }
 };
 
+// Emits a compact lintrans-marked tensor_ext.rotate_and_reduce for a
+// diagonal-packed kernel (matvec, or a conv expressed as a matvec over its
+// expanded Toeplitz matrix), so SecretToCKKS can lower it to
+// orion.linear_transform, evaluated by the backend's optimized
+// linear-transform kernel. Only the squat-packing post-shifts are
+// materialized as individual ops (they stay HEIR-side; the backend kernel
+// evaluates a square transform). Returns the value the caller still needs to
+// add the bias to. `originalMatrixShape` is the shape of the (expanded)
+// matrix before diagonalization; it determines the squat post-shifts.
+//
+// When `zeroDiagonals` is nonempty (a conv's Toeplitz matrix is mostly
+// all-zero diagonals), the surviving rows' offsets are recorded in a
+// tensor_ext.diagonal_indices attr. SecretToCKKS compacts the (constant)
+// diagonal tensor down to those rows when lowering to
+// orion.linear_transform, so the backend kernel neither encodes nor rotates
+// for zeros.
+static Value emitLintransKernel(ContextAwareConversionPatternRewriter& rewriter,
+                                Location loc,
+                                TypedValue<RankedTensorType> input,
+                                TypedValue<RankedTensorType> matrix,
+                                ArrayRef<int64_t> originalMatrixShape,
+                                Attribute layoutAttr,
+                                const std::map<int, bool>& zeroDiagonals = {}) {
+  RankedTensorType matrixType = matrix.getType();
+  int64_t numDiagonals = matrixType.getShape()[0];
+
+  SmallVector<int32_t> nonzeroIndices;
+  if (!zeroDiagonals.empty()) {
+    for (int64_t i = 0; i < numDiagonals; ++i)
+      if (!zeroDiagonals.count(i)) nonzeroIndices.push_back(i);
+    // Backend linear-transform kernels want >= 2 diagonals; an all-present
+    // index list is the same as no list.
+    if (nonzeroIndices.size() < 2 ||
+        static_cast<int64_t>(nonzeroIndices.size()) == numDiagonals)
+      nonzeroIndices.clear();
+  }
+
+  bool isFloat = isa<FloatType>(input.getType().getElementType());
+  auto rar = tensor_ext::RotateAndReduceOp::create(
+      rewriter, loc, input, matrix, /*period=*/int64_t{1},
+      /*steps=*/numDiagonals,
+      /*reduceOp=*/llvm::StringRef(isFloat ? "arith.addf" : "arith.addi"));
+  rar->setAttr(tensor_ext::TensorExtDialect::kLintransAttrName,
+               rewriter.getUnitAttr());
+  if (!nonzeroIndices.empty()) {
+    rar->setAttr(tensor_ext::TensorExtDialect::kDiagonalIndicesAttrName,
+                 rewriter.getDenseI32ArrayAttr(nonzeroIndices));
+  }
+  rar->setAttr(kLayoutAttrName, layoutAttr);
+  setMaterializedAttr(rar);
+
+  // Post-processing partial-rotate-and-reduce step required for
+  // squat-diagonal packing (mirrors implementHaleviShoup).
+  int64_t matrixNumRows = nextPowerOfTwo(originalMatrixShape[0]);
+  int64_t matrixNumCols = nextPowerOfTwo(originalMatrixShape[1]);
+  int64_t numShifts = (int64_t)(log2(matrixNumCols) - log2(matrixNumRows));
+
+  Value finalOutput = rar.getResult();
+  if (numShifts > 0) {
+    using NodeTy = ArithmeticDagNode<SSAValue>;
+    auto summedShifts = NodeTy::leaf(SSAValue(finalOutput));
+    int64_t shift = matrixNumCols / 2;
+    for (int64_t i = 0; i < numShifts; ++i) {
+      auto rotated = NodeTy::leftRotate(summedShifts, shift);
+      summedShifts = NodeTy::add(summedShifts, rotated);
+      shift /= 2;
+    }
+    IRMaterializingVisitor visitor(input.getType(), [&](Operation* createdOp) {
+      setMaterializedAttr(createdOp);
+    });
+    ImplicitLocOpBuilder b(loc, rewriter);
+    finalOutput = visitor.process(summedShifts, b)[0];
+    auto* finalOutputOp = finalOutput.getDefiningOp();
+    finalOutputOp->setAttr(kLayoutAttrName, layoutAttr);
+    setMaterializedAttr(finalOutputOp);
+  }
+  return finalOutput;
+}
+
+// A materialized (ciphertext-semantics) operand spans a single ciphertext if
+// it is rank 1 or has at most one non-unit dimension. The compact lintrans
+// kernel handles exactly this shape; layers packed across multiple
+// ciphertexts need a block decomposition the backend linear-transform kernel
+// does not express.
+static bool isSingleCiphertext(Value materializedOperand) {
+  auto ty = cast<RankedTensorType>(materializedOperand.getType());
+  return ty.getRank() == 1 || llvm::count_if(ty.getShape(), [](int64_t dim) {
+                                return dim != 1;
+                              }) <= 1;
+}
+
 struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
  public:
   using ConversionBase<linalg::MatvecOp>::ConversionBase;
@@ -837,42 +928,14 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
         cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
     TypedValue<RankedTensorType> matrix =
         cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[0]);
-    int64_t numDiagonals = matrix.getType().getShape()[0];
 
     rewriter.setInsertionPointAfter(op);
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
 
-    bool isFloat = isa<FloatType>(input.getType().getElementType());
-    auto rar = tensor_ext::RotateAndReduceOp::create(
-        rewriter, op.getLoc(), input, matrix, /*period=*/int64_t{1},
-        /*steps=*/numDiagonals,
-        /*reduceOp=*/llvm::StringRef(isFloat ? "arith.addf" : "arith.addi"));
-    rar->setAttr(tensor_ext::TensorExtDialect::kLintransAttrName,
-                 rewriter.getUnitAttr());
-    rar->setAttr(kLayoutAttrName, layoutAttr);
-    setMaterializedAttr(rar);
-
-    // Post-processing partial-rotate-and-reduce step required for
-    // squat-diagonal packing (mirrors implementHaleviShoup).
     auto originalMatrixShape =
         cast<RankedTensorType>(op.getInputs()[0].getType()).getShape();
-    int64_t matrixNumRows = nextPowerOfTwo(originalMatrixShape[0]);
-    int64_t matrixNumCols = nextPowerOfTwo(originalMatrixShape[1]);
-    int64_t numShifts = (int64_t)(log2(matrixNumCols) - log2(matrixNumRows));
-
-    Value finalOutput = rar.getResult();
-    if (numShifts > 0) {
-      using NodeTy = ArithmeticDagNode<SSAValue>;
-      auto summedShifts = NodeTy::leaf(SSAValue(finalOutput));
-      int64_t shift = matrixNumCols / 2;
-      for (int64_t i = 0; i < numShifts; ++i) {
-        auto rotated = NodeTy::leftRotate(summedShifts, shift);
-        summedShifts = NodeTy::add(summedShifts, rotated);
-        shift /= 2;
-      }
-      finalOutput = materializeKernel(rewriter, op.getLoc(), summedShifts,
-                                      input.getType(), layoutAttr);
-    }
+    Value finalOutput = emitLintransKernel(rewriter, op.getLoc(), input, matrix,
+                                           originalMatrixShape, layoutAttr);
 
     // Add the initial accumulator value.
     Value result = adaptor.getOutputs()[0];
@@ -944,11 +1007,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
       // across multiple ciphertexts need a block decomposition the backend
       // linear-transform kernel does not express, so they fall back to the
       // unrolled expansion.
-      auto vecTy = cast<RankedTensorType>(adaptor.getInputs()[1].getType());
-      bool singleCiphertext = vecTy.getRank() == 1 ||
-                              llvm::count_if(vecTy.getShape(), [](int64_t dim) {
-                                return dim != 1;
-                              }) <= 1;
+      bool singleCiphertext = isSingleCiphertext(adaptor.getInputs()[1]);
       // Backend linear-transform kernels need at least two diagonals
       // (CHEDDAR's ConstructPlainHoistMap asserts >= 2 plaintexts); a
       // 1-diagonal transform is a single plaintext multiply anyway, so the
@@ -1210,10 +1269,12 @@ struct ConvertLinalgConv1DNcwFcw
 
   ConvertLinalgConv1DNcwFcw(
       const ContextAwareTypeConverter& contextAwareTypeConverter,
-      MLIRContext* context, bool unrollKernels = true)
+      MLIRContext* context, bool unrollKernels = true,
+      bool useLintransKernels = false)
       : ConversionBase(contextAwareTypeConverter, context,
                        /*benefit=*/10),
-        unrollKernels(unrollKernels) {}
+        unrollKernels(unrollKernels),
+        useLintransKernels(useLintransKernels) {}
 
   bool supportsExpandedHaleviShoup(linalg::Conv1DNcwFcwOp op,
                                    OpAdaptor adaptor) const {
@@ -1296,6 +1357,54 @@ struct ConvertLinalgConv1DNcwFcw
     addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
   }
 
+  // Like haleviShoupKernel, but keeps the conv's expanded-Toeplitz matvec
+  // compact as a lintrans-marked tensor_ext.rotate_and_reduce (lowered to
+  // orion.linear_transform at SecretToCKKS) instead of unrolling. The
+  // Toeplitz matrix is mostly zero diagonals; SecretToCKKS drops the
+  // all-zero rows so the backend kernel only encodes/rotates the ~C_in*K
+  // nonzero ones.
+  void lintransKernel(linalg::Conv1DNcwFcwOp op, OpAdaptor adaptor,
+                      ContextAwareConversionPatternRewriter& rewriter) const {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Converting linalg.conv_1d_ncw_fcw op with lintrans kernel: "
+               << op << "\n");
+
+    TypedValue<RankedTensorType> data =
+        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[0]);
+    TypedValue<RankedTensorType> filter =
+        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
+
+    // The original matrix shape is the shape of the expanded filter before
+    // diagonalization.
+    RankedTensorType expandedMatrixType = get1dConvCwFcwFilterExpandedType(
+        cast<RankedTensorType>(op.getInputs()[1].getType()),
+        cast<RankedTensorType>(op.getInputs()[0].getType()),
+        llvm::to_vector(op.getStrides().getValues<int64_t>()).front(),
+        /*padding=*/0);
+
+    // Collect the zero diagonals of the filter matrix (mirrors
+    // haleviShoupKernel) so the lintrans kernel only carries nonzero rows.
+    LayoutAttr filterLayout = getLayoutAttr(adaptor.getInputs()[1]);
+    auto filterRelation = filterLayout.getIntegerRelation();
+    PointCollector collector;
+    std::map<int, bool> zeroDiagonals;
+    getCtComplementPoints(filterRelation, collector, filter.getType());
+    for (const auto& point : collector.points) {
+      zeroDiagonals[point[0]] = true;
+    }
+
+    rewriter.setInsertionPointAfter(op);
+    auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
+
+    Value finalOutput = emitLintransKernel(rewriter, op.getLoc(), data, filter,
+                                           expandedMatrixType.getShape(),
+                                           layoutAttr, zeroDiagonals);
+
+    // Add the initial accumulator value.
+    Value result = adaptor.getOutputs()[0];
+    addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
+  }
+
   LogicalResult matchAndRewrite(
       linalg::Conv1DNcwFcwOp op, OpAdaptor adaptor,
       ContextAwareConversionPatternRewriter& rewriter) const final {
@@ -1310,7 +1419,22 @@ struct ConvertLinalgConv1DNcwFcw
     }
 
     if (supportsExpandedHaleviShoup(op, adaptor)) {
-      haleviShoupKernel(op, adaptor, rewriter);
+      // Same gates as the matvec lintrans kernel: single-ciphertext data and
+      // at least two diagonals (see ConvertLinalgMatvecLayout).
+      auto filterTy = cast<RankedTensorType>(adaptor.getInputs()[1].getType());
+      bool enoughDiagonals = filterTy.getShape()[0] >= 2;
+      if (useLintransKernels && isSingleCiphertext(adaptor.getInputs()[0]) &&
+          enoughDiagonals) {
+        lintransKernel(op, adaptor, rewriter);
+      } else {
+        if (useLintransKernels) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "conv spans multiple ciphertexts; falling back to "
+                        "the unrolled Halevi-Shoup kernel: "
+                     << op << "\n");
+        }
+        haleviShoupKernel(op, adaptor, rewriter);
+      }
       return success();
     }
 
@@ -1319,6 +1443,7 @@ struct ConvertLinalgConv1DNcwFcw
 
  private:
   bool unrollKernels;
+  bool useLintransKernels;
 };
 
 struct ConvertLinalgConv2DNchwFchw
@@ -2713,8 +2838,10 @@ struct ConvertToCiphertextSemantics
     patterns.add<ConvertLinalgMatvecLayout>(typeConverter, context,
                                             unrollKernels, useLintransKernels);
     patterns.add<ConvertLinalgConv1D, ConvertLinalgConv2D,
-                 ConvertLinalgConv2DNchwFchw, ConvertLinalgConv1DNcwFcw>(
-        typeConverter, context, unrollKernels);
+                 ConvertLinalgConv2DNchwFchw>(typeConverter, context,
+                                              unrollKernels);
+    patterns.add<ConvertLinalgConv1DNcwFcw>(typeConverter, context,
+                                            unrollKernels, useLintransKernels);
     patterns.add<ConvertAssignLayout>(typeConverter, context, minSlotCount,
                                       codegenStrategy);
 

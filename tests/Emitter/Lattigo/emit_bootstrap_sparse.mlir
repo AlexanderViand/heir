@@ -18,7 +18,7 @@
 >
 
 module attributes {scheme.ckks} {
-  // CHECK: func make_bootstrappers
+  // CHECK: func Make_bootstrappers
   // CHECK: bootstrapping.NewParametersFromLiteral
   // CHECK: LogN: utils.Pointy(14)
   // CHECK: LogSlots: utils.Pointy(1)

@@ -360,7 +360,10 @@ static FailureOr<Value> implementAssignLayoutStep(
   }
 
   // The result can be simplified if the layout is dense in the ciphertext type,
-  // and the input is a scalar or a constant splat.
+  // and if the input is a scalar or a constant splat. Check the input form
+  // BEFORE the density check: isDenseLayout runs an ISL set-equality that
+  // takes minutes on large diagonalized weight layouts (Toeplitz conv
+  // filters), where neither fast path can apply anyway.
   SplatElementsAttr splatAttr;
   bool inputIsScalar = !dataSemanticType;
   bool inputIsSplatConstant = matchPattern(input, m_Constant(&splatAttr));

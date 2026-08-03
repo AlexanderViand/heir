@@ -1395,34 +1395,46 @@ LogicalResult LattigoEmitter::printOperation(memref::GlobalOp op) {
   // (see printOperation(ModuleOp)). Smaller constants fall through to the
   // normal inline path because per-file I/O isn't worth it for biases /
   // small activation tables.
+  int64_t numElements = 1;
+  for (int64_t dim : type.getShape()) {
+    numElements *= dim;
+  }
+  // Raw little-endian element bytes for the externalization path: dense
+  // resources carry them directly; non-splat DenseElementsAttr (e.g. the
+  // compile-time materialized diagonal weight matrices, which are plain
+  // dense attrs rather than resources) expose the same packed layout via
+  // getRawData().
+  ArrayRef<char> rawBytes;
   if (auto resourceAttr = dyn_cast<DenseResourceElementsAttr>(initAttr)) {
-    int64_t size = 1;
-    for (int64_t dim : type.getShape()) {
-      size *= dim;
+    rawBytes = resourceAttr.getData();
+  } else if (auto denseAttr = dyn_cast<DenseIntOrFPElementsAttr>(initAttr);
+             denseAttr && !denseAttr.isSplat()) {
+    rawBytes = denseAttr.getRawData();
+  }
+  if (!rawBytes.empty() && !dataDir.empty() &&
+      numElements > externalizeThreshold) {
+    std::string name = op.getSymName().str();
+    std::string binPath = dataDir + "/" + name + ".bin";
+    std::ofstream out(binPath, std::ios::out | std::ios::binary);
+    if (!out.is_open()) {
+      return op.emitError("failed to open weights file: ") << binPath;
     }
-    if (!dataDir.empty() && size > externalizeThreshold) {
-      std::string name = op.getSymName().str();
-      std::string binPath = dataDir + "/" + name + ".bin";
-      auto rawBytes = resourceAttr.getData();
-      std::ofstream out(binPath, std::ios::out | std::ios::binary);
-      if (!out.is_open()) {
-        return op.emitError("failed to open weights file: ") << binPath;
-      }
-      out.write(rawBytes.data(), rawBytes.size());
-      out.close();
-      if (!out) {
-        return op.emitError("failed to write weights file: ") << binPath;
-      }
-      // Declare an uninitialized package-level slice; the trailing init()
-      // block fills it via __loadDenseResourceBinF{32,64}().
-      imports.insert(std::string("\"encoding/binary\""));
-      imports.insert(std::string("\"math\""));
-      imports.insert(std::string("\"os\""));
-      os << "var " << name << " = make([]" << eltTypeStr.value() << ", " << size
-         << ")\n";
-      externalizedResources.emplace_back(name, eltTypeStr.value());
-      return success();
+    out.write(rawBytes.data(), rawBytes.size());
+    out.close();
+    if (!out) {
+      return op.emitError("failed to write weights file: ") << binPath;
     }
+    // Declare an uninitialized package-level slice; the trailing init()
+    // block fills it via __loadDenseResourceBinF{32,64}().
+    imports.insert(std::string("\"encoding/binary\""));
+    imports.insert(std::string("\"math\""));
+    imports.insert(std::string("\"os\""));
+    os << "var " << name << " = make([]" << eltTypeStr.value() << ", "
+       << numElements << ")\n";
+    externalizedResources.emplace_back(name, eltTypeStr.value());
+    return success();
+  }
+  if (auto resourceAttr = dyn_cast<DenseResourceElementsAttr>(initAttr)) {
     // Fallback: inline the bytes. Note this WILL produce huge Go files for
     // anything larger than a small example — pass --data-dir to avoid it.
     initAttr = DenseElementsAttr::getFromRawBuffer(resourceAttr.getType(),
