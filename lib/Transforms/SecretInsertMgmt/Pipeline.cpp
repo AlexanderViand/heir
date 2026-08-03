@@ -1,5 +1,6 @@
 #include "lib/Transforms/SecretInsertMgmt/Pipeline.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
 
@@ -377,7 +378,18 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
   int idCounter = 0;  // for making adjust_scale op different to avoid cse
   if (options.bootstrapWaterline.has_value()) {
     LDBG(2) << "Bootstrap placement (forward level simulation)";
-    insertBootstrapsByForwardLevelSim(top, options.bootstrapWaterline.value());
+    // The effective per-refresh depth (l_eff) must respect BOTH knobs: the
+    // waterline (how many levels a value may consume between refreshes) and
+    // the level budget (how many compute levels the chain provides, and the
+    // bound above which LevelAnalysis marks the lattice Invalid -- an Invalid
+    // lattice makes the cross-level patterns silently skip ops, ending in
+    // ring-mismatch verification failures in SecretToCKKS). Deep configs
+    // (e.g. composite-sign ReLU with waterline 25) must therefore raise
+    // greedy-level-budget alongside greedy-bootstrap-waterline.
+    int64_t lEff = options.bootstrapWaterline.value();
+    if (options.levelBudget > 0)
+      lEff = std::min<int64_t>(lEff, options.levelBudget);
+    insertBootstrapsByForwardLevelSim(top, lEff);
   }
 
   // An if statement must have each branch producing the same level as a result,

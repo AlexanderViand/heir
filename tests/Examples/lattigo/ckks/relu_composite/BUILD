@@ -12,7 +12,7 @@ heir_lattigo_lib(
     go_library_name = "relucomposite",
     heir_opt_flags = [
         "--annotate-module=backend=lattigo scheme=ckks",
-        "--mlir-to-ckks=min-slot-count=1024 use-lintrans-kernels=true greedy-modulus-switch-after-mul=true preserve-poly-eval=true use-composite-relu=true greedy-bootstrap-waterline=25",
+        "--mlir-to-ckks=min-slot-count=1024 use-lintrans-kernels=true greedy-modulus-switch-after-mul=true preserve-poly-eval=true use-composite-relu=true greedy-bootstrap-waterline=25 greedy-level-budget=25",
         "--scheme-to-lattigo",
     ],
     mlir_src = "@heir//tests/Examples/common:relu_composite.mlir",
