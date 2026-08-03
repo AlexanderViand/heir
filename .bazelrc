@@ -93,6 +93,10 @@ build:asan --linkopt -fsanitize=address
 # signals.c on the HAVE_POSIX_SIGNALS code path it actually has working.
 build:asan --copt -DHAVE_POSIX_SIGNALS=1
 
+# Redirect pocketfft's flaky gitlab.mpcdf.mpg.de download to the byte-identical
+# GitHub mirror. See bazel/download_config.cfg.
+common --downloader_config=bazel/download_config.cfg
+
 try-import %workspace%/fuzztest.bazelrc
 
 # Load any settings specific to the current user.
