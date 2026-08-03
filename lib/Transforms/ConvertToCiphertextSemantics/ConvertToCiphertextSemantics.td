@@ -80,6 +80,15 @@ def ConvertToCiphertextSemantics : Pass<"convert-to-ciphertext-semantics"> {
         clEnumValN(mlir::heir::CodegenStrategy::FOLD_WHEN_POSSIBLE, "fold-when-possible", "Fold constants when possible")
       )}]
     >,
+    Option<
+      "useLintransKernels",
+      "use-lintrans-kernels",
+      "bool",
+      /*default=*/"false",
+      "Keep diagonal matvec kernels as compact tensor_ext.rotate_and_reduce "
+      "ops (marked lintrans) for lowering to orion.linear_transform, instead "
+      "of unrolling the Halevi-Shoup BSGS expansion."
+    >,
   ];
 }
 

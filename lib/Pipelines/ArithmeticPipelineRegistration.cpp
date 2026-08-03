@@ -232,6 +232,11 @@ void mlirToSecretArithmeticPipelineBuilder(
   convertToCiphertextSemanticsOptions.unrollKernels =
       !options.experimentalDisableLoopUnroll;
   convertToCiphertextSemanticsOptions.codegenStrategy = options.codegenStrategy;
+  // Matvec kernels stay compact (tensor_ext.rotate_and_reduce, marked
+  // lintrans) and lower to orion.linear_transform at SecretToCKKS instead of
+  // an unrolled BSGS expansion.
+  convertToCiphertextSemanticsOptions.useLintransKernels =
+      options.useLintransKernels;
   pm.addPass(
       createConvertToCiphertextSemantics(convertToCiphertextSemanticsOptions));
 
@@ -833,6 +838,7 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.greedyBootstrapWaterline = options.greedyBootstrapWaterline;
   suboptions.useCompositeRelu = options.useCompositeRelu;
   suboptions.preservePolyEval = options.preservePolyEval;
+  suboptions.useLintransKernels = options.useLintransKernels;
   suboptions.scalingModBits = options.scalingModBits;
   suboptions.firstModBits = options.firstModBits;
   suboptions.enableSplitPreprocessing = options.enableSplitPreprocessing;

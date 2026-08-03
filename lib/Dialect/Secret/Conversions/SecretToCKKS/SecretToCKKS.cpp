@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
@@ -288,6 +289,75 @@ class ConvertChebyshevEval
   }
 };
 
+// A lintrans-marked tensor_ext.rotate_and_reduce (produced by
+// convert-to-ciphertext-semantics under use-lintrans-kernels) lowers to
+// orion.linear_transform, evaluated by the backend's optimized
+// linear-transform kernel (cheddar/cyclops LinearTransform, lattigo
+// lintrans). Mirrors ConvertChebyshevEval.
+class ConvertRotateAndReduce
+    : public SecretGenericOpConversion<tensor_ext::RotateAndReduceOp,
+                                       orion::LinearTransformOp> {
+ public:
+  using SecretGenericOpConversion<
+      tensor_ext::RotateAndReduceOp,
+      orion::LinearTransformOp>::SecretGenericOpConversion;
+
+  FailureOr<Operation*> matchAndRewriteInner(
+      secret::GenericOp op, TypeRange outputTypes, ValueRange inputs,
+      ArrayRef<NamedAttribute> attributes,
+      ContextAwareConversionPatternRewriter& rewriter) const override {
+    auto rarOp = cast<tensor_ext::RotateAndReduceOp>(
+        op.getBody()->getOperations().front());
+    if (!rarOp->hasAttr(tensor_ext::TensorExtDialect::kLintransAttrName)) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "only lintrans-marked rotate_and_reduce lowers to "
+          "orion.linear_transform");
+    }
+    if (!rarOp.getPlaintexts()) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "rotate_and_reduce without plaintext diagonals cannot lower to "
+          "orion.linear_transform");
+    }
+
+    // `inputs` follows the inner op's operand order: [ciphertext, diagonals].
+    // The diagonals may be wrapped in an mgmt.init placeholder; the backend
+    // kernel encodes the raw float tensor itself, so unwrap it.
+    Value input = inputs[0];
+    Value diagonals = inputs[1];
+    if (auto initOp = diagonals.getDefiningOp<mgmt::InitOp>()) {
+      diagonals = initOp.getInput();
+    }
+
+    auto diagType = cast<RankedTensorType>(diagonals.getType());
+    int64_t numDiagonals = diagType.getDimSize(0);
+    int64_t slots = diagType.getDimSize(1);
+
+    // The transform evaluates at the input ciphertext's level.
+    auto ctTy =
+        dyn_cast<lwe::LWECiphertextType>(getElementTypeOrSelf(input.getType()));
+    if (!ctTy || !ctTy.getModulusChain()) {
+      return rewriter.notifyMatchFailure(
+          op, "input ciphertext has no modulus chain (run level analysis)");
+    }
+    int64_t level = ctTy.getModulusChain().getCurrent();
+
+    // Dense weights: every diagonal is present.
+    SmallVector<int32_t> diagonalIndices(numDiagonals);
+    std::iota(diagonalIndices.begin(), diagonalIndices.end(), 0);
+
+    auto lintransOp = orion::LinearTransformOp::create(
+        rewriter, op.getLoc(), outputTypes[0], input, diagonals,
+        rewriter.getDenseI32ArrayAttr(diagonalIndices),
+        /*orion_level=*/rewriter.getI32IntegerAttr(level),
+        /*bsgs_ratio=*/rewriter.getF64FloatAttr(2.0),
+        /*slots=*/rewriter.getI32IntegerAttr(slots));
+    rewriter.replaceOp(op, lintransOp);
+    return lintransOp.getOperation();
+  }
+};
+
 struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
   using SecretToCKKSBase::SecretToCKKSBase;
 
@@ -336,7 +406,7 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
     // so any explicit orion.linear_transform in the input IR survives.)
     target.addLegalDialect<orion::OrionDialect>();
     patterns.add<
-        ConvertChebyshevEval,
+        ConvertChebyshevEval, ConvertRotateAndReduce,
         SecretGenericOpCipherPlainConversion<arith::AddFOp, ckks::AddPlainOp>,
         SecretGenericOpCipherPlainConversion<arith::AddIOp, ckks::AddPlainOp>,
         SecretGenericOpCipherPlainConversion<arith::MulFOp, ckks::MulPlainOp>,

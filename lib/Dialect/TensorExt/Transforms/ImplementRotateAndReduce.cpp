@@ -74,6 +74,11 @@ struct ImplementRotateAndReduce
 
   void runOnOperation() override {
     getOperation()->walk([&](RotateAndReduceOp op) {
+      // Ops marked lintrans stay compact: SecretToCKKS lowers them to
+      // orion.linear_transform for the backend's linear-transform kernel.
+      if (op->hasAttr(TensorExtDialect::kLintransAttrName)) {
+        return;
+      }
       if (failed(convertRotateAndReduceOp(op, unroll))) {
         op->emitOpError() << "failed to lower rotate_and_reduce op";
         signalPassFailure();

@@ -11,6 +11,7 @@
 #include "lib/Analysis/Utils.h"
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "lib/Parameters/BGV/Params.h"
 #include "lib/Parameters/CKKS/Params.h"
 #include "lib/Utils/APIntUtils.h"
@@ -172,7 +173,8 @@ LogicalResult ScaleAnalysis<ScaleModelT>::visitOperation(
   };
 
   llvm::TypeSwitch<Operation&>(*op)
-      .template Case<arith::MulIOp, arith::MulFOp>([&](auto mulOp) {
+      .template Case<arith::MulIOp, arith::MulFOp,
+                     tensor_ext::RotateAndReduceOp>([&](auto mulOp) {
         SmallVector<int64_t> scales;
         getOperandScales(mulOp, scales);
         // there must be at least one secret operand that has scale
@@ -367,7 +369,8 @@ LogicalResult ScaleAnalysisBackward<ScaleModelT>::visitOperation(
 
   LDBG() << "Backward analysis visiting: " << *op;
   llvm::TypeSwitch<Operation&>(*op)
-      .template Case<arith::MulIOp, arith::MulFOp>([&](auto mulOp) {
+      .template Case<arith::MulIOp, arith::MulFOp,
+                     tensor_ext::RotateAndReduceOp>([&](auto mulOp) {
         SmallVector<int64_t> resultScales;
         getResultScales(mulOp, resultScales);
         // there must be at least one secret result that has scale

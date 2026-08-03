@@ -8,6 +8,7 @@
 #include "lib/Analysis/SecretnessAnalysis/SecretnessAnalysis.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"           // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"             // from @llvm-project
@@ -450,6 +451,11 @@ template struct MultRelinearize<arith::MulFOp>;
 template struct UseInitOpForPlaintextOperand<arith::AddFOp>;
 template struct UseInitOpForPlaintextOperand<arith::MulFOp>;
 template struct UseInitOpForPlaintextOperand<arith::SubFOp>;
+
+// A kept (lintrans) tensor_ext.rotate_and_reduce is a plaintext-matrix
+// multiply: exactly one rescale after it, like a ct x pt mult.
+template struct ModReduceAfterMult<tensor_ext::RotateAndReduceOp>;
+template struct UseInitOpForPlaintextOperand<tensor_ext::RotateAndReduceOp>;
 
 }  // namespace heir
 }  // namespace mlir

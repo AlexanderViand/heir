@@ -808,15 +808,75 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
 
   ConvertLinalgMatvecLayout(
       const ContextAwareTypeConverter& contextAwareTypeConverter,
-      MLIRContext* context, bool unrollKernels = true)
+      MLIRContext* context, bool unrollKernels = true,
+      bool useLintransKernels = false)
       : ConversionBase<linalg::MatvecOp>(contextAwareTypeConverter, context,
                                          /*benefit=*/10),
-        unrollKernels(unrollKernels) {}
+        unrollKernels(unrollKernels),
+        useLintransKernels(useLintransKernels) {}
 
   bool supportsHaleviShoup(linalg::MatvecOp op, OpAdaptor adaptor) const {
     auto kernelAttr = op->getAttrOfType<secret::KernelAttr>(
         secret::SecretDialect::kKernelAttrName);
     return kernelAttr && kernelAttr.getName() == KernelName::MatvecDiagonal;
+  }
+
+  // Like haleviShoupKernel, but keeps the rotate-and-reduce compact as a
+  // tensor_ext.rotate_and_reduce op (marked lintrans) so SecretToCKKS can
+  // lower it to orion.linear_transform, evaluated by the backend's optimized
+  // linear-transform kernel. Only the squat-packing post-shifts and the bias
+  // add are materialized as individual ops (they stay HEIR-side; the backend
+  // kernel evaluates a square transform).
+  void lintransKernel(linalg::MatvecOp op, OpAdaptor adaptor,
+                      ContextAwareConversionPatternRewriter& rewriter) const {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Converting linalg.matvec op with lintrans kernel: " << op
+               << "\n");
+
+    TypedValue<RankedTensorType> input =
+        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
+    TypedValue<RankedTensorType> matrix =
+        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[0]);
+    int64_t numDiagonals = matrix.getType().getShape()[0];
+
+    rewriter.setInsertionPointAfter(op);
+    auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
+
+    bool isFloat = isa<FloatType>(input.getType().getElementType());
+    auto rar = tensor_ext::RotateAndReduceOp::create(
+        rewriter, op.getLoc(), input, matrix, /*period=*/int64_t{1},
+        /*steps=*/numDiagonals,
+        /*reduceOp=*/llvm::StringRef(isFloat ? "arith.addf" : "arith.addi"));
+    rar->setAttr(tensor_ext::TensorExtDialect::kLintransAttrName,
+                 rewriter.getUnitAttr());
+    rar->setAttr(kLayoutAttrName, layoutAttr);
+    setMaterializedAttr(rar);
+
+    // Post-processing partial-rotate-and-reduce step required for
+    // squat-diagonal packing (mirrors implementHaleviShoup).
+    auto originalMatrixShape =
+        cast<RankedTensorType>(op.getInputs()[0].getType()).getShape();
+    int64_t matrixNumRows = nextPowerOfTwo(originalMatrixShape[0]);
+    int64_t matrixNumCols = nextPowerOfTwo(originalMatrixShape[1]);
+    int64_t numShifts = (int64_t)(log2(matrixNumCols) - log2(matrixNumRows));
+
+    Value finalOutput = rar.getResult();
+    if (numShifts > 0) {
+      using NodeTy = ArithmeticDagNode<SSAValue>;
+      auto summedShifts = NodeTy::leaf(SSAValue(finalOutput));
+      int64_t shift = matrixNumCols / 2;
+      for (int64_t i = 0; i < numShifts; ++i) {
+        auto rotated = NodeTy::leftRotate(summedShifts, shift);
+        summedShifts = NodeTy::add(summedShifts, rotated);
+        shift /= 2;
+      }
+      finalOutput = materializeKernel(rewriter, op.getLoc(), summedShifts,
+                                      input.getType(), layoutAttr);
+    }
+
+    // Add the initial accumulator value.
+    Value result = adaptor.getOutputs()[0];
+    addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
   }
 
   void haleviShoupKernel(
@@ -879,7 +939,33 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
           op, "missing new layout attribute for matrix and vector");
 
     if (supportsHaleviShoup(op, adaptor)) {
-      haleviShoupKernel(op, adaptor, rewriter);
+      // The compact lintrans kernel handles a single-ciphertext layer (the
+      // same shape tensor_ext.rotate_and_reduce accepts); layers packed
+      // across multiple ciphertexts need a block decomposition the backend
+      // linear-transform kernel does not express, so they fall back to the
+      // unrolled expansion.
+      auto vecTy = cast<RankedTensorType>(adaptor.getInputs()[1].getType());
+      bool singleCiphertext = vecTy.getRank() == 1 ||
+                              llvm::count_if(vecTy.getShape(), [](int64_t dim) {
+                                return dim != 1;
+                              }) <= 1;
+      // Backend linear-transform kernels need at least two diagonals
+      // (CHEDDAR's ConstructPlainHoistMap asserts >= 2 plaintexts); a
+      // 1-diagonal transform is a single plaintext multiply anyway, so the
+      // unrolled kernel is never worse for it.
+      auto matTy = cast<RankedTensorType>(adaptor.getInputs()[0].getType());
+      bool enoughDiagonals = matTy.getShape()[0] >= 2;
+      if (useLintransKernels && singleCiphertext && enoughDiagonals) {
+        lintransKernel(op, adaptor, rewriter);
+      } else {
+        if (useLintransKernels) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "matvec spans multiple ciphertexts; falling back to "
+                        "the unrolled Halevi-Shoup kernel: "
+                     << op << "\n");
+        }
+        haleviShoupKernel(op, adaptor, rewriter);
+      }
       return success();
     }
 
@@ -890,6 +976,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
 
  private:
   bool unrollKernels;
+  bool useLintransKernels;
 };
 
 struct ConvertLinalgConv1D : public ConversionBase<linalg::Conv1DOp> {
@@ -2623,10 +2710,11 @@ struct ConvertToCiphertextSemantics
                  ConvertTensorExtractLayout, ConvertTensorExtractSlice,
                  ConvertTensorInsertLayout, ConvertTensorInsertSlice>(
         typeConverter, context);
-    patterns.add<ConvertLinalgMatvecLayout, ConvertLinalgConv1D,
-                 ConvertLinalgConv2D, ConvertLinalgConv2DNchwFchw,
-                 ConvertLinalgConv1DNcwFcw>(typeConverter, context,
-                                            unrollKernels);
+    patterns.add<ConvertLinalgMatvecLayout>(typeConverter, context,
+                                            unrollKernels, useLintransKernels);
+    patterns.add<ConvertLinalgConv1D, ConvertLinalgConv2D,
+                 ConvertLinalgConv2DNchwFchw, ConvertLinalgConv1DNcwFcw>(
+        typeConverter, context, unrollKernels);
     patterns.add<ConvertAssignLayout>(typeConverter, context, minSlotCount,
                                       codegenStrategy);
 

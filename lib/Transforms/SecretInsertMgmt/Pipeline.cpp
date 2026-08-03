@@ -424,6 +424,9 @@ void insertMgmtInitForPlaintexts(Operation* top, bool includeFloats) {
   patterns.add<UseInitOpForPlaintextOperand<arith::AddIOp>,
                UseInitOpForPlaintextOperand<arith::SubIOp>,
                UseInitOpForPlaintextOperand<arith::MulIOp>,
+               // Kept (lintrans) rotate_and_reduce: its plaintext diagonals
+               // operand needs an mgmt.init like any other plaintext operand.
+               UseInitOpForPlaintextOperand<tensor_ext::RotateAndReduceOp>,
                UseInitOpForPlaintextOperand<tensor::ExtractSliceOp>,
                UseInitOpForPlaintextOperand<tensor::InsertSliceOp>,
                UseInitOpForPlaintextOperand<tensor::InsertOp>>(ctx, top,
@@ -456,6 +459,10 @@ void insertModReduceBeforeOrAfterMult(Operation* top, bool afterMul,
   RewritePatternSet patterns(ctx);
   if (afterMul) {
     patterns.add<ModReduceAfterMult<arith::MulIOp>>(ctx, top, &solver);
+    // Kept (lintrans) rotate_and_reduce is a ct x pt matrix multiply:
+    // exactly one rescale after it.
+    patterns.add<ModReduceAfterMult<tensor_ext::RotateAndReduceOp>>(ctx, top,
+                                                                    &solver);
     if (includeFloats)
       patterns.add<ModReduceAfterMult<arith::MulFOp>>(ctx, top, &solver);
   } else {

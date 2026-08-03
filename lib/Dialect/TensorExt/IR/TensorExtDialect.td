@@ -22,6 +22,11 @@ def TensorExt_Dialect : Dialect {
         kLayoutAttrName = "tensor_ext.layout";
     constexpr const static ::llvm::StringLiteral
         kOriginalTypeAttrName = "tensor_ext.original_type";
+    // Marks a rotate_and_reduce kept compact for lowering to
+    // orion.linear_transform (see convert-to-ciphertext-semantics
+    // use-lintrans-kernels); implement-rotate-and-reduce skips these.
+    constexpr const static ::llvm::StringLiteral
+        kLintransAttrName = "tensor_ext.lintrans";
   }];
 
 

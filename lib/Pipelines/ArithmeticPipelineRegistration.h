@@ -93,7 +93,16 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
           "cheddar.eval_poly) instead of an unrolled Paterson-Stockmeyer "
           "arith mul/add chain. Backend-agnostic: matmul/conv still lower "
           "normally (this option does NOT enable orion.linear_transform matmul "
-          "lowering)."),
+          "lowering; see use-lintrans-kernels for that)."),
+      llvm::cl::init(false)};
+  PassOptions::Option<bool> useLintransKernels{
+      *this, "use-lintrans-kernels",
+      llvm::cl::desc(
+          "Lower diagonal-packed matvec kernels to a compact "
+          "orion.linear_transform (evaluated by the backend's optimized "
+          "linear-transform kernel, e.g. cyclops LinearTransform or lattigo's "
+          "lintrans) instead of an unrolled Halevi-Shoup BSGS "
+          "mult/rotate/add expansion."),
       llvm::cl::init(false)};
   PassOptions::Option<bool> debug{
       *this, "debug",
