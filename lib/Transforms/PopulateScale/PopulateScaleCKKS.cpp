@@ -85,41 +85,37 @@ struct PopulateScaleCKKS : impl::PopulateScaleCKKSBase<PopulateScaleCKKS> {
       return;
     }
 
-    // at this time all adjust_scale should have ScaleLattice for its result.
-    // all plaintext (mgmt.init) should have ScaleLattice for its result.
-    // However, due to the naivete of the scale analysis, there can be
-    // sections of IR in which no scale could be propagated through. E.g., an
-    // op surrounded by two adjust_scale ops that block propagation. In this
-    // case these adjust_scale ops should be removed.
-    getOperation()->walk([&](mgmt::AdjustScaleOp op) {
-      auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
-      if (!lattice || !lattice->getValue().isInitialized()) {
-        op.emitOpError() << "Dataflow analysis failed to populate scale "
-                            "lattice for result\n";
-        op->replaceAllUsesWith(ValueRange{op.getInput()});
-        op->erase();
-      }
-    });
-
-    DataFlowSolver solver2;
-    if (failed(createAndRunDataflow(getOperation(), solver2, logDefaultScale,
-                                    ckksSchemeParamAttr,
-                                    beforeMulIncludeFirstMul))) {
+    // At this point every adjust_scale and plaintext init must have a known
+    // scale. Removing an unresolved adjust_scale is not a sound fallback: the
+    // operation may need to raise the scale before a modreduce, and erasing it
+    // can produce an add/sub with mismatched CKKS plaintext spaces. Report the
+    // underdetermined constraint instead of silently changing semantics.
+    bool unresolvedScale = false;
+    getOperation()->walk(
+        [&](mgmt::AdjustScaleOp op) {
+          auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
+          if (!lattice || !lattice->getValue().isInitialized()) {
+            op.emitOpError()
+                << "dataflow analysis could not determine the result scale";
+            unresolvedScale = true;
+          }
+        });
+    getOperation()->walk(
+        [&](mgmt::InitOp op) {
+          auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
+          if (!lattice || !lattice->getValue().isInitialized()) {
+            op.emitOpError()
+                << "dataflow analysis could not determine the plaintext scale";
+            unresolvedScale = true;
+          }
+        });
+    if (unresolvedScale) {
       signalPassFailure();
       return;
     }
 
-    getOperation()->walk([&](mgmt::InitOp op) {
-      auto* lattice = solver.lookupState<ScaleLattice>(op.getResult());
-      if (!lattice || !lattice->getValue().isInitialized()) {
-        op.emitOpError() << "Dataflow analysis failed to populate scale "
-                            "lattice for result\n";
-        signalPassFailure();
-      }
-    });
-
     LDBG() << "Running annotate-mgmt sub-pass";
-    annotateScale(getOperation(), &solver2);
+    annotateScale(getOperation(), &solver);
     OpPassManager annotateMgmt("builtin.module");
     annotateMgmt.addPass(mgmt::createAnnotateMgmt());
     (void)runPipeline(annotateMgmt, getOperation());

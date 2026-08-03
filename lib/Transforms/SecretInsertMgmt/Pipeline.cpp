@@ -390,8 +390,18 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
                       options.cheddarMode);
 
   LDBG(2) << "Handling cross mul depth ops";
-  handleCrossMulDepthOps(top, &idCounter, options.includeFloats, budget,
-                         options.cheddarMode);
+  // A same-level mul-depth mismatch only represents a scale mismatch for the
+  // rescale-before-multiply policy that excludes the first multiply. With
+  // rescale-after-multiply, every multiply result has already returned to the
+  // canonical scale for its new level; MulDepthAnalysis still retaining depth
+  // one across mgmt.modreduce is bookkeeping, not a real scale difference.
+  // Inserting adjust_scale for that phantom mismatch can make an otherwise
+  // solvable cross-level adjustment underdetermined.
+  if (!options.modReduceAfterMul &&
+      !options.modReduceBeforeMulIncludeFirstMul) {
+    handleCrossMulDepthOps(top, &idCounter, options.includeFloats, budget,
+                           options.cheddarMode);
+  }
 
   // An if statement must have each branch producing the same level as a result,
   // so the branch with the higher level must insert a level_reduce op.
@@ -513,9 +523,10 @@ void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 
-// this only happen for before-mul but not include-first-mul case
-// at the first level, a Value can be both mulResult or not mulResult
-// we should match their scale by adding one adjust scale op
+// This only happens for the before-mul but not include-first-mul case. At the
+// first level, a Value can be a mul result while its peer is not, so match
+// their scales by adding one adjust_scale op. runInsertMgmtPipeline guards
+// this helper by that policy; keep the Cheddar check for direct callers.
 void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats,
                             int levelBudget, bool cheddarMode) {
   // Cheddar uses rescale-after-mult and a fixed canonical scale per level, so

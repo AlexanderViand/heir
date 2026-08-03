@@ -380,9 +380,13 @@ LogicalResult ScaleAnalysisBackward<ScaleModelT>::visitOperation(
         SmallVector<int64_t> operandWithoutScaleIndices;
         SmallVector<int64_t> operandScales;
         getOperandScales(mulOp, operandWithoutScaleIndices, operandScales);
-        // there must be at least one secret operand that has scale
+        // A result scale does not uniquely determine two unknown operand
+        // scales. This can be a transient state while the coupled forward and
+        // backward analyses converge, or a genuinely underdetermined region
+        // bounded by adjust_scale ops. In either case, leave the operands
+        // uninitialized here; PopulateScaleCKKS diagnoses any constraints
+        // that remain underdetermined after the solver reaches a fixed point.
         if (operandScales.empty()) {
-          mulOp->emitError("No secret operand has scale");
           return;
         }
         // two operands have scale, succeed.
