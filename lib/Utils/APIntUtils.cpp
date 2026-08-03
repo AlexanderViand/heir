@@ -11,6 +11,24 @@
 namespace mlir {
 namespace heir {
 
+unsigned nearestIntegerLog2(const APInt& value) {
+  assert(!value.isZero() && "log2 is undefined for zero");
+
+  unsigned floorLog = value.logBase2();
+  if (value.isPowerOf2()) return floorLog;
+
+  // Round log2(value) up exactly when
+  //   value >= 2^(floorLog + 1/2).
+  // Squaring removes the irrational boundary:
+  //   value^2 >= 2^(2*floorLog + 1).
+  // Widen first so the product cannot overflow APInt's fixed width.
+  unsigned wideWidth = 2 * value.getBitWidth();
+  APInt wideValue = value.zext(wideWidth);
+  APInt square = wideValue * wideValue;
+  APInt threshold = APInt::getOneBitSet(wideWidth, 2 * floorLog + 1);
+  return square.ult(threshold) ? floorLog : floorLog + 1;
+}
+
 /// Cloned after upstream removal in
 /// https://github.com/llvm/llvm-project/pull/87644
 ///

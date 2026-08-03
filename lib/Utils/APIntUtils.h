@@ -11,6 +11,12 @@ namespace heir {
 
 APInt multiplicativeInverse(const APInt& x, const APInt& modulo);
 
+/// Returns round(log2(value)) exactly for a positive integer. Unlike
+/// APInt::nearestLogBase2(), this rounds in logarithmic space (at the
+/// geometric midpoint between adjacent powers of two), which is the scale
+/// model CKKS requires.
+unsigned nearestIntegerLog2(const APInt& value);
+
 inline APInt modularMultiplication(const APInt& a, const APInt& b,
                                    const APInt& modulus) {
   unsigned width = modulus.getBitWidth();

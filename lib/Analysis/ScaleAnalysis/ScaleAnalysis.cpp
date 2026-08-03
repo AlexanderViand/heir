@@ -1,7 +1,6 @@
 #include "lib/Analysis/ScaleAnalysis/ScaleAnalysis.h"
 
 #include <cassert>
-#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -94,9 +93,9 @@ int64_t CKKSScaleModel::evalModReduceScale(const ckks::LocalParam& inputParam,
                                            int64_t scale) {
   const auto* schemeParam = inputParam.getSchemeParam();
   auto level = inputParam.getCurrentLevel();
-  const auto& logqi = schemeParam->getLogqi();
-  if (level >= 0 && level < static_cast<int>(logqi.size())) {
-    return scale - static_cast<int64_t>(std::llround(logqi[level]));
+  const auto& qi = schemeParam->getQi();
+  if (level >= 0 && level < static_cast<int>(qi.size())) {
+    return scale - nearestIntegerLog2(APInt(64, qi[level]));
   }
   return scale - schemeParam->getLogDefaultScale();
 }
@@ -105,9 +104,9 @@ int64_t CKKSScaleModel::evalModReduceScaleBackward(
     const ckks::LocalParam& inputParam, int64_t resultScale) {
   const auto* schemeParam = inputParam.getSchemeParam();
   auto level = inputParam.getCurrentLevel();
-  const auto& logqi = schemeParam->getLogqi();
-  if (level >= 0 && level < static_cast<int>(logqi.size())) {
-    return resultScale + static_cast<int64_t>(std::llround(logqi[level]));
+  const auto& qi = schemeParam->getQi();
+  if (level >= 0 && level < static_cast<int>(qi.size())) {
+    return resultScale + nearestIntegerLog2(APInt(64, qi[level]));
   }
   return resultScale + schemeParam->getLogDefaultScale();
 }

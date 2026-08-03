@@ -10,6 +10,22 @@ namespace {
 
 using ::llvm::APInt;
 
+TEST(APIntUtilsTest, NearestIntegerLog2) {
+  EXPECT_EQ(nearestIntegerLog2(APInt(64, 1)), 0);
+  EXPECT_EQ(nearestIntegerLog2(APInt(64, 2)), 1);
+  EXPECT_EQ(nearestIntegerLog2(APInt(64, 4)), 2);
+
+  // The geometric midpoint between 2^25 and 2^26 is
+  // ceil(sqrt(2) * 2^25) = 47,453,133.
+  EXPECT_EQ(nearestIntegerLog2(APInt(64, 47453132)), 25);
+  EXPECT_EQ(nearestIntegerLog2(APInt(64, 47453133)), 26);
+
+  // LoLA's generated scale prime is below the arithmetic midpoint (and
+  // APInt::nearestLogBase2 therefore returns 25), but log2(q)=25.57 rounds to
+  // 26. The CKKS management and type-inference paths must agree on 26.
+  EXPECT_EQ(nearestIntegerLog2(APInt(64, 49938433)), 26);
+}
+
 TEST(APIntUtilsTest, ModularExponentiation) {
   APInt base(64, 2);
   APInt exp(64, 10);

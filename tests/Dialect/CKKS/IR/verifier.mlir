@@ -56,6 +56,29 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [3602879
 
 // -----
 
+// Regression: round CKKS scale-prime logarithms in logarithmic space. For
+// q=49938433, log2(q)=25.57 rounds to 26, although the nearest power of two by
+// linear distance is 2^25.
+!Z536903681_i64_ = !mod_arith.int<536903681 : i64>
+!Z49938433_i64_ = !mod_arith.int<49938433 : i64>
+!rns_L0_ = !rns.rns<!Z536903681_i64_>
+!rns_L1_ = !rns.rns<!Z536903681_i64_, !Z49938433_i64_>
+#ring_f64_1_x1024_ = #polynomial.ring<coefficientType = f64, polynomialModulus = <1 + x**1024>>
+#ring_rns_L0_1_x1024_ = #polynomial.ring<coefficientType = !rns_L0_, polynomialModulus = <1 + x**1024>>
+#ring_rns_L1_1_x1024_ = #polynomial.ring<coefficientType = !rns_L1_, polynomialModulus = <1 + x**1024>>
+#key = #lwe.key<>
+#modulus_chain_L1_C0_ = #lwe.modulus_chain<elements = <536903681 : i64, 49938433 : i64>, current = 0>
+#modulus_chain_L1_C1_ = #lwe.modulus_chain<elements = <536903681 : i64, 49938433 : i64>, current = 1>
+!ct_L0_26 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x1024_, encoding = #lwe.inverse_canonical_encoding<scaling_factor = 26>>, ciphertext_space = <ring = #ring_rns_L0_1_x1024_, encryption_type = lsb>, key = #key, modulus_chain = #modulus_chain_L1_C0_>
+!ct_L1_52 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x1024_, encoding = #lwe.inverse_canonical_encoding<scaling_factor = 52>>, ciphertext_space = <ring = #ring_rns_L1_1_x1024_, encryption_type = lsb>, key = #key, modulus_chain = #modulus_chain_L1_C1_>
+
+func.func @rescale_geometric_rounding(%ct: !ct_L1_52) -> !ct_L0_26 {
+  %rescaled = ckks.rescale %ct {to_ring = #ring_rns_L0_1_x1024_} : !ct_L1_52 -> !ct_L0_26
+  return %rescaled : !ct_L0_26
+}
+
+// -----
+
 !Z35184372121601_i64_ = !mod_arith.int<35184372121601 : i64>
 !Z36028797019389953_i64_ = !mod_arith.int<36028797019389953 : i64>
 // note the scaling factor is 45
