@@ -2461,16 +2461,16 @@ LogicalResult LattigoEmitter::printOperation(
   auto btParams = op.getBtParamsLiteral();
   auto paramName = getName(op.getParams());
   auto errName = getErrName();
-  // The literal's own logSlots takes precedence over the module-level slot
-  // count hint — this allows multiple bootstrap evaluators with distinct
-  // sparse slot counts to coexist in one program.
+  // Emit LogSlots only when the literal explicitly requests a sparse
+  // bootstrap. The previous fallback derived a sparse LogSlots from the
+  // module-level requested-slot-count hint, but lattigo's sparse-LogSlots
+  // bootstrapper corrupts values in that configuration (verified by
+  // tests/Examples/lattigo/ckks/bootstrap_sparse_unit: LogSlots=13 at
+  // LogN=16 mixes slot values, while the full-slot bootstrapper handles
+  // sparse ciphertexts correctly), so default to the full-slot bootstrapper.
   std::optional<int> logSlots;
   if (btParams.getLogSlots()) {
     logSlots = btParams.getLogSlots();
-  } else if (auto numSlotsAttr = dyn_cast_or_null<IntegerAttr>(
-                 op->getParentOfType<ModuleOp>()->getAttr(
-                     kRequestedSlotCountAttrName))) {
-    logSlots = (int)log2(numSlotsAttr.getInt());
   }
   std::string resultName = getName(op.getResult());
   os << resultName << ", " << errName
