@@ -37,19 +37,34 @@ namespace lattigo {
 
 void registerTranslateOptions();
 
-/// Translates the given operation to Lattigo
+/// Translates the given operation to Lattigo.
+///
+/// When `dataDir` is non-empty, `DenseResourceElementsAttr` constants
+/// (those appearing on `memref.global` / `arith.constant` ops, e.g. the
+/// weights coming through from torch-mlir) with element count greater than
+/// `externalizeThreshold` are NOT inlined as Go literals. Instead the raw
+/// bytes are written to per-resource `<dataDir>/<name>.bin` files and the
+/// emitted Go declares an `init()` block that loads them at program
+/// startup. Smaller constants (biases, small activation tables) stay
+/// inlined since per-file I/O is wasteful for them. This keeps the emitted
+/// Go file from blowing up for nontrivially-sized models (each weight is
+/// ~6-7 ASCII chars/element when inlined as a Go literal — a 19M-param
+/// matrix becomes a ~300 MB Go file).
 ::mlir::LogicalResult translateToLattigo(
     ::mlir::Operation* op, llvm::raw_ostream& os,
     const std::string& packageName,
     const std::vector<std::string>& extraImports = {},
-    std::function<bool(func::FuncOp)> funcFilter = nullptr);
+    std::function<bool(func::FuncOp)> funcFilter = nullptr,
+    const std::string& dataDir = "", int64_t externalizeThreshold = 1024);
 
 class LattigoEmitter {
  public:
   LattigoEmitter(raw_ostream& os, SelectVariableNames* variableNames,
                  const std::string& packageName,
                  const std::vector<std::string>& extraImports = {},
-                 std::function<bool(func::FuncOp)> funcFilter = nullptr);
+                 std::function<bool(func::FuncOp)> funcFilter = nullptr,
+                 const std::string& dataDir = "",
+                 int64_t externalizeThreshold = 1024);
 
   LogicalResult translate(::mlir::Operation& operation);
 
@@ -81,6 +96,18 @@ class LattigoEmitter {
   const std::vector<std::string> extraImports;
   std::function<bool(func::FuncOp)> funcFilter;
   bool extraImportsUsed = false;
+  // Optional directory for emitting per-DenseResourceElementsAttr binary
+  // weight files. When empty, all dense constants are inlined as Go literals
+  // (the original / small-model-friendly behavior). When non-empty, resource
+  // constants larger than `externalizeThreshold` elements are written to
+  // `<dataDir>/<name>.bin` and the emitted Go uses an `init()` block to load
+  // them at program startup; smaller constants still inline.
+  const std::string dataDir;
+  const int64_t externalizeThreshold;
+  // Resource-backed constants externalized to .bin files: (Go var name,
+  // element-type string from convertType). Used to emit a single combined
+  // `init()` block at the end of the module.
+  std::vector<std::pair<std::string, std::string>> externalizedResources;
 
   // go treats unused imports as compile-time errors, so any extra imports that
   // are unused for some programs need to be dynamically added at the end.

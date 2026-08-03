@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <functional>
 #include <ios>
 #include <sstream>
@@ -88,13 +89,15 @@ std::string toExportName(llvm::StringRef name) {
 LogicalResult translateToLattigo(Operation* op, llvm::raw_ostream& os,
                                  const std::string& packageName,
                                  const std::vector<std::string>& extraImports,
-                                 std::function<bool(func::FuncOp)> funcFilter) {
+                                 std::function<bool(func::FuncOp)> funcFilter,
+                                 const std::string& dataDir,
+                                 int64_t externalizeThreshold) {
   SelectVariableNames variableNames(op);
   std::string bufferedStr;
   llvm::raw_string_ostream strOs(bufferedStr);
   raw_indented_ostream bufferedOs(strOs);
   LattigoEmitter emitter(bufferedOs, &variableNames, packageName, extraImports,
-                         funcFilter);
+                         funcFilter, dataDir, externalizeThreshold);
   LogicalResult result = emitter.translate(*op);
 
   // Now write the materialized prelude and body to the outstream.
@@ -373,6 +376,69 @@ func init() {{
     if (failed(translate(op))) {
       return failure();
     }
+  }
+
+  // If `--data-dir` was set and we externalized any DenseResourceElementsAttr
+  // constants, emit two helper funcs + an init() block that loads them all
+  // at program startup. Per-resource init funcs would duplicate the loader,
+  // and since LattigoEmitter runs once per module a single combined init()
+  // is fine.
+  if (!externalizedResources.empty()) {
+    // Track which element-type loaders we actually need so we don't emit
+    // dead `__loadDenseResourceBinF64` when only f32 weights appear (the
+    // common torch-mlir case).
+    bool needF32 = false;
+    bool needF64 = false;
+    for (const auto& [name, eltType] : externalizedResources) {
+      if (eltType == "float32")
+        needF32 = true;
+      else if (eltType == "float64")
+        needF64 = true;
+    }
+    os << "\n";
+    os << "// __loadDenseResourceBin{F32,F64} read a raw little-endian "
+          "binary\n";
+    os << "// file written by heir-translate --data-dir into a pre-allocated\n";
+    os << "// float slice. Used by init() below to populate the externalized\n";
+    os << "// DenseResourceElementsAttr constants.\n";
+    if (needF32) {
+      os << "func __loadDenseResourceBinF32(path string, dst []float32) {\n";
+      os << "\tdata, err := os.ReadFile(path)\n";
+      os << "\tif err != nil { panic(err) }\n";
+      os << "\tif len(data) != len(dst)*4 {\n";
+      os << "\t\tpanic(\"size mismatch for \" + path)\n";
+      os << "\t}\n";
+      os << "\tfor i := range dst {\n";
+      os << "\t\tdst[i] = "
+            "math.Float32frombits(binary.LittleEndian.Uint32(data[i*4 : "
+            "(i+1)*4]))\n";
+      os << "\t}\n";
+      os << "}\n";
+    }
+    if (needF64) {
+      os << "func __loadDenseResourceBinF64(path string, dst []float64) {\n";
+      os << "\tdata, err := os.ReadFile(path)\n";
+      os << "\tif err != nil { panic(err) }\n";
+      os << "\tif len(data) != len(dst)*8 {\n";
+      os << "\t\tpanic(\"size mismatch for \" + path)\n";
+      os << "\t}\n";
+      os << "\tfor i := range dst {\n";
+      os << "\t\tdst[i] = "
+            "math.Float64frombits(binary.LittleEndian.Uint64(data[i*8 : "
+            "(i+1)*8]))\n";
+      os << "\t}\n";
+      os << "}\n";
+    }
+    os << "func init() {\n";
+    for (const auto& [name, eltType] : externalizedResources) {
+      // The path is relative to the Go binary's working directory; medusa's
+      // harness invokes the binary with cwd=out_dir so `data/<name>.bin`
+      // resolves correctly.
+      const char* fn = eltType == "float32" ? "__loadDenseResourceBinF32"
+                                            : "__loadDenseResourceBinF64";
+      os << "\t" << fn << "(\"data/" << name << ".bin\", " << name << ")\n";
+    }
+    os << "}\n";
   }
 
   return success();
@@ -1301,17 +1367,54 @@ LogicalResult LattigoEmitter::printOperation(memref::GlobalOp op) {
   auto eltTypeStr = convertType(type.getElementType());
   if (failed(eltTypeStr)) return failure();
 
-  os << "var " << op.getSymName() << " = ";
-
   auto initAttr = op.getInitialValueAttr();
   if (!initAttr) {
     return op.emitError("memref.global must have an initial value");
   }
 
+  // Externalization path: when `--data-dir` is set AND the constant has
+  // more elements than `externalizeThreshold`, the DenseResourceElementsAttr
+  // is written to a per-resource binary file instead of being inlined as a
+  // Go literal. The corresponding Go declaration becomes a zero-initialized
+  // slice, populated by an init() block emitted at the end of the module
+  // (see printOperation(ModuleOp)). Smaller constants fall through to the
+  // normal inline path because per-file I/O isn't worth it for biases /
+  // small activation tables.
   if (auto resourceAttr = dyn_cast<DenseResourceElementsAttr>(initAttr)) {
+    int64_t size = 1;
+    for (int64_t dim : type.getShape()) {
+      size *= dim;
+    }
+    if (!dataDir.empty() && size > externalizeThreshold) {
+      std::string name = op.getSymName().str();
+      std::string binPath = dataDir + "/" + name + ".bin";
+      auto rawBytes = resourceAttr.getData();
+      std::ofstream out(binPath, std::ios::out | std::ios::binary);
+      if (!out.is_open()) {
+        return op.emitError("failed to open weights file: ") << binPath;
+      }
+      out.write(rawBytes.data(), rawBytes.size());
+      out.close();
+      if (!out) {
+        return op.emitError("failed to write weights file: ") << binPath;
+      }
+      // Declare an uninitialized package-level slice; the trailing init()
+      // block fills it via __loadDenseResourceBinF{32,64}().
+      imports.insert(std::string("\"encoding/binary\""));
+      imports.insert(std::string("\"math\""));
+      imports.insert(std::string("\"os\""));
+      os << "var " << name << " = make([]" << eltTypeStr.value() << ", " << size
+         << ")\n";
+      externalizedResources.emplace_back(name, eltTypeStr.value());
+      return success();
+    }
+    // Fallback: inline the bytes. Note this WILL produce huge Go files for
+    // anything larger than a small example — pass --data-dir to avoid it.
     initAttr = DenseElementsAttr::getFromRawBuffer(resourceAttr.getType(),
                                                    resourceAttr.getData());
   }
+
+  os << "var " << op.getSymName() << " = ";
 
   if (auto denseAttr = dyn_cast<DenseElementsAttr>(initAttr)) {
     if (denseAttr.isSplat()) {
@@ -2571,12 +2674,16 @@ LattigoEmitter::LattigoEmitter(raw_ostream& os,
                                SelectVariableNames* variableNames,
                                const std::string& packageName,
                                const std::vector<std::string>& extraImports,
-                               std::function<bool(func::FuncOp)> funcFilter)
+                               std::function<bool(func::FuncOp)> funcFilter,
+                               const std::string& dataDir,
+                               int64_t externalizeThreshold)
     : os(os),
       variableNames(variableNames),
       packageName(packageName),
       extraImports(extraImports),
-      funcFilter(funcFilter) {}
+      funcFilter(funcFilter),
+      dataDir(dataDir),
+      externalizeThreshold(externalizeThreshold) {}
 
 struct TranslateOptions {
   llvm::cl::opt<std::string> packageName{
@@ -2588,6 +2695,24 @@ struct TranslateOptions {
       llvm::cl::init("main")};
   llvm::cl::list<std::string> extraImports{
       "extra-imports", llvm::cl::desc("Additional import paths")};
+  llvm::cl::opt<std::string> dataDir{
+      "data-dir",
+      llvm::cl::desc("If set, externalize each large DenseResourceElementsAttr "
+                     "into <data-dir>/<name>.bin (raw little-endian) and emit "
+                     "Go init() code that loads it at startup, instead of "
+                     "inlining the bytes as a Go literal. Required for "
+                     "nontrivially-sized models (the inline form is ~6-7 ASCII "
+                     "chars/element). Constants smaller than "
+                     "--externalize-threshold elements are still inlined.")};
+  llvm::cl::opt<int64_t> externalizeThreshold{
+      "externalize-threshold",
+      llvm::cl::desc("Element-count threshold above which "
+                     "DenseResourceElementsAttr constants are externalized to "
+                     "--data-dir/<name>.bin. Constants with element count <= "
+                     "this value stay inlined (avoids per-tensor file I/O for "
+                     "biases / small activation tables). Ignored when "
+                     "--data-dir is empty. Default 1024."),
+      llvm::cl::init(1024)};
 };
 static llvm::ManagedStatic<TranslateOptions> translateOptions;
 
@@ -2606,7 +2731,9 @@ void registerToLattigoTranslation() {
       "translate the lattigo dialect to GO code against the Lattigo API",
       [](Operation* op, llvm::raw_ostream& output) {
         return translateToLattigo(op, output, translateOptions->packageName,
-                                  translateOptions->extraImports);
+                                  translateOptions->extraImports, nullptr,
+                                  translateOptions->dataDir,
+                                  translateOptions->externalizeThreshold);
       },
       [](DialectRegistry& registry) {
         registry
@@ -2625,9 +2752,11 @@ void registerToLattigoPreprocessingTranslation() {
       [](Operation* op, llvm::raw_ostream& output) {
         return translateToLattigo(
             op, output, translateOptions->packageName,
-            translateOptions->extraImports, [](func::FuncOp funcOp) {
+            translateOptions->extraImports,
+            [](func::FuncOp funcOp) {
               return funcOp->hasAttr(kClientPackFuncAttrName);
-            });
+            },
+            translateOptions->dataDir, translateOptions->externalizeThreshold);
       },
       [](DialectRegistry& registry) {
         registry
@@ -2646,9 +2775,11 @@ void registerToLattigoPreprocessedTranslation() {
       [](Operation* op, llvm::raw_ostream& output) {
         return translateToLattigo(
             op, output, translateOptions->packageName,
-            translateOptions->extraImports, [](func::FuncOp funcOp) {
+            translateOptions->extraImports,
+            [](func::FuncOp funcOp) {
               return !funcOp->hasAttr(kClientPackFuncAttrName);
-            });
+            },
+            translateOptions->dataDir, translateOptions->externalizeThreshold);
       },
       [](DialectRegistry& registry) {
         registry
