@@ -2329,6 +2329,18 @@ struct CheddarExternalizeWeights
         return;
       }
 
+      // A dense_resource initializer that externalize-constants left behind
+      // is below its size threshold; inline it as a plain dense attr, which
+      // mlir-to-cpp can serialize (it cannot emit dense_resource).
+      if (auto dr = dyn_cast_if_present<DenseResourceElementsAttr>(
+              g.getInitialValueAttr())) {
+        ArrayRef<char> bytes = dr.getData();
+        if (bytes.empty()) return;  // data not materialized; leave as-is
+        g.setInitialValueAttr(
+            DenseElementsAttr::getFromRawBuffer(dr.getType(), bytes));
+        return;
+      }
+
       // A *large* splat must never stay inline: heir-translate expands an
       // array initializer element-by-element, so a splat global (e.g. a
       // 512x65536 zero-padded ciphertext-width buffer) balloons the emitted

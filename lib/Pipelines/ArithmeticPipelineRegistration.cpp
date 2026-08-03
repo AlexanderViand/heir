@@ -822,6 +822,13 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
                                   " runtime-load-dir=data},"
                             : std::string()) +
         "arith-expand,"
+        // The layout-management pipeline lowers assign_layout materializations
+        // and plaintext weight prep to affine loops over tensors
+        // (TensorLinalgToAffineLoops / codegen-strategy loops). One-shot
+        // bufferization has no interface for affine.for tensor iter_args, so
+        // lower affine to scf first; scf.for + tensor.insert/extract bufferize
+        // fine, and convert-to-emitc handles the resulting scf.for.
+        "lower-affine,"
         "one-shot-bufferize{bufferize-function-boundaries=true "
         "function-boundary-type-conversion=identity-layout-map},"
         "buffer-results-to-out-params{hoist-static-allocs=true "
