@@ -8,7 +8,9 @@ func.func @dot_product(%evaluator: !lattigo.bgv.evaluator, %param: !lattigo.bgv.
   // CHECK-NOT: relinearize_new
   // CHECK: lattigo.bgv.rotate_columns_new
   // CHECK-NOT: add_new
-  // CHECK-NOT: rescale_new
+  // rescale changes the level, so it cannot reuse an existing buffer (which
+  // would require an exact level match) and stays allocating.
+  // CHECK: rescale_new
   // CHECK: return
   %c1 = arith.constant 1 : index
   %c2 = arith.constant 2 : index

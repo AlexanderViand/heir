@@ -198,11 +198,15 @@ class CallerProvidedStorageInfo {
         if (!opLevel.has_value() || !storageLevel.has_value()) {
           continue;
         }
-
-        // LevelState stores depth (levels consumed, 0 to L).
-        // We cannot reuse storage if it has already consumed more levels than
-        // the op expects. i.e., storage depth > op depth.
-        if (storageLevel->getInt() > opLevel->getInt()) {
+        // LevelState stores depth (levels consumed, 0 to L). Reuse ONLY when
+        // the storage's current depth EXACTLY matches the op's result depth.
+        // The old check (reuse whenever storage depth <= op depth) let a buffer
+        // last written at a shallower level be reused for a deeper result; on
+        // deep composite-sign ReLUs that mismatched reuse corrupts the runtime
+        // level chain (a value ends up multiplied at the modulus floor ->
+        // "cannot Rescale: level too low"). Exact-level reuse keeps the
+        // in-place optimization for same-level buffers while staying sound.
+        if (storageLevel->getInt() != opLevel->getInt()) {
           continue;
         }
       }

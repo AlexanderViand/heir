@@ -11,8 +11,9 @@ func TestInPlaceRotation(t *testing.T) {
 
 	input := []float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}
 	// Rotation left by 1: [2, 3, 4, 5, 6, 7, 8, 1]
-	// Multiplication by 2: [4, 6, 8, 10, 12, 14, 16, 2]
-	expected := []float64{4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 2.0}
+	// Addition of 2:      [4, 5, 6, 7, 8, 9, 10, 3]
+	// (a same-level op so the whole chain stays in-place under exact-level reuse)
+	expected := []float64{4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 3.0}
 
 	ct := In_place__encrypt__arg0(evaluator, params, encoder, encryptor, input)
 
