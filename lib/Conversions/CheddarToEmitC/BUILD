@@ -13,6 +13,7 @@ cc_library(
     deps = [
         ":pass_inc_gen",
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@heir//lib/Dialect/Preprocessing/IR:Dialect",
         "@heir//lib/Utils:ConversionUtils",
         "@heir//lib/Utils:TargetUtils",
         "@llvm-project//llvm:Support",

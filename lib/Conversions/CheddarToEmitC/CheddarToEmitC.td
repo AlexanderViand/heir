@@ -37,32 +37,31 @@ def CheddarToEmitC : Pass<"cheddar-emitc-boundary"> {
 }
 
 def CheddarExternalizeWeights : Pass<"cheddar-externalize-weights"> {
-  let summary = "Externalize large EmitC weight globals to .bin files + a loader.";
+  let summary = "Wire externalized weight globals to a __load_constants() loader.";
 
   let description = [{
     Runs on EmitC IR (after `--convert-to-emitc`), before
-    `mlir-translate --mlir-to-cpp`. The generic C++ translator can only
-    serialize *inline* `dense<>` global initializers, not `dense_resource<>`
-    blobs (how torch-mlir stores large weight tensors) and would otherwise
-    inline huge `dense<>` constants verbatim (gigabytes for big models). This
-    mirrors the lattigo emitter's `--data-dir`, but for the emitc path it is a
-    real pass rather than emitter string-bashing:
+    `mlir-translate --mlir-to-cpp`. The weight blobs themselves are written by
+    the upstream `externalize-constants` pass (run before bufferization);
+    `--convert-to-emitc` lowers the resulting `preprocessing.load_resource`
+    ops to uninitialized `emitc.global`s tagged with their runtime blob path.
+    This pass then:
 
-      * For each `emitc.global` whose initializer is a `dense_resource` (any
-        size) or a non-splat `dense` with more than `threshold` elements, the
-        raw float bytes are written to `<data-dir>/<name>.bin` and the
-        initializer is stripped (the global becomes a plain uninitialized
-        array).
-      * A `__load_constants()` function of `emitc.verbatim` calls is generated
-        (`heir_load_f32("data/<name>.bin", reinterpret_cast<float*>(<name>),
-        <n>);`) for the harness to call once before inference.
-
-    No-op when `data-dir` is empty.
+      * Collects the tagged globals into a generated `__load_constants()`
+        function of `emitc.verbatim` calls (`heir_load_f32("<path>",
+        reinterpret_cast<float*>(<name>), <n>);`) for the harness to call once
+        before inference.
+      * Strips the initializer from any *large splat* float global (which
+        externalize-constants deliberately leaves inline): heir-translate
+        expands array initializers element-by-element, so a splat global
+        (e.g. a 512x65536 zero-padded ciphertext-width buffer) would balloon
+        the emitted C++ by hundreds of MB. An all-zero splat then relies on
+        C++ static zero-initialization; a non-zero splat is filled by a loop
+        in `__load_constants()`.
   }];
 
   let options = [
-    Option<"dataDir", "data-dir", "std::string", "", "Directory to write <name>.bin weight blobs into (empty = disabled)">,
-    Option<"threshold", "threshold", "int64_t", "1024", "Inline dense (non-resource) constants with <= this many elements">,
+    Option<"threshold", "threshold", "int64_t", "1024", "Keep splat globals with <= this many elements inline">,
   ];
 
   let dependentDialects = [

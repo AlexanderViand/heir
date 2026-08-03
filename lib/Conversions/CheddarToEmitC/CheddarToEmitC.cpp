@@ -8,6 +8,7 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "lib/Dialect/Preprocessing/IR/PreprocessingOps.h"
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/TargetUtils.h"
 #include "llvm/include/llvm/ADT/APFloat.h"          // from @llvm-project
@@ -1458,6 +1459,52 @@ struct ConvertGlobalDropAlign
   }
 };
 
+// Name of the discardable attribute linking an uninitialized weight global to
+// the runtime path of its externalized blob (written by the upstream
+// externalize-constants pass). CheddarExternalizeWeights consumes it to
+// generate the `__load_constants()` heir_load_f32 calls.
+constexpr StringRef kLoadPathAttr = "cheddar.load_path";
+
+// Lowers a (bufferized) `preprocessing.load_resource` -- produced by the
+// upstream externalize-constants pass for large weight constants -- to an
+// uninitialized module-level `emitc.global` tagged with kLoadPathAttr, plus an
+// `emitc.get_global` at the use site. Multiple load_resource ops of the same
+// blob (externalize-constants names files by content hash) share one global.
+struct ConvertLoadResource
+    : public OpConversionPattern<preprocessing::LoadResourceOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      preprocessing::LoadResourceOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto memrefType = dyn_cast<MemRefType>(op.getType());
+    if (!memrefType || !memrefType.hasStaticShape()) return failure();
+    Type arrayTy = getTypeConverter()->convertType(memrefType);
+    if (!isa_and_present<emitc::ArrayType>(arrayTy)) return failure();
+
+    // "data/constant_<md5>.bin" -> "constant_<md5>" (a valid C identifier).
+    StringRef path = op.getPath();
+    StringRef base = path;
+    if (auto pos = base.rfind('/'); pos != StringRef::npos)
+      base = base.drop_front(pos + 1);
+    base.consume_back(".bin");
+    std::string globalName = base.str();
+
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module.lookupSymbol<emitc::GlobalOp>(globalName)) {
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(module.getBody());
+      auto global = emitc::GlobalOp::create(
+          rewriter, op.getLoc(), globalName, arrayTy,
+          /*initialValue=*/Attribute(),
+          /*externSpecifier=*/false, /*staticSpecifier=*/true,
+          /*constSpecifier=*/false);
+      global->setAttr(kLoadPathAttr, rewriter.getStringAttr(path));
+    }
+    rewriter.replaceOpWithNewOp<emitc::GetGlobalOp>(op, arrayTy, globalName);
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // ConvertToEmitC dialect interface
 //===----------------------------------------------------------------------===//
@@ -1520,6 +1567,10 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
 
     target.addIllegalDialect<cheddar::CheddarDialect>();
     target.addIllegalDialect<arith::ArithDialect>();
+    // Externalized weight loads (upstream externalize-constants) lower to
+    // tagged uninitialized emitc.globals; see ConvertLoadResource.
+    target.addIllegalOp<preprocessing::LoadResourceOp>();
+    patterns.add<ConvertLoadResource>(typeConverter, ctx, /*benefit=*/2);
     target.addDynamicallyLegalDialect<mlir::memref::MemRefDialect>(
         [&typeConverter](Operation* op) { return typeConverter.isLegal(op); });
     // memref.global has no typed operand/result, so the dialect-level isLegal
@@ -2256,80 +2307,47 @@ struct CheddarExternalizeWeights
   using CheddarExternalizeWeightsBase::CheddarExternalizeWeightsBase;
 
   void runOnOperation() override {
-    if (dataDir.empty()) return;
     ModuleOp mod = cast<ModuleOp>(getOperation());
     MLIRContext* ctx = &getContext();
 
-    if (std::error_code ec = llvm::sys::fs::create_directories(dataDir)) {
-      mod.emitError() << "cheddar-externalize-weights: cannot create data-dir '"
-                      << dataDir << "': " << ec.message();
-      signalPassFailure();
-      return;
-    }
-
-    SmallVector<std::pair<std::string, int64_t>> loaded;  // (name, numElements)
+    // (name, path, numElements) for globals whose blob the upstream
+    // externalize-constants pass already wrote; ConvertLoadResource tagged
+    // them with the runtime path.
+    SmallVector<std::tuple<std::string, std::string, int64_t>> loaded;
     // (name, numElements, valueLiteral) for large non-zero splats filled at
     // load time; all-zero splats need no entry (C++ static zero-init).
     SmallVector<std::tuple<std::string, int64_t, std::string>> splatFills;
-    bool writeFailed = false;
     mod.walk([&](emitc::GlobalOp g) {
-      if (writeFailed) return;
-      Attribute init = g.getInitialValueAttr();
-      if (!init) return;
       auto arrTy = dyn_cast<emitc::ArrayType>(g.getType());
       if (!arrTy || !isa<FloatType>(arrTy.getElementType())) return;
       int64_t n = 1;
       for (int64_t d : arrTy.getShape()) n *= d;
 
-      ArrayRef<char> bytes;
-      if (auto dr = dyn_cast<DenseResourceElementsAttr>(init)) {
-        // torch-mlir stores large weights as resource blobs; externalize any.
-        bytes = dr.getData();
-        if (bytes.empty()) return;  // data not materialized; leave inline
-      } else if (auto de = dyn_cast<DenseElementsAttr>(init)) {
-        // Small dense constants emit fine inline.
-        if (n <= threshold) return;
-        // A *large* splat must never stay inline: heir-translate expands an
-        // array initializer element-by-element, so a splat global (e.g. a
-        // 512x65536 zero-padded ciphertext-width buffer) balloons the emitted
-        // C++ by hundreds of MB and makes the host compiler OOM. Drop the
-        // initializer instead -- an all-zero splat then relies on C++ static
-        // zero-initialization (no data file), and a non-zero splat is filled
-        // in __load_constants. Only genuine large non-splat weights get a blob.
-        if (de.isSplat()) {
-          APFloat sv = de.getSplatValue<APFloat>();
-          g.removeInitialValueAttr();
-          if (!sv.isZero()) {
-            SmallString<32> sbuf;
-            sv.toString(sbuf);
-            splatFills.emplace_back(g.getSymName().str(), n, std::string(sbuf));
-          }
-          return;
-        }
-        bytes = de.getRawData();
-      } else {
+      if (auto pathAttr = g->getAttrOfType<StringAttr>(kLoadPathAttr)) {
+        loaded.emplace_back(g.getSymName().str(), pathAttr.getValue().str(), n);
+        g->removeAttr(kLoadPathAttr);
         return;
       }
 
-      std::string path = dataDir + "/" + g.getSymName().str() + ".bin";
-      std::error_code ec;
-      llvm::raw_fd_ostream os(path, ec, llvm::sys::fs::OF_None);
-      if (ec) {
-        g.emitError() << "cannot write weight blob '" << path
-                      << "': " << ec.message();
-        writeFailed = true;
-        return;
-      }
-      os.write(bytes.data(), bytes.size());
-      os.close();
-
+      // A *large* splat must never stay inline: heir-translate expands an
+      // array initializer element-by-element, so a splat global (e.g. a
+      // 512x65536 zero-padded ciphertext-width buffer) balloons the emitted
+      // C++ by hundreds of MB and makes the host compiler OOM. (The upstream
+      // externalize-constants pass deliberately skips splats, so they still
+      // reach this point with their initializer.) Drop the initializer
+      // instead -- an all-zero splat then relies on C++ static
+      // zero-initialization, and a non-zero splat is filled in
+      // __load_constants.
+      auto de = dyn_cast_if_present<DenseElementsAttr>(g.getInitialValueAttr());
+      if (!de || !de.isSplat() || n <= threshold) return;
+      APFloat sv = de.getSplatValue<APFloat>();
       g.removeInitialValueAttr();
-      loaded.emplace_back(g.getSymName().str(), n);
+      if (!sv.isZero()) {
+        SmallString<32> sbuf;
+        sv.toString(sbuf);
+        splatFills.emplace_back(g.getSymName().str(), n, std::string(sbuf));
+      }
     });
-    if (writeFailed) {
-      signalPassFailure();
-      return;
-    }
     if (loaded.empty() && splatFills.empty()) return;
 
     // Generate `void __load_constants()` that loads each blob into its global
@@ -2341,8 +2359,8 @@ struct CheddarExternalizeWeights
                                    FunctionType::get(ctx, {}, {}));
     fn.setPublic();
     b.setInsertionPointToStart(fn.addEntryBlock());
-    for (auto& [name, n] : loaded) {
-      std::string txt = "heir_load_f32(\"data/" + name + ".bin\", " +
+    for (auto& [name, path, n] : loaded) {
+      std::string txt = "heir_load_f32(\"" + path + "\", " +
                         "reinterpret_cast<float*>(" + name + "), " +
                         std::to_string(n) + ");";
       VerbatimOp::create(b, loc, txt, ValueRange{});
