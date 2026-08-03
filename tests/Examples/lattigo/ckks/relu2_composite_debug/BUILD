@@ -9,6 +9,7 @@ package(default_applicable_licenses = ["@heir//:license"])
 # localize where the mid-circuit bootstrap corrupts the composite chain.
 heir_lattigo_lib(
     name = "relu2_composite_debug",
+    extra_srcs = ["heir_debug.go"],
     go_library_name = "relu2compositedbg",
     heir_opt_flags = [
         "--annotate-module=backend=lattigo scheme=ckks",
@@ -22,7 +23,6 @@ go_test(
     name = "relu2compositedbg_test",
     size = "medium",
     srcs = [
-        "heir_debug.go",
         "relu2_composite_debug_test.go",
     ],
     embed = [":relu2compositedbg"],
