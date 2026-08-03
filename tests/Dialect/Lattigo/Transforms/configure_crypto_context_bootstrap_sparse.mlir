@@ -15,8 +15,8 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 17, Q = [1106058
       %bt2: !bootstrapping_evaluator {lattigo.bootstrap_log_slots = 2 : i64},
       %evaluator: !evaluator, %param: !param, %encoder: !encoder,
       %ct: !ct) -> !ct {
-    %ct_0 = lattigo.ckks.bootstrap %bt1, %ct : (!bootstrapping_evaluator, !ct) -> !ct
-    %ct_1 = lattigo.ckks.bootstrap %bt2, %ct_0 : (!bootstrapping_evaluator, !ct) -> !ct
+    %ct_0 = lattigo.ckks.bootstrap %bt1, %ct {inputScaleMultiplier = 2.0 : f64, realify = true} : (!bootstrapping_evaluator, !ct) -> !ct
+    %ct_1 = lattigo.ckks.bootstrap %bt2, %ct_0 {inputScaleMultiplier = 2.0 : f64, realify = true} : (!bootstrapping_evaluator, !ct) -> !ct
     return %ct_1 : !ct
   }
 }

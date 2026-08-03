@@ -1,4 +1,5 @@
 #include <cmath>
+#include <numeric>
 #include <optional>
 
 #include "lib/Analysis/LevelAnalysis/LevelAnalysis.h"
@@ -11,6 +12,7 @@
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Parameters/CKKS/Params.h"
+#include "lib/Parameters/RLWESecurityParams.h"
 #include "lib/Utils/LogArithmetic.h"
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
 #include "llvm/include/llvm/Support/DebugLog.h"            // from @llvm-project
@@ -193,6 +195,43 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     auto schemeParam = ckks::SchemeParam::getConcreteSchemeParam(
         firstModBits, scalingModBits, genMaxLevel, minSlotCount, usePublicKey,
         encryptionTechniqueExtended, reducedError, ringDim);
+
+    if (ringDim) {
+      int forcedRingDim = schemeParam.getRingDim();
+      double actualLogPQ = std::accumulate(schemeParam.getLogqi().begin(),
+                                           schemeParam.getLogqi().end(), 0.0) +
+                           std::accumulate(schemeParam.getLogpi().begin(),
+                                           schemeParam.getLogpi().end(), 0.0);
+      std::optional<int> secureRingDim =
+          tryComputeRingDim(std::ceil(actualLogPQ), 2 * slotNumber);
+      if (!secureRingDim || forcedRingDim < *secureRingDim) {
+        if (!allowInsecureRingDim) {
+          auto diag = getOperation()->emitOpError()
+                      << "forced ring dimension " << forcedRingDim
+                      << " is below the 128-bit classic security minimum ";
+          if (secureRingDim)
+            diag << *secureRingDim;
+          else
+            diag << "(outside the supported security table)";
+          diag << " for log2(QP)=" << actualLogPQ
+               << "; omit ring-dim to derive a secure value or explicitly set "
+                  "allow-insecure-ring-dim=true for benchmarking";
+          signalPassFailure();
+          return;
+        }
+        auto diag = getOperation()->emitWarning()
+                    << "INSECURE BENCHMARK PARAMETERS: forced ring dimension "
+                    << forcedRingDim
+                    << " is below the 128-bit classic minimum ";
+        if (secureRingDim)
+          diag << *secureRingDim;
+        else
+          diag << "(outside the supported security table)";
+        diag << " for log2(QP)=" << actualLogPQ;
+        getOperation()->setAttr(kInsecureParametersAttrName,
+                                UnitAttr::get(&getContext()));
+      }
+    }
 
     LDBG() << "Scheme Param:\n" << schemeParam;
 

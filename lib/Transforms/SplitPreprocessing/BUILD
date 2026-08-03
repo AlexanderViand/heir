@@ -14,6 +14,7 @@ cc_library(
         ":pass_inc_gen",
         "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect:ModuleAttributes",
+        "@heir//lib/Dialect/CKKS/IR:Dialect",
         "@heir//lib/Dialect/LWE/IR:Dialect",
         "@heir//lib/Dialect/Preprocessing/IR:Dialect",
         "@heir//lib/Utils:AttributeUtils",

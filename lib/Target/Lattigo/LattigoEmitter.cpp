@@ -2148,12 +2148,18 @@ LogicalResult LattigoEmitter::printOperation(CKKSEncodeOp op) {
     os << "}\n";
   }
 
-  // set the scale of plaintext
-  imports.insert(std::string(kMathImport));
-  auto scale = op.getScale();
+  // CKKS ciphertext-plaintext Add/Sub requires both operands to have the same
+  // runtime scale. The lowering records that dependency explicitly because a
+  // rescale by an actual modulus can drift from the nominal IR scale.
   os << plaintextName << ".Scale = ";
-  os << getName(newPlaintextOp.getParams()) << ".NewScale(math.Pow(2, ";
-  os << scale << "))\n";
+  if (op.getRuntimeScaleFrom()) {
+    os << getName(op.getRuntimeScaleFrom()) << ".Scale\n";
+  } else {
+    imports.insert(std::string(kMathImport));
+    auto scale = op.getScale();
+    os << getName(newPlaintextOp.getParams()) << ".NewScale(math.Pow(2, ";
+    os << scale << "))\n";
+  }
 
   os << getName(op.getEncoder()) << ".Encode(";
   os << packedName << ", ";
@@ -2305,10 +2311,28 @@ LogicalResult LattigoEmitter::printOperation(CKKSRotateOp op) {
 LogicalResult LattigoEmitter::printOperation(CKKSBootstrapOp op) {
   imports.insert(std::string(kBootstrappingImport));
 
+  auto errName = getErrName();
   std::string resultName = getName(op.getResult());
   std::string evalName = getName(op.getEvaluator());
-  emitAssignmentWithErr(
-      resultName, evalName + ".Bootstrap(" + getName(op.getInput()) + ")");
+  std::string inputName = getName(op.getInput());
+  double inputScaleMultiplier = op.getInputScaleMultiplier().convertToDouble();
+  // This metadata-only message adjustment is part of the Lattigo bootstrap
+  // op's explicit semantics. Claiming Scale*2 makes bootstrap read m/2; the
+  // requested conjugate-add realification below restores m at the default
+  // output scale without consuming a level.
+  if (inputScaleMultiplier != 1.0) {
+    os << inputName << ".Scale = " << inputName << ".Scale.Mul(rlwe.NewScale("
+       << inputScaleMultiplier << "))\n";
+  }
+  os << resultName << ", " << errName << " := " << evalName << ".Bootstrap(";
+  os << inputName << ")\n";
+  printErrPanic(errName);
+  if (inputScaleMultiplier != 1.0) {
+    os << inputName << ".Scale = " << inputName << ".Scale.Div(rlwe.NewScale("
+       << inputScaleMultiplier << "))\n";
+  }
+
+  if (!op.getRealify()) return success();
 
   // Realify the bootstrap output: a CKKS bootstrap (CoeffsToSlots / EvalMod /
   // SlotsToCoeffs) leaves the EvalMod error and the conjugate term in the
@@ -2324,26 +2348,19 @@ LogicalResult LattigoEmitter::printOperation(CKKSBootstrapOp op) {
   // with the same LogN as the residual ring, so the embedded ckks.Evaluator
   // operates in the same domain as the (N1) bootstrap output.
   //
-  // ct + conj(ct) yields 2*re; the final 0.5 is applied as a pure scale fiddle
-  // (ct.Scale *= 2, so the decode = poly/scale halves the message) rather than
-  // a scalar ciphertext multiply: a float Mul by 0.5 would inflate the scale by
-  // a whole RNS prime (~2^logScale) without rescaling, leaving op.Scale far
-  // above the Chebyshev target and tripping Lattigo's "op0.Scale > opOut.Scale"
-  // guard. (Lattigo applies constant message factors the same way -- a metadata
-  // scale tweak rather than a ciphertext op; cf. EvaluateConjugateInvariant's
-  // Scale.Mul, though that compensates an unrelated ring-switch factor.) No
-  // level is consumed and the downstream Chebyshev emitter reads ct.Scale at
-  // runtime, so the pipeline stays scale-consistent.
+  // ct + conj(ct) yields 2*re; the compensating 0.5 is applied by doubling the
+  // INPUT's scale metadata before the bootstrap (see above), so the output
+  // lands at the bootstrapper's default scale — the same scale HEIR's static
+  // scale model assumes. A ciphertext multiply by 0.5 would instead cost a
+  // level, and doubling the OUTPUT scale metadata desyncs runtime scales from
+  // the static model at branch joins.
   std::string conjName = resultName + "_conj";
-  auto errName = getErrName();
   os << conjName << ", " << errName << " := " << evalName << ".ConjugateNew("
      << resultName << ")\n";
   printErrPanic(errName);
   os << resultName << ", " << errName << " = " << evalName << ".AddNew("
      << resultName << ", " << conjName << ")\n";
   printErrPanic(errName);
-  os << resultName << ".Scale = " << resultName
-     << ".Scale.Mul(rlwe.NewScale(2.0))\n";
   return success();
 }
 

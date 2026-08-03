@@ -44,6 +44,36 @@ module @jit_func attributes {backend.openfhe, ckks.schemeParam = #ckks.scheme_pa
 
 !Z35184372121601_i64 = !mod_arith.int<35184372121601 : i64>
 !Z36028797018652673_i64 = !mod_arith.int<36028797018652673 : i64>
+#inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 45>
+#key = #lwe.key<>
+#modulus_chain_L1_C1 = #lwe.modulus_chain<elements = <36028797018652673 : i64, 35184372121601 : i64>, current = 1>
+#ring_f64_1_x1024 = #polynomial.ring<coefficientType = f64, polynomialModulus = <1 + x**1024>>
+!rns_L1 = !rns.rns<!Z36028797018652673_i64, !Z35184372121601_i64>
+!pt = !lwe.lwe_plaintext<plaintext_space = <ring = #ring_f64_1_x1024, encoding = #inverse_canonical_encoding>>
+#ring_rns_L1_1_x1024 = #polynomial.ring<coefficientType = !rns_L1, polynomialModulus = <1 + x**1024>>
+#ciphertext_space_L1 = #lwe.ciphertext_space<ring = #ring_rns_L1_1_x1024, encryption_type = mix>
+!ct_L1 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x1024, encoding = #inverse_canonical_encoding>, ciphertext_space = #ciphertext_space_L1, key = #key, modulus_chain = #modulus_chain_L1_C1>
+
+// CHECK-DAG: ![[LATTIGO_CT:.*]] = !lattigo.rlwe.ciphertext
+// CHECK: func.func @runtime_scale_encode
+// CHECK-SAME: %[[CT:[^, )]+]]: ![[LATTIGO_CT]]
+// CHECK: lattigo.ckks.encode %{{.*}}, %{{.*}}, %{{.*}}, %[[CT]]
+module attributes {backend.lattigo, ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [36028797018652673, 35184372121601], P = [1152921504606994433], logDefaultScale = 45>, scheme.ckks} {
+  func.func @runtime_scale_encode(%ct: !ct_L1) -> !ct_L1 {
+    %c0 = arith.constant 0 : index
+    %value = arith.constant dense<2.0> : tensor<1024xf32>
+    %bias = lwe.rlwe_encode %value {encoding = #inverse_canonical_encoding, ring = #ring_f64_1_x1024} : tensor<1024xf32> -> !pt
+    %packed = tensor.from_elements %bias : tensor<1x!pt>
+    %unpacked = tensor.extract %packed[%c0] : tensor<1x!pt>
+    %result = lwe.radd_plain %ct, %unpacked : (!ct_L1, !pt) -> !ct_L1
+    return %result : !ct_L1
+  }
+}
+
+// -----
+
+!Z35184372121601_i64 = !mod_arith.int<35184372121601 : i64>
+!Z36028797018652673_i64 = !mod_arith.int<36028797018652673 : i64>
 #inverse_canonical_encoding = #lwe.inverse_canonical_encoding<scaling_factor = 0>
 #key = #lwe.key<>
 #layout = #tensor_ext.layout<"{ [i0, i1] -> [ct, slot] : i0 = 0 and ct = 0 and (-i1 + slot) mod 512 = 0 and 0 <= i1 <= 511 and 0 <= slot <= 1023 }">

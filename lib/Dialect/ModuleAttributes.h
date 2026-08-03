@@ -26,6 +26,8 @@ constexpr const static ::llvm::StringLiteral kRequestedSlotCountAttrName =
     "scheme.requested_slot_count";
 constexpr const static ::llvm::StringLiteral kActualSlotCountAttrName =
     "scheme.actual_slot_count";
+constexpr const static ::llvm::StringLiteral kInsecureParametersAttrName =
+    "scheme.insecure_parameters";
 
 bool moduleIsBGV(Operation* moduleOp);
 bool moduleIsBFV(Operation* moduleOp);

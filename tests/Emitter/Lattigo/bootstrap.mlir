@@ -1,19 +1,17 @@
 // RUN: heir-translate %s --emit-lattigo | FileCheck %s
 
-// CHECK: func Test_bootstrap(
-// CHECK-SAME: [[BOOT_EVAL:[^, ]+]] *bootstrapping.Evaluator, [[EVAL:[^, ]+]] *ckks.Evaluator, [[CT_IN:[^, ]+]] *rlwe.Ciphertext, [[CT_OTHER:[^, ]+]] *rlwe.Ciphertext
-// CHECK:   [[CT_OUT:[^, ]+]], err{{.*}} := [[BOOT_EVAL]].Bootstrap([[CT_IN]])
-// CHECK:   if err{{.*}} != nil {
-// CHECK:     panic(err{{.*}})
-// CHECK:   }
-// Use '=' instead of ':=' for DropLevel's CopyNew
-// CHECK:   [[CT_OUT]] = [[CT_OTHER]].CopyNew()
-// CHECK:   [[EVAL]].DropLevel([[CT_OUT]], 2)
-// CHECK:   return [[CT_OUT]]
+!bt_eval = !lattigo.ckks.bootstrapping_evaluator
+!ct = !lattigo.rlwe.ciphertext
+
 module attributes {scheme.ckks} {
-  func.func @test_bootstrap(%boot_eval: !lattigo.ckks.bootstrapping_evaluator, %eval: !lattigo.ckks.evaluator, %ct: !lattigo.rlwe.ciphertext, %ct_other: !lattigo.rlwe.ciphertext) -> (!lattigo.rlwe.ciphertext) {
-    %bootstrapped = lattigo.ckks.bootstrap %boot_eval, %ct : (!lattigo.ckks.bootstrapping_evaluator, !lattigo.rlwe.ciphertext) -> !lattigo.rlwe.ciphertext
-    %reduced = lattigo.rlwe.drop_level %eval, %ct_other, %bootstrapped {levelToDrop = 2 : i64} : (!lattigo.ckks.evaluator, !lattigo.rlwe.ciphertext, !lattigo.rlwe.ciphertext) -> !lattigo.rlwe.ciphertext
-    return %reduced : !lattigo.rlwe.ciphertext
+  // CHECK: func Bootstrap_real
+  // CHECK: [[CT:[^. ]+]].Scale = [[CT]].Scale.Mul(rlwe.NewScale({{2.*}}))
+  // CHECK: [[OUT:[^, ]+]], [[ERR:[^ ]+]] := [[EVAL:[^. ]+]].Bootstrap([[CT]])
+  // CHECK: [[CT]].Scale = [[CT]].Scale.Div(rlwe.NewScale({{2.*}}))
+  // CHECK: [[CONJ:[^, ]+]], [[ERR]] := [[EVAL]].ConjugateNew([[OUT]])
+  // CHECK: [[OUT]], [[ERR]] = [[EVAL]].AddNew([[OUT]], [[CONJ]])
+  func.func @bootstrap_real(%evaluator: !bt_eval, %ct: !ct) -> !ct {
+    %result = lattigo.ckks.bootstrap %evaluator, %ct {inputScaleMultiplier = 2.0 : f64, realify = true} : (!bt_eval, !ct) -> !ct
+    return %result : !ct
   }
 }

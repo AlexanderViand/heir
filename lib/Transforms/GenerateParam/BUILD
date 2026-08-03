@@ -36,6 +36,7 @@ cc_library(
         "@heir//lib/Dialect/Mgmt/IR:Dialect",
         "@heir//lib/Dialect/Mgmt/Transforms:AnnotateMgmt",
         "@heir//lib/Dialect/Secret/IR:Dialect",
+        "@heir//lib/Parameters:RLWESecurityParams",
         "@heir//lib/Parameters/BGV:Params",
         "@heir//lib/Parameters/CKKS:Params",
         "@heir//lib/Utils:LogArithmetic",

@@ -37,6 +37,7 @@
 // CHECK-SAME:  %[[eval:.*]]: ![[evalType]],
 // CHECK-SAME: , %[[ct:[a-z]+]]: ![[ctType]])
 // CHECK: lattigo.ckks.bootstrap %[[bEval]], %[[ct]]
+// CHECK-SAME: {inputScaleMultiplier = 2.000000e+00 : f64, realify = true}
 
 module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 17, Q = [1106058412451299513, 1056763241666817029, 957769724367225479, 919081519653443687, 1030837924888066153, 1084354410096143723, 1135846243351935917, 1087115004561311021, 997960547764032911, 892538949448853293, 1002528331340998513, 1100798419621231379, 981696679688787961, 1061922508412786269], P = [1152921504606846976], logDefaultScale = 60>, scheme.ckks} {
   func.func @bootstrap(%ct: !ct_L2) -> !ct_L13 {

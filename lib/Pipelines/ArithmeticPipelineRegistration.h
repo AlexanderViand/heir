@@ -83,6 +83,11 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
           "Force the CKKS ring dimension instead of deriving it from the "
           "security model (0 = derive; c.f. --generate-param-ckks)"),
       llvm::cl::init(0)};
+  PassOptions::Option<bool> ckksAllowInsecureRingDim{
+      *this, "ckks-allow-insecure-ring-dim",
+      llvm::cl::desc("Explicitly allow a forced CKKS ring dimension below "
+                     "the 128-bit classic security minimum"),
+      llvm::cl::init(false)};
   PassOptions::ListOption<int64_t> ckksBootstrapLogP{
       *this, "ckks-bootstrap-logp",
       llvm::cl::desc("Per-prime bit widths for the lattigo bootstrap "

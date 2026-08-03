@@ -1,6 +1,8 @@
 #ifndef LIB_PARAMETERS_RLWESECURITYPARAMS_H_
 #define LIB_PARAMETERS_RLWESECURITYPARAMS_H_
 
+#include <optional>
+
 namespace mlir {
 namespace heir {
 
@@ -13,6 +15,7 @@ struct RLWESecurityParam {
 
 // compute ringDim given logPQ under 128-bit classic security
 int computeRingDim(int logPQ, int minRingDim);
+std::optional<int> tryComputeRingDim(int logPQ, int minRingDim);
 
 }  // namespace heir
 }  // namespace mlir

@@ -4,7 +4,9 @@
 #include <cassert>
 #include <cstdint>
 
+#include "lib/Dialect/CKKS/IR/CKKSOps.h"
 #include "lib/Dialect/HEIRInterfaces.h"
+#include "lib/Dialect/LWE/IR/LWEOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Preprocessing/IR/PreprocessingOps.h"
@@ -52,6 +54,37 @@ namespace heir {
 using func::FuncOp;
 
 namespace {
+
+// CKKS add/sub require the encoded plaintext to have exactly the runtime scale
+// of the ciphertext operand.  That scale can differ slightly from the nominal
+// IR scale after rescaling by an actual modulus prime, so the encode is not an
+// offline computation: it depends on the online ciphertext's scale.  Keep such
+// encodes in the preprocessed function.  Multiplicative plaintexts and
+// encryption inputs remain safe to pre-encode.
+static bool requiresOnlineCiphertextScale(PlaintextEncodeOpInterface encode) {
+  if (!moduleIsLattigo(encode->getParentOfType<ModuleOp>())) return false;
+
+  SetVector<Value> plaintextValues;
+  plaintextValues.insert(encode->getResult(0));
+  for (unsigned i = 0; i < plaintextValues.size(); ++i) {
+    for (Operation* user : plaintextValues[i].getUsers()) {
+      if (isa<ckks::AddPlainOp, ckks::SubPlainOp, lwe::RAddPlainOp,
+              lwe::RSubPlainOp>(user)) {
+        return true;
+      }
+      // Tensor container operations can sit between a scalar encode and its
+      // eventual ciphertext-plaintext consumer. Follow only plaintext-typed
+      // results so unrelated dataflow does not make an encode online.
+      for (Value result : user->getResults()) {
+        if (isa<lwe::LWEPlaintextType>(
+                getElementTypeOrSelf(result.getType()))) {
+          plaintextValues.insert(result);
+        }
+      }
+    }
+  }
+  return false;
+}
 
 // Walk the IR to collect the set of operations that need to be cloned, upstream
 // of a set of Encode ops, including recursing into regions and parents.
@@ -211,6 +244,7 @@ struct SplitPreprocessingPass
     // Annotate each encode op with a stable site id
     int32_t encodeId = 0;
     root->walk([&](PlaintextEncodeOpInterface op) {
+      if (requiresOnlineCiphertextScale(op)) return;
       op->setAttr(
           "split_preprocessing_site_id",
           IntegerAttr::get(IntegerType::get(op->getContext(), 32), encodeId++));
@@ -461,9 +495,9 @@ struct SplitPreprocessingPass
     for (Operation* clonedEncode : clonedEncodes) {
       auto siteIdAttr = clonedEncode->getAttrOfType<IntegerAttr>(
           "split_preprocessing_site_id");
-      assert(
-          siteIdAttr &&
-          "Expected split_preprocessing_site_id attribute on cloned encode op");
+      // Encodes whose scale depends on an online ciphertext intentionally stay
+      // in this function and therefore have no preprocessing site id.
+      if (!siteIdAttr) continue;
       int32_t siteId = siteIdAttr.getInt();
 
       SmallVector<Value> indices =
@@ -544,9 +578,9 @@ struct SplitPreprocessingPass
     for (Operation* clonedEncode : clonedEncodes) {
       auto siteIdAttr = clonedEncode->getAttrOfType<IntegerAttr>(
           "split_preprocessing_site_id");
-      assert(
-          siteIdAttr &&
-          "Expected split_preprocessing_site_id attribute on cloned encode op");
+      // Runtime-scale-dependent encodes are deliberately not split and remain
+      // as ordinary operations in the online function.
+      if (!siteIdAttr) continue;
       int32_t siteId = siteIdAttr.getInt();
 
       SmallVector<Value> indices =
@@ -586,7 +620,8 @@ struct SplitPreprocessingPass
     PreprocessingAnalysis analysis;
 
     funcOp.walk<WalkOrder::PreOrder>([&](Operation* op) {
-      if (isa<PlaintextEncodeOpInterface>(op)) {
+      if (isa<PlaintextEncodeOpInterface>(op) &&
+          op->hasAttr("split_preprocessing_site_id")) {
         analysis.encodeOps.push_back(op);
       }
     });

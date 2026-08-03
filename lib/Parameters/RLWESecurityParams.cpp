@@ -1,6 +1,7 @@
 #include "lib/Parameters/RLWESecurityParams.h"
 
 #include <cassert>
+#include <optional>
 
 namespace mlir {
 namespace heir {
@@ -13,7 +14,7 @@ struct RLWESecurityParam rlweSecurityParam128BitClassic[] = {
     {1024, 26},   {2048, 53},   {4096, 106},   {8192, 214},
     {16384, 430}, {32768, 868}, {65536, 1747}, {131072, 3523}};
 
-int computeRingDim(int logPQ, int minRingDim) {
+std::optional<int> tryComputeRingDim(int logPQ, int minRingDim) {
   for (auto& param : rlweSecurityParam128BitClassic) {
     if (param.ringDim < minRingDim) {
       continue;
@@ -22,6 +23,12 @@ int computeRingDim(int logPQ, int minRingDim) {
       return param.ringDim;
     }
   }
+  return std::nullopt;
+}
+
+int computeRingDim(int logPQ, int minRingDim) {
+  auto ringDim = tryComputeRingDim(logPQ, minRingDim);
+  if (ringDim) return *ringDim;
   assert(false && "Failed to find ring dimension, logTotalPQ too large");
   return 0;
 }

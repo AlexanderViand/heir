@@ -55,12 +55,17 @@ def Lattigo_CKKSEncodeOp : Lattigo_CKKSOp<"encode", [InPlaceOpInterface, Plainte
 
     The input value tensor should have elements of float type or complex type.
 
-    The `scale` attribute indicates the scaling factor for encoding.
+    The `scale` attribute indicates the nominal scaling factor for encoding.
+    When `runtimeScaleFrom` is present, its runtime scale is used instead. This
+    is required for plaintexts consumed by ciphertext-plaintext addition or
+    subtraction because rescaling by an actual modulus can make a
+    ciphertext's runtime scale differ from the nominal IR scale.
   }];
   let arguments = (ins
     Lattigo_CKKSEncoder:$encoder,
     TensorOrMemRef<[AnyFloat, AnyComplex]>:$value,
     Lattigo_RLWEPlaintext:$plaintext,
+    Optional<Lattigo_RLWECiphertext>:$runtimeScaleFrom,
     DefaultValuedAttr<I64Attr, "1">:$scale
   );
   let results = (outs Lattigo_RLWEPlaintext:$encoded);
@@ -343,11 +348,18 @@ def Lattigo_CKKSBootstrapOp : Lattigo_CKKSUnaryOp<"bootstrap", [
     It takes a ciphertext at level 0 (if not at level 0, then it will reduce it
     to level 0) and returns a ciphertext with the max level of
     `evaluator.ResidualParameters.MaxLevel`.
+
+    `inputScaleMultiplier` explicitly records a metadata-only adjustment made
+    before bootstrapping. `realify` requests conjugate-add realification of the
+    result. Together, a multiplier of 2 and realification preserve a real
+    message at the default output scale without consuming a level.
   }];
 
   let arguments = (ins
     Lattigo_CKKSBootstrappingEvaluator:$evaluator,
-    Lattigo_RLWECiphertext:$input
+    Lattigo_RLWECiphertext:$input,
+    DefaultValuedAttr<F64Attr, "1.0">:$inputScaleMultiplier,
+    DefaultValuedAttr<BoolAttr, "false">:$realify
   );
   let results = (outs Lattigo_RLWECiphertext:$output);
 }

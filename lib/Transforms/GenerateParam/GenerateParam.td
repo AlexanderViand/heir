@@ -187,8 +187,11 @@ def GenerateParamCKKS : Pass<"generate-param-ckks"> {
            "(https://eprint.iacr.org/2020/1118).">,
     Option<"ringDim", "ring-dim", "int",
            /*default=*/"0", "Force the ring dimension instead of deriving it "
-           "from logPQ via the security model (0 = derive). Insecure "
-           "combinations are allowed - benchmarking escape hatch.">,
+           "from logPQ via the security model (0 = derive).">,
+    Option<"allowInsecureRingDim", "allow-insecure-ring-dim", "bool",
+           /*default=*/"false", "Allow a forced ring dimension below the "
+           "128-bit classic security minimum. Explicit benchmarking-only "
+           "opt-in; annotates the module as insecure.">,
     ListOption<"bootstrapLogP", "bootstrap-logp", "int64_t",
            "Per-prime bit widths for the bootstrap circuit's auxiliary "
            "modulus (lattigo bootstrapping.ParametersLiteral LogP). Empty "

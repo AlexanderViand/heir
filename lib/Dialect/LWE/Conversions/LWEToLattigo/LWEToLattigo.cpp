@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -27,6 +28,7 @@
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
+#include "llvm/include/llvm/ADT/SetVector.h"             // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallSet.h"              // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"           // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"             // from @llvm-project
@@ -619,7 +621,8 @@ struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
 
     rewriter.replaceOpWithNewOp<lattigo::CKKSBootstrapOp>(
         op, this->typeConverter->convertType(op.getOutput().getType()),
-        evaluator, adaptor.getInput());
+        evaluator, adaptor.getInput(), rewriter.getF64FloatAttr(2.0),
+        rewriter.getBoolAttr(true));
     return success();
   }
 };
@@ -673,11 +676,47 @@ struct ConvertRlweEncodeOp : public OpConversionPattern<EncodeOp> {
     int64_t scale = lwe::getScalingFactorFromEncodingAttr(encoding);
 
     SmallVector<NamedAttribute> dialectAttrs(op->getDialectAttrs());
-    rewriter
-        .replaceOpWithNewOp<LattigoEncodeOp>(
-            op, this->typeConverter->convertType(op.getOutput().getType()),
-            evaluator, input, alloc, rewriter.getI64IntegerAttr(scale))
-        ->setDialectAttrs(dialectAttrs);
+    if constexpr (std::is_same_v<LattigoEncodeOp, lattigo::CKKSEncodeOp>) {
+      Value runtimeScaleFrom;
+      SetVector<Value> plaintextValues;
+      plaintextValues.insert(op.getOutput());
+      for (unsigned i = 0; i < plaintextValues.size() && !runtimeScaleFrom;
+           ++i) {
+        for (Operation* user : plaintextValues[i].getUsers()) {
+          if (isa<lwe::RAddPlainOp, lwe::RSubPlainOp>(user)) {
+            for (Value operand : user->getOperands()) {
+              if (!isa<lwe::LWECiphertextType>(
+                      getElementTypeOrSelf(operand.getType()))) {
+                continue;
+              }
+              runtimeScaleFrom = rewriter.getRemappedValue(operand);
+              if (runtimeScaleFrom) break;
+            }
+          } else {
+            for (Value result : user->getResults()) {
+              if (isa<lwe::LWEPlaintextType>(
+                      getElementTypeOrSelf(result.getType()))) {
+                plaintextValues.insert(result);
+              }
+            }
+          }
+          if (runtimeScaleFrom) break;
+        }
+      }
+
+      rewriter
+          .replaceOpWithNewOp<LattigoEncodeOp>(
+              op, this->typeConverter->convertType(op.getOutput().getType()),
+              evaluator, input, alloc, runtimeScaleFrom,
+              rewriter.getI64IntegerAttr(scale))
+          ->setDialectAttrs(dialectAttrs);
+    } else {
+      rewriter
+          .replaceOpWithNewOp<LattigoEncodeOp>(
+              op, this->typeConverter->convertType(op.getOutput().getType()),
+              evaluator, input, alloc, rewriter.getI64IntegerAttr(scale))
+          ->setDialectAttrs(dialectAttrs);
+    }
     return success();
   }
 };
