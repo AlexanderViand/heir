@@ -93,6 +93,12 @@ class GetVersionTest(absltest.TestCase):
     self.assertEqual(version, "2026.04.01")
     self.assertEqual(should_publish, "true")
 
+  @patch("tomllib.load")
+  @patch("builtins.open")
+  def test_get_package_name(self, mock_open, mock_load):
+    mock_load.return_value = {"project": {"name": "belfort-heir"}}
+    self.assertEqual(get_version.get_package_name(), "belfort-heir")
+
   def test_calculate_version_pr(self):
     version, should_publish = calculate_version(
         "pull_request", "refs/pull/123/merge", None, "heir_py"
