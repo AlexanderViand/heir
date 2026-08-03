@@ -11,11 +11,13 @@
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
 #include "lib/Dialect/Secret/IR/SecretTypes.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "lib/Target/CompilationTarget/CompilationTarget.h"
 #include "lib/Transforms/Halo/Patterns.h"
 #include "lib/Transforms/SecretInsertMgmt/SecretInsertMgmtPatterns.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/DenseMap.h"                // from @llvm-project
+#include "llvm/include/llvm/ADT/DenseSet.h"                // from @llvm-project
 #include "llvm/include/llvm/ADT/STLExtras.h"               // from @llvm-project
 #include "llvm/include/llvm/ADT/SetVector.h"               // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallPtrSet.h"             // from @llvm-project
@@ -117,7 +119,30 @@ void insertBootstrapsByForwardLevelSim(Operation* top, int lEff) {
   SmallVector<Operation*> ops;
   top->walk([&](Operation* op) { ops.push_back(op); });
 
+  // Backward sweep: does this value transitively feed a mod_reduce? A value
+  // at the bottom of the budget that only feeds level-preserving ops (adds,
+  // rotations, the function result) needs no refresh -- skipping those
+  // bootstraps is free. Reverse SSA order visits all users before the def.
+  llvm::DenseSet<Value> reachesModReduce;
+  for (Operation* op : llvm::reverse(ops)) {
+    if (isa<mgmt::ModReduceOp>(op)) {
+      for (Value operand : op->getOperands()) reachesModReduce.insert(operand);
+      continue;
+    }
+    // A bootstrap refreshes its result, so consumption below an existing
+    // bootstrap does not require its input to be refreshed.
+    if (isa<mgmt::BootstrapOp>(op)) continue;
+    bool resultReaches = llvm::any_of(op->getResults(), [&](Value res) {
+      return reachesModReduce.contains(res);
+    });
+    if (resultReaches)
+      for (Value operand : op->getOperands()) reachesModReduce.insert(operand);
+  }
+
+  llvm::DenseSet<Operation*> erased;
+
   for (Operation* op : ops) {
+    if (erased.contains(op)) continue;
     if (isa<mgmt::BootstrapOp>(op)) {
       for (Value res : op->getResults()) remaining[res] = lEff;
       continue;
@@ -137,14 +162,51 @@ void insertBootstrapsByForwardLevelSim(Operation* top, int lEff) {
       Value in = modReduce.getInput();
       int r = rem(in) - 1;
       remaining[modReduce.getResult()] = r;
-      if (r <= 0) {
-        OpBuilder builder(op);
-        builder.setInsertionPointAfter(op);
-        Value res = modReduce.getResult();
-        auto bootstrap = mgmt::BootstrapOp::create(builder, op->getLoc(),
-                                                   res.getType(), res);
-        res.replaceAllUsesExcept(bootstrap.getResult(), bootstrap);
-        remaining[bootstrap.getResult()] = lEff;
+      if (r > 0) continue;
+      // Refresh only pays off if something below still consumes levels.
+      Value res = modReduce.getResult();
+      if (!reachesModReduce.contains(res)) continue;
+      OpBuilder builder(op);
+      builder.setInsertionPointAfter(op);
+      auto bootstrap =
+          mgmt::BootstrapOp::create(builder, op->getLoc(), res.getType(), res);
+      res.replaceAllUsesExcept(bootstrap.getResult(), bootstrap);
+      remaining[bootstrap.getResult()] = lEff;
+      // Sibling rotations of the same source each carry their own
+      // rescale+refresh (matvec kernels emit one rotated copy per diagonal
+      // group); rescale and rotation commute, so serve them all from this
+      // ONE bootstrap by re-rotating its output. This collapses the
+      // per-rotated-copy bootstraps (e.g. 2 per ReLU on ToyHELRM, ~5 per
+      // ReLU on CriteoHELRM) into one refresh per logical value.
+      Value src = in;
+      for (Operation* user : llvm::make_early_inc_range(src.getUsers())) {
+        if (user == modReduce.getOperation() || erased.contains(user)) continue;
+        auto rot = dyn_cast<tensor_ext::RotateOp>(user);
+        if (!rot || !rot.getOutput().hasOneUse()) continue;
+        auto siblingMr =
+            dyn_cast<mgmt::ModReduceOp>(*rot.getOutput().getUsers().begin());
+        if (!siblingMr || erased.contains(siblingMr)) continue;
+        // Already refreshed on its own (it preceded us in SSA order but
+        // skipped/handled separately)? Leave it alone.
+        if (llvm::any_of(siblingMr.getResult().getUsers(), [](Operation* u) {
+              return isa<mgmt::BootstrapOp>(u);
+            }))
+          continue;
+        // The replacement rotate is inserted after the bootstrap; only
+        // rewrite siblings that come later, so all their users are
+        // dominated by it.
+        if (siblingMr->getBlock() != bootstrap->getBlock() ||
+            !bootstrap->isBeforeInBlock(siblingMr))
+          continue;
+        builder.setInsertionPointAfter(bootstrap);
+        auto newRot = tensor_ext::RotateOp::create(
+            builder, rot.getLoc(), rot.getOutput().getType(),
+            bootstrap.getResult(), rot.getShift());
+        siblingMr.getResult().replaceAllUsesWith(newRot.getOutput());
+        erased.insert(siblingMr);
+        erased.insert(rot);
+        siblingMr.erase();
+        rot.erase();
       }
       continue;
     }
