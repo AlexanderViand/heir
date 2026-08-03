@@ -48,9 +48,14 @@ def Lattigo_CKKSBootstrappingParametersLiteral
         where some field are not present in the current implementation.
 
         This struct contains only optional fields.
+
+        `logSlots` selects a sparse bootstrapper that only refreshes
+        `2^logSlots` slots; omit to use the scheme's default (full) slot
+        count.
     }];
     let parameters = (ins
-      OptionalParameter<"int">:$logN
+      OptionalParameter<"int">:$logN,
+      OptionalParameter<"int">:$logSlots
     );
 }
 

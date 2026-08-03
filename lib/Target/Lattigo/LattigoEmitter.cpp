@@ -2281,8 +2281,17 @@ LogicalResult LattigoEmitter::printOperation(
   auto btParams = op.getBtParamsLiteral();
   auto paramName = getName(op.getParams());
   auto errName = getErrName();
-  auto numSlotsAttr = dyn_cast_or_null<IntegerAttr>(
-      op->getParentOfType<ModuleOp>()->getAttr(kRequestedSlotCountAttrName));
+  // The literal's own logSlots takes precedence over the module-level slot
+  // count hint — this allows multiple bootstrap evaluators with distinct
+  // sparse slot counts to coexist in one program.
+  std::optional<int> logSlots;
+  if (btParams.getLogSlots()) {
+    logSlots = btParams.getLogSlots();
+  } else if (auto numSlotsAttr = dyn_cast_or_null<IntegerAttr>(
+                 op->getParentOfType<ModuleOp>()->getAttr(
+                     kRequestedSlotCountAttrName))) {
+    logSlots = (int)log2(numSlotsAttr.getInt());
+  }
   std::string resultName = getName(op.getResult());
   os << resultName << ", " << errName
      << " := bootstrapping.NewParametersFromLiteral(";
@@ -2290,10 +2299,8 @@ LogicalResult LattigoEmitter::printOperation(
   os << "bootstrapping.ParametersLiteral{\n";
   os.indent();
   os << "LogN: utils.Pointy(" << btParams.getLogN() << "),\n";
-  if (numSlotsAttr) {
-    int numSlots = numSlotsAttr.getInt();
-    int logNumSlots = (int)log2(numSlots);
-    os << "LogSlots: utils.Pointy(" << logNumSlots << "),\n";
+  if (logSlots.has_value()) {
+    os << "LogSlots: utils.Pointy(" << *logSlots << "),\n";
   }
   os.unindent();
   os << "})\n";

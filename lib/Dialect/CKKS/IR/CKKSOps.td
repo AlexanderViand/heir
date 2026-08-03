@@ -219,11 +219,18 @@ def CKKS_BootstrapOp : CKKS_Op<"bootstrap", [
   let description = [{
     Bootstrapping is a technique used in FHE to reduce the noise in a ciphertext
     and refresh its parameters, allowing for further computations on the ciphertext.
+
+    `logSlots` optionally requests a *sparse* bootstrap that only refreshes a
+    subspace of `2^logSlots` slots. Sparse bootstraps consume fewer levels than
+    a full-slot bootstrap and are useful when downstream code only reads back a
+    small number of slots (e.g. Orion's sign-function pipelines). When omitted,
+    the lowering uses the scheme's default (full-slot) bootstrapper.
   }];
 
   let arguments = (ins
     LWECiphertextLike:$input,
-    OptionalAttr<I64Attr>:$targetLevel
+    OptionalAttr<I64Attr>:$targetLevel,
+    OptionalAttr<I64Attr>:$logSlots
   );
 
   let results = (outs
