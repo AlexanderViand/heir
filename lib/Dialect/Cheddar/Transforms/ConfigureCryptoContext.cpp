@@ -136,6 +136,15 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
     ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
                                  i64(maxLevel), /*chainMaxLevel=*/IntegerAttr())
              ->getResult(0);
+  // Bootstrap precompute has the largest transient GPU-memory footprint. Run
+  // it before preparing the (potentially hundreds of) linear-transform keys;
+  // otherwise those resident keys can make an otherwise-valid N=16 context
+  // OOM during CtS/StC precomputation. Both CHEDDAR forks safely add or widen
+  // the transform keys afterward, and all keys still land in the same EvkMap.
+  if (bootstraps)
+    ui = PrepareBootstrapOp::create(builder, loc, TypeRange{uiTensor}, context,
+                                    ui, i64(numSlots))
+             ->getResult(0);
   // cheddar.linear_transform evaluates its BSGS rotations at the op's level;
   // CHEDDAR's level-specific key lookup (best-fit on the key-switch config)
   // can reject a chain-max key for a much lower level, so prepare each
@@ -147,12 +156,6 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
                                  i64(level), i64(maxLevel))
              ->getResult(0);
   }
-  // Bootstrap precompute + boot rotation keys land in the same UserInterface
-  // (EvkMap) as the program rotations above, so this must run last.
-  if (bootstraps)
-    ui = PrepareBootstrapOp::create(builder, loc, TypeRange{uiTensor}, context,
-                                    ui, i64(numSlots))
-             ->getResult(0);
   func::ReturnOp::create(builder, loc, ValueRange{context, ui});
 }
 
