@@ -219,6 +219,9 @@ struct CheddarConfigureCryptoContext
         // (rotation, level) pairs for linear_transform ops: their rotations
         // run at the op's level and need level-specific keys under CHEDDAR's
         // best-fit key lookup.
+        // Inline (non-prepared) linear_transform ops: their rotations run at
+        // the op's level and need level-specific keys. They have no runtime
+        // handle, so __configure always emits their keys.
         SetVector<std::pair<int64_t, int64_t>> ltKeySet;
         moduleOp.walk([&](LinearTransformOp ltOp) {
           int64_t ltLevel = ltOp.getLevel().getInt();
@@ -227,25 +230,35 @@ struct CheddarConfigureCryptoContext
               ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
           }
         });
-        // Split-preprocessed transforms hand the harness owning
-        // shared_ptr<LinearTransform> handles. With deferLintransKeys, the
-        // harness prepares exactly the rotations each *pruned* prepared
-        // transform needs at runtime (transform->AddRequiredRotations), so
-        // skip the conservative compile-time key set here: emitting the full
-        // per-level BSGS rotations for every prepared transform is what
-        // dominates GPU keygen residency on transform-heavy bootstrapping
-        // models. Inline LinearTransformOp keys (above) have no runtime handle
-        // and are always emitted.
+        // Split-preprocessed (prepared) transforms hand the harness owning
+        // shared_ptr<LinearTransform> handles. ALWAYS record their (rotation,
+        // level) pairs: the ltOnly() classifier below uses this set to keep
+        // these rotations OUT of the chain-max maxKeyRotations set. (Dropping
+        // them from the classification -- as a naive `if (!defer) walk` does --
+        // silently reclassifies them as generic rotations and emits
+        // full-modulus keys for each, which is the transform-heavy GPU keygen
+        // OOM.) Whether
+        // __configure *emits* per-level keys for them is the deferLintransKeys
+        // choice: when deferring, the harness requests exactly the pruned
+        // rotations each prepared transform needs at runtime
+        // (AddRequiredRotations), at the transform's own level -- so we record
+        // but do not emit here.
+        SetVector<std::pair<int64_t, int64_t>> preparedLtKeySet;
+        moduleOp.walk([&](ApplyPreparedLinearTransformOp ltOp) {
+          int64_t ltLevel = ltOp.getLevel().getInt();
+          for (OpFoldResult idx : ltOp.getRotationIndices()) {
+            if (auto attr = dyn_cast<Attribute>(idx))
+              preparedLtKeySet.insert(
+                  {cast<IntegerAttr>(attr).getInt(), ltLevel});
+          }
+        });
+        // Keys emitted by __configure: inline always; prepared only when NOT
+        // deferring (deferral leaves prepared keys to the harness at runtime).
+        SetVector<std::pair<int64_t, int64_t>> emittedLtKeySet(ltKeySet);
         if (!deferLintransKeys)
-          moduleOp.walk([&](ApplyPreparedLinearTransformOp ltOp) {
-            int64_t ltLevel = ltOp.getLevel().getInt();
-            for (OpFoldResult idx : ltOp.getRotationIndices()) {
-              if (auto attr = dyn_cast<Attribute>(idx))
-                ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
-            }
-          });
+          for (auto p : preparedLtKeySet) emittedLtKeySet.insert(p);
         SmallVector<std::pair<int64_t, int64_t>> ltRotationKeys(
-            ltKeySet.begin(), ltKeySet.end());
+            emittedLtKeySet.begin(), emittedLtKeySet.end());
         llvm::sort(ltRotationKeys);
 
         // Rotations used by any non-linear-transform op (hrot & co. look
@@ -275,8 +288,12 @@ struct CheddarConfigureCryptoContext
             nonLtRotations.insert(*d);
           }
         });
+        // Classify using ALL linear-transform rotations (inline + prepared,
+        // regardless of deferral) so a prepared-transform rotation is never
+        // mistaken for a generic rotation and keyed at chain max.
         DenseSet<int64_t> ltRotationSet;
-        for (auto [d, level] : ltRotationKeys) ltRotationSet.insert(d);
+        for (auto [d, level] : ltKeySet) ltRotationSet.insert(d);
+        for (auto [d, level] : preparedLtKeySet) ltRotationSet.insert(d);
         auto ltOnly = [&](int64_t d) {
           return !keepAllMaxKeys && ltRotationSet.contains(d) &&
                  !nonLtRotations.contains(d);
