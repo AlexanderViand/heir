@@ -45,11 +45,25 @@ def Orion_LinearTransformOp : Orion_Op<"linear_transform",
     and omitted, and as a result the first entry of `diagonals` corresponds to
     the diagonal with index `diagonal_indices[0]`, and so on.
 
+    Semantics: the transform is square over `slots`; diagonal `d` multiplies
+    the input rotated left by `d`, i.e.
+    `out[i] += diagonals[k][i] * in[(i + diagonal_indices[k]) mod slots]`.
+    Indices are interpreted modulo `slots` (canonical form `[0, slots)`).
+    The result is at the input's level with scale `input_scale * pt_scale`
+    (one plaintext-multiply depth); a `ckks.rescale` of the result is emitted
+    explicitly at the scheme level. Backends whose linear-transform kernel
+    rescales internally (CHEDDAR) absorb that rescale during lowering.
+    The plaintext encoding scale of the diagonals is backend-chosen so that
+    the post-rescale scale returns to the backend's canonical scale at the
+    output level (Lattigo: the rescale prime q_level; CHEDDAR: GetScale(level)).
+
     The `orion_level` attribute specifies the modulus level at which the operation
     should be performed.
 
-    The `bsgs_ratio` attribute is used to optimize the linear transformation
-    using the baby-step giant-step algorithm.
+    The `bsgs_ratio` attribute is the *linear* target ratio of baby steps to
+    giant steps for the baby-step/giant-step evaluation (the Orion frontend's
+    convention, e.g. `2.0`). Backends whose API takes a log2 ratio (Lattigo's
+    `LogBabyStepGiantStepRatio`) must convert.
 
     The `slots` attribute specifies the number of slots in the ciphertext.
   }];

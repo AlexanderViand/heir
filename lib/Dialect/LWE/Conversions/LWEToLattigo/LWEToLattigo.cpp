@@ -1,5 +1,6 @@
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 
+#include <cmath>
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -737,9 +738,11 @@ struct ConvertOrionLinearTransformOp
     }
     Value encoder = encoderResult.value();
 
-    auto bsgsRatio = op.getBsgsRatioAttr();
+    // orion.linear_transform carries a *linear* baby/giant ratio (e.g. 2.0);
+    // Lattigo's LogBabyStepGiantStepRatio wants its log2.
+    double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
     int64_t logBsgsRatio =
-        static_cast<int64_t>(cast<FloatAttr>(bsgsRatio).getValueAsDouble());
+        bsgsRatio >= 1 ? std::llround(std::log2(bsgsRatio)) : 0;
     auto logBsgsRatioAttr = rewriter.getI64IntegerAttr(logBsgsRatio);
 
     rewriter.replaceOpWithNewOp<lattigo::CKKSLinearTransformOp>(
