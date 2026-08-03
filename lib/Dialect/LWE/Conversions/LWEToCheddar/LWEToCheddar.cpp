@@ -301,8 +301,8 @@ struct ConvertCKKSRescaleOp : public OpConversionPattern<ckks::RescaleOp> {
   }
 };
 
-// Rotate -> keyless cheddar.hrot (the emitter looks up the rotation key
-// inline).
+// Rotate -> cheddar.hrot; the rotation key is looked up from the function's
+// UserInterface operand by the emitter.
 struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -310,6 +310,8 @@ struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
       ConversionPatternRewriter& rewriter) const override {
     auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
+    auto ui = getContextualArg<cheddar::UserInterfaceType>(op.getOperation());
+    if (failed(ui)) return ui;
     Value dynamicShift = adaptor.getDynamicShift();
     IntegerAttr staticShift = op.getStaticShiftAttr();
     if (!staticShift && !dynamicShift)
@@ -319,11 +321,11 @@ struct ConvertCKKSRotateOp : public OpConversionPattern<ckks::RotateOp> {
     Value dest = makeDest(rewriter, op.getLoc(), resultTy);
     if (dynamicShift) {
       rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
-          op, resultTy, ctx.value(), adaptor.getInput(), dest, dynamicShift,
-          /*static_distance=*/IntegerAttr());
+          op, resultTy, ctx.value(), ui.value(), adaptor.getInput(), dest,
+          dynamicShift, /*static_distance=*/IntegerAttr());
     } else {
       rewriter.replaceOpWithNewOp<cheddar::HRotOp>(
-          op, resultTy, ctx.value(), adaptor.getInput(), dest,
+          op, resultTy, ctx.value(), ui.value(), adaptor.getInput(), dest,
           /*dynamic_distance=*/Value(), staticShift);
     }
     return success();

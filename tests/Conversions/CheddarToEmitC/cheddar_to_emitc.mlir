@@ -151,7 +151,7 @@ func.func @dec_chain(%enc: !encoder, %ui: !user_interface, %ct: tensor<!cipherte
 // CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey(5), 5);"
 func.func @hrot_static(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertext>) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %r = cheddar.hrot %ctx, %ct, %d0 {static_distance = 5 : i64} : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %r = cheddar.hrot %ctx, %ui, %ct, %d0 {static_distance = 5 : i64} : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   return %r : tensor<!ciphertext>
 }
 
@@ -160,7 +160,7 @@ func.func @hrot_static(%ctx: !context, %ui: !user_interface, %ct: tensor<!cipher
 // CHECK-SAME: %arg3, %arg3
 func.func @hrot_dyn(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertext>, %d: index) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %r = cheddar.hrot %ctx, %ct, %d0, %d : (!context, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
+  %r = cheddar.hrot %ctx, %ui, %ct, %d0, %d : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
   return %r : tensor<!ciphertext>
 }
 
@@ -168,7 +168,7 @@ func.func @hrot_dyn(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertex
 // CHECK: emitc.verbatim "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());"
 func.func @hconj_add(%ctx: !context, %ui: !user_interface, %a: tensor<!ciphertext>, %b: tensor<!ciphertext>) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %r = cheddar.hconj_add %ctx, %a, %b, %d0 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %r = cheddar.hconj_add %ctx, %ui, %a, %b, %d0 : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   return %r : tensor<!ciphertext>
 }
 

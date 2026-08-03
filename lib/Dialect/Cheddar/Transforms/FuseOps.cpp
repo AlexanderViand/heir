@@ -144,8 +144,8 @@ struct FuseHRotAdd : public OpRewritePattern<AddOp> {
     }
 
     rewriter.replaceOpWithNewOp<HRotAddOp>(
-        addOp, addOp->getResultTypes(), hrotOp.getCtx(), hrotOp.getInput(),
-        otherOperand, addOp.getOutput(), distanceAttr);
+        addOp, addOp->getResultTypes(), hrotOp.getCtx(), hrotOp.getUi(),
+        hrotOp.getInput(), otherOperand, addOp.getOutput(), distanceAttr);
     rewriter.eraseOp(hrotOp);
     return success();
   }
@@ -162,8 +162,8 @@ struct FuseHConjAdd : public OpRewritePattern<AddOp> {
     if (!hconjOp) return failure();
 
     rewriter.replaceOpWithNewOp<HConjAddOp>(
-        addOp, addOp->getResultTypes(), hconjOp.getCtx(), hconjOp.getInput(),
-        otherOperand, addOp.getOutput());
+        addOp, addOp->getResultTypes(), hconjOp.getCtx(), hconjOp.getUi(),
+        hconjOp.getInput(), otherOperand, addOp.getOutput());
     rewriter.eraseOp(hconjOp);
     return success();
   }

@@ -185,17 +185,6 @@ void emitOutParamCall(OpBuilder& b, Location loc, Value receiver,
                              /*template_args=*/ArrayAttr{}, argOperands);
 }
 
-// The enclosing function's UserInterface argument (looked up by converted
-// type); used by the rotation ops, which look up `ui->GetRotationKey(d)`
-// inline.
-Value findUi(Operation* op, const TypeConverter& tc) {
-  Type uiType =
-      tc.convertType(cheddar::UserInterfaceType::get(op->getContext()));
-  auto r = getContextualArgFromFunc(op, uiType);
-  if (failed(r)) return Value{};
-  return r.value();
-}
-
 //===----------------------------------------------------------------------===//
 // Type conversions
 //===----------------------------------------------------------------------===//
@@ -637,9 +626,7 @@ struct ConvertHRot : public OpConversionPattern<cheddar::HRotOp> {
   LogicalResult matchAndRewrite(
       cheddar::HRotOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    Value ui = findUi(op, *typeConverter);
-    if (!ui)
-      return op.emitOpError("enclosing function is missing UserInterface arg");
+    Value ui = adaptor.getUi();
     Value out = adaptor.getOutput();
     if (auto sd = op.getStaticDistanceAttr()) {
       std::string d = intLit(sd);
@@ -664,9 +651,7 @@ struct ConvertHRotAdd : public OpConversionPattern<cheddar::HRotAddOp> {
   LogicalResult matchAndRewrite(
       cheddar::HRotAddOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    Value ui = findUi(op, *typeConverter);
-    if (!ui)
-      return op.emitOpError("enclosing function is missing UserInterface arg");
+    Value ui = adaptor.getUi();
     std::string d = intLit(op.getDistanceAttr());
     VerbatimOp::create(
         rewriter, op.getLoc(),
@@ -683,9 +668,7 @@ struct ConvertHConj : public OpConversionPattern<cheddar::HConjOp> {
   LogicalResult matchAndRewrite(
       cheddar::HConjOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    Value ui = findUi(op, *typeConverter);
-    if (!ui)
-      return op.emitOpError("enclosing function is missing UserInterface arg");
+    Value ui = adaptor.getUi();
     VerbatimOp::create(rewriter, op.getLoc(),
                        "{}->HConj({}, {}, {}->GetConjugationKey());",
                        ValueRange{adaptor.getCtx(), adaptor.getOutput(),
@@ -700,9 +683,7 @@ struct ConvertHConjAdd : public OpConversionPattern<cheddar::HConjAddOp> {
   LogicalResult matchAndRewrite(
       cheddar::HConjAddOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    Value ui = findUi(op, *typeConverter);
-    if (!ui)
-      return op.emitOpError("enclosing function is missing UserInterface arg");
+    Value ui = adaptor.getUi();
     VerbatimOp::create(rewriter, op.getLoc(),
                        "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());",
                        ValueRange{adaptor.getCtx(), adaptor.getOutput(),

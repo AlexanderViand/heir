@@ -102,17 +102,17 @@ func.func @rotations(%ctx: !context, %ui: !cheddar.user_interface,
                      %a: tensor<!ciphertext>, %b: tensor<!ciphertext>)
     -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %0 = cheddar.hrot %ctx, %a, %d0 {static_distance = 5 : i64}
-      : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %0 = cheddar.hrot %ctx, %ui, %a, %d0 {static_distance = 5 : i64}
+      : (!context, !cheddar.user_interface, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   %d1 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %1 = cheddar.hrot_add %ctx, %0, %b, %d1 {distance = 7 : i64}
-      : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %1 = cheddar.hrot_add %ctx, %ui, %0, %b, %d1 {distance = 7 : i64}
+      : (!context, !cheddar.user_interface, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   %d2 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %2 = cheddar.hconj %ctx, %1, %d2
-      : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %2 = cheddar.hconj %ctx, %ui, %1, %d2
+      : (!context, !cheddar.user_interface, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   %d3 = bufferization.alloc_tensor() : tensor<!ciphertext>
-  %3 = cheddar.hconj_add %ctx, %2, %b, %d3
-      : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  %3 = cheddar.hconj_add %ctx, %ui, %2, %b, %d3
+      : (!context, !cheddar.user_interface, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   return %3 : tensor<!ciphertext>
 }
 

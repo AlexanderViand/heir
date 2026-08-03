@@ -55,14 +55,14 @@ func.func @fuse_hmult_relin_rescale(
 // hrot (static distance) + add -> hrot_add
 // CHECK: @fuse_hrot_add_static
 func.func @fuse_hrot_add_static(
-    %ctx: !cheddar.context, %ct0: tensor<!ct>,
+    %ctx: !cheddar.context, %ui: !cheddar.user_interface, %ct0: tensor<!ct>,
     %ct1: tensor<!ct>) -> tensor<!ct> {
   // CHECK-NOT: cheddar.hrot %
   // CHECK-NOT: cheddar.add
   // CHECK: cheddar.hrot_add
   // CHECK-SAME: distance = 3
   %d0 = bufferization.alloc_tensor() : tensor<!ct>
-  %rotated = cheddar.hrot %ctx, %ct0, %d0 {static_distance = 3 : i64} : (!cheddar.context, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
+  %rotated = cheddar.hrot %ctx, %ui, %ct0, %d0 {static_distance = 3 : i64} : (!cheddar.context, !cheddar.user_interface, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
   %d1 = bufferization.alloc_tensor() : tensor<!ct>
   %sum = cheddar.add %ctx, %rotated, %ct1, %d1 : (!cheddar.context, tensor<!ct>, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
   return %sum : tensor<!ct>
@@ -71,7 +71,7 @@ func.func @fuse_hrot_add_static(
 // hrot (constant dynamic distance, the rotate-and-sum form) + add -> hrot_add
 // CHECK: @fuse_hrot_add_dynamic_const
 func.func @fuse_hrot_add_dynamic_const(
-    %ctx: !cheddar.context, %ct0: tensor<!ct>,
+    %ctx: !cheddar.context, %ui: !cheddar.user_interface, %ct0: tensor<!ct>,
     %ct1: tensor<!ct>) -> tensor<!ct> {
   // CHECK-NOT: cheddar.hrot %
   // CHECK-NOT: cheddar.add
@@ -79,7 +79,7 @@ func.func @fuse_hrot_add_dynamic_const(
   // CHECK-SAME: distance = 5
   %d = arith.constant 5 : index
   %d0 = bufferization.alloc_tensor() : tensor<!ct>
-  %rotated = cheddar.hrot %ctx, %ct0, %d0, %d : (!cheddar.context, tensor<!ct>, tensor<!ct>, index) -> tensor<!ct>
+  %rotated = cheddar.hrot %ctx, %ui, %ct0, %d0, %d : (!cheddar.context, !cheddar.user_interface, tensor<!ct>, tensor<!ct>, index) -> tensor<!ct>
   %d1 = bufferization.alloc_tensor() : tensor<!ct>
   %sum = cheddar.add %ctx, %rotated, %ct1, %d1 : (!cheddar.context, tensor<!ct>, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
   return %sum : tensor<!ct>
@@ -88,13 +88,13 @@ func.func @fuse_hrot_add_dynamic_const(
 // hconj + add -> hconj_add
 // CHECK: @fuse_hconj_add
 func.func @fuse_hconj_add(
-    %ctx: !cheddar.context, %ct0: tensor<!ct>,
+    %ctx: !cheddar.context, %ui: !cheddar.user_interface, %ct0: tensor<!ct>,
     %ct1: tensor<!ct>) -> tensor<!ct> {
   // CHECK-NOT: cheddar.hconj %
   // CHECK-NOT: cheddar.add
   // CHECK: cheddar.hconj_add
   %d0 = bufferization.alloc_tensor() : tensor<!ct>
-  %conj = cheddar.hconj %ctx, %ct0, %d0 : (!cheddar.context, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
+  %conj = cheddar.hconj %ctx, %ui, %ct0, %d0 : (!cheddar.context, !cheddar.user_interface, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
   %d1 = bufferization.alloc_tensor() : tensor<!ct>
   %sum = cheddar.add %ctx, %conj, %ct1, %d1 : (!cheddar.context, tensor<!ct>, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
   return %sum : tensor<!ct>
@@ -104,13 +104,13 @@ func.func @fuse_hconj_add(
 // attribute, so the hrot + add is left unfused.
 // CHECK: @no_fuse_hrot_add_nonconst
 func.func @no_fuse_hrot_add_nonconst(
-    %ctx: !cheddar.context, %ct0: tensor<!ct>,
+    %ctx: !cheddar.context, %ui: !cheddar.user_interface, %ct0: tensor<!ct>,
     %ct1: tensor<!ct>, %d: index) -> tensor<!ct> {
   // CHECK: cheddar.hrot
   // CHECK: cheddar.add
   // CHECK-NOT: cheddar.hrot_add
   %d0 = bufferization.alloc_tensor() : tensor<!ct>
-  %rotated = cheddar.hrot %ctx, %ct0, %d0, %d : (!cheddar.context, tensor<!ct>, tensor<!ct>, index) -> tensor<!ct>
+  %rotated = cheddar.hrot %ctx, %ui, %ct0, %d0, %d : (!cheddar.context, !cheddar.user_interface, tensor<!ct>, tensor<!ct>, index) -> tensor<!ct>
   %d1 = bufferization.alloc_tensor() : tensor<!ct>
   %sum = cheddar.add %ctx, %rotated, %ct1, %d1 : (!cheddar.context, tensor<!ct>, tensor<!ct>, tensor<!ct>) -> tensor<!ct>
   return %sum : tensor<!ct>
