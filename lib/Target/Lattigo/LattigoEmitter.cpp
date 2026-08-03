@@ -2294,8 +2294,44 @@ LogicalResult LattigoEmitter::printOperation(CKKSBootstrapOp op) {
   imports.insert(std::string(kBootstrappingImport));
 
   std::string resultName = getName(op.getResult());
-  emitAssignmentWithErr(resultName, getName(op.getEvaluator()) + ".Bootstrap(" +
-                                        getName(op.getInput()) + ")");
+  std::string evalName = getName(op.getEvaluator());
+  emitAssignmentWithErr(
+      resultName, evalName + ".Bootstrap(" + getName(op.getInput()) + ")");
+
+  // Realify the bootstrap output: a CKKS bootstrap (CoeffsToSlots / EvalMod /
+  // SlotsToCoeffs) leaves the EvalMod error and the conjugate term in the
+  // imaginary slots; Lattigo's default boot (dft.RepackImagAsReal) does NOT
+  // strip them. A real-valued pipeline must remove them, otherwise the hidden
+  // imaginary component is propagated by the (complex-linear) downstream layers
+  // and a subsequent Chebyshev eval_poly -- bounded only on the real axis --
+  // detonates on it (~1e16+). This mirrors CHEDDAR's kImaginaryRemoving boot
+  // variant. We use the classic conjugate trick: re(ct) = 0.5*(ct + conj(ct)).
+  // The bootstrap evaluator's key set already contains the complex-conjugation
+  // Galois key (bootstrapping.Parameters.GaloisElements appends
+  // GaloisElementForComplexConjugation), and HEIR emits the bootstrapping ring
+  // with the same LogN as the residual ring, so the embedded ckks.Evaluator
+  // operates in the same domain as the (N1) bootstrap output.
+  //
+  // ct + conj(ct) yields 2*re; the final 0.5 is applied as a pure scale fiddle
+  // (ct.Scale *= 2, so the decode = poly/scale halves the message) rather than
+  // a scalar ciphertext multiply: a float Mul by 0.5 would inflate the scale by
+  // a whole RNS prime (~2^logScale) without rescaling, leaving op.Scale far
+  // above the Chebyshev target and tripping Lattigo's "op0.Scale > opOut.Scale"
+  // guard. (Lattigo applies constant message factors the same way -- a metadata
+  // scale tweak rather than a ciphertext op; cf. EvaluateConjugateInvariant's
+  // Scale.Mul, though that compensates an unrelated ring-switch factor.) No
+  // level is consumed and the downstream Chebyshev emitter reads ct.Scale at
+  // runtime, so the pipeline stays scale-consistent.
+  std::string conjName = resultName + "_conj";
+  auto errName = getErrName();
+  os << conjName << ", " << errName << " := " << evalName << ".ConjugateNew("
+     << resultName << ")\n";
+  printErrPanic(errName);
+  os << resultName << ", " << errName << " = " << evalName << ".AddNew("
+     << resultName << ", " << conjName << ")\n";
+  printErrPanic(errName);
+  os << resultName << ".Scale = " << resultName
+     << ".Scale.Mul(rlwe.NewScale(2.0))\n";
   return success();
 }
 
