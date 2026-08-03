@@ -1738,8 +1738,16 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
   template <typename LT, typename CP, typename M>
   static auto MakeLinearTransform(CP cp, const M& m, int level, double scale,
                                   int bs, int gs, int logPtSizePerPrime, int)
-      -> decltype(std::make_shared<LT>(cp, m, level, scale, bs, gs, 0, 0,
-                                       logPtSizePerPrime)) {
+      -> std::enable_if_t<
+          std::is_constructible_v<LT, CP, M, int, double, int, int, int, int,
+                                  int>,
+          std::shared_ptr<LT>> {
+    // NB: constrain on is_constructible_v, NOT decltype(make_shared<LT>(...)):
+    // make_shared is variadic, so its return type is well-formed for ANY args
+    // and the ctor-viability check happens in its (non-immediate) body -> that
+    // decltype never SFINAEs, so it would always pick this 9-arg overload and
+    // hard-error on scale-snu cheddar's 8-arg ctor. is_constructible_v tests
+    // the ctor in the immediate context, so it correctly falls back below.
     return std::make_shared<LT>(cp, m, level, scale, bs, gs,
                                 /*pre_rotation=*/0, /*additional_pt_rot=*/0,
                                 logPtSizePerPrime);
