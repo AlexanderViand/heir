@@ -1649,6 +1649,35 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
   static void PrepareLintransRotKey(UIP& ui, int d, int level, int chain_max) {
     PrepareLintransRotKeyImpl(ui, d, level, chain_max, 0);
   }
+  // Construct a LinearTransform, passing a compact per-prime plaintext period
+  // when the fork's constructor supports it. An arbitrary W-slot CKKS message
+  // has only a 2*W-word period in cyclops' bit-reversed NTT plaintext layout,
+  // so keeping a single period (log_pt_size_per_prime = floor(log2 W) + 1)
+  // instead of the full ring-degree plaintext sharply cuts a prepared
+  // transform's device residency (the LogN-16 driver of GPU OOM). scale-snu
+  // CHEDDAR has no such constructor argument; SFINAE selects its base
+  // constructor there (mirrors the RunLinearTransformEval dispatch above).
+  static int LinearTransformLogPtSizePerPrime(int W) {
+    int lps = 1;
+    for (int n = W; n > 1; n >>= 1) ++lps;
+    return lps;
+  }
+  template <typename LT, typename CP, typename M>
+  static auto MakeLinearTransform(CP cp, const M& m, int level, double scale,
+                                  int bs, int gs, int logPtSizePerPrime, int)
+      -> decltype(std::make_shared<LT>(cp, m, level, scale, bs, gs, 0, 0,
+                                       logPtSizePerPrime)) {
+    return std::make_shared<LT>(cp, m, level, scale, bs, gs,
+                                /*pre_rotation=*/0, /*additional_pt_rot=*/0,
+                                logPtSizePerPrime);
+  }
+  template <typename LT, typename CP, typename M>
+  static std::shared_ptr<LT> MakeLinearTransform(CP cp, const M& m, int level,
+                                                 double scale, int bs, int gs,
+                                                 int /*logPtSizePerPrime*/,
+                                                 long) {
+    return std::make_shared<LT>(cp, m, level, scale, bs, gs);
+  }
   template <int W, typename wordT, typename diagT>
   static void PrepareLinearTransform(
       std::shared_ptr<cheddar::LinearTransform<wordT>>& out,
@@ -1661,8 +1690,9 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
       ++d;
     }
     cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
-    out = std::make_shared<cheddar::LinearTransform<wordT>>(
-        cp, m, level, ctx->param_.GetScale(level), bs, gs);
+    out = MakeLinearTransform<cheddar::LinearTransform<wordT>>(
+        cp, m, level, ctx->param_.GetScale(level), bs, gs,
+        LinearTransformLogPtSizePerPrime(W), 0);
   }
   template <typename wordT>
   static void RunPreparedLinearTransform(
