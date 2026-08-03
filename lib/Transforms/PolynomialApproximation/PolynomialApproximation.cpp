@@ -1,9 +1,11 @@
 #include "lib/Transforms/PolynomialApproximation/PolynomialApproximation.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
 #include <utility>
+#include <vector>
 
 #include "lib/Dialect/MathExt/IR/MathExtOps.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
@@ -473,6 +475,123 @@ struct ExpOpTaylorApproximation : public OpRewritePattern<math::ExpOp> {
   int64_t defaultK;
 };
 
+// Minimax composite-sign coefficients (Chebyshev basis on [-1, 1]) for the
+// degree schedule [15, 15, 27]. Lifted from orion's
+// `generate_minimax_sign_coeffs([15,15,27], prec=128, logalpha=6, logerr=12)`,
+// which wraps the lattigo minimax solver. The first two polynomials map
+// [-1,1] -> [-1,1] converging toward sign(x); the third maps to a [0,1] step
+// so that ReLU(x) = x * step(x). These are universal (function-only, not
+// model-specific), so we hardcode them rather than re-solving the minimax
+// problem inside HEIR.
+static const std::vector<double> kCompositeSignPoly0 = {
+    -0.0, 0.756018280983,  0.0,  -0.253032654524, 0.0, 0.153152108192,
+    -0.0, -0.110901109874, -0.0, 0.087929151952,  0.0, -0.073912657797,
+    -0.0, 0.064969979227,  0.0,  -0.436979353428};
+static const std::vector<double> kCompositeSignPoly1 = {
+    0.0,  1.236891150475,  0.0,  -0.398085355759, -0.0, 0.222488179803,
+    -0.0, -0.142359510064, -0.0, 0.095177434385,  -0.0, -0.063848823309,
+    -0.0, 0.041804868728,  0.0,  -0.040160164237};
+static const std::vector<double> kCompositeSignPoly2 = {
+    0.500023841858, 0.625914692879, -4.4641296e-05, -0.182119160891,
+    3.664539e-05,   0.083136156201, -2.6313986e-05, -0.039259493351,
+    1.6471087e-05,  0.017457883805, -8.940689e-06,  -0.007013411261,
+    4.17812e-06,    0.002478481503, -1.664388e-06,  -0.000753055967,
+    5.57635e-07,    0.000191995525, -1.5425e-07,    -3.9858889e-05,
+    3.4315e-08,     6.462984e-06,   -5.904e-09,     -7.67161e-07,
+    7.38e-10,       5.9265e-08,     -6e-11,         -2.236e-09};
+
+// Approximates ReLU as `x * step(x / B)` where `step` is the composite-sign
+// approximation (3 chained Chebyshev polys) and `B` is the input bound taken
+// from the op's `domain_lower`/`domain_upper` attrs. This matches orion's
+// ReLU FHE implementation and is far more accurate than a single low-degree
+// polynomial fit to `max(x, 0)` (which has large kink error and extrapolates
+// catastrophically outside its fit domain). Only matches the ReLU shape
+// `arith.maximumf %x, 0` and is gated behind the pass's `useCompositeRelu`
+// option; otherwise the generic single-polynomial ConvertBinaryConstOp path
+// handles maximumf.
+struct ReluViaCompositeSign : public OpRewritePattern<arith::MaximumFOp> {
+  // benefit 2 > the generic ConvertBinaryConstOp benefit (1) so this wins
+  // for the ReLU shape when the option is enabled.
+  ReluViaCompositeSign(mlir::MLIRContext* context)
+      : OpRewritePattern<arith::MaximumFOp>(context, /*benefit=*/2) {}
+
+  LogicalResult matchAndRewrite(arith::MaximumFOp op,
+                                PatternRewriter& rewriter) const override {
+    // Identify the ReLU shape: one operand is a constant equal to 0.
+    auto lhsConst = getSingleValueOrSplat(op.getLhs());
+    auto rhsConst = getSingleValueOrSplat(op.getRhs());
+    Value x;
+    if (succeeded(rhsConst) && rhsConst.value().isZero()) {
+      x = op.getLhs();
+    } else if (succeeded(lhsConst) && lhsConst.value().isZero()) {
+      x = op.getRhs();
+    } else {
+      return rewriter.notifyMatchFailure(op, "not a ReLU (max(x, 0)) shape");
+    }
+
+    // The ReLU may be scalar (f32) or shaped (tensor<...xf32>); in the
+    // torch-linalg-to-ckks flow the maximumf operates on tensors inside a
+    // secret.generic, so match on the element type and splat constants.
+    Type opType = op.getType();
+    Type elemType = getElementTypeOrSelf(opType);
+    if (!isa<FloatType>(elemType)) {
+      return rewriter.notifyMatchFailure(op, "non-float ReLU operand");
+    }
+
+    // Input bound B from the domain attrs; fall back to the default domain.
+    double lower = kDefaultDomainLower;
+    double upper = kDefaultDomainUpper;
+    if (auto a = dyn_cast_or_null<FloatAttr>(op->getAttr("domain_lower")))
+      lower = a.getValue().convertToDouble();
+    if (auto a = dyn_cast_or_null<FloatAttr>(op->getAttr("domain_upper")))
+      upper = a.getValue().convertToDouble();
+    double bound = std::max(std::abs(lower), std::abs(upper));
+    if (bound == 0.0) bound = 1.0;
+
+    MLIRContext* ctx = op.getContext();
+    Location loc = op.getLoc();
+    PolynomialType polyType =
+        PolynomialType::get(ctx, RingAttr::get(Float64Type::get(ctx)));
+
+    auto makeEval = [&](Value in, const std::vector<double>& coeffs) -> Value {
+      // NB: `ChebyshevPolynomial poly(ArrayRef<double>(coeffs))` would be a
+      // most-vexing-parse function declaration; bind the ArrayRef to a named
+      // variable first so this is unambiguously a value construction.
+      ArrayRef<double> coeffRef(coeffs);
+      ChebyshevPolynomial poly(coeffRef);
+      auto polyAttr = TypedChebyshevPolynomialAttr::get(polyType, poly);
+      // Mirror the proven call form used by ConvertUnaryOp/ConvertBinaryConstOp
+      // (`replaceOpWithNewOp<EvalOp>(op, polyAttr, operand)`): pass (polyAttr,
+      // value); the result type follows the input via AllTypesMatch.
+      auto eval = rewriter.create<EvalOp>(loc, polyAttr, in);
+      // The sign polys are fit on [-1, 1]; record that for downstream
+      // domain-rescaling in LowerPolynomialEval.
+      eval->setAttr("domain_lower", rewriter.getF64FloatAttr(-1.0));
+      eval->setAttr("domain_upper", rewriter.getF64FloatAttr(1.0));
+      return eval.getResult();
+    };
+
+    // xs = x * (1/B)  -> prescale into [-1, 1]. Build a splat constant when the
+    // operand is shaped so the multiply type-checks against the tensor operand.
+    auto invBFloat =
+        cast<FloatAttr>(rewriter.getFloatAttr(elemType, 1.0 / bound));
+    TypedAttr invBAttr =
+        isa<ShapedType>(opType)
+            ? cast<TypedAttr>(DenseElementsAttr::get(cast<ShapedType>(opType),
+                                                     invBFloat.getValue()))
+            : cast<TypedAttr>(invBFloat);
+    Value invB = rewriter.create<arith::ConstantOp>(loc, invBAttr);
+    Value xs = rewriter.create<arith::MulFOp>(loc, x, invB);
+    // step(xs) via the 3-stage composite sign approximation.
+    Value s0 = makeEval(xs, kCompositeSignPoly0);
+    Value s1 = makeEval(s0, kCompositeSignPoly1);
+    Value step = makeEval(s1, kCompositeSignPoly2);
+    // ReLU(x) = x * step(x/B)  (step in [0,1]; B>0 so sign unchanged by scale)
+    rewriter.replaceOpWithNewOp<arith::MulFOp>(op, x, step);
+    return success();
+  }
+};
+
 struct PolynomialApproximation
     : impl::PolynomialApproximationBase<PolynomialApproximation> {
   using PolynomialApproximationBase::PolynomialApproximationBase;
@@ -483,6 +602,9 @@ struct PolynomialApproximation
 
     // High priority patterns
     patterns.add<ExpOpTaylorApproximation>(context, /*k=*/7);
+    if (useCompositeRelu) {
+      patterns.add<ReluViaCompositeSign>(context);
+    }
 
     // Math unary ops
     patterns.add<ConvertUnaryOp<math::AbsFOp>>(context, absf);
