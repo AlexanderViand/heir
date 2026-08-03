@@ -21,9 +21,18 @@ def CheddarToEmitC : Pass<"cheddar-emitc-boundary"> {
     (* example filepath=tests/Conversions/CheddarToEmitC/doctest.mlir *)
   }];
 
+  // Also list the dialects that the preceding `--convert-to-emitc` restricts to
+  // via `filter-dialects=cheddar,arith,scf,memref`: that pass errors if a
+  // filtered dialect is not *loaded*, and a program without loops/allocs would
+  // not otherwise load scf/memref. Declaring them here (this pass always runs
+  // right after convert-to-emitc) forces them loaded at pass-manager init.
   let dependentDialects = [
     "::mlir::emitc::EmitCDialect",
     "::mlir::func::FuncDialect",
+    "::mlir::arith::ArithDialect",
+    "::mlir::scf::SCFDialect",
+    "::mlir::memref::MemRefDialect",
+    "::mlir::heir::cheddar::CheddarDialect",
   ];
 }
 

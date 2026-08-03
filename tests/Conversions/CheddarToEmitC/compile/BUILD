@@ -24,7 +24,7 @@ heir_opt(
         "--buffer-results-to-out-params=hoist-static-allocs=true modify-public-functions=true add-result-attr=true",
         "--fold-memref-alias-ops",
         "--canonicalize",
-        "--convert-to-emitc",
+        "--convert-to-emitc=filter-dialects=cheddar,arith,scf,memref",
         "--cheddar-emitc-boundary",
         "--reconcile-unrealized-casts",
     ],
