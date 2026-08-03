@@ -13,6 +13,7 @@
 #include <complex>
 #include <cstdint>
 #include <initializer_list>
+#include <map>
 #include <vector>
 
 #include "UserInterface.h"
@@ -28,21 +29,33 @@ namespace cheddar {
 
 // cheddar.linear_transform shim: pack the diagonal-packed weights into a
 // StripedMatrix, construct the transform at the op's level/scale, evaluate.
-template <int W, typename wordT>
+// diagT: f64 from the orion frontend, f32 from the torch-linalg path.
+// Construction encodes every diagonal (the dominant cost); the weights are
+// fixed for the process lifetime, so the transform is memoized on the
+// diagonal array's address and reused across evaluations.
+template <int W, typename wordT, typename diagT>
 void RunLinearTransform(Ciphertext<wordT>& out, Context<wordT>* ctx,
                         const Ciphertext<wordT>& in,
-                        const EvkMap<wordT>& evk_map, double diag[][W],
+                        const EvkMap<wordT>& evk_map, diagT diag[][W],
                         std::initializer_list<int> idx, int level, int bs,
                         int gs) {
-  StripedMatrix m(W, W);
-  int d = 0;
-  for (int k : idx) {
-    m[k] = std::vector<std::complex<double>>(diag[d], diag[d] + W);
-    ++d;
-  }
+  static std::map<const void*, LinearTransform<wordT>> cache;
   ConstContextPtr<wordT> cp(ConstContextPtr<wordT>(), ctx);
-  LinearTransform<wordT> lt(cp, m, level, ctx->param_.GetScale(level), bs, gs);
-  lt.Evaluate(cp, out, in, evk_map);
+  auto it = cache.find(diag);
+  if (it == cache.end()) {
+    StripedMatrix m(W, W);
+    int d = 0;
+    for (int k : idx) {
+      m[k] = std::vector<std::complex<double>>(diag[d], diag[d] + W);
+      ++d;
+    }
+    it = cache
+             .emplace(std::piecewise_construct, std::forward_as_tuple(diag),
+                      std::forward_as_tuple(
+                          cp, m, level, ctx->param_.GetScale(level), bs, gs))
+             .first;
+  }
+  it->second.Evaluate(cp, out, in, evk_map);
 }
 
 // cheddar.eval_poly shim: evaluate a Chebyshev series on [-1, 1], rescaling the
