@@ -538,6 +538,15 @@ struct ConvertPrepareBootstrap
                        ValueRange{ctx});
     VerbatimOp::create(rewriter, op.getLoc(),
                        "{}->PrepareRotationKey(boot_evk_req);", ValueRange{ui});
+    // Bootstrap CtS/StC precompute is the largest transient GPU allocation and
+    // some forks' binning allocators cache the freed scratch. Reclaim it at
+    // this boundary (before weight encode + transform keygen) via a
+    // consumer-provided hook: the cyclops prelude calls
+    // cheddar::GPU::ReleaseUnusedMemory(); the scale-snu prelude defines it as
+    // a no-op (no such pool API). Keeps this emission backend-agnostic, like
+    // heir_load_f32 / __heir_debug.
+    VerbatimOp::create(rewriter, op.getLoc(), "__medusa_reclaim();",
+                       ValueRange{});
     rewriter.eraseOp(op);
     return success();
   }
@@ -1605,6 +1614,7 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <type_traits>
 #include <vector>
   // Evaluate with min_ks=true when the fork supports it: scale-snu CHEDDAR's
   // hoisted BSGS silently corrupts transforms at deep levels (beta == 1) when
@@ -1677,6 +1687,26 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
                                                  int /*logPtSizePerPrime*/,
                                                  long) {
     return std::make_shared<LT>(cp, m, level, scale, bs, gs);
+  }
+  // Deferred linear-transform keygen: ask a prepared transform for exactly the
+  // rotations it needs (post zero-diagonal pruning) so the harness can generate
+  // only those keys, instead of __configure emitting the full conservative BSGS
+  // set. scale-snu cheddar's AddRequiredRotations takes (req, min_ks) and must
+  // use the SAME min_ks decision as evaluation (RunLinearTransformEval passes
+  // lt.IsUsingBSGS()), or keygen and eval disagree and a needed key is missing;
+  // cyclops exposes only AddRequiredRotations(req) and needs no such flag.
+  // Prefer the 2-arg form (the (int) overload) so cheddar matches its eval;
+  // cyclops (no 2-arg / no IsUsingBSGS) falls to the (long) 1-arg overload.
+  template <typename T, typename Req>
+  static auto AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
+                                           Req& req, int)
+      -> decltype(lt->AddRequiredRotations(req, lt->IsUsingBSGS()), void()) {
+    lt->AddRequiredRotations(req, lt->IsUsingBSGS());
+  }
+  template <typename T, typename Req>
+  static void AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
+                                           Req& req, long) {
+    lt->AddRequiredRotations(req);
   }
   template <int W, typename wordT, typename diagT>
   static void PrepareLinearTransform(

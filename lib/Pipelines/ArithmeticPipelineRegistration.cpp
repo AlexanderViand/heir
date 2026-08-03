@@ -784,6 +784,8 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     auto cheddarConfigureOptions =
         cheddar::CheddarConfigureCryptoContextOptions{};
     cheddarConfigureOptions.logMessageRatio = options.cheddarLogMessageRatio;
+    cheddarConfigureOptions.deferLintransKeys =
+        options.cheddarDeferLintransKeys;
     pm.addPass(
         cheddar::createCheddarConfigureCryptoContext(cheddarConfigureOptions));
 

@@ -29,6 +29,7 @@ def CheddarConfigureCryptoContext : Pass<"cheddar-configure-crypto-context"> {
     Option<"numCtsLevels", "num-cts-levels", "int", /*default=*/"3", "Bootstrap CoeffToSlot (CtS) level budget (cf. OpenFHE level-budget-encode); only used when the program bootstraps">,
     Option<"numStcLevels", "num-stc-levels", "int", /*default=*/"3", "Bootstrap SlotToCoeff (StC) level budget (cf. OpenFHE level-budget-decode); only used when the program bootstraps">,
     Option<"logMessageRatio", "log-message-ratio", "int", /*default=*/"-1", "Bootstrap message headroom ~ log2(q0/scale) passed to CHEDDAR's BootParameter (governs EvalMod precision). -1 = auto (firstModBits - logScale - 2); only used when the program bootstraps">,
+    Option<"deferLintransKeys", "defer-lintrans-keys", "bool", /*default=*/"false", "Do NOT emit rotation keys for split-preprocessed (prepared) linear transforms in __configure; the harness requests exactly the keys each prepared transform needs at runtime (AddRequiredRotations), after zero-diagonal pruning. Avoids materializing the full conservative BSGS key set for every transform (GPU keygen residency). Inline (non-prepared) linear_transform keys are still emitted.">,
   ];
 
   let dependentDialects = [

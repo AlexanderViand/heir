@@ -227,13 +227,23 @@ struct CheddarConfigureCryptoContext
               ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
           }
         });
-        moduleOp.walk([&](ApplyPreparedLinearTransformOp ltOp) {
-          int64_t ltLevel = ltOp.getLevel().getInt();
-          for (OpFoldResult idx : ltOp.getRotationIndices()) {
-            if (auto attr = dyn_cast<Attribute>(idx))
-              ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
-          }
-        });
+        // Split-preprocessed transforms hand the harness owning
+        // shared_ptr<LinearTransform> handles. With deferLintransKeys, the
+        // harness prepares exactly the rotations each *pruned* prepared
+        // transform needs at runtime (transform->AddRequiredRotations), so
+        // skip the conservative compile-time key set here: emitting the full
+        // per-level BSGS rotations for every prepared transform is what
+        // dominates GPU keygen residency on transform-heavy bootstrapping
+        // models. Inline LinearTransformOp keys (above) have no runtime handle
+        // and are always emitted.
+        if (!deferLintransKeys)
+          moduleOp.walk([&](ApplyPreparedLinearTransformOp ltOp) {
+            int64_t ltLevel = ltOp.getLevel().getInt();
+            for (OpFoldResult idx : ltOp.getRotationIndices()) {
+              if (auto attr = dyn_cast<Attribute>(idx))
+                ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
+            }
+          });
         SmallVector<std::pair<int64_t, int64_t>> ltRotationKeys(
             ltKeySet.begin(), ltKeySet.end());
         llvm::sort(ltRotationKeys);
