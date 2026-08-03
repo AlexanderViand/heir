@@ -485,16 +485,13 @@ static Value findContextForUi(Value ui) {
 // Two fallbacks, in order: the create_user_interface in this function whose
 // destination is that same memref, then the enclosing function's context
 // parameter (in a generated __configure the context is an out-param).
-static Value findContextFallback(Operation* op, Value ui) {
+// The enclosing function's Context parameter, if it has one. Generated entry /
+// encrypt / configure functions take the Context as their first parameter,
+// which is the only handle some ops (cheddar.encode) have for reaching the
+// secret.
+static Value findContextArgInFunction(Operation* op) {
   auto fn = op->getParentOfType<func::FuncOp>();
   if (!fn) return nullptr;
-  Value found;
-  fn.walk([&](cheddar::CreateUserInterfaceOp cui) {
-    if (found) return;
-    for (Value operand : cui->getOperands())
-      if (operand == ui) found = cui.getCtx();
-  });
-  if (found) return found;
   auto mentionsContext = [](Type t) {
     std::string s;
     llvm::raw_string_ostream os(s);
@@ -506,6 +503,19 @@ static Value findContextFallback(Operation* op, Value ui) {
   for (Value arg : fn.getArguments())
     if (mentionsContext(arg.getType())) return arg;
   return nullptr;
+}
+
+static Value findContextFallback(Operation* op, Value ui) {
+  auto fn = op->getParentOfType<func::FuncOp>();
+  if (!fn) return nullptr;
+  Value found;
+  fn.walk([&](cheddar::CreateUserInterfaceOp cui) {
+    if (found) return;
+    for (Value operand : cui->getOperands())
+      if (operand == ui) found = cui.getCtx();
+  });
+  if (found) return found;
+  return findContextArgInFunction(op);
 }
 
 struct ConvertPrepareRotKey
@@ -649,6 +659,19 @@ struct ConvertEncode : public OpConversionPattern<cheddar::EncodeOp> {
         rewriter, op.getLoc(),
         "{}.Encode({}, " + lvl + ", {}.GetScale(" + lvl + "), {});",
         ValueRange{adaptor.getEncoder(), out, adaptor.getEncoder(), vec});
+    // Tag the encoded plaintext when this function has a Context to name the
+    // secret from. cyclops rejects untagged containers downstream (Encrypt's
+    // CheckSecret), and ciphertexts inherit the tag from here. Not every
+    // encoding function has a Context -- the split-preprocessing weight encode
+    // takes only an Encoder -- so this is best-effort: no context, no tag.
+    // Those plaintexts feed plain (non-key-switching) multiplies, which do not
+    // consult a secret; the tag matters on the encrypt path.
+    if (Value ctxArg = findContextArgInFunction(op)) {
+      Value ctxV = rewriter.getRemappedValue(ctxArg);
+      if (!ctxV) ctxV = ctxArg;
+      VerbatimOp::create(rewriter, op.getLoc(), "HeirTagPlaintext({}, {});",
+                         ValueRange{out, ctxV});
+    }
     rewriter.eraseOp(op);
     return success();
   }
@@ -1752,6 +1775,27 @@ constexpr llvm::StringLiteral kKeyLookupShim = R"cpp(
   template <typename EM, typename CtT>
   static decltype(auto) HeirMultiplicationKey(EM& em, const CtT& in) {
     return HeirMultiplicationKeyImpl(em, in, 0);
+  }
+  // Tag a freshly encoded plaintext with the secret it is destined for.
+  // cyclops containers start UNTAGGED (SecretId{-1}) and every consumer that
+  // needs a secret rejects them: UserInterface::Encrypt does
+  // CheckSecret(ptxt.GetSecretId()) and aborts with "unset secret handle".
+  // Ciphertexts then inherit the tag from the plaintext (Encrypt copies it) and
+  // propagate it through ops via MatchRing, so tagging at encode is enough --
+  // no per-container tagging downstream. Residual secret: this is the
+  // evaluation chain (cyclops currently aliases residual_secret_ =
+  // boot_secret_, but naming the residual one keeps it correct if they
+  // diverge). scale-snu CHEDDAR has no SetSecretId at all, so it no-ops.
+  template <typename PtT, typename CtxP>
+  static auto HeirTagPlaintextImpl(PtT& pt, const CtxP& ctx, int)
+      -> decltype(pt.SetSecretId(ctx->param_.ResidualSecretId()), void()) {
+    pt.SetSecretId(ctx->param_.ResidualSecretId());
+  }
+  template <typename PtT, typename CtxP>
+  static void HeirTagPlaintextImpl(PtT&, const CtxP&, long) {}
+  template <typename PtT, typename CtxP>
+  static void HeirTagPlaintext(PtT& pt, const CtxP& ctx) {
+    HeirTagPlaintextImpl(pt, ctx, 0);
   }
   // Keygen-side rotation key. Unlike the lookups above there is no ciphertext
   // to take a tag from, so cyclops' SecretId comes from the Parameter behind
