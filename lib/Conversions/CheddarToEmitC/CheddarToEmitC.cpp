@@ -455,8 +455,13 @@ struct ConvertPrepareRotKey
       ConversionPatternRewriter& rewriter) const override {
     std::string extra =
         intLit(op.getDistanceAttr()) + ", " + intLit(op.getMaxLevelAttr());
-    VerbatimOp::create(rewriter, op.getLoc(),
-                       "{}->PrepareRotationKey(" + extra + ");",
+    // Linear-transform rotation keys go through the fork-dispatching wrapper
+    // (level-specific on cyclops, chain-max + dedupe on scale-snu cheddar).
+    std::string call = op.getChainMaxLevelAttr()
+                           ? "PrepareLintransRotKey({}, " + extra + ", " +
+                                 intLit(op.getChainMaxLevelAttr()) + ");"
+                           : "{}->PrepareRotationKey(" + extra + ");";
+    VerbatimOp::create(rewriter, op.getLoc(), call,
                        ValueRange{adaptor.getUi()});
     rewriter.eraseOp(op);
     return success();
@@ -1551,6 +1556,29 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
                                      const EM& em, long) {
     lt.Evaluate(cp, out, in, em);
   }
+  // Rotation-key prep for linear-transform rotations, dispatched on
+  // PrepareRotationKey's arity: cyclops has a (rot, level, force, ...)
+  // overload and builds level-specific keys (its best-fit lookup wants the
+  // exact per-level key-switch config; keys live under distinct indices);
+  // scale-snu cheddar only has (rot, level), holds ONE key per rotation
+  // index (a re-prep at another level overwrites it and crashes), and its
+  // min_ks evaluation is correct with chain-max keys at any level, so
+  // everything is prepared at chain max there and duplicates dedupe.
+  template <typename UIP>
+  static auto PrepareLintransRotKeyImpl(UIP& ui, int d, int level,
+                                        int chain_max, int)
+      -> decltype(ui->PrepareRotationKey(d, level, false), void()) {
+    ui->PrepareRotationKey(d, level);
+  }
+  template <typename UIP>
+  static void PrepareLintransRotKeyImpl(UIP& ui, int d, int level,
+                                        int chain_max, long) {
+    ui->PrepareRotationKey(d, chain_max);
+  }
+  template <typename UIP>
+  static void PrepareLintransRotKey(UIP& ui, int d, int level, int chain_max) {
+    PrepareLintransRotKeyImpl(ui, d, level, chain_max, 0);
+  }
   template <int W, typename wordT, typename diagT>
   static void RunLinearTransform(cheddar::Ciphertext<wordT>& out,
                                  cheddar::Context<wordT>* ctx,
@@ -1610,6 +1638,12 @@ struct CheddarToEmitCPass
     bool usesLinearTransform = false;
     module->walk([&](emitc::CallOpaqueOp call) {
       if (call.getCallee().starts_with("RunLinearTransform"))
+        usesLinearTransform = true;
+    });
+    // The __configure key prep also calls into the shim (the
+    // PrepareLintransRotKey fork dispatch), emitted as a verbatim call.
+    module->walk([&](emitc::VerbatimOp verbatim) {
+      if (verbatim.getValue().starts_with("PrepareLintransRotKey"))
         usesLinearTransform = true;
     });
     bool shimAlreadyEmitted = false;

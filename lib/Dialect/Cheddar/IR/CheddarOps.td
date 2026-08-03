@@ -225,7 +225,14 @@ def Cheddar_PrepareRotKeyOp : Cheddar_DpsOp<"prepare_rot_key", [], "Ui"> {
   let arguments = (ins
     Cheddar_UserInterfaceLike:$ui,
     Builtin_IntegerAttr:$distance,
-    Builtin_IntegerAttr:$maxLevel
+    Builtin_IntegerAttr:$maxLevel,
+    // Set for linear-transform rotation keys: the emitter then dispatches per
+    // CHEDDAR fork (cyclops prepares the key level-specifically at $maxLevel;
+    // scale-snu cheddar holds one key per rotation index and would crash
+    // overwriting it, so it prepares at $chainMaxLevel once -- duplicates
+    // dedupe -- and evaluates transforms with min_ks, which is correct with
+    // chain-max keys at any level).
+    OptionalAttr<Builtin_IntegerAttr>:$chainMaxLevel
   );
   let results = (outs Cheddar_UserInterfaceResult:$result);
 }

@@ -134,16 +134,17 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
                  ->getResult(0);
   for (int64_t d : rotationIndices)
     ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
-                                 i64(maxLevel))
+                                 i64(maxLevel), /*chainMaxLevel=*/IntegerAttr())
              ->getResult(0);
   // cheddar.linear_transform evaluates its BSGS rotations at the op's level;
   // CHEDDAR's level-specific key lookup (best-fit on the key-switch config)
   // can reject a chain-max key for a much lower level, so prepare each
   // transform's rotations at its actual usage level. The caller has already
-  // removed pairs covered by the chain-max loop above.
+  // removed pairs covered by the chain-max loop above. chainMaxLevel makes
+  // the emitter dispatch per fork (scale-snu prepares at chain max instead).
   for (auto [d, level] : ltRotationKeys) {
     ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
-                                 i64(level))
+                                 i64(level), i64(maxLevel))
              ->getResult(0);
   }
   // Bootstrap precompute + boot rotation keys land in the same UserInterface
