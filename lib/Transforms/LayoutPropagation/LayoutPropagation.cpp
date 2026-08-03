@@ -49,6 +49,7 @@
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Diagnostics.h"            // from @llvm-project
+#include "mlir/include/mlir/IR/Matchers.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"              // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Types.h"                  // from @llvm-project
@@ -179,6 +180,7 @@ struct LayoutPropagation : impl::LayoutPropagationBase<LayoutPropagation> {
   LogicalResult visitOperation(tensor::InsertOp op);
   LogicalResult visitOperation(tensor::InsertSliceOp op);
   LogicalResult visitOperation(tensor::ExtractSliceOp op);
+  LogicalResult visitOperation(tensor::PadOp op);
 
   // Determine if the operation arguments have compatible layouts for the
   // given op. If the check fails, the CompatibilityResult::compatible field
@@ -353,8 +355,8 @@ LogicalResult LayoutPropagation::visitOperation(Operation* op) {
       .Case<affine::AffineForOp>([&](auto op) { return visitOperation(op); })
       // tensor ops
       .Case<tensor::ExtractOp, tensor::InsertOp, tensor::InsertSliceOp,
-            tensor::ExtractSliceOp, CollapseShapeOp, ExpandShapeOp>(
-          [&](auto op) { return visitOperation(op); })
+            tensor::ExtractSliceOp, tensor::PadOp, CollapseShapeOp,
+            ExpandShapeOp>([&](auto op) { return visitOperation(op); })
       // AddI, AddF, mgmt.* all pass the layout through unchanged.
       .Default([&](Operation* op) {
         passLayoutThroughOp(op);
@@ -1423,6 +1425,48 @@ LogicalResult LayoutPropagation::visitOperation(tensor::InsertSliceOp op) {
   Value result = op.getResult();
   assignedLayouts.insert({result, destLayout});
   debugAssignLayout(result, destLayout);
+  setResultLayoutAttr(op, kernelInfoAttr);
+  return success();
+}
+
+LogicalResult LayoutPropagation::visitOperation(tensor::PadOp op) {
+  // A zero-pad does not move any data: result[i + low] = source[i], so the
+  // result layout is the source layout with each domain index shifted by the
+  // low padding. Pad positions stay unmapped in the relation; unmapped points
+  // are zero-filled when a layout is materialized, which matches the
+  // zero-fill pad body. (The default layout passthrough would instead map
+  // result[i] to source[i]'s slots — off by `low`, shifting every downstream
+  // consumer's reads by one stride per pad.)
+  if (!assignedLayouts.contains(op.getSource())) {
+    return op->emitError() << "Source tensor has no assigned layout";
+  }
+  Value padValue = op.getConstantPaddingValue();
+  if (!padValue || !(matchPattern(padValue, m_AnyZeroFloat()) ||
+                     matchPattern(padValue, m_Zero()))) {
+    return op->emitError()
+           << "layout propagation only supports zero-padding tensor.pad";
+  }
+  if (!op.getLow().empty() || !op.getHigh().empty()) {
+    return op->emitError()
+           << "layout propagation requires static tensor.pad bounds";
+  }
+
+  IntegerRelation padRelation =
+      getComposedLayoutAttr(op.getSource()).getIntegerRelation();
+  auto domainVarOffset =
+      padRelation.getVarKindOffset(presburger::VarKind::Domain);
+  for (auto [dim, low] : llvm::enumerate(op.getStaticLow())) {
+    if (low != 0) {
+      padRelation = shiftVar(padRelation, domainVarOffset + dim, low);
+    }
+  }
+
+  LayoutAttr outputLayout =
+      LayoutAttr::getFromIntegerRelation(op.getContext(), padRelation);
+  Attribute kernelInfoAttr = cloneKernelInfoWithResultShape(
+      op.getSource(), op.getResultType().getShape());
+  assignedLayouts.insert({op.getResult(), outputLayout});
+  debugAssignLayout(op.getResult(), outputLayout);
   setResultLayoutAttr(op, kernelInfoAttr);
   return success();
 }
