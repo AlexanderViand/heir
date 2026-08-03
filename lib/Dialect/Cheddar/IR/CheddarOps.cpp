@@ -1,6 +1,7 @@
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 
 #include <algorithm>
+#include <numeric>
 
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
 #include "lib/Utils/RotationUtils.h"
@@ -31,8 +32,29 @@ LogicalResult HRotOp::verify() {
 LinearTransformOp::getRotationIndices() {
   auto diagonalsType = cast<ShapedType>(getDiagonals().getType());
   int64_t slots = diagonalsType.getShape()[1];
-  auto rotations = lintransRotationIndicesWithBabyStep(
-      getDiagonalIndicesAttr().asArrayRef(), slots, getBs().getInt());
+  // Mirror CHEDDAR's LinearTransform::ConstructPlainHoistMap exactly: the
+  // runtime splits each rotation at granularity `stride * bs` where `stride`
+  // is the gcd of all nonzero rotations (DetermineStride). A plain `r mod bs`
+  // split (lattigo's convention, RotationUtils.h) diverges whenever the
+  // diagonal indices share a common factor, and the runtime would then
+  // request keys that were never prepared.
+  int64_t stride = 0;
+  llvm::SmallVector<int64_t> rots;
+  for (int32_t d : getDiagonalIndicesAttr().asArrayRef()) {
+    int64_t r = normalizeRotation(d, slots);
+    rots.push_back(r);
+    stride = std::gcd(stride, r);
+  }
+  llvm::DenseSet<int64_t> rotations;
+  if (stride > 0) {
+    int64_t granularity = stride * getBs().getInt();
+    for (int64_t r : rots) {
+      int64_t baby = r % granularity;
+      int64_t giant = r - baby;
+      if (baby != 0) rotations.insert(baby);
+      if (giant != 0) rotations.insert(giant);
+    }
+  }
   SmallVector<OpFoldResult> result;
   result.reserve(rotations.size());
   auto* mlirCtx = (*this)->getContext();
