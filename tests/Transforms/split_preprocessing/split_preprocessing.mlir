@@ -1,4 +1,4 @@
-// RUN: heir-opt --split-preprocessing %s | FileCheck %s
+// RUN: heir-opt "--split-preprocessing=keep-additive-encodes-online=true" %s | FileCheck %s
 
 // CHECK-DAG: ![[pt:.*]] = !lwe.lwe_plaintext
 // CHECK-DAG: ![[ct_L1:.*]] = !lwe.lwe_ciphertext
@@ -39,7 +39,7 @@
 #ciphertext_space_L1 = #lwe.ciphertext_space<ring = #ring_rns_L1_1_x1024, encryption_type = mix>
 !ct_L1 = !lwe.lwe_ciphertext<plaintext_space = <ring = #ring_f64_1_x1024, encoding = #inverse_canonical_encoding>, ciphertext_space = #ciphertext_space_L1, key = #key, modulus_chain = #modulus_chain_L1_C1>
 
-module attributes {backend.lattigo} {
+module {
 func.func @keep_add_plain_online(%ct: !ct_L1) -> (!ct_L1) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant dense<1.0> : tensor<1024xf32>

@@ -29,6 +29,13 @@ def SplitPreprocessing : Pass<"split-preprocessing", "mlir::ModuleOp"> {
     "mlir::heir::preprocessing::PreprocessingDialect",
     "mlir::func::FuncDialect"
   ];
+  let options = [
+    Option<"keepAdditiveEncodesOnline", "keep-additive-encodes-online", "bool",
+           /*default=*/"false", "Keep plaintext encodes consumed by CKKS "
+           "addition or subtraction in the online function. Required by "
+           "backends whose ciphertext runtime scale can drift from the "
+           "nominal IR scale.">
+  ];
 }
 
 #endif  // LIB_TRANSFORMS_SPLITPREPROCESSING_SPLITPREPROCESSING_TD_

@@ -62,8 +62,6 @@ namespace {
 // encodes in the preprocessed function.  Multiplicative plaintexts and
 // encryption inputs remain safe to pre-encode.
 static bool requiresOnlineCiphertextScale(PlaintextEncodeOpInterface encode) {
-  if (!moduleIsLattigo(encode->getParentOfType<ModuleOp>())) return false;
-
   SetVector<Value> plaintextValues;
   plaintextValues.insert(encode->getResult(0));
   for (unsigned i = 0; i < plaintextValues.size(); ++i) {
@@ -244,7 +242,8 @@ struct SplitPreprocessingPass
     // Annotate each encode op with a stable site id
     int32_t encodeId = 0;
     root->walk([&](PlaintextEncodeOpInterface op) {
-      if (requiresOnlineCiphertextScale(op)) return;
+      if (keepAdditiveEncodesOnline && requiresOnlineCiphertextScale(op))
+        return;
       op->setAttr(
           "split_preprocessing_site_id",
           IntegerAttr::get(IntegerType::get(op->getContext(), 32), encodeId++));

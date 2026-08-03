@@ -147,6 +147,12 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
           clEnumValN(CodegenStrategy::FOLD_WHEN_POSSIBLE, "fold-when-possible",
                      "Fold constants when possible")),
       llvm::cl::init(CodegenStrategy::AUTO)};
+  PassOptions::Option<bool> ckksAddPlaintextNeedsRuntimeScale{
+      *this, "ckks-add-plaintext-needs-runtime-scale",
+      llvm::cl::desc(
+          "Keep additive CKKS plaintext encodes online so lowering can bind "
+          "them to the ciphertext's runtime scale"),
+      llvm::cl::init(false)};
 
   // Ciphertext management options
   PassOptions::Option<CiphertextManagementStyle> ciphertextManagementStyle{

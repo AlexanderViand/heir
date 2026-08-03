@@ -581,7 +581,10 @@ void mlirToRLWEPipeline(OpPassManager& pm,
     // it was recorded, leaving getLinearIndex to over-count and address out of
     // bounds. Normalizing here keeps the captured index 0-based.
     pm.addNestedPass<func::FuncOp>(affine::createAffineLoopNormalizePass(true));
-    pm.addPass(createSplitPreprocessing());
+    SplitPreprocessingOptions splitPreprocessingOptions;
+    splitPreprocessingOptions.keepAdditiveEncodesOnline =
+        options.ckksAddPlaintextNeedsRuntimeScale;
+    pm.addPass(createSplitPreprocessing(splitPreprocessingOptions));
     pm.addPass(preprocessing::createValidatePreprocessing());
   }
 
@@ -861,6 +864,8 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.ckksBootstrapLogP =
       llvm::to_vector(llvm::ArrayRef<int64_t>(options.ckksBootstrapLogP));
   suboptions.enableSplitPreprocessing = options.enableSplitPreprocessing;
+  suboptions.ckksAddPlaintextNeedsRuntimeScale =
+      options.ckksAddPlaintextNeedsRuntimeScale;
   suboptions.experimentalDisableLoopUnroll =
       options.experimentalDisableLoopUnroll;
   suboptions.usePublicKey = options.usePublicKey;
