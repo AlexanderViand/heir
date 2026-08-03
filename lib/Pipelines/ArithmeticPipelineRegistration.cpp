@@ -78,6 +78,7 @@
 #include "mlir/include/mlir/Dialect/Linalg/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Pass/PassManager.h"       // from @llvm-project
 #include "mlir/include/mlir/Pass/PassOptions.h"       // from @llvm-project
+#include "mlir/include/mlir/Pass/PassRegistry.h"      // from @llvm-project
 #include "mlir/include/mlir/Transforms/Passes.h"      // from @llvm-project
 
 namespace mlir::heir {
@@ -768,9 +769,40 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createSymbolDCEPass());
 
-    // NOTE: this pipeline stops at the cheddar dialect. Bufferization of looped
-    // kernels and the cheddar-to-emitc / mlir-to-cpp lowering are applied as
-    // separate heir-opt / heir-translate steps (see the cheddar e2e tests).
+    if (!options.lowerToEmitc) {
+      // Stop at the cheddar dialect; the caller applies the EmitC lowering (and
+      // `heir-translate --mlir-to-cpp`) separately.
+      return;
+    }
+
+    // Cheddar dialect -> EmitC C++. Kept as a textual sub-pipeline so it stays
+    // byte-identical to the flags the e2e tests run. `convert-to-emitc` is
+    // restricted to cheddar's dialects: the stock func->emitc.func interface
+    // (registered for the openfhe path) would otherwise win the func dialect
+    // and form emitc.func, which cannot carry cheddar's move-only lvalue/array
+    // payload args (excluding func keeps func.func, whose structural conversion
+    // cheddar's own interface performs).
+    std::string emitcPipeline =
+        "arith-expand,"
+        "one-shot-bufferize{bufferize-function-boundaries=true "
+        "function-boundary-type-conversion=identity-layout-map},"
+        "buffer-results-to-out-params{hoist-static-allocs=true "
+        "modify-public-functions=true add-result-attr=true},"
+        "convert-linalg-to-loops,"
+        "inline,"
+        "fold-memref-alias-ops,"
+        "canonicalize,"
+        "cheddar-free-intermediates,"
+        "canonicalize,"
+        "convert-to-emitc{filter-dialects=cheddar,arith,scf,memref},"
+        "cheddar-emitc-boundary,"
+        "cheddar-externalize-weights{data-dir=" +
+        options.weightsDataDir.getValue() +
+        "},"
+        "reconcile-unrealized-casts";
+    if (failed(parsePassPipeline(emitcPipeline, pm))) {
+      llvm::report_fatal_error("failed to build cheddar EmitC sub-pipeline");
+    }
   };
 }
 

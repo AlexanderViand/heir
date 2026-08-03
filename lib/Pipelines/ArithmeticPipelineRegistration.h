@@ -213,6 +213,20 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       llvm::cl::desc("Insert function calls to an externally-defined debug "
                      "function (cf. --lwe-add-debug-port)"),
       llvm::cl::init(false)};
+  // Cheddar-only: continue past the cheddar dialect all the way to EmitC C++
+  // (bufferize -> convert-to-emitc -> boundary fixups -> reconcile). Other
+  // backends ignore this.
+  PassOptions::Option<bool> lowerToEmitc{
+      *this, "lower-to-emitc",
+      llvm::cl::desc(
+          "(cheddar) Lower the cheddar dialect all the way to EmitC."),
+      llvm::cl::init(true)};
+  PassOptions::Option<std::string> weightsDataDir{
+      *this, "weights-data-dir",
+      llvm::cl::desc(
+          "(cheddar, lower-to-emitc) Directory to externalize weight "
+          "globals into as <name>.bin blobs (empty = inline them)."),
+      llvm::cl::init("")};
   PassOptions::Option<int> firstModSize{
       *this, "first-mod-size",
       llvm::cl::desc("Manually specify the first mod size"), llvm::cl::init(0)};
