@@ -420,7 +420,11 @@ def Lattigo_CKKSNewPolynomialEvaluatorOp : Lattigo_CKKSOp<"new_polynomial_evalua
 }
 
 
-def Lattigo_CKKSChebyshevOp : Lattigo_CKKSOp<"chebyshev", [AllTypesMatch<["ciphertext", "output"]>]> {
+def Lattigo_CKKSChebyshevOp : Lattigo_CKKSOp<"chebyshev", [
+  AllTypesMatch<["ciphertext", "output"]>,
+  DeclareOpInterfaceMethods<ReducesLevelOpInterface,
+                            ["getLevelsToDrop", "getOperandToReduce"]>
+]> {
   let summary = "Evaluate a chebyshev polynomial on a lattigo CKKS ciphertext";
   let description = [{
     This operation evaluates a chebyshev polynomial on a CKKS ciphertext using
@@ -428,13 +432,21 @@ def Lattigo_CKKSChebyshevOp : Lattigo_CKKSOp<"chebyshev", [AllTypesMatch<["ciphe
 
     The codegen constructs the Lattigo polynomial and, using an existing polynomial
     evaluator, calls the evaluation routine with a given target scale.
+
+    The polynomial evaluation consumes `levelToDrop` levels (the multiplicative
+    depth of the Chebyshev approximation). This is carried as an attribute so the
+    `LevelAnalysis` (and the in-place allocation it drives) correctly accounts for
+    the level drop; the lattigo ciphertext type is opaque w.r.t. level, so without
+    this the op would be treated as level-preserving and downstream level/scale
+    bookkeeping would desync.
   }];
   let arguments = (ins
     Lattigo_CKKSPolynomialEvaluator:$evaluator,
     Lattigo_RLWECiphertext:$ciphertext,
     ArrayAttr:$coefficients,
     Builtin_IntegerAttr:$targetScale,
-    OptionalAttr<ConfinedAttr<DenseF64ArrayAttr, [DenseArrayCount<2>]>>:$domain
+    OptionalAttr<ConfinedAttr<DenseF64ArrayAttr, [DenseArrayCount<2>]>>:$domain,
+    DefaultValuedAttr<I64Attr, "1">:$levelToDrop
   );
   let results = (outs Lattigo_RLWECiphertext:$output);
 }

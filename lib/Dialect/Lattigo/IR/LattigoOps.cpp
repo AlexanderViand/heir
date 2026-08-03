@@ -74,6 +74,13 @@ int RLWEDropLevelOp::getLevelsToDrop() { return getLevelToDrop(); }
   return getOperation()->getOpOperand(1);
 }
 
+int CKKSChebyshevOp::getLevelsToDrop() { return getLevelToDrop(); }
+
+::mlir::OpOperand& CKKSChebyshevOp::getOperandToReduce() {
+  // Operand 0 is the polynomial evaluator; operand 1 is the input ciphertext.
+  return getOperation()->getOpOperand(1);
+}
+
 ::mlir::OpOperand& RLWEDropLevelNewOp::getOperandToReduce() {
   return getOperation()->getOpOperand(1);
 }

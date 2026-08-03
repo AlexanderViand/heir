@@ -796,21 +796,57 @@ struct ConvertOrionChebyshevOp
       polyEvaluator = evaluatorResult.value();
     }
 
-    // Orion always uses the logDefaultScale for the target scale
+    // Target scale: honor the op's intended output scale if present, otherwise
+    // fall back to the default scale (2^logDefaultScale). Orion's
+    // composite-sign chain sets the last polynomial's output scale to `ql` so
+    // the following ciphertext-multiply's rescale is exact; forcing the default
+    // scale there breaks the scale contract.
     ckks::SchemeParamAttr schemeParams =
         cast<ckks::SchemeParamAttr>(getSchemeParamAttr(op));
-    IntegerAttr defaultScale = rewriter.getIntegerAttr(
-        rewriter.getI64Type(), 1L << schemeParams.getLogDefaultScale());
-    LLVM_DEBUG(llvm::dbgs()
-               << "Using default scale: " << defaultScale.getInt() << "\n");
+    IntegerAttr targetScale;
+    if (IntegerAttr outputScale = op.getOutputScaleAttr()) {
+      targetScale =
+          rewriter.getIntegerAttr(rewriter.getI64Type(), outputScale.getInt());
+      LLVM_DEBUG(llvm::dbgs() << "Using orion output scale: "
+                              << targetScale.getInt() << "\n");
+    } else {
+      targetScale = rewriter.getIntegerAttr(
+          rewriter.getI64Type(), 1L << schemeParams.getLogDefaultScale());
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Using default scale: " << targetScale.getInt() << "\n");
+    }
+
+    // Compute the multiplicative depth consumed by the polynomial evaluation
+    // from the orion op's input/result modulus chains. The lattigo ciphertext
+    // type is opaque w.r.t. level, so carry the drop as an attribute and via
+    // the ReducesLevelOpInterface so LevelAnalysis (and the in-place allocation
+    // it drives) sees the level drop. Mirrors LWEToCheddar's ConvertOrion
+    // ChebyshevOp, which reads input level and output level from these chains.
+    auto inTy = dyn_cast<lwe::LWECiphertextType>(op.getInput().getType());
+    auto resTy = dyn_cast<lwe::LWECiphertextType>(op.getResult().getType());
+    if (!inTy || !inTy.getModulusChain() || !resTy || !resTy.getModulusChain())
+      return op.emitOpError()
+             << "cannot lower orion.chebyshev to lattigo.ckks.chebyshev: "
+                "input/result ciphertext has no modulus chain (run the "
+                "upstream CKKS level analysis first)";
+    int64_t inputLevel = inTy.getModulusChain().getCurrent();
+    int64_t outputLevel = resTy.getModulusChain().getCurrent();
+    int64_t levelToDrop = inputLevel - outputLevel;
+    if (levelToDrop < 0)
+      return op.emitOpError()
+             << "orion.chebyshev result level (" << outputLevel
+             << ") is above its input level (" << inputLevel
+             << "); polynomial evaluation cannot raise the level";
+    IntegerAttr levelToDropAttr =
+        rewriter.getIntegerAttr(rewriter.getI64Type(), levelToDrop);
 
     auto domainAttr =
         rewriter.getDenseF64ArrayAttr({op.getDomainStart().getValueAsDouble(),
                                        op.getDomainEnd().getValueAsDouble()});
     auto chebyshevOp = lattigo::CKKSChebyshevOp::create(
         rewriter, op.getLoc(), adaptor.getInput().getType(), polyEvaluator,
-        adaptor.getInput(), adaptor.getCoefficients(), defaultScale,
-        domainAttr);
+        adaptor.getInput(), adaptor.getCoefficients(), targetScale, domainAttr,
+        levelToDropAttr);
     rewriter.replaceOp(op, chebyshevOp.getResult());
 
     return success();
