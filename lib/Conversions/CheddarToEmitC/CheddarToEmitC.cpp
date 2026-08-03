@@ -2360,10 +2360,12 @@ struct CheddarExternalizeWeights
         splatFills.emplace_back(g.getSymName().str(), n, std::string(sbuf));
       }
     });
-    if (loaded.empty() && splatFills.empty()) return;
-
     // Generate `void __load_constants()` that loads each blob into its global
-    // and fills any large non-zero splat global.
+    // and fills any large non-zero splat global. Emitted even when empty:
+    // the pass only runs in the externalized-weights pipeline, whose harness
+    // contract is to call __load_constants() once before inference, and a
+    // model whose weights all fall below the externalization threshold (all
+    // inlined) still gets called.
     OpBuilder b(ctx);
     b.setInsertionPointToEnd(mod.getBody());
     Location loc = mod.getLoc();
