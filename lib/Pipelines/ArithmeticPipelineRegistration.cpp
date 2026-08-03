@@ -5,7 +5,10 @@
 
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
+#include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
+#include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
@@ -16,6 +19,7 @@
 #include "lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Openfhe/Transforms/CountAddAndKeySwitch.h"
 #include "lib/Dialect/Openfhe/Transforms/FastRotationPrecompute.h"
+#include "lib/Dialect/Preprocessing/Conversions/PreprocessingToCheddar/PreprocessingToCheddar.h"
 #include "lib/Dialect/Preprocessing/Conversions/PreprocessingToLattigo/PreprocessingToLattigo.h"
 #include "lib/Dialect/Preprocessing/Conversions/PreprocessingToOpenfhe/PreprocessingToOpenfhe.h"
 #include "lib/Dialect/Preprocessing/Transforms/ValidatePreprocessing.h"
@@ -712,6 +716,61 @@ BackendPipelineBuilder toLattigoPipelineBuilder() {
 
     // Lower Linalg to loops
     pm.addNestedPass<func::FuncOp>(createConvertLinalgToLoopsPass());
+  };
+}
+
+BackendPipelineBuilder toCheddarPipelineBuilder() {
+  return [=](OpPassManager& pm, const BackendOptions& options) {
+    // Convert CKKS to LWE
+    pm.addPass(ckks::createCKKSToLWE());
+
+    // Lower any debug.validate ops (inserted by the frontend at meaningful
+    // layer boundaries -- the same high-level annotation the lattigo path uses)
+    // to `__heir_debug_*` func calls. Run while values are still
+    // `!lwe.ciphertext` so the shared lwe machinery applies; LWEToCheddar then
+    // converts the decls/calls to the cheddar context+ciphertext form, and
+    // CheddarToEmitC emits them as `__heir_debug(...)` C++ calls. We never
+    // insert-after-every-op here: cheddar --debug uses the per-layer annotation
+    // (with a plaintext comparison), and an every-op decrypt would both bury
+    // those points and break op fusion's adjacency. `options.debug` instead
+    // just marks a debug build (skips fusion below).
+    lwe::AddDebugPortOptions addDebugPortOptions{
+        .entryFunction = options.entryFunction,
+        .insertDebugAfterEveryOp = options.debugEveryOp,
+    };
+    pm.addPass(lwe::createAddDebugPort(addDebugPortOptions));
+
+    // Convert LWE to CHEDDAR
+    pm.addPass(lwe::createLWEToCheddar());
+
+    // Lower split-preprocessing storage to memrefs of cheddar plaintexts
+    // (mirrors PreprocessingToLattigo/Openfhe in their backend builders).
+    pm.addPass(preprocessing::createPreprocessingToCheddar());
+
+    // Simplify, in case the lowering revealed redundancy
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+
+    // Fuse cheddar op sequences into compound GPU kernels (mult+relin+rescale
+    // -> hmult, hrot+add -> hrot_add, hconj+add -> hconj_add). Skip under
+    // --debug: the per-op __heir_debug calls break the fusable op adjacency,
+    // which can drop a rescale and corrupt the level chain ("num primes
+    // mismatch"); the unfused path is slower but correct, which is what a debug
+    // trace needs.
+    if (!options.debug) pm.addPass(cheddar::createCheddarFuseOps());
+
+    // Re-expose the scheme parameters as cheddar.* module attributes and drop
+    // the CKKS module attributes.
+    pm.addPass(cheddar::createCheddarConfigureCryptoContext());
+
+    pm.addPass(createRemoveUnusedPureCall());
+    pm.addPass(createCSEPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createSymbolDCEPass());
+
+    // NOTE: this pipeline stops at the cheddar dialect. Bufferization of looped
+    // kernels and the cheddar-to-emitc / mlir-to-cpp lowering are applied as
+    // separate heir-opt / heir-translate steps (see the cheddar e2e tests).
   };
 }
 

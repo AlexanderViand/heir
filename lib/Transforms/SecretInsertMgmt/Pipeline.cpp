@@ -116,6 +116,40 @@ void insertBootstrapsByForwardLevelSim(Operation* top, int lEff) {
     return it == remaining.end() ? lEff : it->second;  // default: fresh
   };
 
+  // A "kept eval" is a multi-level-drop ReducesLevelOpInterface op (the kept
+  // polynomial.eval / composite-sign stage), as opposed to mod_reduce (a
+  // 1-level rescale, handled separately).
+  auto isKeptEval = [](Operation* o) {
+    return isa_and_nonnull<ReducesLevelOpInterface>(o) &&
+           !isa<mgmt::ModReduceOp>(o);
+  };
+  // Total multiplicative depth of a chained-eval run starting at `start`: the
+  // composite-sign `step` is 3 polynomial.evals chained (each feeds the next as
+  // its reduced operand). Boot placement must treat such a run as INDIVISIBLE
+  // -- bootstrapping between stages leaves the chain desynced (stage k+1
+  // evaluates a different polynomial than its input was prepared for),
+  // detonating the deg-27 tail. So at a chain start we size the refresh to the
+  // whole run.
+  auto chainTotalDrop = [&](Operation* start) -> int {
+    int total = 0;
+    for (Operation* cur = start; isKeptEval(cur);) {
+      total += cast<ReducesLevelOpInterface>(cur).getLevelsToDrop();
+      Operation* next = nullptr;
+      if (cur->getNumResults() == 1) {
+        Value res = cur->getResult(0);
+        for (Operation* u : res.getUsers()) {
+          auto rl = dyn_cast<ReducesLevelOpInterface>(u);
+          if (isKeptEval(u) && rl.getOperandToReduce().get() == res) {
+            next = u;
+            break;
+          }
+        }
+      }
+      cur = next;
+    }
+    return total;
+  };
+
   SmallVector<Operation*> ops;
   top->walk([&](Operation* op) { ops.push_back(op); });
 
@@ -210,6 +244,57 @@ void insertBootstrapsByForwardLevelSim(Operation* top, int lEff) {
       }
       continue;
     }
+    // A kept `polynomial.eval` (lowered later to orion.chebyshev /
+    // cheddar.eval_poly) consumes its whole multiplicative depth in one op
+    // (ReducesLevelOpInterface::getLevelsToDrop, e.g. 4/5 for the
+    // composite-sign stages). The default branch below treats every
+    // non-mod_reduce op as a 0-drop pass-through, so a chained composite sign's
+    // `step` would sink far below the budget with no refresh, and cross-level
+    // matching can't then align it with `x` at the final `x*step` multiply
+    // (TODO #1642). Count the drop, and refresh the reduced operand if the
+    // chain would otherwise exhaust. (mod_reduce -- also a
+    // ReducesLevelOpInterface -- was handled and `continue`d above, so only
+    // multi-level-drop ops like the kept eval reach here; non-orion paths never
+    // keep a polynomial.eval, so they are unaffected.)
+    if (auto reduces = dyn_cast<ReducesLevelOpInterface>(op)) {
+      if (op->getNumResults() == 0) continue;
+      int drop = reduces.getLevelsToDrop();
+      int minRem = lEff;
+      bool sawSecret = false;
+      for (Value operand : op->getOperands()) {
+        if (isSecret(operand, &solver)) {
+          minRem = std::min(minRem, rem(operand));
+          sawSecret = true;
+        }
+      }
+      int avail = sawSecret ? minRem : lEff;
+      int r = avail - drop;
+      Value reduced = reduces.getOperandToReduce().get();
+      bool resReaches = llvm::any_of(op->getResults(), [&](Value res) {
+        return reachesModReduce.contains(res);
+      });
+      // Refresh BEFORE the chain, not mid-chain. At a chain start (the reduced
+      // operand is not itself a kept eval) require room for the WHOLE chained
+      // run so all stages evaluate post-boot at healthy levels; mid-chain, fall
+      // back to the per-op exhaustion check (which should not fire once the
+      // chain-start refresh has).
+      Operation* defOp = reduced.getDefiningOp();
+      bool chainStart = !isKeptEval(defOp);
+      int need = chainStart ? chainTotalDrop(op) : drop;
+      if (avail - need <= 0 && isSecret(reduced, &solver) && resReaches) {
+        OpBuilder builder(op);
+        builder.setInsertionPoint(op);
+        auto bootstrap = mgmt::BootstrapOp::create(builder, op->getLoc(),
+                                                   reduced.getType(), reduced);
+        op->replaceUsesOfWith(reduced, bootstrap.getResult());
+        remaining[bootstrap.getResult()] = lEff;
+        r = lEff - drop;
+      }
+      for (Value res : op->getResults()) {
+        if (isSecret(res, &solver)) remaining[res] = r;
+      }
+      continue;
+    }
     // Everything else: result remaining = min over secret operands
     // (level_reduce and relinearize don't drop levels in this model;
     // min-at-joins is exact for the placement decision since cross-level
@@ -301,10 +386,12 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
   adjustScalesForRegionBranchOps(top, &idCounter);
 
   LDBG(2) << "Handling cross level ops";
-  handleCrossLevelOps(top, &idCounter, options.includeFloats, budget);
+  handleCrossLevelOps(top, &idCounter, options.includeFloats, budget,
+                      options.cheddarMode);
 
   LDBG(2) << "Handling cross mul depth ops";
-  handleCrossMulDepthOps(top, &idCounter, options.includeFloats, budget);
+  handleCrossMulDepthOps(top, &idCounter, options.includeFloats, budget,
+                         options.cheddarMode);
 
   // An if statement must have each branch producing the same level as a result,
   // so the branch with the higher level must insert a level_reduce op.
@@ -398,7 +485,7 @@ void insertRelinearizeAfterMult(Operation* top, bool includeFloats) {
 }
 
 void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
-                         int levelBudget) {
+                         int levelBudget, bool cheddarMode) {
   DataFlowSolver solver;
   makeAndRunSecretnessAndLevelSolver(top, solver, levelBudget);
   MLIRContext* ctx = top->getContext();
@@ -406,10 +493,12 @@ void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
   patterns.add<MatchCrossLevel<arith::AddIOp>, MatchCrossLevel<arith::SubIOp>,
                MatchCrossLevel<arith::MulIOp>,
                MatchCrossLevel<tensor::InsertSliceOp>,
-               MatchCrossLevel<tensor::InsertOp>>(ctx, idCounter, top, &solver);
+               MatchCrossLevel<tensor::InsertOp>>(ctx, idCounter, top, &solver,
+                                                  cheddarMode);
   if (includeFloats)
     patterns.add<MatchCrossLevel<arith::AddFOp>, MatchCrossLevel<arith::SubFOp>,
-                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver);
+                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver,
+                                                 cheddarMode);
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 
@@ -417,7 +506,19 @@ void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
 // at the first level, a Value can be both mulResult or not mulResult
 // we should match their scale by adding one adjust scale op
 void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats,
-                            int levelBudget) {
+                            int levelBudget, bool cheddarMode) {
+  // Cheddar uses rescale-after-mult and a fixed canonical scale per level, so
+  // every ciphertext is always at its level's canonical scale. By the time we
+  // get here, handleCrossLevelOps has already aligned operand levels with
+  // level_reduce, so the two operands of any add/sub share a level and hence
+  // share the canonical scale -- there is no same-level scale mismatch to fix.
+  // The MulDepthAnalysis can still report a {0,1} "cross mul depth" because
+  // mgmt.modreduce does not reset the mul-depth lattice (only mgmt.bootstrap
+  // does), so a rescaled first-mul-after-bootstrap result still reads as depth
+  // 1. Emitting adjust_scale for that phantom mismatch would actually corrupt
+  // the scale (and Cheddar rejects adjust_scale outright), so skip it.
+  if (cheddarMode) return;
+
   DataFlowSolver solver;
   makeAndRunSolver(top, solver, levelBudget);
   MLIRContext* ctx = top->getContext();

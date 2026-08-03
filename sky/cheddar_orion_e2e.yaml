@@ -1,0 +1,7 @@
+name: heir-cheddar-dbg
+workdir: .
+run: |
+  CC=clang bazel test //tests/Examples/cheddar/orion_mlp:orion_mlp_test \
+    --//:enable_cheddar=1 --test_output=all --test_timeout=3600 \
+    --test_tag_filters= 2>&1 | tail -90
+  echo "## DONE ##"

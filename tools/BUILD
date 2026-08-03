@@ -44,6 +44,7 @@ cc_binary(
         "@heir//lib/Analysis/NoiseAnalysis",  # buildcleaner: keep
         "@heir//lib/Analysis/NoiseAnalysis/BFV:NoiseAnalysis",  # buildcleaner: keep
         "@heir//lib/Analysis/NoiseAnalysis/BGV:NoiseAnalysis",  # buildcleaner: keep
+        "@heir//lib/Conversions/CheddarToEmitC",
         "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect/Arith/Conversions/ArithToCGGI",
         "@heir//lib/Dialect/Arith/Conversions/ArithToCGGIQuart",
@@ -59,6 +60,10 @@ cc_binary(
         "@heir//lib/Dialect/CKKS/IR:Dialect",
         "@heir//lib/Dialect/CKKS/Transforms",
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@heir//lib/Dialect/Cheddar/Transforms:BufferizableOpInterfaceImpl",
+        "@heir//lib/Dialect/Cheddar/Transforms:ConfigureCryptoContext",
+        "@heir//lib/Dialect/Cheddar/Transforms:FreeIntermediates",
+        "@heir//lib/Dialect/Cheddar/Transforms:FuseOps",
         "@heir//lib/Dialect/Comb/IR:Dialect",
         "@heir//lib/Dialect/Debug/IR:Dialect",
         "@heir//lib/Dialect/Debug/Transforms",
@@ -66,6 +71,7 @@ cc_binary(
         "@heir//lib/Dialect/JaxiteWord/IR:Dialect",
         "@heir//lib/Dialect/JaxiteWord/Transforms",
         "@heir//lib/Dialect/KeyMgmt/IR:Dialect",
+        "@heir//lib/Dialect/LWE/Conversions/LWEToCheddar",
         "@heir//lib/Dialect/LWE/Conversions/LWEToJaxiteWord",
         "@heir//lib/Dialect/LWE/Conversions/LWEToLattigo",
         "@heir//lib/Dialect/LWE/Conversions/LWEToOpenfhe",
@@ -94,6 +100,7 @@ cc_binary(
         "@heir//lib/Dialect/Polynomial/IR:Dialect",
         "@heir//lib/Dialect/Polynomial/Transforms",
         "@heir//lib/Dialect/Poulpy/IR:Dialect",
+        "@heir//lib/Dialect/Preprocessing/Conversions/PreprocessingToCheddar",
         "@heir//lib/Dialect/Preprocessing/Conversions/PreprocessingToLattigo",
         "@heir//lib/Dialect/Preprocessing/Conversions/PreprocessingToMemref",
         "@heir//lib/Dialect/Preprocessing/Conversions/PreprocessingToOpenfhe",
@@ -211,6 +218,7 @@ cc_binary(
         "@llvm-project//mlir:ComplexToLLVM",
         "@llvm-project//mlir:ControlFlowToLLVM",
         "@llvm-project//mlir:ControlFlowTransforms",
+        "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:ConvertToEmitC",
         "@llvm-project//mlir:ConvertToLLVM",
         "@llvm-project//mlir:EmitCDialect",
@@ -269,6 +277,8 @@ cc_binary(
         "@heir//lib/Target/TfheRustHL:TfheRustHLEmitter",
         "@heir//lib/Target/Verilog:VerilogEmitter",
         "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:AllTranslations",
+        "@llvm-project//mlir:TargetCpp",
         "@llvm-project//mlir:TranslateLib",
     ],
 )

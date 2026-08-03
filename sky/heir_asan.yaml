@@ -1,0 +1,56 @@
+# SkyPilot config for an ASAN-instrumented heir-opt cluster, intended for
+# investigating crashes that only reproduce on the Linux+CUDA-container
+# environment. `--config=asan` (from .bazelrc) sets `-O1 -g
+# -fsanitize=address` plus matching link flags, so this cluster's bazel
+# cache is its own compilation lineage -- never switch it to -c opt or
+# -c dbg without invalidating that cache.
+#
+# Usage: sky launch -c heir-cheddar-asan -i 10 sky/heir_asan.yaml
+#
+# We launch on the same g5.16xlarge + Ubuntu 24.04 + CUDA container as
+# the cheddar clusters so the environment matches where the crash
+# reproduces, but we do NOT enable cheddar (--//:enable_cheddar=1 is
+# omitted) -- the crash under investigation is host-side in heir-opt and
+# doesn't need the GPU library.
+
+name: heir-cheddar-asan
+
+# assumes we'll call this from the repo root
+workdir: .
+
+resources:
+  accelerators: A10G:1
+  cpus: 64+
+  memory: 128+
+  disk_size: 200
+  cloud: aws
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+  autostop:
+    idle_minutes: 10
+
+setup: |
+  set -ex
+
+  apt-get update -qq
+  apt-get install -y -qq \
+    clang lld libomp-dev llvm \
+    zlib1g-dev \
+    libtommath-dev libjsoncpp-dev \
+    libcusparselt0 \
+    git wget pip
+
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
+  fi
+
+# Builds heir-opt under --config=asan, then runs the rotom/mnist target
+# whose heir-opt invocation has been segfaulting on the -c opt cluster.
+# `ASAN_OPTIONS=halt_on_error=0` would suppress aborts; we want the abort
+# (default) so the failing point + stack are visible.
+run: |
+  set -ex
+  bazel fetch --config=asan //... --//:enable_cheddar=0
+  CC=clang bazel test --config=asan \
+    //tests/Examples/openfhe/ckks/rotom/mnist:mnist_rotom_openfhe_heir_opt \
+    --test_output=streamed

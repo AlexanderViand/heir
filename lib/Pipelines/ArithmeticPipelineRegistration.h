@@ -237,6 +237,14 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
   PassOptions::Option<bool> insecure{
       *this, "insecure", llvm::cl::desc("Whether to use insecure parameter"),
       llvm::cl::init(false)};
+  PassOptions::Option<bool> debugEveryOp{
+      *this, "insert-debug-after-every-op",
+      llvm::cl::desc(
+          "Insert a debug handler call after EVERY ciphertext op "
+          "(coarse every-op decrypt trace), instead of only lowering "
+          "pre-existing per-layer debug.validate annotations. "
+          "Requires insert-debug-handler-calls."),
+      llvm::cl::init(false)};
 };
 
 using RLWEPipelineBuilder =
@@ -260,6 +268,8 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(RLWEScheme scheme);
 BackendPipelineBuilder toOpenFhePipelineBuilder();
 
 BackendPipelineBuilder toLattigoPipelineBuilder();
+
+BackendPipelineBuilder toCheddarPipelineBuilder();
 
 // A subpipeline that preprocesses linalg ops to make them more suitable for
 // FHE.

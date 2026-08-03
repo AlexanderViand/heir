@@ -1,6 +1,7 @@
 """Module extensions for MLIR Tutorial dependencies."""
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def _llvm_deps_impl(_):
     """Implementation of the llvm_deps module extension."""
@@ -20,6 +21,9 @@ def _llvm_deps_impl(_):
             # through the automated integration process). The patch file is
             # automatically generated, and should not be removed even if empty.
             "@heir//patches:llvm.patch",
+            # Hand-maintained (NOT auto-generated): lets `emitc.subscript` take
+            # an `!emitc.lvalue` base, needed by the cheddar EmitC emitter.
+            "@heir//patches:emitc_subscript_lvalue.patch",
         ],
         patch_args = ["-p1"],
     )
@@ -27,3 +31,27 @@ def _llvm_deps_impl(_):
 llvm_deps = module_extension(
     implementation = _llvm_deps_impl,
 )
+
+# CHEDDAR GPU FHE library
+CHEDDAR_COMMIT = "307b49cbe03e7f8f14bf31485f716c1090c9ec9d"
+
+def _cheddar_deps_impl(_):
+    maybe(
+        new_git_repository,
+        name = "cheddar",
+        build_file = "@heir//bazel/cheddar:cheddar.BUILD",
+        commit = CHEDDAR_COMMIT,
+        remote = "https://github.com/scale-snu/cheddar-fhe.git",
+        patches = [
+            "@heir//patches:cheddar.patch",
+            # Raise the NTT's compile-time max ring degree from 2^16 to 2^17 so
+            # wide models (e.g. CriteoHELRM, whose 65536-slot embeddings force
+            # logN=17) fit. CHEDDAR's NTT kernels are constexpr-generated per
+            # log_degree, so this just emits the extra logN=17 specialization;
+            # logN=17 ciphertexts are ~2x memory (needs a >=48GB GPU).
+            "@heir//patches:cheddar_max_log_degree.patch",
+        ],
+        patch_args = ["-p1"],
+    )
+
+cheddar_deps = module_extension(implementation = _cheddar_deps_impl)
