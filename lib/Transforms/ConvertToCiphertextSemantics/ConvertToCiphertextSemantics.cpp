@@ -1491,7 +1491,44 @@ struct ConvertLinalgConv1DNcwFcw
     return isPowerOfTwoDims && isConv1dAsMatvec;
   }
 
-  void haleviShoupKernel(
+  // LayoutPropagation may have folded a zero tensor.pad on the width dim into
+  // the conv's `padding` parameter, in which case the matrix was built against
+  // the *unpadded* operand (the data ciphertext is the same either way; the pad
+  // positions simply get no column) and it left the folded amount on the op.
+  // Deriving the shape from the op's own padded operand with padding = 0
+  // instead gives the same row count but a larger column count, and both
+  // kernels below size the squat-diagonal collapse from nextPowerOfTwo of each
+  // dim -- so whenever the padded and unpadded column counts fall in different
+  // power-of-two buckets the collapse runs an extra rotate-and-add round and
+  // the result is silently wrong.
+  FailureOr<RankedTensorType> expandedFilterShape(
+      linalg::Conv1DNcwFcwOp op) const {
+    auto filterType = cast<RankedTensorType>(op.getInputs()[1].getType());
+    auto dataType = cast<RankedTensorType>(op.getInputs()[0].getType());
+    int64_t stride =
+        llvm::to_vector(op.getStrides().getValues<int64_t>()).front();
+
+    int64_t padding = 0;
+    if (auto paddingAttr =
+            op->getAttrOfType<IntegerAttr>(kConvFoldedPaddingAttrName)) {
+      padding = paddingAttr.getInt();
+    }
+    if (padding > 0) {
+      if (dataType.getRank() != 3 || dataType.getDimSize(2) <= 2 * padding) {
+        return op.emitError()
+               << kConvFoldedPaddingAttrName << " of " << padding
+               << " does not fit this conv's data operand " << dataType;
+      }
+      dataType =
+          RankedTensorType::get({dataType.getDimSize(0), dataType.getDimSize(1),
+                                 dataType.getDimSize(2) - 2 * padding},
+                                dataType.getElementType());
+    }
+    return get1dConvCwFcwFilterExpandedType(filterType, dataType, stride,
+                                            padding);
+  }
+
+  LogicalResult haleviShoupKernel(
       linalg::Conv1DNcwFcwOp op, OpAdaptor adaptor,
       ContextAwareConversionPatternRewriter& rewriter) const {
     LLVM_DEBUG(
@@ -1506,13 +1543,8 @@ struct ConvertLinalgConv1DNcwFcw
         cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
     SSAValue matrixLeaf(matrix);
 
-    // The original matrix shape is the shape of the expanded filter before
-    // diagonalization.
-    RankedTensorType expandedMatrixType = get1dConvCwFcwFilterExpandedType(
-        cast<RankedTensorType>(op.getInputs()[1].getType()),
-        cast<RankedTensorType>(op.getInputs()[0].getType()),
-        llvm::to_vector(op.getStrides().getValues<int64_t>()).front(),
-        /*padding=*/0);
+    FailureOr<RankedTensorType> expandedMatrixType = expandedFilterShape(op);
+    if (failed(expandedMatrixType)) return failure();
     // Collect any zero diagonals of the filter matrix.
     LayoutAttr filterLayout = getLayoutAttr(adaptor.getInputs()[1]);
     auto filterRelation = filterLayout.getIntegerRelation();
@@ -1532,7 +1564,7 @@ struct ConvertLinalgConv1DNcwFcw
                                              data.getType().getShape().back());
     std::shared_ptr<ArithmeticDagNode<SSAValue>> implementedKernel =
         implementHaleviShoup(vectorLeaf, matrixLeaf,
-                             expandedMatrixType.getShape(), dagType,
+                             expandedMatrixType->getShape(), dagType,
                              zeroDiagonals,
                              /*unroll=*/unrollKernels);
 
@@ -1546,6 +1578,7 @@ struct ConvertLinalgConv1DNcwFcw
     // Add the initial accumulator value.
     Value result = adaptor.getOutputs()[0];
     addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
+    return success();
   }
 
   // Like haleviShoupKernel, but keeps the conv's expanded-Toeplitz matvec
@@ -1554,8 +1587,9 @@ struct ConvertLinalgConv1DNcwFcw
   // Toeplitz matrix is mostly zero diagonals; SecretToCKKS drops the
   // all-zero rows so the backend kernel only encodes/rotates the ~C_in*K
   // nonzero ones.
-  void lintransKernel(linalg::Conv1DNcwFcwOp op, OpAdaptor adaptor,
-                      ContextAwareConversionPatternRewriter& rewriter) const {
+  LogicalResult lintransKernel(
+      linalg::Conv1DNcwFcwOp op, OpAdaptor adaptor,
+      ContextAwareConversionPatternRewriter& rewriter) const {
     LLVM_DEBUG(llvm::dbgs()
                << "Converting linalg.conv_1d_ncw_fcw op with lintrans kernel: "
                << op << "\n");
@@ -1565,13 +1599,8 @@ struct ConvertLinalgConv1DNcwFcw
     TypedValue<RankedTensorType> filter =
         cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
 
-    // The original matrix shape is the shape of the expanded filter before
-    // diagonalization.
-    RankedTensorType expandedMatrixType = get1dConvCwFcwFilterExpandedType(
-        cast<RankedTensorType>(op.getInputs()[1].getType()),
-        cast<RankedTensorType>(op.getInputs()[0].getType()),
-        llvm::to_vector(op.getStrides().getValues<int64_t>()).front(),
-        /*padding=*/0);
+    FailureOr<RankedTensorType> expandedMatrixType = expandedFilterShape(op);
+    if (failed(expandedMatrixType)) return failure();
 
     // Collect the zero diagonals of the filter matrix (mirrors
     // haleviShoupKernel) so the lintrans kernel only carries nonzero rows.
@@ -1589,12 +1618,13 @@ struct ConvertLinalgConv1DNcwFcw
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
 
     Value finalOutput = emitLintransKernel(rewriter, op.getLoc(), data, filter,
-                                           expandedMatrixType.getShape(),
+                                           expandedMatrixType->getShape(),
                                            layoutAttr, zeroDiagonals);
 
     // Add the initial accumulator value.
     Value result = adaptor.getOutputs()[0];
     addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
+    return success();
   }
 
   LogicalResult matchAndRewrite(
@@ -1617,17 +1647,15 @@ struct ConvertLinalgConv1DNcwFcw
       bool enoughDiagonals = filterTy.getShape()[0] >= 2;
       if (useLintransKernels && isSingleCiphertext(adaptor.getInputs()[0]) &&
           enoughDiagonals) {
-        lintransKernel(op, adaptor, rewriter);
-      } else {
-        if (useLintransKernels) {
-          LLVM_DEBUG(llvm::dbgs()
-                     << "conv spans multiple ciphertexts; falling back to "
-                        "the unrolled Halevi-Shoup kernel: "
-                     << op << "\n");
-        }
-        haleviShoupKernel(op, adaptor, rewriter);
+        return lintransKernel(op, adaptor, rewriter);
       }
-      return success();
+      if (useLintransKernels) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "conv spans multiple ciphertexts; falling back to "
+                      "the unrolled Halevi-Shoup kernel: "
+                   << op << "\n");
+      }
+      return haleviShoupKernel(op, adaptor, rewriter);
     }
 
     return op.emitError() << "unsupported layout for 1d conv";
@@ -1706,6 +1734,12 @@ struct ConvertLinalgConv2DNchwFchw
 
     // The original matrix shape is the shape of the expanded filter before
     // diagonalization.
+    // NOTE: `padding=0` is only correct because nothing folds a `tensor.pad`
+    // into a 2-D conv's padding parameter. If that changes, derive the shape
+    // from the folded padding the way
+    // ConvertLinalgConv1DNcwFcw::expandedFilterShape does: the padded and
+    // unpadded column counts can round to different powers of two, which
+    // mis-sizes the squat-diagonal collapse.
     RankedTensorType expandedMatrixType = get2dConvChwFchwFilterExpandedType(
         cast<RankedTensorType>(op.getInputs()[1].getType()), dataType,
         /*padding=*/0, llvm::to_vector(op.getStrides().getValues<int64_t>()));
@@ -1769,6 +1803,12 @@ struct ConvertLinalgConv2DNchwFchw
       dataType =
           RankedTensorType::get(info->inputShape, dataType.getElementType());
     }
+    // NOTE: `padding=0` is only correct because nothing folds a `tensor.pad`
+    // into a 2-D conv's padding parameter. If that changes, derive the shape
+    // from the folded padding the way
+    // ConvertLinalgConv1DNcwFcw::expandedFilterShape does: the padded and
+    // unpadded column counts can round to different powers of two, which
+    // mis-sizes the squat-diagonal collapse.
     RankedTensorType expandedMatrixType = get2dConvChwFchwFilterExpandedType(
         cast<RankedTensorType>(op.getInputs()[1].getType()), dataType,
         /*padding=*/0, llvm::to_vector(op.getStrides().getValues<int64_t>()));

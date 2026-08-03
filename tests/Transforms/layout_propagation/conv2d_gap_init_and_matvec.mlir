@@ -8,17 +8,19 @@
 //    into that layout instead of keeping its default row-major layout.
 //
 // 2. A downstream matvec consuming the gap-packed (collapsed) conv result
-//    must absorb the slot permutation into its plaintext matrix layout
-//    instead of converting the ciphertext (a shift network costing one
-//    multiplicative level per stage).
+//    must absorb the slot permutation into its plaintext matrix instead of
+//    converting the ciphertext (a shift network costing one multiplicative
+//    level per stage). The matrix keeps the canonical squat-diagonal layout
+//    and the permutation rides along in heir.matvec_input_slots, which
+//    convert-to-ciphertext-semantics applies when it builds the diagonals.
 
 // The composed gap result layout of the stride-2 conv (existential chain
 // from the pixel-shuffle), assigned to the init below.
 // CHECK-DAG: #[[init_layout:layout[0-9]*]] = #tensor_ext.layout<"{ [i0, i1, i2, i3] -> [ct, slot] : exists (e1, e2, e3, e4:
 
-// The matvec matrix layout with the vector's gap packing absorbed into its
-// column space (rows of size 8 -> the "mod 8" replication constraint).
-// CHECK-DAG: #[[mat_layout:layout[0-9]*]] = #tensor_ext.layout<"{ [i0, i1] -> [ct, slot] : exists (e0, e1, e2: (-i0 + slot) mod 8 = 0
+// The matvec matrix layout: the canonical squat diagonal for 8x1024 (8 rows
+// -> "mod 8", 1024 columns rotated by the diagonal index).
+// CHECK-DAG: #[[mat_layout:layout[0-9]*]] = #tensor_ext.layout<"{ [i0, i1] -> [ct, slot] : (i0 - i1 + ct) mod 8 = 0 and (-i1 + ct + slot) mod 1024 = 0
 
 // CHECK: @conv2d_gap_init
 func.func @conv2d_gap_init(%arg0: !secret.secret<tensor<1x1x10x10xf32>>) -> !secret.secret<tensor<1x4x5x5xf32>> {
@@ -58,13 +60,14 @@ func.func @conv2d_gap_matvec(%arg0: !secret.secret<tensor<1x1x32x32xf32>>) -> !s
       ins(%input0, %filter : tensor<1x1x32x32xf32>, tensor<4x1x2x2xf32>)
       outs(%conv_init : tensor<1x4x16x16xf32>) -> tensor<1x4x16x16xf32>
     // The collapsed gap-packed conv result feeds the matvec directly: the
-    // slot permutation is absorbed into the plaintext matrix layout and no
+    // slot permutation is recorded for the plaintext matrix and no
     // ciphertext-side layout conversion is inserted.
     // CHECK: %[[collapsed:[^ ]+]] = tensor.collapse_shape
     // CHECK-NOT: tensor_ext.convert_layout
     // CHECK: tensor_ext.assign_layout
     // CHECK-SAME: layout = #[[mat_layout]]
     // CHECK: linalg.matvec
+    // CHECK-SAME: heir.matvec_input_slots = array<i64:
     // CHECK-SAME: %[[collapsed]]
     %2 = tensor.collapse_shape %1 [[0, 1, 2, 3]] : tensor<1x4x16x16xf32> into tensor<1024xf32>
     %3 = linalg.matvec ins(%weights, %2 : tensor<8x1024xf32>, tensor<1024xf32>) outs(%mv_init : tensor<8xf32>) -> tensor<8xf32>

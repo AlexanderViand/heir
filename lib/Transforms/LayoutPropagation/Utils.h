@@ -18,6 +18,13 @@ constexpr StringLiteral kKernelInputShapeKey = "input_shape";
 constexpr StringLiteral kKernelShapeKey = "result_shape";
 constexpr StringLiteral kGapFactorKey = "gap_factor";
 
+// Symmetric zero padding on the trailing (width) dim that LayoutPropagation
+// folded out of a tensor.pad and into a conv's own padding parameter. When this
+// is present the conv's expanded filter matrix was built against the *unpadded*
+// operand, so the lowering must derive the matrix shape the same way rather
+// than from the op's (still padded) operand type with padding = 0.
+constexpr StringLiteral kConvFoldedPaddingAttrName = "heir.conv_folded_padding";
+
 struct KernelInfo {
   SmallVector<int64_t> inputShape;
   // Tracks the shape of the resolved kernel's tensor shape. This will account
