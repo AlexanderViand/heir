@@ -1128,6 +1128,12 @@ bool isRelationEqual(const presburger::IntegerRelation& relation1,
 
 bool isDenseLayout(const presburger::IntegerRelation& relation,
                    RankedTensorType type) {
+  // NOTE: the set-equality below needs isl_map_compute_divs on the image of
+  // the layout; on gap-structured conv layouts (strided/dilated packing)
+  // that falls into parametric integer programming that never finishes.
+  // Callers must not reach this check with such layouts unless the input is
+  // a scalar or splat constant that could actually use the dense fast path
+  // (see google/heir#3193 for the call-site guard).
   isl_ctx* ctx = isl_ctx_alloc();
   isl_basic_map* bmap = convertRelationToBasicMap(relation, ctx);
 
