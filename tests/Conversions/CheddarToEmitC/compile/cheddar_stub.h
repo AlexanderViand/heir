@@ -185,7 +185,8 @@ class LinearTransform {
  public:
   LinearTransform(ConstContextPtr<word> context, const StripedMatrix& matrix,
                   int pt_level, double pt_scale, int bs, int gs = 1,
-                  int pre_rotation = 0, int additional_pt_rot = 0);
+                  int pre_rotation = 0, int additional_pt_rot = 0,
+                  int log_pt_size_per_prime = 1);
   void Evaluate(ConstContextPtr<word> context, Ciphertext<word>& res,
                 const Ciphertext<word>& input, const EvkMap<word>& evk_map,
                 bool min_ks = false) const;
