@@ -52,10 +52,16 @@ def Lattigo_CKKSBootstrappingParametersLiteral
         `logSlots` selects a sparse bootstrapper that only refreshes
         `2^logSlots` slots; omit to use the scheme's default (full) slot
         count.
+
+        `logP` mirrors Lattigo's `bootstrapping.ParametersLiteral.LogP` —
+        per-prime bit widths for the bootstrap circuit's auxiliary modulus.
+        Sourced from `ckks.SchemeParam.bootstrapLogP`; absent fields fall
+        through to Lattigo defaults at emission time.
     }];
     let parameters = (ins
       OptionalParameter<"int">:$logN,
-      OptionalParameter<"int">:$logSlots
+      OptionalParameter<"int">:$logSlots,
+      OptionalParameter<"DenseI32ArrayAttr">:$logP
     );
 }
 

@@ -24,6 +24,7 @@ def CKKS_SchemeParam
         - `DenseI64ArrayAttr` Q: The array of primes in the ciphertext modulus.
         - `DenseI64ArrayAttr` P: The array of primes in the special modulus, used for key switching.
         - `int` logDefaultScale: The log of the default scale.
+        - `DenseI32ArrayAttr` bootstrapLogP: per-prime bit widths for the bootstrap-circuit's auxiliary modulus
     }];
     let parameters = (ins
       "int":$logN,
@@ -31,7 +32,8 @@ def CKKS_SchemeParam
       "DenseI64ArrayAttr":$P,
       "int":$logDefaultScale,
       DefaultValuedParameter<"CKKSEncryptionType", "CKKSEncryptionType::pk">:$encryptionType,
-      DefaultValuedParameter<"CKKSEncryptionTechnique", "CKKSEncryptionTechnique::standard">:$encryptionTechnique
+      DefaultValuedParameter<"CKKSEncryptionTechnique", "CKKSEncryptionTechnique::standard">:$encryptionTechnique,
+      OptionalParameter<"DenseI32ArrayAttr">:$bootstrapLogP
     );
 }
 

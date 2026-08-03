@@ -2302,6 +2302,9 @@ LogicalResult LattigoEmitter::printOperation(
   if (logSlots.has_value()) {
     os << "LogSlots: utils.Pointy(" << *logSlots << "),\n";
   }
+  if (auto logP = btParams.getLogP()) {
+    os << "LogP: " << printDenseI32ArrayAttr(logP) << ",\n";
+  }
   os.unindent();
   os << "})\n";
   printErrPanic(errName);

@@ -191,8 +191,12 @@ struct LattigoCKKSScheme {
     // std::nullopt back to 0 (no sparse override; emitter falls back to the
     // module-level slot-count hint or the scheme default).
     int logSlotsValue = logSlots.value_or(0);
-    return CKKSBootstrappingParametersLiteralAttr::get(ctx, logN,
-                                                       logSlotsValue);
+
+    auto schemeParamAttr = getSchemeParamAttr(moduleOp);
+    auto bootstrapLogP =
+        schemeParamAttr ? schemeParamAttr.getBootstrapLogP() : nullptr;
+    return CKKSBootstrappingParametersLiteralAttr::get(ctx, logN, logSlotsValue,
+                                                       bootstrapLogP);
   }
 
   static SchemeParamAttrType getSchemeParamAttr(Operation* moduleOp) {
