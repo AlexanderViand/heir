@@ -10,6 +10,7 @@
 #include "lib/Dialect/CKKS/IR/CKKSAttributes.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/Lattigo/IR/LattigoAttributes.h"
+#include "lib/Dialect/Lattigo/IR/LattigoDialect.h"
 #include "lib/Dialect/Lattigo/IR/LattigoOps.h"
 #include "lib/Dialect/Lattigo/IR/LattigoTypes.h"
 #include "lib/Dialect/ModuleAttributes.h"
@@ -55,17 +56,6 @@ bool hasRelinOp(func::FuncOp op) {
     return WalkResult::advance();
   });
   return result;
-}
-
-// Helper function to check if the function has BootstrapOp
-bool hasBootstrapOp(func::FuncOp funcOp) {
-  auto result = walkFuncAndCallees(funcOp, [&](Operation* op) {
-    if (isa<lattigo::CKKSBootstrapOp>(op)) {
-      return WalkResult::interrupt();
-    }
-    return WalkResult::advance();
-  });
-  return result.wasInterrupted();
 }
 
 // Helper function to find encryptor type used in the whole module
@@ -194,14 +184,15 @@ struct LattigoCKKSScheme {
   }
 
   static CKKSBootstrappingParametersLiteralAttr
-  getBootstrappingParametersLiteralAttr(MLIRContext* ctx, Operation* moduleOp) {
-    auto schemeParamAttr = getSchemeParamAttr(moduleOp);
-    if (schemeParamAttr) {
-      auto logN = schemeParamAttr.getLogN();
-      return CKKSBootstrappingParametersLiteralAttr::get(ctx, logN);
-    }
-    return CKKSBootstrappingParametersLiteralAttr::get(
-        ctx, /*logN*/ getLogN(moduleOp));
+  getBootstrappingParametersLiteralAttr(MLIRContext* ctx, Operation* moduleOp,
+                                        std::optional<int> logSlots) {
+    auto logN = getLogN(moduleOp);
+    // OptionalParameter<"int"> uses 0 as the sentinel for "unset", so we map
+    // std::nullopt back to 0 (no sparse override; emitter falls back to the
+    // module-level slot-count hint or the scheme default).
+    int logSlotsValue = logSlots.value_or(0);
+    return CKKSBootstrappingParametersLiteralAttr::get(ctx, logN,
+                                                       logSlotsValue);
   }
 
   static SchemeParamAttrType getSchemeParamAttr(Operation* moduleOp) {
@@ -253,8 +244,25 @@ LogicalResult convertFuncForScheme(func::FuncOp op) {
   RLWEEncryptorType encryptorType = findEncryptorType(module);
   Type decryptorType = RLWEDecryptorType::get(builder.getContext());
 
-  bool hasBootstrap = hasBootstrapOp(op);
-  if (hasBootstrap) {
+  // Discover bootstrap-evaluator args in the entry func. Each carries an
+  // optional `lattigo.bootstrap_log_slots` arg-attr that picks the sparse
+  // slot count for that evaluator (absent => default/full slots). Multiple
+  // args are emitted by LWEToLattigo when a program calls ckks.bootstrap with
+  // distinct logSlots values, and we generate one bootstrapping evaluator per
+  // arg in the same order.
+  SmallVector<std::optional<int>> bootstrapLogSlots;
+  for (unsigned argIdx = 0; argIdx < op.getNumArguments(); ++argIdx) {
+    if (!isa<CKKSBootstrappingEvaluatorType>(op.getArgument(argIdx).getType()))
+      continue;
+    std::optional<int> ls;
+    if (auto attr = op.getArgAttrOfType<IntegerAttr>(
+            argIdx, kBootstrapLogSlotsAttrName)) {
+      ls = static_cast<int>(attr.getInt());
+    }
+    bootstrapLogSlots.push_back(ls);
+  }
+  bool hasBootstrap = !bootstrapLogSlots.empty();
+  for (size_t i = 0; i < bootstrapLogSlots.size(); ++i) {
     funcResultTypes.push_back(bootstrappingEvaluatorType);
   }
   funcResultTypes.push_back(evaluatorType);
@@ -350,16 +358,19 @@ LogicalResult convertFuncForScheme(func::FuncOp op) {
   // evalKeySet is optional so nulltpr is acceptable
   SmallVector<Value> results;
   if (hasBootstrap) {
-    auto ctx = builder.getContext();
-    auto btParamsLiteral =
-        LattigoCKKSScheme::getBootstrappingParametersLiteralAttr(ctx, moduleOp);
-    auto btParams = CKKSNewBootstrappingParametersFromLiteralOp::create(
-        builder, params, btParamsLiteral);
-    auto bEvalKeySet = lattigo::CKKSGenEvaluationKeysBootstrappingOp::create(
-        builder, btParams, sk);
-    auto bEval = lattigo::CKKSNewBootstrappingEvaluatorOp::create(
-        builder, btParams, bEvalKeySet);
-    results.push_back(bEval);
+    auto* ctx = builder.getContext();
+    for (std::optional<int> logSlots : bootstrapLogSlots) {
+      auto btParamsLiteral =
+          LattigoCKKSScheme::getBootstrappingParametersLiteralAttr(
+              ctx, moduleOp, logSlots);
+      auto btParams = CKKSNewBootstrappingParametersFromLiteralOp::create(
+          builder, params, btParamsLiteral);
+      auto bEvalKeySet = lattigo::CKKSGenEvaluationKeysBootstrappingOp::create(
+          builder, btParams, sk);
+      auto bEval = lattigo::CKKSNewBootstrappingEvaluatorOp::create(
+          builder, btParams, bEvalKeySet);
+      results.push_back(bEval);
+    }
   }
   Value evaluator =
       LattigoScheme::getNewEvaluatorOp(builder, params, evalKeySet);

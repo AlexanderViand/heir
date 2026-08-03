@@ -26,6 +26,8 @@
 #include "lib/Utils/ConversionUtils.h"
 #include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"             // from @llvm-project
+#include "llvm/include/llvm/ADT/SmallSet.h"              // from @llvm-project
+#include "llvm/include/llvm/ADT/SmallVector.h"           // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"             // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
@@ -143,6 +145,57 @@ bool containsBootstrap(Operation* op) {
   return result.wasInterrupted();
 }
 
+// Walk all `ckks.bootstrap` ops in the func and its callees, collecting the
+// distinct logSlots values requested. A missing `logSlots` attribute is
+// represented by std::nullopt (i.e. "default / full-slot bootstrapper").
+// The returned vector is sorted: nullopt first (default), then ascending.
+SmallVector<std::optional<int>> collectDistinctBootstrapLogSlots(
+    func::FuncOp funcOp) {
+  bool hasDefault = false;
+  llvm::SmallSet<int, 4> sparseSlots;
+  walkFuncAndCallees(funcOp, [&](Operation* op) {
+    if (auto bootOp = dyn_cast<ckks::BootstrapOp>(op)) {
+      if (auto attr = bootOp.getLogSlotsAttr()) {
+        sparseSlots.insert(static_cast<int>(attr.getInt()));
+      } else {
+        hasDefault = true;
+      }
+    }
+    return WalkResult::advance();
+  });
+  SmallVector<std::optional<int>> result;
+  if (hasDefault) {
+    result.push_back(std::nullopt);
+  }
+  SmallVector<int> sortedSparse(sparseSlots.begin(), sparseSlots.end());
+  llvm::sort(sortedSparse);
+  for (int s : sortedSparse) {
+    result.push_back(s);
+  }
+  return result;
+}
+
+// Find the bootstrap-evaluator block arg in `funcOp` whose
+// `lattigo.bootstrap_log_slots` arg-attr matches `targetLogSlots`. Returns
+// nullptr if no match is found.
+Value findBootstrapEvaluatorArg(func::FuncOp funcOp,
+                                std::optional<int> targetLogSlots) {
+  for (unsigned argIdx = 0; argIdx < funcOp.getNumArguments(); ++argIdx) {
+    auto blockArg = funcOp.getArgument(argIdx);
+    if (!isa<lattigo::CKKSBootstrappingEvaluatorType>(blockArg.getType()))
+      continue;
+    std::optional<int> argLogSlots;
+    if (auto attr = funcOp.getArgAttrOfType<IntegerAttr>(
+            argIdx, lattigo::kBootstrapLogSlotsAttrName)) {
+      argLogSlots = static_cast<int>(attr.getInt());
+    }
+    if (argLogSlots == targetLogSlots) {
+      return blockArg;
+    }
+  }
+  return {};
+}
+
 bool containsEncode(Operation* op) {
   auto funcOp = dyn_cast<func::FuncOp>(op);
   if (!funcOp) {
@@ -169,6 +222,7 @@ struct AddEvaluatorArg : public OpConversionPattern<func::FuncOp> {
       func::FuncOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
     SmallVector<Type, 4> selectedEvaluators;
+    SmallVector<DictionaryAttr, 4> selectedArgAttrs;
     LLVM_DEBUG(llvm::dbgs()
                << "AddEvaluatorArg for func " << op.getName() << "\n");
 
@@ -177,11 +231,41 @@ struct AddEvaluatorArg : public OpConversionPattern<func::FuncOp> {
                  << "Checking if evaluator should be added of type: "
                  << evaluator.first << "\n");
       auto predicate = evaluator.second;
-      if (predicate(op)) {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "Adding evaluator of type: " << evaluator.first << "\n");
-        selectedEvaluators.push_back(evaluator.first);
+      if (!predicate(op)) {
+        continue;
       }
+      // Bootstrap evaluator: one arg per distinct logSlots value found in
+      // the func's `ckks.bootstrap` ops. Each arg is tagged with its
+      // `lattigo.bootstrap_log_slots` so later passes (ConvertBootstrapOp,
+      // ConfigureCryptoContext) can disambiguate by sparse slot count.
+      if (isa<lattigo::CKKSBootstrappingEvaluatorType>(evaluator.first)) {
+        auto logSlotsList = collectDistinctBootstrapLogSlots(op);
+        if (logSlotsList.empty()) {
+          // Predicate said yes (so containsBootstrap was true) but we found
+          // nothing; fall back to a single default arg.
+          logSlotsList.push_back(std::nullopt);
+        }
+        for (std::optional<int> ls : logSlotsList) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "Adding bootstrap evaluator with logSlots="
+                     << (ls ? std::to_string(*ls) : std::string("<default>"))
+                     << "\n");
+          selectedEvaluators.push_back(evaluator.first);
+          if (ls.has_value()) {
+            NamedAttribute named(
+                rewriter.getStringAttr(lattigo::kBootstrapLogSlotsAttrName),
+                rewriter.getI64IntegerAttr(*ls));
+            selectedArgAttrs.push_back(rewriter.getDictionaryAttr({named}));
+          } else {
+            selectedArgAttrs.push_back(nullptr);
+          }
+        }
+        continue;
+      }
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Adding evaluator of type: " << evaluator.first << "\n");
+      selectedEvaluators.push_back(evaluator.first);
+      selectedArgAttrs.push_back(nullptr);
     }
 
     if (selectedEvaluators.empty()) {
@@ -191,13 +275,11 @@ struct AddEvaluatorArg : public OpConversionPattern<func::FuncOp> {
     // Insert all argument at the beginning
     // NOTE: arguments with identical index will
     // appear in the same order that they were listed.
-    SmallVector<unsigned> argIndices(selectedEvaluators.size(), 0);
-    SmallVector<DictionaryAttr> argAttrs(selectedEvaluators.size(), nullptr);
     SmallVector<Location> argLocs(selectedEvaluators.size(), op.getLoc());
 
     rewriter.modifyOpInPlace(op, [&] {
       SmallVector<unsigned> argIndices(selectedEvaluators.size(), 0);
-      (void)op.insertArguments(argIndices, selectedEvaluators, argAttrs,
+      (void)op.insertArguments(argIndices, selectedEvaluators, selectedArgAttrs,
                                argLocs);
     });
     return success();
@@ -256,6 +338,37 @@ struct ConvertFuncCallOp : public OpConversionPattern<func::CallOp> {
       LLVM_DEBUG(llvm::dbgs()
                  << "Checking if evaluator should be added of type: "
                  << evaluator.first << "\n");
+      // Bootstrap evaluator: the callee may take multiple, one per distinct
+      // sparse `logSlots`. Forward one matching value per callee arg by
+      // matching `lattigo.bootstrap_log_slots`. (Use argument types — not
+      // getArgument — so this works on callee declarations too.)
+      if (isa<lattigo::CKKSBootstrappingEvaluatorType>(evaluator.first)) {
+        func::FuncOp callee = funcOp.value();
+        auto callerFunc = op->getParentOfType<func::FuncOp>();
+        auto calleeArgTypes = callee.getArgumentTypes();
+        if (!callerFunc) continue;
+        for (unsigned argIdx = 0; argIdx < calleeArgTypes.size(); ++argIdx) {
+          if (calleeArgTypes[argIdx] != evaluator.first) continue;
+          std::optional<int> calleeLogSlots;
+          if (auto attr = callee.getArgAttrOfType<IntegerAttr>(
+                  argIdx, lattigo::kBootstrapLogSlotsAttrName)) {
+            calleeLogSlots = static_cast<int>(attr.getInt());
+          }
+          Value match = findBootstrapEvaluatorArg(callerFunc, calleeLogSlots);
+          if (!match) {
+            return rewriter.notifyMatchFailure(
+                op, "caller has no bootstrap evaluator matching callee arg");
+          }
+          LLVM_DEBUG(llvm::dbgs()
+                     << "Forwarding bootstrap evaluator logSlots="
+                     << (calleeLogSlots ? std::to_string(*calleeLogSlots)
+                                        : std::string("<default>"))
+                     << "\n");
+          selectedevaluatorsValues.push_back(match);
+        }
+        continue;
+      }
+
       auto result = getContextualEvaluator(op.getOperation(), evaluator.first);
       // filter out non-existent evaluators
       if (failed(result)) {
@@ -477,24 +590,35 @@ struct ConvertRlweRotateOp : public OpConversionPattern<RlweRotateOp> {
   }
 };
 
-template <typename EvaluatorType, typename BootstrapOp,
-          typename LattigoBootstrapOp>
-struct ConvertRlweOpBootstrap : public OpConversionPattern<BootstrapOp> {
-  using OpConversionPattern<BootstrapOp>::OpConversionPattern;
+// CKKS bootstrap lowering: pick the bootstrap-evaluator block arg whose
+// `lattigo.bootstrap_log_slots` arg-attr matches this op's `logSlots`
+// (or no attr if this op has no logSlots, i.e. the default/full-slot
+// bootstrapper).
+struct ConvertCKKSBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
+  using OpConversionPattern<ckks::BootstrapOp>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      BootstrapOp op, typename BootstrapOp::Adaptor adaptor,
+      ckks::BootstrapOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    FailureOr<Value> result =
-        getContextualEvaluator<EvaluatorType>(op.getOperation());
-    if (failed(result)) return result;
+    auto funcOp = op->getParentOfType<func::FuncOp>();
+    if (!funcOp) {
+      return rewriter.notifyMatchFailure(op, "bootstrap op not in a function");
+    }
 
-    Value evaluator = result.value();
-    rewriter.replaceOp(
-        op, LattigoBootstrapOp::create(
-                rewriter, op.getLoc(),
-                this->typeConverter->convertType(op.getOutput().getType()),
-                evaluator, adaptor.getInput()));
+    std::optional<int> targetLogSlots;
+    if (auto attr = op.getLogSlotsAttr()) {
+      targetLogSlots = static_cast<int>(attr.getInt());
+    }
+
+    Value evaluator = findBootstrapEvaluatorArg(funcOp, targetLogSlots);
+    if (!evaluator) {
+      return rewriter.notifyMatchFailure(
+          op, "no bootstrap evaluator arg matching this op's logSlots");
+    }
+
+    rewriter.replaceOpWithNewOp<lattigo::CKKSBootstrapOp>(
+        op, this->typeConverter->convertType(op.getOutput().getType()),
+        evaluator, adaptor.getInput());
     return success();
   }
 };
@@ -789,10 +913,6 @@ using ConvertCKKSLevelReduceOp =
     ConvertRlweLevelReduceOp<lattigo::CKKSEvaluatorType, ckks::LevelReduceOp,
                              lattigo::RLWEDropLevelNewOp>;
 
-using ConvertCKKSBootstrappingOp =
-    ConvertRlweOpBootstrap<lattigo::CKKSBootstrappingEvaluatorType,
-                           ckks::BootstrapOp, lattigo::CKKSBootstrapOp>;
-
 #define GEN_PASS_DEF_LWETOLATTIGO
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h.inc"
 
@@ -1018,15 +1138,14 @@ struct LWEToLattigo : public impl::LWEToLattigoBase<LWEToLattigo> {
                                                                 context);
     }
     if (moduleIsCKKS(module)) {
-      patterns.add<ConvertCKKSAddOp, ConvertCKKSSubOp, ConvertCKKSMulOp,
-                   ConvertCKKSAddPlainOp, ConvertCKKSSubPlainOp,
-                   ConvertCKKSMulPlainOp, ConvertCKKSRelinOp,
-                   ConvertCKKSModulusSwitchOp, ConvertCKKSRotateOp,
-                   ConvertCKKSEncryptOp, ConvertCKKSDecryptOp,
-                   ConvertCKKSEncodeOp, ConvertCKKSDecodeOp,
-                   ConvertCKKSLevelReduceOp, ConvertCKKSBootstrappingOp,
-                   ConvertOrionLinearTransformOp, ConvertOrionChebyshevOp>(
-          typeConverter, context);
+      patterns.add<
+          ConvertCKKSAddOp, ConvertCKKSSubOp, ConvertCKKSMulOp,
+          ConvertCKKSAddPlainOp, ConvertCKKSSubPlainOp, ConvertCKKSMulPlainOp,
+          ConvertCKKSRelinOp, ConvertCKKSModulusSwitchOp, ConvertCKKSRotateOp,
+          ConvertCKKSEncryptOp, ConvertCKKSDecryptOp, ConvertCKKSEncodeOp,
+          ConvertCKKSDecodeOp, ConvertCKKSLevelReduceOp, ConvertCKKSBootstrapOp,
+          ConvertOrionLinearTransformOp, ConvertOrionChebyshevOp>(typeConverter,
+                                                                  context);
     }
     // Misc
 
