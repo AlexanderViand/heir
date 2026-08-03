@@ -90,6 +90,8 @@ using tensor_ext::LayoutAttr;
 
 namespace {
 
+constexpr StringLiteral kMatvecInputSlotsAttrName = "heir.matvec_input_slots";
+
 // The result of a compatibility check for the layouts of an op's operands (cf.
 // hasCompatibleArgumentLayouts). If the check fails, the presence of a
 // diagnostic signals that the failure is unrecoverable and should cause the
@@ -609,74 +611,9 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
   auto matvecOp = cast<linalg::ContractionOpInterface>(*op);
   auto matrix = matvecOp.lhs();
   auto matrixType = cast<RankedTensorType>(matrix.getType());
-
-  // TODO(#1597): a layout optimizer should really be selecting the diagonal
-  // layout instead of this pass.
-
-  // The Halevi-Shoup kernel's diagonal convention ties the matrix's column
-  // coordinate to the slot position of the packed input vector, so it
-  // normally requires a row-major vector. When the vector instead arrives
-  // packed as a permutation of the slots (e.g. the pixel-shuffled gap layout
-  // a strided conv produces), converting the ciphertext costs a log-depth
-  // shift network -- one multiplicative level per stage. Re-indexing the
-  // plaintext matrix's columns by the vector's slot positions is free and
-  // leaves the kernel (rotations, fold, result layout) unchanged: each
-  // (row, col) entry keeps exactly one (ct, slot) home in its row's residue
-  // class, which is all the squat fold needs.
   auto vector = matvecOp.rhs();
   auto vectorType = cast<RankedTensorType>(vector.getType());
   LayoutAttr vectorLayout = getComposedLayoutAttr(vector);
-  bool absorbVectorPacking = false;
-  if (!isRelationRowMajor(vectorType, minSlotCount,
-                          vectorLayout.getIntegerRelation())) {
-    if (isSingleCiphertextPermutation(vectorLayout.getIntegerRelation(),
-                                      vectorType.getNumElements())) {
-      absorbVectorPacking = true;
-    } else {
-      // Replicated or multi-ciphertext packings can't be absorbed into the
-      // matrix layout; fall back to converting the vector to row-major.
-      MLIRContext* ctx = &getContext();
-      mlir::IRRewriter builder(ctx);
-      auto [toReplace, newVectorLayoutAttr] = convertToLayout(
-          ctx, builder, op, vector, vectorLayout,
-          getRowMajorLayoutRelation(vectorType, minSlotCount));
-      debugAssignLayout(toReplace, newVectorLayoutAttr);
-      assignedLayouts.insert({toReplace, newVectorLayoutAttr});
-      vector = toReplace;
-    }
-  }
-
-  LayoutAttr matrixLayout = getComposedLayoutAttr(matrix);
-  // The Halevi-Shoup kernel (all we support at this time) requires one
-  // ciphertext per matrix row.
-  if (absorbVectorPacking) {
-    // Unconditionally re-assign the matrix layout: default matrix layouts
-    // never match a permuted-column diagonal, and the matrix is always
-    // plaintext, so the re-packing happens at compile time (the composed
-    // relation is materialized by the constant-evaluation path in
-    // assign_layout lowering, never by ISL loop codegen).
-    MLIRContext* ctx = &getContext();
-    mlir::IRRewriter builder(ctx);
-    auto [toReplace, newMatrixLayoutAttr] = convertToLayout(
-        ctx, builder, op, matrix, matrixLayout,
-        absorbVectorLayoutIntoMatrix(
-            getDiagonalLayoutRelation(matrixType, minSlotCount),
-            vectorLayout.getIntegerRelation()));
-    debugAssignLayout(toReplace, newMatrixLayoutAttr);
-    assignedLayouts.insert({toReplace, newMatrixLayoutAttr});
-    matrix = toReplace;
-  } else if (!isRelationSquatDiagonal(matrixType, minSlotCount,
-                                      matrixLayout.getIntegerRelation())) {
-    // Insert a layout conversion op to make the matrix layout squat diagonal
-    MLIRContext* ctx = &getContext();
-    mlir::IRRewriter builder(ctx);
-    auto [toReplace, newMatrixLayoutAttr] =
-        convertToLayout(ctx, builder, op, matrix, matrixLayout,
-                        getDiagonalLayoutRelation(matrixType, minSlotCount));
-    debugAssignLayout(toReplace, newMatrixLayoutAttr);
-    assignedLayouts.insert({toReplace, newMatrixLayoutAttr});
-    matrix = toReplace;
-  }
 
   // Always one result, and for the kernels we have right now it's always a
   // row-major replicated vector. Since the matrix may be rectangular, the
@@ -688,6 +625,68 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
     return failure();
   }
   LayoutAttr resultLayout = outputLayoutResult.value();
+
+  // TODO(#1597): a layout optimizer should really be selecting the diagonal
+  // layout instead of this pass.
+
+  LayoutAttr matrixLayout = getComposedLayoutAttr(matrix);
+  IntegerRelation targetMatrixLayout =
+      getDiagonalLayoutRelation(matrixType, ciphertextSize);
+  std::optional<DenseI64ArrayAttr> matvecInputSlots;
+  op->removeAttr(kMatvecInputSlotsAttrName);
+
+  // A non-row-major single-ciphertext input does not need an online layout
+  // conversion. Encode the input-slot permutation directly into the public
+  // diagonal matrix packing while preserving the requested output slots. This
+  // is particularly important for flattened gap-packed convolution outputs:
+  // converting those online creates a deep mask/rotate network immediately
+  // before an otherwise compact matvec.
+  if (!isRelationRowMajor(vectorType, ciphertextSize,
+                          vectorLayout.getIntegerRelation())) {
+    auto inputSlots =
+        getMatvecInputSlots(matrixType, vectorLayout.getIntegerRelation(),
+                            resultLayout.getIntegerRelation(), ciphertextSize);
+    Value logicalMatrix = matrix;
+    if (auto assignLayout =
+            logicalMatrix.getDefiningOp<tensor_ext::AssignLayoutOp>()) {
+      logicalMatrix = assignLayout.getValue();
+    }
+    auto matrixConstantOp = logicalMatrix.getDefiningOp<arith::ConstantOp>();
+    ElementsAttr matrixConstant =
+        matrixConstantOp ? dyn_cast<ElementsAttr>(matrixConstantOp.getValue())
+                         : ElementsAttr{};
+    if (!isSecret(matrix, solver) && matrixConstant && succeeded(inputSlots)) {
+      matvecInputSlots =
+          DenseI64ArrayAttr::get(&getContext(), inputSlots.value());
+    } else {
+      // Multi-ciphertext and unsupported layouts retain the explicit fallback.
+      MLIRContext* ctx = &getContext();
+      mlir::IRRewriter builder(ctx);
+      auto [toReplace, newVectorLayoutAttr] = convertToLayout(
+          ctx, builder, op, vector, vectorLayout,
+          getRowMajorLayoutRelation(vectorType, ciphertextSize));
+      debugAssignLayout(toReplace, newVectorLayoutAttr);
+      assignedLayouts.insert({toReplace, newVectorLayoutAttr});
+      vector = toReplace;
+    }
+  }
+
+  bool matrixAlreadyPacked = isRelationSquatDiagonal(
+      matrixType, ciphertextSize, matrixLayout.getIntegerRelation());
+  if (!matrixAlreadyPacked) {
+    // Insert a layout conversion op to give the matrix the diagonal packing
+    // selected for the actual input and output layouts.
+    MLIRContext* ctx = &getContext();
+    mlir::IRRewriter builder(ctx);
+    auto [toReplace, newMatrixLayoutAttr] = convertToLayout(
+        ctx, builder, op, matrix, matrixLayout, targetMatrixLayout);
+    debugAssignLayout(toReplace, newMatrixLayoutAttr);
+    assignedLayouts.insert({toReplace, newMatrixLayoutAttr});
+    matrix = toReplace;
+  }
+
+  if (matvecInputSlots.has_value())
+    op->setAttr(kMatvecInputSlotsAttrName, matvecInputSlots.value());
   Attribute kernelInfoAttr =
       cloneKernelInfoWithResultShape(matrix, outputType.getShape());
 

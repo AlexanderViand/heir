@@ -23,6 +23,16 @@ presburger::IntegerRelation hoistConversionThroughMatvec(
     const presburger::IntegerRelation& fromVecLayout,
     const presburger::IntegerRelation& toVecLayout);
 
+// Returns a compact CSR encoding of the packed input slots for each matrix
+// column when a diagonal matrix packing can consume `inputLayout` and produce
+// the standard row-major `outputLayout` without an online ciphertext
+// conversion. The first `numColumns + 1` entries are offsets into the remaining
+// slot entries. Both vector layouts must fit in one ciphertext; unsupported
+// layouts fail so callers can retain the explicit fallback.
+FailureOr<SmallVector<int64_t>> getMatvecInputSlots(
+    RankedTensorType matrixType, const presburger::IntegerRelation& inputLayout,
+    const presburger::IntegerRelation& outputLayout, int64_t ciphertextSize);
+
 // Infers a layout relation for the result of an insert_slice operation that
 // preserves the slice as a single continuous block in the destination
 // ciphertext semantics type.

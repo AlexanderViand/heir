@@ -1,4 +1,5 @@
 // RUN: heir-opt %s --split-input-file --convert-to-ciphertext-semantics=min-slot-count=4096 | FileCheck %s
+// RUN: heir-opt %s --split-input-file "--convert-to-ciphertext-semantics=min-slot-count=4096 use-lintrans-kernels=true" | FileCheck %s --check-prefix=LINTRANS
 
 // Check the diagonalized filters shape and the row stride of the second
 // convolution is 3 since the gap factor is 1.
@@ -18,6 +19,15 @@
 #layout11 = #tensor_ext.layout<"{ [i0, i1] -> [ct, slot] : (i0 - i1 + ct) mod 8 = 0 and (-i1 + ct + slot) mod 16 = 0 and 0 <= i0 <= 5 and 0 <= i1 <= 8 and 0 <= ct <= 7 and 0 <= slot <= 31 }">
 #layout12 = #tensor_ext.layout<"{ [i0, i1, i2, i3] -> [ct, slot] : i0 = 0 and i1 = 0 and i3 = 0 and (-3i2 + ct) mod 8 = 0 and 0 <= i2 <= 1 and 0 <= ct <= 7 and 0 <= slot <= 31 and -5 - 3i2 + ct + slot <= 16*floor((7 + ct + slot)/16) <= -3i2 + ct + slot and 16*floor((7 + ct + slot)/16) <= ct + slot }">
 module attributes {backend.lattigo, scheme.ckks} {
+  // LINTRANS: func.func @conv2d_chain
+  // LINTRANS-NOT: linalg.conv_2d_nchw_fchw
+  // LINTRANS: tensor_ext.rotate_and_reduce
+  // LINTRANS-SAME: tensor_ext.diagonal_indices = array<i32: 0, 1, 2, 3, 4, 5, 6, 7>
+  // LINTRANS-SAME: tensor_ext.lintrans
+  // LINTRANS: tensor_ext.rotate_and_reduce
+  // LINTRANS-SAME: tensor_ext.diagonal_indices = array<i32: 0, 3>
+  // LINTRANS-SAME: tensor_ext.lintrans
+  // LINTRANS: secret.yield
   // CHECK: func.func @conv2d_chain
   // CHECK-DAG: %[[c8:.*]] = arith.constant 8 : index
   // CHECK-DAG: %[[c_minus_3:.*]] = arith.constant -3 : index

@@ -223,6 +223,58 @@ TEST(HoistingTest, AbsorbVectorLayoutIntoMatrix) {
   EXPECT_EQ(collector.points.size(), 32);
 }
 
+TEST(HoistingTest, MatvecInputSlotsAreIdentityForRowMajorLayouts) {
+  MLIRContext context;
+  auto f32 = Float32Type::get(&context);
+  auto matrixType = RankedTensorType::get({4, 8}, f32);
+  auto inputType = RankedTensorType::get({8}, f32);
+  auto outputType = RankedTensorType::get({4}, f32);
+
+  auto actual =
+      getMatvecInputSlots(matrixType, getRowMajorLayoutRelation(inputType, 8),
+                          getRowMajorLayoutRelation(outputType, 8), 8);
+  ASSERT_TRUE(succeeded(actual));
+  EXPECT_EQ(*actual, SmallVector<int64_t>(
+                         {0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7}));
+}
+
+TEST(HoistingTest, MatvecInputSlotsCapturePermutedReplicatedLayout) {
+  MLIRContext context;
+  auto f32 = Float32Type::get(&context);
+  auto matrixType = RankedTensorType::get({4, 8}, f32);
+  auto inputLayout = getIntegerRelationFromIslStr(
+      "{ [col] -> [ct, slot] : ct = 0 and (slot - 3col) mod 8 = 0 and "
+      "0 <= col <= 7 and 0 <= slot <= 15 }");
+  auto outputLayout = getIntegerRelationFromIslStr(
+      "{ [row] -> [ct, slot] : ct = 0 and (slot - row) mod 4 = 0 and "
+      "0 <= row <= 3 and 0 <= slot <= 15 }");
+  ASSERT_TRUE(succeeded(inputLayout));
+  ASSERT_TRUE(succeeded(outputLayout));
+
+  auto actual = getMatvecInputSlots(matrixType, inputLayout.value(),
+                                    outputLayout.value(), 16);
+  ASSERT_TRUE(succeeded(actual));
+  EXPECT_EQ(*actual,
+            SmallVector<int64_t>({0, 2,  4, 6, 8, 10, 12, 14, 16, 0,  8, 3, 11,
+                                  6, 14, 1, 9, 4, 12, 7,  15, 2,  10, 5, 13}));
+}
+
+TEST(HoistingTest, MatvecInputSlotsCaptureReplicatedLayout) {
+  MLIRContext context;
+  auto f32 = Float32Type::get(&context);
+  auto matrixType = RankedTensorType::get({4, 8}, f32);
+  auto inputType = RankedTensorType::get({8}, f32);
+  auto outputType = RankedTensorType::get({4}, f32);
+
+  auto actual =
+      getMatvecInputSlots(matrixType, getRowMajorLayoutRelation(inputType, 16),
+                          getRowMajorLayoutRelation(outputType, 16), 16);
+  ASSERT_TRUE(succeeded(actual));
+  EXPECT_EQ(*actual,
+            SmallVector<int64_t>({0, 2,  4, 6,  8, 10, 12, 14, 16, 0,  8, 1, 9,
+                                  2, 10, 3, 11, 4, 12, 5,  13, 6,  14, 7, 15}));
+}
+
 TEST(HoistingTest, PushThroughInsertSlice) {
   // Insert a 4x4 slice (from a 32 slot ciphertext) into a 1x2x4x4 tensor. The
   // result tensor should have two ciphertexts.

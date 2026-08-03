@@ -94,6 +94,7 @@ using tensor_ext::LayoutAttr;
 
 auto& kLayoutAttrName = tensor_ext::TensorExtDialect::kLayoutAttrName;
 auto& kMaterializedAttrName = "tensor_ext.layout_materialized";
+constexpr StringLiteral kMatvecInputSlotsAttrName = "heir.matvec_input_slots";
 auto& kOriginalTypeAttrName =
     tensor_ext::TensorExtDialect::kOriginalTypeAttrName;
 
@@ -893,6 +894,139 @@ static bool isSingleCiphertext(Value materializedOperand) {
                               }) <= 1;
 }
 
+// Repack a standard diagonally packed public matrix so that the unchanged
+// Halevi-Shoup kernel consumes a non-row-major, single-ciphertext input. The
+// compact attribute uses CSR to store every physical input slot for each
+// logical matrix column; doing the expansion here avoids carrying a rows*cols
+// explicit permutation through canonicalization (which is prohibitively
+// expensive for real models).
+static FailureOr<TypedValue<RankedTensorType>> repackMatvecMatrixConstant(
+    linalg::MatvecOp op, TypedValue<RankedTensorType> packedMatrix,
+    DenseI64ArrayAttr inputSlots,
+    ContextAwareConversionPatternRewriter& rewriter) {
+  auto logicalMatrixType = cast<RankedTensorType>(op.getInputs()[0].getType());
+  if (logicalMatrixType.getRank() != 2 || packedMatrix.getType().getRank() != 2)
+    return failure();
+
+  int64_t rows = logicalMatrixType.getDimSize(0);
+  int64_t cols = logicalMatrixType.getDimSize(1);
+  if (rows <= 0 || cols <= 0) return failure();
+
+  int64_t paddedRows = nextPowerOfTwo(rows);
+  int64_t paddedCols = nextPowerOfTwo(cols);
+  int64_t numDiagonals = std::min(paddedRows, paddedCols);
+  int64_t ciphertextSize = packedMatrix.getType().getDimSize(1);
+  if (packedMatrix.getType().getDimSize(0) != numDiagonals ||
+      ciphertextSize < paddedRows || ciphertextSize < paddedCols ||
+      paddedRows > paddedCols || ciphertextSize % paddedCols != 0) {
+    return failure();
+  }
+
+  ArrayRef<int64_t> slotData = inputSlots.asArrayRef();
+  if (static_cast<int64_t>(slotData.size()) < cols + 1) return failure();
+  ArrayRef<int64_t> slotOffsets = slotData.take_front(cols + 1);
+  int64_t totalSlots = slotOffsets.back();
+  if (slotOffsets.front() != 0 || totalSlots < 0 ||
+      static_cast<int64_t>(slotData.size()) != cols + 1 + totalSlots) {
+    return failure();
+  }
+  ArrayRef<int64_t> slotMap = slotData.drop_front(cols + 1);
+  for (int64_t col = 0; col < cols; ++col) {
+    if (slotOffsets[col] < 0 || slotOffsets[col] >= slotOffsets[col + 1] ||
+        slotOffsets[col + 1] > totalSlots) {
+      return failure();
+    }
+    int64_t previousSlot = -1;
+    for (int64_t index = slotOffsets[col]; index < slotOffsets[col + 1];
+         ++index) {
+      if (slotMap[index] <= previousSlot || slotMap[index] >= ciphertextSize)
+        return failure();
+      previousSlot = slotMap[index];
+    }
+  }
+
+  Value logicalMatrix = op.getInputs()[0];
+  if (auto assignLayout =
+          logicalMatrix.getDefiningOp<tensor_ext::AssignLayoutOp>()) {
+    logicalMatrix = assignLayout.getValue();
+  }
+  auto logicalMatrixConstant = logicalMatrix.getDefiningOp<arith::ConstantOp>();
+  ElementsAttr logicalMatrixAttr =
+      logicalMatrixConstant
+          ? dyn_cast<ElementsAttr>(logicalMatrixConstant.getValue())
+          : ElementsAttr{};
+  if (!logicalMatrixAttr || logicalMatrixAttr.getType() != logicalMatrixType) {
+    return failure();
+  }
+  DenseElementsAttr denseLogicalMatrixAttr =
+      dyn_cast<DenseElementsAttr>(logicalMatrixAttr);
+  if (auto resourceAttr =
+          dyn_cast<DenseResourceElementsAttr>(logicalMatrixAttr)) {
+    denseLogicalMatrixAttr = DenseElementsAttr::getFromRawBuffer(
+        resourceAttr.getType(), resourceAttr.getData());
+  }
+  if (!denseLogicalMatrixAttr) return failure();
+
+  SmallVector<Attribute> sourceValues;
+  sourceValues.reserve(logicalMatrixType.getNumElements());
+  llvm::append_range(sourceValues,
+                     denseLogicalMatrixAttr.getValues<Attribute>());
+  Attribute zero =
+      rewriter.getZeroAttr(packedMatrix.getType().getElementType());
+  SmallVector<Attribute> repackedValues(packedMatrix.getType().getNumElements(),
+                                        zero);
+  std::vector<bool> destinationWritten(repackedValues.size(), false);
+
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      int64_t sourceIndex = row * cols + col;
+      std::vector<int64_t> outputCoverage(ciphertextSize / paddedRows, 0);
+      for (int64_t index = slotOffsets[col]; index < slotOffsets[col + 1];
+           ++index) {
+        int64_t inputSlot = slotMap[index];
+        int64_t destinationCount = 0;
+        for (int64_t outputSlot = row; outputSlot < ciphertextSize;
+             outputSlot += paddedRows) {
+          int64_t destinationDiagonal =
+              (inputSlot - outputSlot) % ciphertextSize;
+          if (destinationDiagonal < 0) destinationDiagonal += ciphertextSize;
+          if (destinationDiagonal >= numDiagonals) continue;
+
+          int64_t destinationIndex =
+              destinationDiagonal * ciphertextSize + outputSlot;
+          if (destinationWritten[destinationIndex]) return failure();
+          repackedValues[destinationIndex] = sourceValues[sourceIndex];
+          destinationWritten[destinationIndex] = true;
+          ++destinationCount;
+
+          for (int64_t offset = 0; offset < paddedCols; offset += paddedRows) {
+            int64_t finalSlot = (outputSlot - offset) % ciphertextSize;
+            if (finalSlot < 0) finalSlot += ciphertextSize;
+            if (finalSlot % paddedRows != row) return failure();
+            ++outputCoverage[finalSlot / paddedRows];
+          }
+        }
+        if (destinationCount != 1) return failure();
+      }
+      if (llvm::any_of(outputCoverage,
+                       [](int64_t count) { return count != 1; }))
+        return failure();
+    }
+  }
+
+  auto repackedAttr = DenseElementsAttr::get(
+      packedMatrix.getType(), ArrayRef<Attribute>(repackedValues));
+  rewriter.setInsertionPoint(op);
+  auto repacked =
+      arith::ConstantOp::create(rewriter, op.getLoc(), repackedAttr);
+  setMaterializedAttr(repacked);
+  auto matrixLayout =
+      findAttributeAssociatedWith(packedMatrix, kLayoutAttrName);
+  if (succeeded(matrixLayout))
+    repacked->setAttr(kLayoutAttrName, matrixLayout.value());
+  return cast<TypedValue<RankedTensorType>>(repacked.getResult());
+}
+
 struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
  public:
   using ConversionBase<linalg::MatvecOp>::ConversionBase;
@@ -919,6 +1053,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
   // add are materialized as individual ops (they stay HEIR-side; the backend
   // kernel evaluates a square transform).
   void lintransKernel(linalg::MatvecOp op, OpAdaptor adaptor,
+                      TypedValue<RankedTensorType> matrix,
                       ContextAwareConversionPatternRewriter& rewriter) const {
     LLVM_DEBUG(llvm::dbgs()
                << "Converting linalg.matvec op with lintrans kernel: " << op
@@ -926,9 +1061,6 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
 
     TypedValue<RankedTensorType> input =
         cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
-    TypedValue<RankedTensorType> matrix =
-        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[0]);
-
     rewriter.setInsertionPointAfter(op);
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
 
@@ -944,6 +1076,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
 
   void haleviShoupKernel(
       linalg::MatvecOp op, OpAdaptor adaptor,
+      TypedValue<RankedTensorType> matrix,
       ContextAwareConversionPatternRewriter& rewriter) const {
     LLVM_DEBUG(llvm::dbgs()
                << "Converting linalg.matvec op with halevi shoup kernel: " << op
@@ -952,8 +1085,6 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
     TypedValue<RankedTensorType> input =
         cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
     SSAValue vectorLeaf(input);
-    TypedValue<RankedTensorType> matrix =
-        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[0]);
     SSAValue matrixLeaf(matrix);
 
     LayoutAttr matrixLayout = getLayoutAttr(matrix);
@@ -1001,6 +1132,17 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
       return rewriter.notifyMatchFailure(
           op, "missing new layout attribute for matrix and vector");
 
+    auto typedMatrix = cast<TypedValue<RankedTensorType>>(matrix);
+    if (auto inputSlots =
+            op->getAttrOfType<DenseI64ArrayAttr>(kMatvecInputSlotsAttrName)) {
+      auto repacked =
+          repackMatvecMatrixConstant(op, typedMatrix, inputSlots, rewriter);
+      if (failed(repacked))
+        return rewriter.notifyMatchFailure(
+            op, "failed to repack public matvec matrix for input slots");
+      typedMatrix = repacked.value();
+    }
+
     if (supportsHaleviShoup(op, adaptor)) {
       // The compact lintrans kernel handles a single-ciphertext layer (the
       // same shape tensor_ext.rotate_and_reduce accepts); layers packed
@@ -1015,7 +1157,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
       auto matTy = cast<RankedTensorType>(adaptor.getInputs()[0].getType());
       bool enoughDiagonals = matTy.getShape()[0] >= 2;
       if (useLintransKernels && singleCiphertext && enoughDiagonals) {
-        lintransKernel(op, adaptor, rewriter);
+        lintransKernel(op, adaptor, typedMatrix, rewriter);
       } else {
         if (useLintransKernels) {
           LLVM_DEBUG(llvm::dbgs()
@@ -1023,7 +1165,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
                         "the unrolled Halevi-Shoup kernel: "
                      << op << "\n");
         }
-        haleviShoupKernel(op, adaptor, rewriter);
+        haleviShoupKernel(op, adaptor, typedMatrix, rewriter);
       }
       return success();
     }
@@ -1453,11 +1595,13 @@ struct ConvertLinalgConv2DNchwFchw
 
   ConvertLinalgConv2DNchwFchw(
       const ContextAwareTypeConverter& contextAwareTypeConverter,
-      MLIRContext* context, bool unrollKernels = true)
+      MLIRContext* context, bool unrollKernels = true,
+      bool useLintransKernels = false)
       : ConversionBase<linalg::Conv2DNchwFchwOp>(contextAwareTypeConverter,
                                                  context,
                                                  /*benefit=*/10),
-        unrollKernels(unrollKernels) {}
+        unrollKernels(unrollKernels),
+        useLintransKernels(useLintransKernels) {}
 
   bool supportsExpandedHaleviShoup(linalg::Conv2DNchwFchwOp op,
                                    OpAdaptor adaptor) const {
@@ -1551,6 +1695,55 @@ struct ConvertLinalgConv2DNchwFchw
     addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
   }
 
+  // Keep a single-ciphertext convolution's expanded-Toeplitz matvec compact
+  // as an orion.linear_transform. The filter layout already diagonalizes the
+  // Toeplitz matrix; carrying its nonzero diagonal indices lets the backend
+  // skip the many structural zeros instead of materializing one rotate/mask/
+  // multiply chain per diagonal.
+  void lintransKernel(linalg::Conv2DNchwFchwOp op, OpAdaptor adaptor,
+                      ContextAwareConversionPatternRewriter& rewriter) const {
+    LLVM_DEBUG(
+        llvm::dbgs()
+        << "Converting linalg.conv_2d_nchw_fchw op with lintrans kernel: " << op
+        << "\n");
+
+    TypedValue<RankedTensorType> data =
+        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[0]);
+    TypedValue<RankedTensorType> filter =
+        cast<TypedValue<RankedTensorType>>(adaptor.getInputs()[1]);
+
+    RankedTensorType dataType =
+        cast<RankedTensorType>(op.getInputs()[0].getType());
+    if (auto info = getKernelInfo(op->getAttr(kKernelInfoAttrName))) {
+      dataType =
+          RankedTensorType::get(info->inputShape, dataType.getElementType());
+    }
+    RankedTensorType expandedMatrixType = get2dConvChwFchwFilterExpandedType(
+        cast<RankedTensorType>(op.getInputs()[1].getType()), dataType,
+        /*padding=*/0, llvm::to_vector(op.getStrides().getValues<int64_t>()));
+
+    LayoutAttr filterLayout = getLayoutAttr(filter);
+    PointCollector collector;
+    std::map<int, bool> zeroDiagonals;
+    getCtComplementPoints(filterLayout.getIntegerRelation(), collector,
+                          filter.getType());
+    for (const auto& point : collector.points) {
+      zeroDiagonals[point[0]] = true;
+    }
+
+    rewriter.setInsertionPointAfter(op);
+    Attribute layoutAttr = op->getAttr(kLayoutAttrName);
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(layoutAttr)) {
+      layoutAttr = LayoutAttr::composeLayouts(arrayAttr, op.getContext());
+    }
+    Value finalOutput = emitLintransKernel(rewriter, op.getLoc(), data, filter,
+                                           expandedMatrixType.getShape(),
+                                           layoutAttr, zeroDiagonals);
+
+    Value result = adaptor.getOutputs()[0];
+    addBiasAndReplace(rewriter, op, finalOutput, result, layoutAttr);
+  }
+
   LogicalResult matchAndRewrite(
       linalg::Conv2DNchwFchwOp op, OpAdaptor adaptor,
       ContextAwareConversionPatternRewriter& rewriter) const final {
@@ -1565,7 +1758,20 @@ struct ConvertLinalgConv2DNchwFchw
     }
 
     if (supportsExpandedHaleviShoup(op, adaptor)) {
-      haleviShoupKernel(op, adaptor, rewriter);
+      auto filterTy = cast<RankedTensorType>(adaptor.getInputs()[1].getType());
+      bool enoughDiagonals = filterTy.getShape()[0] >= 2;
+      if (useLintransKernels && isSingleCiphertext(adaptor.getInputs()[0]) &&
+          enoughDiagonals) {
+        lintransKernel(op, adaptor, rewriter);
+      } else {
+        if (useLintransKernels) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "conv spans multiple ciphertexts; falling back to "
+                        "the unrolled Halevi-Shoup kernel: "
+                     << op << "\n");
+        }
+        haleviShoupKernel(op, adaptor, rewriter);
+      }
       return success();
     }
 
@@ -1574,6 +1780,7 @@ struct ConvertLinalgConv2DNchwFchw
 
  private:
   bool unrollKernels;
+  bool useLintransKernels;
 };
 
 Value makeMask(ContextAwareConversionPatternRewriter& rewriter, Location loc,
@@ -2837,9 +3044,10 @@ struct ConvertToCiphertextSemantics
         typeConverter, context);
     patterns.add<ConvertLinalgMatvecLayout>(typeConverter, context,
                                             unrollKernels, useLintransKernels);
-    patterns.add<ConvertLinalgConv1D, ConvertLinalgConv2D,
-                 ConvertLinalgConv2DNchwFchw>(typeConverter, context,
-                                              unrollKernels);
+    patterns.add<ConvertLinalgConv1D, ConvertLinalgConv2D>(
+        typeConverter, context, unrollKernels);
+    patterns.add<ConvertLinalgConv2DNchwFchw>(
+        typeConverter, context, unrollKernels, useLintransKernels);
     patterns.add<ConvertLinalgConv1DNcwFcw>(typeConverter, context,
                                             unrollKernels, useLintransKernels);
     patterns.add<ConvertAssignLayout>(typeConverter, context, minSlotCount,
