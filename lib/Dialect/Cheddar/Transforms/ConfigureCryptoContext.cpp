@@ -8,17 +8,19 @@
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "lib/Dialect/HEIRInterfaces.h"
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Utils/TransformUtils.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/IR/Bufferization.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
-#include "mlir/include/mlir/IR/Builders.h"              // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinAttributes.h"     // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinOps.h"            // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinTypes.h"          // from @llvm-project
-#include "mlir/include/mlir/Pass/PassManager.h"         // from @llvm-project
-#include "mlir/include/mlir/Transforms/Passes.h"        // from @llvm-project
+#include "mlir/include/mlir/Dialect/Utils/StaticValueUtils.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/Builders.h"           // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"         // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinTypes.h"       // from @llvm-project
+#include "mlir/include/mlir/Pass/PassManager.h"      // from @llvm-project
+#include "mlir/include/mlir/Transforms/Passes.h"     // from @llvm-project
 
 namespace mlir::heir::cheddar {
 
@@ -136,10 +138,10 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
              ->getResult(0);
   // cheddar.linear_transform evaluates its BSGS rotations at the op's level;
   // CHEDDAR's level-specific key lookup (best-fit on the key-switch config)
-  // can reject a chain-max key for a much lower level, so additionally
-  // prepare each transform's rotations at its actual usage level.
+  // can reject a chain-max key for a much lower level, so prepare each
+  // transform's rotations at its actual usage level. The caller has already
+  // removed pairs covered by the chain-max loop above.
   for (auto [d, level] : ltRotationKeys) {
-    if (level == maxLevel) continue;  // covered by the loop above
     ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
                                  i64(level))
              ->getResult(0);
@@ -225,6 +227,38 @@ struct CheddarConfigureCryptoContext
             ltKeySet.begin(), ltKeySet.end());
         llvm::sort(ltRotationKeys);
 
+        // Rotations used by any non-linear-transform op (hrot & co. look
+        // their keys up without level constraints) keep a chain-max key.
+        // Rotations used ONLY by linear transforms are keyed at each
+        // transform's own level instead: duplicating them at chain max
+        // dominates key material on deep bootstrapping circuits (criteo:
+        // ~36 GiB of keys, GPU OOM). If any non-LT rotation index cannot be
+        // resolved statically (or is negative, i.e. not in the analysis'
+        // normalized form), fall back to chain-max keys for everything.
+        DenseSet<int64_t> nonLtRotations;
+        bool keepAllMaxKeys = false;
+        moduleOp.walk([&](RotationOpInterface rotOp) {
+          if (isa<LinearTransformOp>(rotOp.getOperation())) return;
+          for (OpFoldResult idx : rotOp.getRotationIndices()) {
+            std::optional<int64_t> d;
+            if (auto attr = dyn_cast<Attribute>(idx))
+              d = cast<IntegerAttr>(attr).getInt();
+            else
+              d = getConstantIntValue(cast<Value>(idx));
+            if (!d.has_value() || *d < 0) {
+              keepAllMaxKeys = true;
+              return;
+            }
+            nonLtRotations.insert(*d);
+          }
+        });
+        DenseSet<int64_t> ltRotationSet;
+        for (auto [d, level] : ltRotationKeys) ltRotationSet.insert(d);
+        auto ltOnly = [&](int64_t d) {
+          return !keepAllMaxKeys && ltRotationSet.contains(d) &&
+                 !nonLtRotations.contains(d);
+        };
+
         // Bootstrapping programs need a BootContext + the one-time boot
         // precompute. Detect by the presence of cheddar.boot (lwe-to-cheddar
         // has already run at this point).
@@ -271,9 +305,21 @@ struct CheddarConfigureCryptoContext
           denseHammingWeight = int64_t{1} << (logN - 1);
           sparseHammingWeight = 32;
         }
+        // Chain-max keys only for rotations some non-LT op uses; LT-only
+        // rotations are keyed per (rotation, LT level) below (including
+        // chain-max LTs).
+        int64_t maxLevel = static_cast<int64_t>(Q.size()) - 1;
+        SmallVector<int64_t> maxKeyRotations;
+        for (int64_t d : rotationIndices)
+          if (!ltOnly(d)) maxKeyRotations.push_back(d);
+        SmallVector<std::pair<int64_t, int64_t>> ltLevelKeys;
+        for (auto [d, level] : ltRotationKeys) {
+          if (level == maxLevel && !ltOnly(d)) continue;  // covered above
+          ltLevelKeys.push_back({d, level});
+        }
         buildConfigureFunc(moduleOp, entry, logN, logDefaultScale, Q, P,
-                           rotationIndices, ltRotationKeys, bootstraps,
-                           numSlots, bootNumCts, bootNumStc, defaultEncLevel,
+                           maxKeyRotations, ltLevelKeys, bootstraps, numSlots,
+                           bootNumCts, bootNumStc, defaultEncLevel,
                            denseHammingWeight, sparseHammingWeight,
                            logMessageRatio);
       }
