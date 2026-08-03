@@ -1,5 +1,5 @@
-// RUN: heir-opt --layout-propagation=ciphertext-size=1024 %s | FileCheck %s --check-prefix=PROP
-// RUN: heir-opt --layout-propagation=ciphertext-size=1024 --convert-to-ciphertext-semantics=ciphertext-size=1024 %s | FileCheck %s --check-prefix=CTS
+// RUN: heir-opt --layout-propagation=min-slot-count=1024 %s | FileCheck %s --check-prefix=PROP
+// RUN: heir-opt --layout-propagation=min-slot-count=1024 --convert-to-ciphertext-semantics=min-slot-count=1024 %s | FileCheck %s --check-prefix=CTS
 
 // The fold must be recorded on the op, because the matrix is then 32x48 (8
 // output channels * 4 output positions, by 8 input channels * the *unpadded*

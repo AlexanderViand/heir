@@ -1,4 +1,4 @@
-// RUN: heir-opt --secret-insert-mgmt-ckks=slot-number=8 %s | FileCheck %s
+// RUN: heir-opt --secret-insert-mgmt-ckks=min-slot-count=8 %s | FileCheck %s
 
 // In cheddar mode (backend.cheddar) a cross-level addition must be resolved by
 // bringing the higher-level operand down with a level_reduce (lowered later to

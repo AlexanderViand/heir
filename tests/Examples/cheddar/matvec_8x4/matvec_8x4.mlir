@@ -4,7 +4,7 @@
 // linalg.matvec source with:
 //   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
 //            --linalg-canonicalizations \
-//            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
+//            --torch-linalg-to-ckks=min-slot-count=1024 --scheme-to-cheddar
 // Shallow (one mult): all encodes are at the top level, so no scale bake is
 // needed (GetScale(top) == nominal 2^45).
 //

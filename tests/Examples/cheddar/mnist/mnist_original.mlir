@@ -3,7 +3,7 @@
 // scale bake + the relu scale-align hand-edits). Kept for
 // diffing. Generated on tests/Examples/common/mnist/mnist.mlir with:
 //   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
-//            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
+//            --torch-linalg-to-ckks=min-slot-count=1024 --scheme-to-cheddar
 !ciphertext = !cheddar.ciphertext
 !context = !cheddar.context
 !encoder = !cheddar.encoder

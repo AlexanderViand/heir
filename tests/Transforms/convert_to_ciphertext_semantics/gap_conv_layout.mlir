@@ -1,4 +1,4 @@
-// RUN: heir-opt %s --convert-to-ciphertext-semantics=ciphertext-size=2048 | FileCheck %s
+// RUN: heir-opt %s --convert-to-ciphertext-semantics=min-slot-count=2048 | FileCheck %s
 
 // Gap-structured conv2d filter layout (stride-2 conv, Halevi-Shoup diagonals
 // with floor-div gap structure). Regression test for the polyhedral blowups

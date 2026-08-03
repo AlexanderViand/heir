@@ -3,7 +3,7 @@
 // from a `linalg.matvec` (1x1024 . 1024 -> 1, both secret) source with:
 //   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
 //            --linalg-canonicalizations \
-//            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
+//            --torch-linalg-to-ckks=min-slot-count=1024 --scheme-to-cheddar
 // (matvec, not linalg.dot, so the result is a 1-element vector rather than a
 // 0-d scalar -- a 0-d tensor lowers to an invalid emitc memref<f32> global.)
 // Shallow (one mult): all encodes are at the top level, so no scale bake is

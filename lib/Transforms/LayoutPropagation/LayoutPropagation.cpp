@@ -732,7 +732,7 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
 
   LayoutAttr matrixLayout = getComposedLayoutAttr(matrix);
   IntegerRelation targetMatrixLayout =
-      getDiagonalLayoutRelation(matrixType, ciphertextSize);
+      getDiagonalLayoutRelation(matrixType, minSlotCount);
   std::optional<DenseI64ArrayAttr> matvecInputSlots;
   op->removeAttr(kMatvecInputSlotsAttrName);
 
@@ -742,11 +742,11 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
   // is particularly important for flattened gap-packed convolution outputs:
   // converting those online creates a deep mask/rotate network immediately
   // before an otherwise compact matvec.
-  if (!isRelationRowMajor(vectorType, ciphertextSize,
+  if (!isRelationRowMajor(vectorType, minSlotCount,
                           vectorLayout.getIntegerRelation())) {
     auto inputSlots =
         getMatvecInputSlots(matrixType, vectorLayout.getIntegerRelation(),
-                            resultLayout.getIntegerRelation(), ciphertextSize);
+                            resultLayout.getIntegerRelation(), minSlotCount);
     Value logicalMatrix = matrix;
     if (auto assignLayout =
             logicalMatrix.getDefiningOp<tensor_ext::AssignLayoutOp>()) {
@@ -763,9 +763,9 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
       // Multi-ciphertext and unsupported layouts retain the explicit fallback.
       MLIRContext* ctx = &getContext();
       mlir::IRRewriter builder(ctx);
-      auto [toReplace, newVectorLayoutAttr] = convertToLayout(
-          ctx, builder, op, vector, vectorLayout,
-          getRowMajorLayoutRelation(vectorType, ciphertextSize));
+      auto [toReplace, newVectorLayoutAttr] =
+          convertToLayout(ctx, builder, op, vector, vectorLayout,
+                          getRowMajorLayoutRelation(vectorType, minSlotCount));
       debugAssignLayout(toReplace, newVectorLayoutAttr);
       assignedLayouts.insert({toReplace, newVectorLayoutAttr});
       vector = toReplace;
@@ -773,7 +773,7 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
   }
 
   bool matrixAlreadyPacked = isRelationSquatDiagonal(
-      matrixType, ciphertextSize, matrixLayout.getIntegerRelation());
+      matrixType, minSlotCount, matrixLayout.getIntegerRelation());
   if (!matrixAlreadyPacked) {
     // Insert a layout conversion op to give the matrix the diagonal packing
     // selected for the actual input and output layouts.
@@ -1046,8 +1046,8 @@ LogicalResult LayoutPropagation::visitOperation(Conv1DNcwFcwOp op) {
   RankedTensorType matrixDataType = dataType;
   IntegerRelation targetDataRelation =
       getRowMajorLayoutRelation(dataType, minSlotCount);
-  if (auto folded = tryFoldPadIntoConvPadding(data, dataType, dataLayout,
-                                              minSlotCount)) {
+  if (auto folded =
+          tryFoldPadIntoConvPadding(data, dataType, dataLayout, minSlotCount)) {
     convPadding = folded->padding;
     matrixDataType = folded->unpaddedType;
     targetDataRelation = folded->targetRelation;

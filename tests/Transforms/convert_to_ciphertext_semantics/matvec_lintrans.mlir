@@ -1,4 +1,4 @@
-// RUN: heir-opt %s --split-input-file "--convert-to-ciphertext-semantics=ciphertext-size=1024 use-lintrans-kernels=true" | FileCheck %s
+// RUN: heir-opt %s --split-input-file "--convert-to-ciphertext-semantics=min-slot-count=1024 use-lintrans-kernels=true" | FileCheck %s
 
 // With use-lintrans-kernels, a diagonal matvec stays compact as a
 // lintrans-marked tensor_ext.rotate_and_reduce (later lowered to

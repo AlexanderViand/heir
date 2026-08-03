@@ -1,4 +1,4 @@
-// RUN: heir-opt %s --torch-linalg-to-ckks='enable-split-preprocessing=true ckks-add-plaintext-needs-runtime-scale=true preserve-poly-eval=true use-lintrans-kernels=true modulus-switch-after-mul=true' | FileCheck %s
+// RUN: heir-opt %s --torch-linalg-to-ckks='enable-split-preprocessing=true ckks-add-plaintext-needs-runtime-scale=true preserve-poly-eval=true use-lintrans-kernels=true greedy-modulus-switch-after-mul=true' | FileCheck %s
 
 // Rescale-after-multiply already returns every multiplication result to the
 // canonical scale for its level. Running the rescale-before-only cross-mul-

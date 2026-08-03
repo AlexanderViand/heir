@@ -1,4 +1,4 @@
-// RUN: heir-opt %s "--convert-to-ciphertext-semantics=ciphertext-size=8 use-lintrans-kernels=true" | FileCheck %s
+// RUN: heir-opt %s "--convert-to-ciphertext-semantics=min-slot-count=8 use-lintrans-kernels=true" | FileCheck %s
 
 // A public matrix can absorb a single-ciphertext input permutation. The
 // resulting diagonal matrix below is checked element-for-element: each output

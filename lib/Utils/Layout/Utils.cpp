@@ -15,11 +15,13 @@
 #include "lib/Utils/Layout/IslConversion.h"
 #include "lib/Utils/MathUtils.h"
 #include "llvm/include/llvm/ADT/DenseSet.h"           // from @llvm-project
+#include "llvm/include/llvm/ADT/DynamicAPInt.h"       // from @llvm-project
 #include "llvm/include/llvm/ADT/STLExtras.h"          // from @llvm-project
 #include "llvm/include/llvm/Support/ErrorHandling.h"  // from @llvm-project
 #include "llvm/include/llvm/Support/MathExtras.h"     // from @llvm-project
 #include "mlir/include/mlir/Analysis/Presburger/IntegerRelation.h"  // from @llvm-project
 #include "mlir/include/mlir/Analysis/Presburger/PresburgerSpace.h"  // from @llvm-project
+#include "mlir/include/mlir/Analysis/Presburger/Simplex.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/Utils/Utils.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"            // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"               // from @llvm-project

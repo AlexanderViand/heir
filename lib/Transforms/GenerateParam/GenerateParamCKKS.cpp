@@ -203,7 +203,7 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
                            std::accumulate(schemeParam.getLogpi().begin(),
                                            schemeParam.getLogpi().end(), 0.0);
       std::optional<int> secureRingDim =
-          tryComputeRingDim(std::ceil(actualLogPQ), 2 * slotNumber);
+          tryComputeRingDim(std::ceil(actualLogPQ), 2 * minSlotCount);
       if (!secureRingDim || forcedRingDim < *secureRingDim) {
         if (!allowInsecureRingDim) {
           auto diag = getOperation()->emitOpError()

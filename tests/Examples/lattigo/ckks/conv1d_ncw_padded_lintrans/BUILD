@@ -12,7 +12,7 @@ heir_lattigo_lib(
     go_library_name = "conv1dncwpaddedlintrans",
     heir_opt_flags = [
         "--annotate-module=backend=lattigo scheme=ckks",
-        "--mlir-to-ckks=ciphertext-degree=1024 use-lintrans-kernels=true modulus-switch-after-mul=true",
+        "--mlir-to-ckks=min-slot-count=1024 use-lintrans-kernels=true greedy-modulus-switch-after-mul=true",
         "--scheme-to-lattigo",
     ],
     mlir_src = "@heir//tests/Examples/common:conv1d_ncw_padded.mlir",

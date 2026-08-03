@@ -3,7 +3,7 @@
 // from a linalg.generic (arith.mulf) source with:
 //   heir-opt --annotate-module='backend=cheddar scheme=ckks' \
 //            --linalg-canonicalizations \
-//            --torch-linalg-to-ckks=ciphertext-degree=1024 --scheme-to-cheddar
+//            --torch-linalg-to-ckks=min-slot-count=1024 --scheme-to-cheddar
 // Shallow (one mult): all encodes top-level, so no scale bake is needed.
 //
 // --scheme-to-cheddar runs cheddar-fuse-ops by default, so this IR uses the

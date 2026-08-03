@@ -1,4 +1,4 @@
-// RUN: heir-opt --layout-propagation=ciphertext-size=1024 %s | FileCheck %s
+// RUN: heir-opt --layout-propagation=min-slot-count=1024 %s | FileCheck %s
 
 // `heir.conv_folded_padding` describes the one op whose filter matrix was built
 // against an unpadded operand. It must not travel along the value chain to %2's

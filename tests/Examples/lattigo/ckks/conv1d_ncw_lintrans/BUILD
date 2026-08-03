@@ -12,11 +12,11 @@ heir_lattigo_lib(
     go_library_name = "conv1dncwlintrans",
     heir_opt_flags = [
         "--annotate-module=backend=lattigo scheme=ckks",
-        # modulus-switch-after-mul mirrors the medusa lattigo path: the
+        # greedy-modulus-switch-after-mul mirrors the medusa lattigo path: the
         # compact lintrans output is only rescaled in the after-mul policy;
         # without it the scale accumulates past the modulus at level 0 and
         # decrypts to noise.
-        "--mlir-to-ckks=ciphertext-degree=1024 use-lintrans-kernels=true modulus-switch-after-mul=true",
+        "--mlir-to-ckks=min-slot-count=1024 use-lintrans-kernels=true greedy-modulus-switch-after-mul=true",
         "--scheme-to-lattigo",
     ],
     mlir_src = "@heir//tests/Examples/common:conv1d_ncw.mlir",
