@@ -1,5 +1,6 @@
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -828,6 +829,43 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       module->emitOpError("CHEDDAR backend only supports CKKS scheme");
       return signalPassFailure();
     }
+
+    // Configure bootstrap transforms for the slots actually represented by
+    // each ciphertext, not the enclosing RLWE ring's maximum CKKS capacity.
+    // Ciphertext-semantics packing records that count in the plaintext ring
+    // polynomial (x^slots + 1). Preparing the larger capacity wastes FFT
+    // transforms and rotation keys without changing the program semantics.
+    std::optional<int64_t> bootstrapSlots;
+    WalkResult slotWalk =
+        module->walk([&](ckks::BootstrapOp op) {
+          auto ctType = dyn_cast<lwe::LWECiphertextType>(
+              getElementTypeOrSelf(op.getInput().getType()));
+          if (!ctType) return WalkResult::advance();
+          int64_t slots = ctType.getPlaintextSpace()
+                              .getRing()
+                              .getPolynomialModulus()
+                              .getPolynomial()
+                              .getDegree();
+          if (bootstrapSlots && *bootstrapSlots != slots) {
+            op.emitOpError()
+                << "mixed bootstrap slot counts are not yet supported: "
+                << *bootstrapSlots << " and " << slots;
+            return WalkResult::interrupt();
+          }
+          bootstrapSlots = slots;
+          return WalkResult::advance();
+        });
+    if (slotWalk.wasInterrupted()) return signalPassFailure();
+    // Both supported Cheddar runtimes require at least 256 slots in their
+    // special-FFT bootstrap implementation.  Padding a smaller logical layout
+    // to that backend minimum preserves its values while still avoiding the
+    // much larger full-ring transform/key setup.
+    constexpr int64_t kMinBootstrapSlots = 256;
+    if (bootstrapSlots)
+      module->setAttr(
+          kActualSlotCountAttrName,
+          IntegerAttr::get(IntegerType::get(context, 64),
+                           std::max(*bootstrapSlots, kMinBootstrapSlots)));
 
     ConversionTarget target(*context);
     target.addLegalDialect<cheddar::CheddarDialect>();
