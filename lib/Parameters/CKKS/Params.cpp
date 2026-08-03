@@ -161,7 +161,8 @@ static std::vector<int64_t> moduliQGenerationReducedError(int logFirstMod,
 // numScaleMod is L
 SchemeParam SchemeParam::getConcreteSchemeParam(
     int logFirstMod, int logDefaultScale, int numScaleMod, int minSlotCount,
-    bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError) {
+    bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError,
+    int forcedRingDim) {
   // CKKS slot number = ringDim / 2
   auto minRingDim = 2 * minSlotCount;
 
@@ -181,7 +182,8 @@ SchemeParam SchemeParam::getConcreteSchemeParam(
   auto logPQ = logQ + logP;
 
   // ringDim will change if newLogPQ is too large
-  auto ringDim = computeRingDim(logPQ, minRingDim);
+  auto ringDim =
+      forcedRingDim ? forcedRingDim : computeRingDim(logPQ, minRingDim);
   bool redo = false;
   std::vector<int64_t> qiImpl;
   std::vector<int64_t> piImpl;
@@ -212,7 +214,8 @@ SchemeParam SchemeParam::getConcreteSchemeParam(
     for (auto pi : piImpl) {
       newLogPQ += log2(pi);
     }
-    auto newRingDim = computeRingDim(newLogPQ, minRingDim);
+    auto newRingDim =
+        forcedRingDim ? forcedRingDim : computeRingDim(newLogPQ, minRingDim);
     if (newRingDim != ringDim) {
       ringDim = newRingDim;
       redo = true;

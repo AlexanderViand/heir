@@ -192,7 +192,7 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
 
     auto schemeParam = ckks::SchemeParam::getConcreteSchemeParam(
         firstModBits, scalingModBits, genMaxLevel, minSlotCount, usePublicKey,
-        encryptionTechniqueExtended, reducedError);
+        encryptionTechniqueExtended, reducedError, ringDim);
 
     LDBG() << "Scheme Param:\n" << schemeParam;
 
@@ -229,7 +229,11 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
             encryptionTechniqueExtended
                 ? ckks::CKKSEncryptionTechnique::extended
                 : ckks::CKKSEncryptionTechnique::standard,
-            /*bootstrapLogP=*/nullptr));
+            /*bootstrapLogP=*/bootstrapLogP.empty()
+                ? nullptr
+                : DenseI32ArrayAttr::get(
+                      context, SmallVector<int32_t>(bootstrapLogP.begin(),
+                                                    bootstrapLogP.end()))));
   }
 };
 

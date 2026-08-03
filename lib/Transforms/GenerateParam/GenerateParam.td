@@ -185,6 +185,14 @@ def GenerateParamCKKS : Pass<"generate-param-ckks"> {
     Option<"reducedError", "reduced-error", "bool",
            /*default=*/"false", "If true, uses the prime selection logic in Reduced Error paper "
            "(https://eprint.iacr.org/2020/1118).">,
+    Option<"ringDim", "ring-dim", "int",
+           /*default=*/"0", "Force the ring dimension instead of deriving it "
+           "from logPQ via the security model (0 = derive). Insecure "
+           "combinations are allowed - benchmarking escape hatch.">,
+    ListOption<"bootstrapLogP", "bootstrap-logp", "int64_t",
+           "Per-prime bit widths for the bootstrap circuit's auxiliary "
+           "modulus (lattigo bootstrapping.ParametersLiteral LogP). Empty "
+           "= backend defaults.">,
   ];
 }
 

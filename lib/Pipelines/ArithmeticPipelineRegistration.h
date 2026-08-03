@@ -77,6 +77,17 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
       *this, "bfv-mod-bits",
       llvm::cl::desc("The number of bits for all moduli for B/FV"),
       llvm::cl::init(60)};
+  PassOptions::Option<int> ckksRingDim{
+      *this, "ckks-ring-dim",
+      llvm::cl::desc(
+          "Force the CKKS ring dimension instead of deriving it from the "
+          "security model (0 = derive; c.f. --generate-param-ckks)"),
+      llvm::cl::init(0)};
+  PassOptions::ListOption<int64_t> ckksBootstrapLogP{
+      *this, "ckks-bootstrap-logp",
+      llvm::cl::desc("Per-prime bit widths for the lattigo bootstrap "
+                     "circuit's auxiliary modulus (empty = backend defaults; "
+                     "c.f. --generate-param-ckks)")};
   PassOptions::Option<bool> useCompositeRelu{
       *this, "use-composite-relu",
       llvm::cl::desc("Approximate ReLU with the composite-sign method "

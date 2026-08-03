@@ -26,7 +26,8 @@ class SchemeParam : public RLWESchemeParam {
 
   static SchemeParam getConcreteSchemeParam(
       int logFirstMod, int logDefaultScale, int numScaleMod, int minSlotCount,
-      bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError);
+      bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError,
+      int forcedRingDim = 0);
 };
 
 // Parameter for each SSA ciphertext SSA value.
