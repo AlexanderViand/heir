@@ -1,6 +1,7 @@
 #ifndef LIB_DIALECT_POLYNOMIAL_IR_POLYNOMIALOPS_TD_
 #define LIB_DIALECT_POLYNOMIAL_IR_POLYNOMIALOPS_TD_
 
+include "lib/Dialect/HEIRInterfaces.td"
 include "lib/Dialect/ModArith/IR/ModArithTypes.td"
 include "lib/Dialect/Polynomial/IR/PolynomialAttributes.td"
 include "lib/Dialect/Polynomial/IR/PolynomialDialect.td"
@@ -377,7 +378,8 @@ def Polynomial_INTTOp : Polynomial_Op<"intt", [Pure, ElementwiseMappable, Declar
   let hasVerifier = 1;
 }
 
-def Polynomial_EvalOp : Polynomial_Op<"eval", [AllTypesMatch<["value", "output"]>, ElementwiseMappable, FixedFormCoeff]> {
+def Polynomial_EvalOp : Polynomial_Op<"eval", [AllTypesMatch<["value", "output"]>, ElementwiseMappable, FixedFormCoeff,
+    DeclareOpInterfaceMethods<ReducesLevelOpInterface, ["getLevelsToDrop"]>]> {
   let summary = "Evaluate a static polynomial attribute at a given SSA value.";
   let description = [{
       Evaluates the result of a polynomial specified as a static attribute at

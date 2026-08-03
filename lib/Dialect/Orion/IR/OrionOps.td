@@ -1,6 +1,7 @@
 #ifndef LIB_DIALECT_ORION_IR_ORIONOPS_TD_
 #define LIB_DIALECT_ORION_IR_ORIONOPS_TD_
 
+include "lib/Dialect/HEIRInterfaces.td"
 include "lib/Dialect/Orion/IR/OrionDialect.td"
 include "lib/Dialect/LWE/IR/LWETypes.td"
 
@@ -15,18 +16,22 @@ class Orion_Op<string mnemonic, list<Trait> traits = []> :
   let assemblyFormat = "operands attr-dict `:` functional-type(operands, results)" ;
 }
 
-def Orion_LinearTransformOp : Orion_Op<"linear_transform", [Pure]> {
+def Orion_LinearTransformOp : Orion_Op<"linear_transform",
+    [Pure, DeclareOpInterfaceMethods<ElementwiseByOperandOpInterface>]> {
   // Use a cleartext for the diagonals since they need to be rotated in the
   // BSGS implementation of linear transforms.
+  // LWECiphertextLike so the torch-linalg path can produce it on a
+  // ciphertext-semantic tensor<Nx!ct> (lowered from tensor_ext.rotate_and_reduce
+  // at SecretToCKKS) as well as on a bare ciphertext (the orion frontend).
   let arguments = (ins
-    LWECiphertext:$input,
+    LWECiphertextLike:$input,
     FloatLike:$diagonals,
     DenseI32ArrayAttr:$diagonal_indices,
     Builtin_IntegerAttr:$orion_level,
     Builtin_FloatAttr:$bsgs_ratio,
     Builtin_IntegerAttr:$slots
   );
-  let results = (outs LWECiphertext:$result);
+  let results = (outs LWECiphertextLike:$result);
   let summary = "Apply a linear transformation to the input ciphertext using pre-computed diagonals";
   let description = [{
     This operation applies a linear transformation on a ciphertext using
@@ -50,14 +55,24 @@ def Orion_LinearTransformOp : Orion_Op<"linear_transform", [Pure]> {
   }];
 }
 
-def Orion_ChebyshevOp : Orion_Op<"chebyshev", [Pure]> {
+def Orion_ChebyshevOp : Orion_Op<"chebyshev", [Pure, ElementwiseMappable]> {
+  // LWECiphertextLike (+ ElementwiseMappable) so the op can be produced on a
+  // ciphertext-semantic tensor<Nx!ct> (the torch-linalg path packs a layer
+  // across N ciphertexts) and then scalarized to per-ciphertext orion.chebyshev
+  // by ElementwiseToAffine before the Lattigo emitter (which handles one ct).
   let arguments = (ins
-    LWECiphertext:$input,
+    LWECiphertextLike:$input,
     ArrayAttr:$coefficients,
     Builtin_FloatAttr:$domain_start,
-    Builtin_FloatAttr:$domain_end
+    Builtin_FloatAttr:$domain_end,
+    // Optional target output scale for the polynomial evaluation. Orion's
+    // composite-sign chain sets the last polynomial's output scale to the
+    // modulus `ql` at the output level (so the following ciphertext-multiply's
+    // rescale is exact); the frontend conveys that ql here. Absent => the
+    // lowering uses the default scale (2^logDefaultScale).
+    OptionalAttr<Builtin_IntegerAttr>:$output_scale
   );
-  let results = (outs LWECiphertext:$result);
+  let results = (outs LWECiphertextLike:$result);
   let summary = "Evaluates a Chebyshev polynomial on a ciphertext using pre-computed coefficients";
 }
 

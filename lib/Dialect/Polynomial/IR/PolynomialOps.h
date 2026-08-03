@@ -8,6 +8,10 @@
 #include "mlir/include/mlir/Support/LLVM.h"             // from @llvm-project
 
 // IWYU pragma: begin_keep
+// Pulled in before the generated op classes so polynomial.eval can declare
+// ReducesLevelOpInterface (CKKS level management uses it to account for the
+// multiplicative depth of a kept polynomial.eval / orion.chebyshev).
+#include "lib/Dialect/HEIRInterfaces.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialTraits.h"
 #include "mlir/include/mlir/Bytecode/BytecodeOpInterface.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"  // from @llvm-project

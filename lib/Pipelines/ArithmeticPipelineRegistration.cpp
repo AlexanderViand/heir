@@ -201,7 +201,14 @@ void mlirToSecretArithmeticPipelineBuilder(
   // Vectorize and optimize rotations
   // TODO(#2320): figure out where this fits in the new pipeline
   hecoSIMDVectorizerPipelineBuilder(pm, options.experimentalDisableLoopUnroll);
-  mathToPolynomialApproximationBuilder(pm, options.useCompositeRelu);
+  // With --preserve-poly-eval, keep polynomial.eval ops intact (skip
+  // LowerPolynomialEval) so SecretToCKKS can lower them to orion.chebyshev
+  // (-> backend polynomial.Evaluate / cheddar.eval_poly) instead of an unrolled
+  // Paterson-Stockmeyer mul/add chain (which hits cheddar's cross-level scale
+  // mismatch and diverges). Backend-agnostic; matmul/conv still lower normally
+  // (this does NOT enable orion.linear_transform matmul lowering).
+  mathToPolynomialApproximationBuilder(pm, options.useCompositeRelu,
+                                       options.preservePolyEval);
 
   // Layout assignment and optimization
   LayoutPropagationOptions layoutPropagationOptions;
@@ -553,7 +560,10 @@ void mlirToRLWEPipeline(OpPassManager& pm,
   }
 
   ElementwiseToAffineOptions elementwiseOptions;
-  elementwiseOptions.convertDialects = {"ckks", "bgv", "lwe"};
+  // "orion" so an orion.chebyshev produced on a tensor<Nx!ct> (under
+  // --preserve-poly-eval) is scalarized to per-ciphertext ops before backend
+  // lowering (cheddar handles one ciphertext per cheddar.eval_poly).
+  elementwiseOptions.convertDialects = {"ckks", "bgv", "lwe", "orion"};
   pm.addPass(createElementwiseToAffine(elementwiseOptions));
 
   pm.addPass(tensor_ext::createTensorExtToTensor());
@@ -716,6 +726,7 @@ void torchLinalgToCkksBuilder(OpPassManager& manager,
   suboptions.minSlotCount = options.minSlotCount;
   suboptions.greedyBootstrapWaterline = options.greedyBootstrapWaterline;
   suboptions.useCompositeRelu = options.useCompositeRelu;
+  suboptions.preservePolyEval = options.preservePolyEval;
   suboptions.scalingModBits = options.scalingModBits;
   suboptions.firstModBits = options.firstModBits;
   suboptions.enableSplitPreprocessing = options.enableSplitPreprocessing;

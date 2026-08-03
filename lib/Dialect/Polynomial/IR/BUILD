@@ -22,6 +22,7 @@ cc_library(
         ":enums_inc_gen",
         ":ops_inc_gen",
         ":types_inc_gen",
+        "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect/ModArith/IR:Dialect",
         "@heir//lib/Dialect/RNS/IR:Dialect",
         "@heir//lib/Utils/Polynomial",
@@ -49,6 +50,7 @@ td_library(
     # include from the heir-root to enable fully-qualified include-paths
     includes = ["../../../.."],
     deps = [
+        "@heir//lib/Dialect:td_files",
         "@heir//lib/Dialect/ModArith/IR:td_files",
         "@heir//lib/Dialect/RNS/IR:td_files",
         "@llvm-project//mlir:ArithOpsTdFiles",

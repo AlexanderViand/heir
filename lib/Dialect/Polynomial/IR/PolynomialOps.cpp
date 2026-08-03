@@ -19,6 +19,7 @@
 #include "lib/Utils/Polynomial/RNSPolynomial.h"
 #include "llvm/include/llvm/ADT/APInt.h"                 // from @llvm-project
 #include "llvm/include/llvm/ADT/TypeSwitch.h"            // from @llvm-project
+#include "llvm/include/llvm/ADT/bit.h"                   // from @llvm-project
 #include "llvm/include/llvm/Support/ErrorHandling.h"     // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/Builders.h"               // from @llvm-project
@@ -401,6 +402,44 @@ LogicalResult EvalOp::verify() {
   }
 
   return success();
+}
+
+int EvalOp::getLevelsToDrop() {
+  // Multiplicative depth of evaluating a degree-d polynomial via the
+  // Paterson-Stockmeyer method is bit_width(d) (== ceil(log2(d+1))). This must
+  // match what the unrolled LowerPolynomialEval lowering consumes, so that CKKS
+  // level management agrees whether the op is shredded into mul/add or kept
+  // whole (and later lowered to orion.chebyshev). Verified against observed
+  // composite-sign drops: 16-coeff (deg 15) -> 4, 28-coeff (deg 27) -> 5.
+  Attribute attr = getPolynomialAttr();
+  int64_t degree =
+      TypeSwitch<Attribute, int64_t>(attr)
+          .Case<TypedChebyshevPolynomialAttr>(
+              [&](TypedChebyshevPolynomialAttr a) {
+                return static_cast<int64_t>(
+                           a.getValue().getCoefficients().size()) -
+                       1;
+              })
+          .Case<ChebyshevPolynomialAttr>([&](ChebyshevPolynomialAttr a) {
+            return static_cast<int64_t>(a.getCoefficients().size()) - 1;
+          })
+          .Case<TypedFloatPolynomialAttr>([&](TypedFloatPolynomialAttr a) {
+            return static_cast<int64_t>(
+                a.getValue().getPolynomial().getDegree());
+          })
+          .Case<FloatPolynomialAttr>([&](FloatPolynomialAttr a) {
+            return static_cast<int64_t>(a.getPolynomial().getDegree());
+          })
+          .Case<TypedIntPolynomialAttr>([&](TypedIntPolynomialAttr a) {
+            return static_cast<int64_t>(
+                a.getValue().getPolynomial().getDegree());
+          })
+          .Case<IntPolynomialAttr>([&](IntPolynomialAttr a) {
+            return static_cast<int64_t>(a.getPolynomial().getDegree());
+          })
+          .Default([&](Attribute) { return static_cast<int64_t>(0); });
+  if (degree <= 0) return 0;
+  return llvm::bit_width(static_cast<uint64_t>(degree));
 }
 
 LogicalResult ExtractSliceOp::verify() {

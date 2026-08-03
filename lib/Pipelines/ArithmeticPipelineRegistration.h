@@ -84,6 +84,17 @@ struct MlirToRLWEPipelineOptions : public LoopOptions {
                      "instead of a single-polynomial max(x,0) fit. More "
                      "accurate for deep nets; needs more depth/bootstrapping."),
       llvm::cl::init(false)};
+  PassOptions::Option<bool> preservePolyEval{
+      *this, "preserve-poly-eval",
+      llvm::cl::desc(
+          "Skip LowerPolynomialEval so a Chebyshev-basis polynomial.eval "
+          "survives to SecretToCKKS and is lowered to a compact "
+          "orion.chebyshev op (-> backend polynomial.Evaluate / "
+          "cheddar.eval_poly) instead of an unrolled Paterson-Stockmeyer "
+          "arith mul/add chain. Backend-agnostic: matmul/conv still lower "
+          "normally (this option does NOT enable orion.linear_transform matmul "
+          "lowering)."),
+      llvm::cl::init(false)};
   PassOptions::Option<bool> debug{
       *this, "debug",
       llvm::cl::desc("Insert debug ports after every secret operation."),

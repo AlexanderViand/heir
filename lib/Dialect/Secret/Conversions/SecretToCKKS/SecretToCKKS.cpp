@@ -16,11 +16,15 @@
 #include "lib/Dialect/Mgmt/IR/MgmtDialect.h"
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/ModArith/IR/ModArithTypes.h"
+#include "lib/Dialect/Orion/IR/OrionDialect.h"
+#include "lib/Dialect/Orion/IR/OrionOps.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
+#include "lib/Dialect/Polynomial/IR/PolynomialOps.h"
 #include "lib/Dialect/RNS/IR/RNSTypes.h"
 #include "lib/Dialect/Secret/Conversions/Patterns.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
 #include "lib/Dialect/Secret/IR/SecretTypes.h"
+#include "lib/Dialect/TensorExt/IR/TensorExtOps.h"
 #include "lib/Utils/AttributeUtils.h"
 #include "lib/Utils/ContextAwareConversionUtils.h"
 #include "lib/Utils/ContextAwareDialectConversion.h"
@@ -30,12 +34,14 @@
 #include "llvm/include/llvm/ADT/SmallVector.h"           // from @llvm-project
 #include "llvm/include/llvm/Support/raw_ostream.h"       // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
+#include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"             // from @llvm-project
 #include "mlir/include/mlir/IR/Builders.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"      // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/Diagnostics.h"            // from @llvm-project
+#include "mlir/include/mlir/IR/Matchers.h"               // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/TypeUtilities.h"          // from @llvm-project
 #include "mlir/include/mlir/IR/Value.h"                  // from @llvm-project
@@ -243,6 +249,45 @@ class SecretGenericPlaintextDivision
   }
 };
 
+// Lower a kept `polynomial.eval` (Chebyshev basis) to `orion.chebyshev`, which
+// the Lattigo backend emits as a single compact polynomial.Evaluate call
+// instead of an unrolled Paterson-Stockmeyer mul/add chain. Only fires under
+// --preserve-poly-eval, which skips LowerPolynomialEval so the eval op survives
+// to here. The op's multiplicative depth was already accounted for by mgmt via
+// ReducesLevelOpInterface (see Polynomial EvalOp::getLevelsToDrop).
+class ConvertChebyshevEval
+    : public SecretGenericOpConversion<polynomial::EvalOp, orion::ChebyshevOp> {
+ public:
+  using SecretGenericOpConversion<
+      polynomial::EvalOp, orion::ChebyshevOp>::SecretGenericOpConversion;
+
+  FailureOr<Operation*> matchAndRewriteInner(
+      secret::GenericOp op, TypeRange outputTypes, ValueRange inputs,
+      ArrayRef<NamedAttribute> attributes,
+      ContextAwareConversionPatternRewriter& rewriter) const override {
+    auto evalOp =
+        cast<polynomial::EvalOp>(op.getBody()->getOperations().front());
+    auto chebAttr = dyn_cast<polynomial::TypedChebyshevPolynomialAttr>(
+        evalOp.getPolynomialAttr());
+    if (!chebAttr) {
+      return rewriter.notifyMatchFailure(
+          evalOp, "orion.chebyshev lowering requires a Chebyshev-basis poly");
+    }
+    auto lower = evalOp->getAttrOfType<FloatAttr>("domain_lower");
+    auto upper = evalOp->getAttrOfType<FloatAttr>("domain_upper");
+    if (!lower || !upper) {
+      return rewriter.notifyMatchFailure(
+          evalOp, "polynomial.eval missing domain_lower/domain_upper attrs");
+    }
+    auto chebyOp = orion::ChebyshevOp::create(
+        rewriter, evalOp.getLoc(), outputTypes[0], inputs[0],
+        chebAttr.getValue().getCoefficients(), lower, upper,
+        /*output_scale=*/IntegerAttr());
+    rewriter.replaceOp(op, chebyOp);
+    return chebyOp.getOperation();
+  }
+};
+
 struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
   using SecretToCKKSBase::SecretToCKKSBase;
 
@@ -286,7 +331,12 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
                                                          typeConverter);
 
     target.addLegalDialect<ckks::CKKSDialect>();
+    // orion.chebyshev is produced under --preserve-poly-eval and lowered to a
+    // compact backend call downstream. (The Orion dialect is also marked legal
+    // so any explicit orion.linear_transform in the input IR survives.)
+    target.addLegalDialect<orion::OrionDialect>();
     patterns.add<
+        ConvertChebyshevEval,
         SecretGenericOpCipherPlainConversion<arith::AddFOp, ckks::AddPlainOp>,
         SecretGenericOpCipherPlainConversion<arith::AddIOp, ckks::AddPlainOp>,
         SecretGenericOpCipherPlainConversion<arith::MulFOp, ckks::MulPlainOp>,

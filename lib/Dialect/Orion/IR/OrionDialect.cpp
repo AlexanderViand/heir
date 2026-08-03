@@ -16,6 +16,14 @@ namespace mlir {
 namespace heir {
 namespace orion {
 
+// ElementwiseByOperandOpInterface: only the input ciphertext (operand 0) is
+// mapped elementwise, so a tensor<Nx!ct> input is scalarized to per-ciphertext
+// linear transforms by convert-elementwise-to-affine; the diagonal matrix
+// (operand 1) is replicated wholesale.
+bool LinearTransformOp::operandIsMappable(unsigned operandIndex) {
+  return operandIndex == 0;
+}
+
 void OrionDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
