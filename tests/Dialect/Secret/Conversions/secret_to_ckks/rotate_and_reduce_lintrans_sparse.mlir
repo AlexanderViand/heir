@@ -1,4 +1,4 @@
-// RUN: heir-opt --mlir-print-local-scope "--secret-to-ckks=poly-mod-degree=16" %s | FileCheck %s
+// RUN: heir-opt --mlir-print-local-scope "--secret-to-ckks=min-slot-count=16" %s | FileCheck %s
 
 // A lintrans-marked rotate_and_reduce over a mostly-zero constant diagonal
 // tensor (a conv's expanded Toeplitz matrix) carries the nonzero rows'
