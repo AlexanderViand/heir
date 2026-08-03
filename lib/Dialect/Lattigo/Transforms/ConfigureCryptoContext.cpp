@@ -44,12 +44,15 @@ namespace lattigo {
 #define GEN_PASS_DEF_CONFIGURECRYPTOCONTEXT
 #include "lib/Dialect/Lattigo/Transforms/Passes.h.inc"
 
-// Helper function to check if the function has RelinearizeOp
+// Helper function to check if the function needs a relinearization key:
+// either an explicit RelinearizeOp, or an op that relinearizes internally
+// (lattigo's polynomial.Evaluate squares the ciphertext while building its
+// power basis).
 bool hasRelinOp(func::FuncOp op) {
   bool result = false;
   walkFuncAndCallees(op, [&](Operation* op) {
     if (isa<BGVRelinearizeOp, BGVRelinearizeNewOp, CKKSRelinearizeOp,
-            CKKSRelinearizeNewOp>(op)) {
+            CKKSRelinearizeNewOp, CKKSChebyshevOp>(op)) {
       result = true;
       return WalkResult::interrupt();
     }
