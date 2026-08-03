@@ -2366,8 +2366,22 @@ LogicalResult LattigoEmitter::printOperation(CKKSLinearTransformOp op) {
   os << diagonalsMapName << " := make(lintrans.Diagonals[float64])\n";
   os << "for i, diagIndex := range " << diagonalIndices << " {\n";
   os.indent();
-  os << diagonalsMapName << "[diagIndex] = " << diagonalsName << "[i*"
-     << slotsPerDiagonal << ":(i+1)*" << slotsPerDiagonal << "]\n";
+  if (getElementTypeOrSelf(diagonalsType).getIntOrFloatBitWidth() != 64) {
+    // f32 diagonals (torch-linalg path; the orion frontend emits f64):
+    // convert per element, a slice re-type is not possible in Go.
+    std::string rowName = outputName + "_diag_row";
+    os << rowName << " := make([]float64, " << slotsPerDiagonal << ")\n";
+    os << "for j := range " << rowName << " {\n";
+    os.indent();
+    os << rowName << "[j] = float64(" << diagonalsName << "[i*"
+       << slotsPerDiagonal << "+j])\n";
+    os.unindent();
+    os << "}\n";
+    os << diagonalsMapName << "[diagIndex] = " << rowName << "\n";
+  } else {
+    os << diagonalsMapName << "[diagIndex] = " << diagonalsName << "[i*"
+       << slotsPerDiagonal << ":(i+1)*" << slotsPerDiagonal << "]\n";
+  }
   os.unindent();
   os << "}\n";
 

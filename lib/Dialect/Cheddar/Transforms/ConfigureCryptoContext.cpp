@@ -50,6 +50,7 @@ namespace {
 void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
                         int64_t logScale, DenseI64ArrayAttr Q,
                         DenseI64ArrayAttr P, ArrayRef<int64_t> rotationIndices,
+                        ArrayRef<std::pair<int64_t, int64_t>> ltRotationKeys,
                         bool bootstraps, int64_t numSlots, int64_t numCtsLevels,
                         int64_t numStcLevels, int64_t defaultEncLevel,
                         int64_t denseHammingWeight, int64_t sparseHammingWeight,
@@ -133,6 +134,16 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
     ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
                                  i64(maxLevel))
              ->getResult(0);
+  // cheddar.linear_transform evaluates its BSGS rotations at the op's level;
+  // CHEDDAR's level-specific key lookup (best-fit on the key-switch config)
+  // can reject a chain-max key for a much lower level, so additionally
+  // prepare each transform's rotations at its actual usage level.
+  for (auto [d, level] : ltRotationKeys) {
+    if (level == maxLevel) continue;  // covered by the loop above
+    ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
+                                 i64(level))
+             ->getResult(0);
+  }
   // Bootstrap precompute + boot rotation keys land in the same UserInterface
   // (EvkMap) as the program rotations above, so this must run last.
   if (bootstraps)
@@ -199,6 +210,21 @@ struct CheddarConfigureCryptoContext
         SmallVector<int64_t> rotationIndices(indexSet.begin(), indexSet.end());
         llvm::sort(rotationIndices);  // deterministic key-prep order
 
+        // (rotation, level) pairs for linear_transform ops: their rotations
+        // run at the op's level and need level-specific keys under CHEDDAR's
+        // best-fit key lookup.
+        SetVector<std::pair<int64_t, int64_t>> ltKeySet;
+        moduleOp.walk([&](LinearTransformOp ltOp) {
+          int64_t ltLevel = ltOp.getLevel().getInt();
+          for (OpFoldResult idx : ltOp.getRotationIndices()) {
+            if (auto attr = dyn_cast<Attribute>(idx))
+              ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
+          }
+        });
+        SmallVector<std::pair<int64_t, int64_t>> ltRotationKeys(
+            ltKeySet.begin(), ltKeySet.end());
+        llvm::sort(ltRotationKeys);
+
         // Bootstrapping programs need a BootContext + the one-time boot
         // precompute. Detect by the presence of cheddar.boot (lwe-to-cheddar
         // has already run at this point).
@@ -246,9 +272,10 @@ struct CheddarConfigureCryptoContext
           sparseHammingWeight = 32;
         }
         buildConfigureFunc(moduleOp, entry, logN, logDefaultScale, Q, P,
-                           rotationIndices, bootstraps, numSlots, bootNumCts,
-                           bootNumStc, defaultEncLevel, denseHammingWeight,
-                           sparseHammingWeight, logMessageRatio);
+                           rotationIndices, ltRotationKeys, bootstraps,
+                           numSlots, bootNumCts, bootNumStc, defaultEncLevel,
+                           denseHammingWeight, sparseHammingWeight,
+                           logMessageRatio);
       }
 
       // Remove the CKKS scheme param attribute — consumed
