@@ -423,7 +423,12 @@ static FailureOr<Value> implementAssignLayoutStep(
       shouldFold = true;
     } else if (strategy == CodegenStrategy::AUTO) {
       int64_t relSize = relationSize(rel);
-      if (relSize <= 16384) {
+      // relSize < 0 means the relation is unbounded or too existential-heavy
+      // to count cheaply. The latter (gap-structured conv/permuted-matvec
+      // layouts) is exactly where the loop-codegen fallback would send ISL
+      // into parametric integer programming, so folding — whose fiber-based
+      // enumeration handles those relations — is the only safe choice.
+      if (relSize < 0 || relSize <= 16384) {
         shouldFold = true;
       } else {
         LLVM_DEBUG(llvm::dbgs()

@@ -487,6 +487,22 @@ bool isOneToOneSingleCiphertextPacking(
   if (relation.getNumDomainVars() != 1 || relation.getNumRangeVars() != 2)
     return false;
 
+  // isl_map_is_bijective needs isl_map_compute_divs, which falls into
+  // parametric integer programming on existential-heavy gap-structured
+  // packings (it never terminates and ignores ISL's operation budget). For
+  // those, decide by domain-fiber enumeration instead: bound the domain with
+  // the simplex and defer to the enumeration-based permutation check.
+  if (relation.getNumLocalVars() > 2) {
+    presburger::Simplex simplex(relation);
+    llvm::SmallVector<llvm::DynamicAPInt> coeffs(relation.getNumVars() + 1,
+                                                 llvm::DynamicAPInt(0));
+    coeffs[0] = llvm::DynamicAPInt(1);
+    auto bounds = simplex.computeIntegerBounds(coeffs);
+    if (!bounds.first.isBounded() || !bounds.second.isBounded()) return false;
+    if (int64_t(*bounds.first) != 0) return false;
+    return isSingleCiphertextPermutation(relation, int64_t(*bounds.second) + 1);
+  }
+
   isl_ctx* ctx = isl_ctx_alloc();
   isl_basic_map* map = convertRelationToBasicMap(relation, ctx);
   if (!map) {
@@ -1211,6 +1227,15 @@ bool isDenseLayout(const presburger::IntegerRelation& relation,
 }
 
 int64_t relationSize(const IntegerRelation& rel) {
+  // Flat ISL operations on the whole relation (is_bounded / count_val need
+  // isl_map_compute_divs) fall into parametric integer programming on
+  // existential-heavy gap-structured layouts — strided/dilated conv packings
+  // and permutation-composed matvec layouts — which never terminates and
+  // ignores ISL's operation budget (the same pathology enumeratePoints'
+  // domain-fiber walk exists to avoid). Report such relations as not cheaply
+  // countable instead of trying.
+  if (rel.getNumLocalVars() > 2) return -1;
+
   isl_ctx* ctx = isl_ctx_alloc();
   isl_basic_map* bmap = convertRelationToBasicMap(rel, ctx);
   isl_set* set = isl_set_from_basic_set(isl_basic_map_wrap(bmap));
