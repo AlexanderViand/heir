@@ -13,6 +13,7 @@
 #include "lib/Dialect/Polynomial/IR/PolynomialTypes.h"
 #include "lib/Utils/Approximation/CaratheodoryFejer.h"
 #include "lib/Utils/Polynomial/Polynomial.h"
+#include "lib/Utils/Utils.h"
 #include "llvm/include/llvm/ADT/APFloat.h"             // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"           // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"  // from @llvm-project
@@ -211,6 +212,32 @@ inline APFloat minnumf(const APFloat& lhs, const APFloat& rhs) {
   APFloat lhsConverted = APFloat(lhs.convertToDouble());
   APFloat rhsConverted = APFloat(rhs.convertToDouble());
   return llvm::minimumnum(lhsConverted, rhsConverted);
+}
+
+// Rescale `x` from [lower, upper] onto Chebyshev's native [-1, 1] domain via
+// the explicit affine map x -> x*(2/(U-L)) - (U+L)/(U-L). Mirrors the rescale
+// in LowerViaPatersonStockmeyerChebyshev (LowerPolynomialEval/Patterns.cpp). We
+// materialize it HERE (before level/scale analysis) when the consumer is a kept
+// Chebyshev kernel (preserve-poly-eval path), because cheddar's eval_poly only
+// evaluates on [-1, 1] and the unrolled rescale in LowerPolynomialEval is
+// skipped on that path. For symmetric domains the shift is 0, so this is a
+// single scalar multiply.
+static Value rescaleToUnitInterval(PatternRewriter& rewriter, Location loc,
+                                   Value x, double lower, double upper) {
+  APFloat rescale = APFloat(2 / (upper - lower));
+  APFloat shift = APFloat(-(upper + lower) / (upper - lower));
+  Type ty = x.getType();
+  if (!rescale.isExactlyValue(1.0)) {
+    auto c = arith::ConstantOp::create(rewriter, loc, ty,
+                                       getScalarOrDenseAttr(ty, rescale));
+    x = arith::MulFOp::create(rewriter, loc, x, c).getResult();
+  }
+  if (!shift.isZero()) {
+    auto c = arith::ConstantOp::create(rewriter, loc, ty,
+                                       getScalarOrDenseAttr(ty, shift));
+    x = arith::AddFOp::create(rewriter, loc, x, c).getResult();
+  }
+  return x;
 }
 
 template <typename OpTy>
@@ -553,7 +580,8 @@ struct ReluViaCompositeSign : public OpRewritePattern<arith::MaximumFOp> {
     PolynomialType polyType =
         PolynomialType::get(ctx, RingAttr::get(Float64Type::get(ctx)));
 
-    auto makeEval = [&](Value in, const std::vector<double>& coeffs) -> Value {
+    auto makeEval = [&](Value in, const std::vector<double>& coeffs,
+                        double domainLo, double domainHi) -> Value {
       // NB: `ChebyshevPolynomial poly(ArrayRef<double>(coeffs))` would be a
       // most-vexing-parse function declaration; bind the ArrayRef to a named
       // variable first so this is unambiguously a value construction.
@@ -564,28 +592,27 @@ struct ReluViaCompositeSign : public OpRewritePattern<arith::MaximumFOp> {
       // (`replaceOpWithNewOp<EvalOp>(op, polyAttr, operand)`): pass (polyAttr,
       // value); the result type follows the input via AllTypesMatch.
       auto eval = rewriter.create<EvalOp>(loc, polyAttr, in);
-      // The sign polys are fit on [-1, 1]; record that for downstream
-      // domain-rescaling in LowerPolynomialEval.
-      eval->setAttr("domain_lower", rewriter.getF64FloatAttr(-1.0));
-      eval->setAttr("domain_upper", rewriter.getF64FloatAttr(1.0));
+      // The sign polys are fit on [-1, 1]; LowerPolynomialEval rescales the
+      // input from [domainLo, domainHi] -> [-1, 1] before evaluating the
+      // Chebyshev basis.
+      eval->setAttr("domain_lower", rewriter.getF64FloatAttr(domainLo));
+      eval->setAttr("domain_upper", rewriter.getF64FloatAttr(domainHi));
       return eval.getResult();
     };
 
-    // xs = x * (1/B)  -> prescale into [-1, 1]. Build a splat constant when the
-    // operand is shaped so the multiply type-checks against the tensor operand.
-    auto invBFloat =
-        cast<FloatAttr>(rewriter.getFloatAttr(elemType, 1.0 / bound));
-    TypedAttr invBAttr =
-        isa<ShapedType>(opType)
-            ? cast<TypedAttr>(DenseElementsAttr::get(cast<ShapedType>(opType),
-                                                     invBFloat.getValue()))
-            : cast<TypedAttr>(invBFloat);
-    Value invB = rewriter.create<arith::ConstantOp>(loc, invBAttr);
-    Value xs = rewriter.create<arith::MulFOp>(loc, x, invB);
-    // step(xs) via the 3-stage composite sign approximation.
-    Value s0 = makeEval(xs, kCompositeSignPoly0);
-    Value s1 = makeEval(s0, kCompositeSignPoly1);
-    Value step = makeEval(s1, kCompositeSignPoly2);
+    // step(x/B) via the 3-stage composite sign approximation. cheby0 is fit on
+    // [-1, 1], so prescale x by 1/B explicitly (x -> x/B maps [-B, B] -> [-1,
+    // 1]) and feed the result to the first eval on domain [-1, 1]. The explicit
+    // multiply is required for the preserve-poly-eval path: cheddar's eval_poly
+    // only evaluates on [-1, 1], so the [-B, B] domain cannot be folded into
+    // the kept Chebyshev kernel (LowerPolynomialEval, which would otherwise
+    // apply the rescale for the unrolled path, is skipped). x itself is
+    // unchanged and still feeds the final `x * step` multiply at its native
+    // scale.
+    Value xPrescaled = rescaleToUnitInterval(rewriter, loc, x, -bound, bound);
+    Value s0 = makeEval(xPrescaled, kCompositeSignPoly0, -1.0, 1.0);
+    Value s1 = makeEval(s0, kCompositeSignPoly1, -1.0, 1.0);
+    Value step = makeEval(s1, kCompositeSignPoly2, -1.0, 1.0);
     // ReLU(x) = x * step(x/B)  (step in [0,1]; B>0 so sign unchanged by scale)
     rewriter.replaceOpWithNewOp<arith::MulFOp>(op, x, step);
     return success();
