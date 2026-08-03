@@ -497,9 +497,20 @@ struct ConvertOrionLinearTransformOp
     auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
     if (failed(evkMap)) return evkMap;
     auto level = rewriter.getI64IntegerAttr(op.getOrionLevelAttr().getInt());
-    double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
-    int64_t ratio =
-        bsgsRatio > 0 ? static_cast<int64_t>(std::llround(bsgsRatio)) : 2;
+    // Baby-step/giant-step split. The Orion frontend stamps bsgs_ratio = 2.0 on
+    // every orion.linear_transform (SecretToCKKS), a CPU-oriented convention:
+    // gs = ceil(sqrt(need / ratio)), so a bigger ratio shifts work from giant
+    // steps into baby steps. GPU backends want that shift -- giant steps are
+    // the expensive axis there (each one is a hoisted rotation whose
+    // accumulators live in per-thread registers, which is also why CHEDDAR's
+    // fused-BSGS kernel caps num_gs), while baby steps amortize inside one
+    // kernel. Override the frontend's ratio with a GPU-appropriate 4 here
+    // rather than changing the shared attribute: the Lattigo path reads the
+    // same attr with a log2 convention (LWEToLattigo: logBsgsRatio =
+    // llround(log2(bsgsRatio))), so editing SecretToCKKS's 2.0 would silently
+    // retune the CPU backend too.
+    constexpr int64_t kGpuBsgsRatio = 4;
+    int64_t ratio = kGpuBsgsRatio;
     if (ratio < 1) ratio = 1;
     int64_t maxRot = 0;
     for (int32_t d : op.getDiagonalIndicesAttr().asArrayRef())
