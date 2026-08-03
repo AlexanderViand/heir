@@ -803,6 +803,46 @@ struct ConvertLinalgDot : public ConversionBase<linalg::DotOp> {
   }
 };
 
+// Marks in `zeroDiagonals` every diagonal (row) of the constant `matrix` whose
+// values are all exactly zero. These are numeric zeros the layout relation
+// cannot see: zero filter taps and zero-padding rows of a conv's expanded
+// Toeplitz matrix, and power-of-two padding rows of a matvec weight matrix.
+// Multiplying by an all-zero diagonal contributes nothing, so recording it
+// alongside the structural (relation-derived) zeros lets the existing
+// diagonal_indices machinery drop it from both encoding and rotation — a
+// backend that would otherwise encode the row and request a rotation key for
+// it. No-op unless `matrix` is a compile-time dense constant.
+static void appendNumericZeroDiagonals(Value matrix,
+                                       std::map<int, bool>& zeroDiagonals) {
+  auto cstOp = matrix.getDefiningOp<arith::ConstantOp>();
+  if (!cstOp) return;
+  ArrayRef<char> raw;
+  if (auto dense = dyn_cast<DenseIntOrFPElementsAttr>(cstOp.getValue())) {
+    if (dense.isSplat()) return;  // all elements equal; no isolated zero rows
+    raw = dense.getRawData();
+  } else if (auto resource =
+                 dyn_cast<DenseResourceElementsAttr>(cstOp.getValue())) {
+    raw = resource.getData();
+  } else {
+    return;
+  }
+  if (raw.empty()) return;
+  auto matrixType = cast<RankedTensorType>(matrix.getType());
+  if (matrixType.getRank() != 2) return;
+  int64_t rows = matrixType.getShape()[0];
+  int64_t cols = matrixType.getShape()[1];
+  int64_t elemBytes = matrixType.getElementType().getIntOrFloatBitWidth() / 8;
+  int64_t rowBytes = cols * elemBytes;
+  if (static_cast<int64_t>(raw.size()) != rows * rowBytes) return;
+  // All-zero bytes ⟺ every element is +0.0 / integer 0 (a sufficient, exact
+  // test; -0.0 is not detected, which is safe — it just leaves the row in).
+  for (int64_t r = 0; r < rows; ++r) {
+    ArrayRef<char> rowData = raw.slice(r * rowBytes, rowBytes);
+    if (llvm::all_of(rowData, [](char b) { return b == 0; }))
+      zeroDiagonals[static_cast<int>(r)] = true;
+  }
+}
+
 // Emits a compact lintrans-marked tensor_ext.rotate_and_reduce for a
 // diagonal-packed kernel (matvec, or a conv expressed as a matvec over its
 // expanded Toeplitz matrix), so SecretToCKKS can lower it to
@@ -1066,8 +1106,13 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
 
     auto originalMatrixShape =
         cast<RankedTensorType>(op.getInputs()[0].getType()).getShape();
-    Value finalOutput = emitLintransKernel(rewriter, op.getLoc(), input, matrix,
-                                           originalMatrixShape, layoutAttr);
+    // Drop diagonals that are numerically all-zero (e.g. power-of-two padding
+    // rows) so the backend neither encodes nor rotates for them.
+    std::map<int, bool> zeroDiagonals;
+    appendNumericZeroDiagonals(matrix, zeroDiagonals);
+    Value finalOutput =
+        emitLintransKernel(rewriter, op.getLoc(), input, matrix,
+                           originalMatrixShape, layoutAttr, zeroDiagonals);
 
     // Add the initial accumulator value.
     Value result = adaptor.getOutputs()[0];
@@ -1096,6 +1141,7 @@ struct ConvertLinalgMatvecLayout : public ConversionBase<linalg::MatvecOp> {
     for (const auto& point : collector.points) {
       zeroDiagonals[point[0]] = true;
     }
+    appendNumericZeroDiagonals(matrix, zeroDiagonals);
     LLVM_DEBUG(llvm::dbgs()
                << "Got " << zeroDiagonals.size()
                << " zero diagonals for filter: " << matrix << "\n");
@@ -1247,6 +1293,7 @@ struct ConvertLinalgConv1D : public ConversionBase<linalg::Conv1DOp> {
     for (const auto& point : collector.points) {
       zeroDiagonals[point[0]] = true;
     }
+    appendNumericZeroDiagonals(filter, zeroDiagonals);
     LLVM_DEBUG(llvm::dbgs()
                << "Got " << zeroDiagonals.size()
                << " zero diagonals for filter: " << filter << "\n");
@@ -1358,6 +1405,7 @@ struct ConvertLinalgConv2D : public ConversionBase<linalg::Conv2DOp> {
     for (const auto& point : collector.points) {
       zeroDiagonals[point[0]] = true;
     }
+    appendNumericZeroDiagonals(matrix, zeroDiagonals);
     LLVM_DEBUG(llvm::dbgs()
                << "Got " << zeroDiagonals.size()
                << " zero diagonals for filter: " << matrix << "\n");
@@ -1475,6 +1523,7 @@ struct ConvertLinalgConv1DNcwFcw
     for (const auto& point : collector.points) {
       zeroDiagonals[point[0]] = true;
     }
+    appendNumericZeroDiagonals(matrix, zeroDiagonals);
     LLVM_DEBUG(llvm::dbgs()
                << "Got " << zeroDiagonals.size()
                << " zero diagonals for filter: " << matrix << "\n");
@@ -1534,6 +1583,7 @@ struct ConvertLinalgConv1DNcwFcw
     for (const auto& point : collector.points) {
       zeroDiagonals[point[0]] = true;
     }
+    appendNumericZeroDiagonals(filter, zeroDiagonals);
 
     rewriter.setInsertionPointAfter(op);
     auto layoutAttr = cast<LayoutAttr>(op->getAttr(kLayoutAttrName));
@@ -1669,6 +1719,7 @@ struct ConvertLinalgConv2DNchwFchw
     for (const auto& point : collector.points) {
       zeroDiagonals[point[0]] = true;
     }
+    appendNumericZeroDiagonals(matrix, zeroDiagonals);
     LLVM_DEBUG(llvm::dbgs()
                << "Got " << zeroDiagonals.size()
                << " zero diagonals for filter: " << matrix << "\n");
