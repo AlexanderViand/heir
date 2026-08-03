@@ -282,13 +282,20 @@ struct ConvertUnaryOp : public OpRewritePattern<OpTy> {
         PolynomialType::get(ctx, RingAttr::get(Float64Type::get(ctx)));
     TypedChebyshevPolynomialAttr polyAttr =
         TypedChebyshevPolynomialAttr::get(polyType, poly);
-    auto evalOp =
-        rewriter.replaceOpWithNewOp<EvalOp>(op, polyAttr, op.getOperand());
-    // These attributes need to be preserved when the polynomial is in the
-    // Chebyshev basis, so that later passes can apply domain rescaling
-    // properly.
-    evalOp->setAttr("domain_lower", domainLowerAttr);
-    evalOp->setAttr("domain_upper", domainUpperAttr);
+    // Rescale the operand onto Chebyshev's native [-1, 1] domain HERE and tag
+    // the eval as [-1, 1]. The unrolled LowerPolynomialEval path would rescale
+    // from the domain attrs itself, but that path is skipped on preserve-poly-
+    // eval (kept Chebyshev kernels evaluate only on [-1, 1]); materializing the
+    // affine map up front fixes that path while making the unrolled path's
+    // rescale a no-op (domain [-1, 1] -> identity). Mirrors
+    // ReluViaCompositeSign.
+    Value rescaled =
+        rescaleToUnitInterval(rewriter, op.getLoc(), op.getOperand(),
+                              domainLowerAttr.getValue().convertToDouble(),
+                              domainUpperAttr.getValue().convertToDouble());
+    auto evalOp = rewriter.replaceOpWithNewOp<EvalOp>(op, polyAttr, rescaled);
+    evalOp->setAttr("domain_lower", rewriter.getF64FloatAttr(-1.0));
+    evalOp->setAttr("domain_upper", rewriter.getF64FloatAttr(1.0));
 
     return success();
   }
@@ -403,13 +410,15 @@ struct ConvertBinaryConstOp : public OpRewritePattern<OpTy> {
         PolynomialType::get(ctx, RingAttr::get(Float64Type::get(ctx)));
     TypedChebyshevPolynomialAttr polyAttr =
         TypedChebyshevPolynomialAttr::get(polyType, poly);
-    auto evalOp =
-        rewriter.replaceOpWithNewOp<EvalOp>(op, polyAttr, nonConstOperand);
-    // These attributes need to be preserved when the polynomial is in the
-    // Chebyshev basis, so that later passes can apply domain rescaling
-    // properly.
-    evalOp->setAttr("domain_lower", domainLowerAttr);
-    evalOp->setAttr("domain_upper", domainUpperAttr);
+    // See ConvertUnaryOp: rescale onto [-1, 1] here so the preserve-poly-eval
+    // path is correct and the unrolled path's rescale becomes a no-op.
+    Value rescaled =
+        rescaleToUnitInterval(rewriter, op.getLoc(), nonConstOperand,
+                              domainLowerAttr.getValue().convertToDouble(),
+                              domainUpperAttr.getValue().convertToDouble());
+    auto evalOp = rewriter.replaceOpWithNewOp<EvalOp>(op, polyAttr, rescaled);
+    evalOp->setAttr("domain_lower", rewriter.getF64FloatAttr(-1.0));
+    evalOp->setAttr("domain_upper", rewriter.getF64FloatAttr(1.0));
 
     return success();
   }
