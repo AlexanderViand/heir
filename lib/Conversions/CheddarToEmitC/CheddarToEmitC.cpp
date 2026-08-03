@@ -1610,12 +1610,74 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
   // f64 (orion frontend) or f32 (torch-linalg path). Construction encodes every
   // diagonal (the dominant cost); the weights are process-lifetime constants,
   // so the transform is memoized on the diagonal array's address.
+#include <algorithm>
 #include <complex>
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <set>
 #include <type_traits>
 #include <vector>
+  // MinKS (minimal key-switching) eligibility. scale-snu CHEDDAR's Evaluate /
+  // AddRequiredRotations assert (abort) with min_ks=true unless the transform's
+  // nonzero baby AND giant rotations each form a COMPLETE arithmetic
+  // progression. IsUsingBSGS() alone (bs>1 && gs>1) is too permissive: a
+  // gap-structured transform (e.g. a dilated conv1d's expanded Toeplitz)
+  // satisfies it yet fails the progression check -> std::exit(1). Compute the
+  // check on the diagonal map once at construction, memoize per transform, and
+  // use it identically for keygen and eval so a needed key is never missing.
+  static int LinearTransformGCD(int a, int b) {
+    while (b != 0) {
+      int r = a % b;
+      a = b;
+      b = r;
+    }
+    return a < 0 ? -a : a;
+  }
+  static std::map<const void*, bool>& LinearTransformMinKSMap() {
+    static auto* modes = new std::map<const void*, bool>();
+    return *modes;
+  }
+  template <typename Matrix>
+  static bool CanUseLinearTransformMinKS(const Matrix& matrix, int W, int bs,
+                                         int gs) {
+    if (bs <= 1 || gs <= 1) return false;
+    int stride = 0;
+    for (const auto& item : matrix) {
+      int rot = item.first % W;
+      if (rot < 0) rot += W;
+      stride = LinearTransformGCD(stride, rot);
+    }
+    if (stride == 0) return false;
+    int gs_stride = stride * bs;
+    std::set<int> bs_indices;
+    std::set<int> gs_indices;
+    for (const auto& item : matrix) {
+      int rot = item.first % W;
+      if (rot < 0) rot += W;
+      int bs_rot = rot % gs_stride;
+      bs_indices.insert(bs_rot);
+      gs_indices.insert(rot - bs_rot);
+    }
+    auto is_complete_stride = [](const std::set<int>& indices) {
+      int count = 0;
+      int gcd = 0;
+      int maximum = 0;
+      for (int index : indices) {
+        if (index == 0) continue;
+        gcd = LinearTransformGCD(gcd, index);
+        maximum = std::max(maximum, index);
+        ++count;
+      }
+      return count > 0 && count * gcd == maximum;
+    };
+    return is_complete_stride(bs_indices) && is_complete_stride(gs_indices);
+  }
+  static bool LinearTransformUsesMinKS(const void* transform) {
+    auto& modes = LinearTransformMinKSMap();
+    auto it = modes.find(transform);
+    return it != modes.end() && it->second;
+  }
   // Evaluate with min_ks=true when the fork supports it: scale-snu CHEDDAR's
   // hoisted BSGS silently corrupts transforms at deep levels (beta == 1) when
   // key-switching with chain-max keys, and its EvkMap cannot hold per-level
@@ -1627,9 +1689,10 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
   static auto RunLinearTransformEval(const LT& lt, CP cp, Ct& out, const Ct& in,
                                      const EM& em, int)
       -> decltype(lt.Evaluate(cp, out, in, em, true), void()) {
-    // min_ks only for actual BSGS shapes: scale-snu's gs==1 evaluation paths
-    // assert min_ks==false (and are level-correct on their own).
-    lt.Evaluate(cp, out, in, em, /*min_ks=*/lt.IsUsingBSGS());
+    // min_ks only when the rotations form complete arithmetic progressions
+    // (see CanUseLinearTransformMinKS); IsUsingBSGS() alone abort()s scale-snu
+    // on gap-structured transforms.
+    lt.Evaluate(cp, out, in, em, /*min_ks=*/LinearTransformUsesMinKS(&lt));
   }
   template <typename LT, typename CP, typename Ct, typename EM>
   static void RunLinearTransformEval(const LT& lt, CP cp, Ct& out, const Ct& in,
@@ -1701,7 +1764,10 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
   static auto AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
                                            Req& req, int)
       -> decltype(lt->AddRequiredRotations(req, lt->IsUsingBSGS()), void()) {
-    lt->AddRequiredRotations(req, lt->IsUsingBSGS());
+    // Same min_ks decision as eval (RunLinearTransformEval) so keygen requests
+    // exactly the keys eval uses; IsUsingBSGS() would over-approximate and
+    // abort scale-snu on gap-structured transforms.
+    lt->AddRequiredRotations(req, LinearTransformUsesMinKS(lt.get()));
   }
   template <typename T, typename Req>
   static void AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
@@ -1723,6 +1789,10 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
     out = MakeLinearTransform<cheddar::LinearTransform<wordT>>(
         cp, m, level, ctx->param_.GetScale(level), bs, gs,
         LinearTransformLogPtSizePerPrime(W), 0);
+    // Memoize MinKS eligibility keyed on the transform pointer; keygen and eval
+    // both look it up (no-op on cyclops, which ignores the min_ks flag).
+    LinearTransformMinKSMap()[out.get()] =
+        CanUseLinearTransformMinKS(m, W, bs, gs);
   }
   template <typename wordT>
   static void RunPreparedLinearTransform(

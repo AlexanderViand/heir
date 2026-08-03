@@ -425,19 +425,14 @@ static FailureOr<Value> implementAssignLayoutStep(
         (strategy == CodegenStrategy::AUTO && isResourceConstant)) {
       shouldFold = true;
     } else if (strategy == CodegenStrategy::AUTO) {
-      int64_t relSize = relationSize(rel);
-      // relSize < 0 means the relation is unbounded or too existential-heavy
-      // to count cheaply. The latter (gap-structured conv/permuted-matvec
-      // layouts) is exactly where the loop-codegen fallback would send ISL
-      // into parametric integer programming, so folding — whose fiber-based
-      // enumeration handles those relations — is the only safe choice.
-      if (relSize < 0 || relSize <= 16384) {
-        shouldFold = true;
-      } else {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "Relation size " << relSize
-                   << " exceeds threshold 16384, skipping constant folding\n");
-      }
+      // Always fold constant layout assignments. The old relSize>16384 skip
+      // was a compile-cost guard against fiber enumeration on large
+      // (gap-structured conv/permuted-matvec) relations; folding is now fast
+      // enough, and NOT folding leaves a conv's expanded-Toeplitz matrix as a
+      // runtime call, hiding its all-zero diagonals from
+      // appendNumericZeroDiagonals -> the backend uploads/keys the dead rows
+      // (TCN: +~19 GiB of zero plaintexts on the six dilated convs -> GPU OOM).
+      shouldFold = true;
     }
   }
 
