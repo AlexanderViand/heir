@@ -95,6 +95,14 @@ bool isRelationSquatDiagonal(RankedTensorType matrixType, int64_t minSlotCount,
 bool isRelationRowMajor(RankedTensorType vectorType, int64_t numSlots,
                         const presburger::IntegerRelation& relation);
 
+// Returns true if the relation packs a vector of `numElements` entries into a
+// single ciphertext (ct = 0) with every entry occupying exactly one slot and
+// no two entries sharing a slot (i.e., the packing is an injective function
+// of the vector index — a permutation into the slot space, with no
+// replication).
+bool isSingleCiphertextPermutation(const presburger::IntegerRelation& relation,
+                                   int64_t numElements);
+
 // Returns true if the relation packs a vector into ciphertext zero with each
 // vector element occupying exactly one distinct slot.
 bool isOneToOneSingleCiphertextPacking(

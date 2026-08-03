@@ -14,6 +14,7 @@
 
 #include "lib/Utils/Layout/IslConversion.h"
 #include "lib/Utils/MathUtils.h"
+#include "llvm/include/llvm/ADT/DenseSet.h"           // from @llvm-project
 #include "llvm/include/llvm/ADT/STLExtras.h"          // from @llvm-project
 #include "llvm/include/llvm/Support/ErrorHandling.h"  // from @llvm-project
 #include "llvm/include/llvm/Support/MathExtras.h"     // from @llvm-project
@@ -445,6 +446,40 @@ bool isRelationRowMajor(RankedTensorType vectorType, int64_t numSlots,
   IntegerRelation rowMajorRelation =
       getRowMajorLayoutRelation(vectorType, numSlots);
   return isRelationEqual(relation, rowMajorRelation);
+}
+
+bool isSingleCiphertextPermutation(const presburger::IntegerRelation& relation,
+                                   int64_t numElements) {
+  if (relation.getNumDomainVars() != 1 || relation.getNumRangeVars() != 2)
+    return false;
+
+  // Every point must have ct = 0.
+  unsigned ctPos = relation.getVarKindOffset(presburger::VarKind::Range);
+  std::optional<int64_t> ctLb =
+      relation.getConstantBound64(presburger::BoundType::LB, ctPos);
+  std::optional<int64_t> ctUb =
+      relation.getConstantBound64(presburger::BoundType::UB, ctPos);
+  if (!ctLb.has_value() || !ctUb.has_value() || ctLb.value() != 0 ||
+      ctUb.value() != 0)
+    return false;
+
+  // Enumerate the packing (fiber-based enumeratePoints stays fast on
+  // existential-heavy gap layouts): the packing is a permutation iff there
+  // are exactly numElements points whose indices and slots are each all
+  // distinct.
+  PointPairCollector points(relation.getNumDomainVars(),
+                            relation.getNumRangeVars());
+  enumeratePoints(relation, points);
+  if (static_cast<int64_t>(points.points.size()) != numElements) return false;
+
+  llvm::DenseSet<int64_t> indices;
+  llvm::DenseSet<int64_t> slots;
+  for (const auto& [domain, range] : points.points) {
+    indices.insert(domain[0]);
+    slots.insert(range[1]);
+  }
+  return static_cast<int64_t>(indices.size()) == numElements &&
+         static_cast<int64_t>(slots.size()) == numElements;
 }
 
 bool isOneToOneSingleCiphertextPacking(

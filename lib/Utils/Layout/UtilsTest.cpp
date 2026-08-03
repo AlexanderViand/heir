@@ -778,6 +778,29 @@ TEST(UtilsTest, TestGetCtComplementPoolingLayer) {
   EXPECT_EQ(collector.points.size(), 1994);
 }
 
+TEST(UtilsTest, TestIsSingleCiphertextPermutation) {
+  // slot = 3*j mod 8: a bijection of [0, 8) that is not a rotation.
+  auto perm = getIntegerRelationFromIslStr(
+                  "{ [d] -> [ct, slot] : ct = 0 and (slot - 3d) mod 8 = 0 and "
+                  "0 <= d <= 7 and 0 <= slot <= 7 }")
+                  .value();
+  EXPECT_TRUE(isSingleCiphertextPermutation(perm, 8));
+
+  // Replicated row-major (two copies in 16 slots) is not a permutation.
+  auto replicated = getIntegerRelationFromIslStr(
+                        "{ [d] -> [ct, slot] : ct = 0 and (slot - d) mod 8 = "
+                        "0 and 0 <= d <= 7 and 0 <= slot <= 15 }")
+                        .value();
+  EXPECT_FALSE(isSingleCiphertextPermutation(replicated, 8));
+
+  // Multi-ciphertext packings cannot be absorbed.
+  auto multiCt = getIntegerRelationFromIslStr(
+                     "{ [d] -> [ct, slot] : d = 4ct + slot and 0 <= d <= 7 "
+                     "and 0 <= ct <= 1 and 0 <= slot <= 3 }")
+                     .value();
+  EXPECT_FALSE(isSingleCiphertextPermutation(multiCt, 8));
+}
+
 TEST(UtilsTest, TestIsOneToOneSingleCiphertextPacking) {
   auto permutation = getIntegerRelationFromIslStr(
                          "{ [i] -> [ct, slot] : ct = 0 and (slot - 3i) mod 8 "
