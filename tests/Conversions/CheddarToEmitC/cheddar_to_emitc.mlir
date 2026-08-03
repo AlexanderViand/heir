@@ -32,7 +32,7 @@
 // CHECK-SAME: std::vector<word>{4ULL, 5ULL}
 // CHECK: emitc.verbatim "{} = Context<word>::Create({});"
 // CHECK: emitc.verbatim "{} = std::make_unique<UserInterface<word>>({});"
-// CHECK: emitc.verbatim "{}->PrepareRotationKey(3, 5);"
+// CHECK: emitc.verbatim "HeirPrepareRotKey({}, 3, 5, {});"
 func.func @configure() -> (tensor<!context>, tensor<!user_interface>) {
   %p = cheddar.make_parameter {logN = 14 : i64, logScale = 45 : i64, mainPrimes = array<i64: 1, 2, 3>, auxPrimes = array<i64: 4, 5>} : !parameter
   %ci = bufferization.alloc_tensor() : tensor<!context>
@@ -145,10 +145,10 @@ func.func @dec_chain(%enc: !encoder, %ui: !user_interface, %ct: tensor<!cipherte
 }
 
 // HRot/HConj keep their verbatim form (the rotation/conjugation key is a nested
-// `ui->GetRotationKey(d)` lookup). Static distance bakes the distance into the
+// `HeirRotationKey(ui, d, in)` shim lookup). Static distance bakes the distance into the
 // format string; dynamic distance threads the SSA value twice.
 // CHECK: func.func @hrot_static
-// CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey(5), 5);"
+// CHECK: emitc.verbatim "{}->HRot({}, {}, HeirRotationKey({}, 5, {}), 5);"
 func.func @hrot_static(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertext>) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
   %r = cheddar.hrot %ctx, %ui, %ct, %d0 {static_distance = 5 : i64} : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
@@ -156,8 +156,10 @@ func.func @hrot_static(%ctx: !context, %ui: !user_interface, %ct: tensor<!cipher
 }
 
 // CHECK: func.func @hrot_dyn
-// CHECK: emitc.verbatim "{}->HRot({}, {}, {}->GetRotationKey({}), {});"
-// CHECK-SAME: %arg3, %arg3
+// CHECK: emitc.verbatim "{}->HRot({}, {}, HeirRotationKey({}, {}, {}), {});"
+// The shim takes the input ciphertext (for its SecretId) between the two
+// threadings of the dynamic distance.
+// CHECK-SAME: %arg3, %arg2, %arg3
 func.func @hrot_dyn(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertext>, %d: index) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
   %r = cheddar.hrot %ctx, %ui, %ct, %d0, %d : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
@@ -165,7 +167,7 @@ func.func @hrot_dyn(%ctx: !context, %ui: !user_interface, %ct: tensor<!ciphertex
 }
 
 // CHECK: func.func @hconj_add
-// CHECK: emitc.verbatim "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());"
+// CHECK: emitc.verbatim "{}->HConjAdd({}, {}, {}, HeirConjugationKey({}, {}));"
 func.func @hconj_add(%ctx: !context, %ui: !user_interface, %a: tensor<!ciphertext>, %b: tensor<!ciphertext>) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
   %r = cheddar.hconj_add %ctx, %ui, %a, %b, %d0 : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
@@ -242,7 +244,7 @@ func.func @apply_prepared_lintrans(
 // CHECK: emitc.verbatim "_ep_ts = _ep_ts * _ep_ts / {}->param_.GetRescalePrimeProd
 // CHECK: emitc.verbatim "cheddar::EvalPoly<word> _ep({1, 2, 3}, _ep_lvl, _ep_is, _ep_ts, true);"
 // CHECK: emitc.verbatim "_ep.Compile(_ep_cp);"
-// CHECK: emitc.verbatim "_ep.Evaluate(_ep_cp, {}, {}, {}.GetMultiplicationKey());"
+// CHECK: emitc.verbatim "_ep.Evaluate(_ep_cp, {}, {}, HeirMultiplicationKey({}, {}));"
 // CHECK: emitc.verbatim "}"
 func.func @eval_poly(%ctx: !context, %enc: !encoder, %ct: tensor<!ciphertext>, %evk: !evk_map) -> tensor<!ciphertext> {
   %d0 = bufferization.alloc_tensor() : tensor<!ciphertext>
