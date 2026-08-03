@@ -3842,49 +3842,49 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %extracted_538 = tensor.extract %arg16[%c30] : tensor<31x!plaintext>
     %extracted_539 = tensor.extract %arg0[%c0] : tensor<1x!ciphertext>
     %ct = cheddar.mult_plain %ctx, %extracted_539, %extracted_4 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_540 = cheddar.hrot %ctx, %extracted_539, %c1 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_540 = cheddar.hrot %ctx, %ui, %extracted_539, %c1 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_541 = cheddar.mult_plain %ctx, %ct_540, %extracted_5 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_542 = cheddar.hrot %ctx, %extracted_539, %c2 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_542 = cheddar.hrot %ctx, %ui, %extracted_539, %c2 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_543 = cheddar.mult_plain %ctx, %ct_542, %extracted_6 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_544 = cheddar.hrot %ctx, %extracted_539, %c3 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_544 = cheddar.hrot %ctx, %ui, %extracted_539, %c3 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_545 = cheddar.mult_plain %ctx, %ct_544, %extracted_7 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_546 = cheddar.hrot %ctx, %extracted_539, %c4 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_546 = cheddar.hrot %ctx, %ui, %extracted_539, %c4 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_547 = cheddar.mult_plain %ctx, %ct_546, %extracted_8 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_548 = cheddar.hrot %ctx, %extracted_539, %c5 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_548 = cheddar.hrot %ctx, %ui, %extracted_539, %c5 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_549 = cheddar.mult_plain %ctx, %ct_548, %extracted_9 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_550 = cheddar.hrot %ctx, %extracted_539, %c6 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_550 = cheddar.hrot %ctx, %ui, %extracted_539, %c6 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_551 = cheddar.mult_plain %ctx, %ct_550, %extracted_10 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_552 = cheddar.hrot %ctx, %extracted_539, %c7 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_552 = cheddar.hrot %ctx, %ui, %extracted_539, %c7 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_553 = cheddar.mult_plain %ctx, %ct_552, %extracted_11 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_554 = cheddar.hrot %ctx, %extracted_539, %c8 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_554 = cheddar.hrot %ctx, %ui, %extracted_539, %c8 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_555 = cheddar.mult_plain %ctx, %ct_554, %extracted_12 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_556 = cheddar.hrot %ctx, %extracted_539, %c9 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_556 = cheddar.hrot %ctx, %ui, %extracted_539, %c9 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_557 = cheddar.mult_plain %ctx, %ct_556, %extracted_13 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_558 = cheddar.hrot %ctx, %extracted_539, %c10 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_558 = cheddar.hrot %ctx, %ui, %extracted_539, %c10 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_559 = cheddar.mult_plain %ctx, %ct_558, %extracted_14 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_560 = cheddar.hrot %ctx, %extracted_539, %c11 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_560 = cheddar.hrot %ctx, %ui, %extracted_539, %c11 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_561 = cheddar.mult_plain %ctx, %ct_560, %extracted_15 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_562 = cheddar.hrot %ctx, %extracted_539, %c12 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_562 = cheddar.hrot %ctx, %ui, %extracted_539, %c12 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_563 = cheddar.mult_plain %ctx, %ct_562, %extracted_16 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_564 = cheddar.hrot %ctx, %extracted_539, %c13 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_564 = cheddar.hrot %ctx, %ui, %extracted_539, %c13 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_565 = cheddar.mult_plain %ctx, %ct_564, %extracted_17 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_566 = cheddar.hrot %ctx, %extracted_539, %c14 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_566 = cheddar.hrot %ctx, %ui, %extracted_539, %c14 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_567 = cheddar.mult_plain %ctx, %ct_566, %extracted_18 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_568 = cheddar.hrot %ctx, %extracted_539, %c15 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_568 = cheddar.hrot %ctx, %ui, %extracted_539, %c15 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_569 = cheddar.mult_plain %ctx, %ct_568, %extracted_19 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_570 = cheddar.hrot %ctx, %extracted_539, %c16 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_570 = cheddar.hrot %ctx, %ui, %extracted_539, %c16 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_571 = cheddar.mult_plain %ctx, %ct_570, %extracted_20 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_572 = cheddar.hrot %ctx, %extracted_539, %c17 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_572 = cheddar.hrot %ctx, %ui, %extracted_539, %c17 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_573 = cheddar.mult_plain %ctx, %ct_572, %extracted_21 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_574 = cheddar.hrot %ctx, %extracted_539, %c18 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_574 = cheddar.hrot %ctx, %ui, %extracted_539, %c18 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_575 = cheddar.mult_plain %ctx, %ct_574, %extracted_22 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_576 = cheddar.hrot %ctx, %extracted_539, %c19 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_576 = cheddar.hrot %ctx, %ui, %extracted_539, %c19 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_577 = cheddar.mult_plain %ctx, %ct_576, %extracted_23 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_578 = cheddar.hrot %ctx, %extracted_539, %c20 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_578 = cheddar.hrot %ctx, %ui, %extracted_539, %c20 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_579 = cheddar.mult_plain %ctx, %ct_578, %extracted_24 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_580 = cheddar.hrot %ctx, %extracted_539, %c21 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_580 = cheddar.hrot %ctx, %ui, %extracted_539, %c21 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_581 = cheddar.mult_plain %ctx, %ct_580, %extracted_25 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_582 = cheddar.hrot %ctx, %extracted_539, %c22 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_582 = cheddar.hrot %ctx, %ui, %extracted_539, %c22 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_583 = cheddar.mult_plain %ctx, %ct_582, %extracted_26 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_584 = cheddar.mult_plain %ctx, %extracted_539, %extracted_27 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_585 = cheddar.mult_plain %ctx, %ct_540, %extracted_28 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4021,7 +4021,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_716 = cheddar.add %ctx, %ct_713, %ct_715 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_717 = cheddar.add %ctx, %ct_711, %ct_716 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_718 = cheddar.add %ctx, %ct_706, %ct_717 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_719 = cheddar.hrot %ctx, %ct_718, %c69 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_719 = cheddar.hrot %ctx, %ui, %ct_718, %c69 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_720 = cheddar.mult_plain %ctx, %extracted_539, %extracted_96 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_721 = cheddar.mult_plain %ctx, %ct_540, %extracted_97 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_722 = cheddar.mult_plain %ctx, %ct_542, %extracted_98 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4157,7 +4157,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_852 = cheddar.add %ctx, %ct_849, %ct_851 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_853 = cheddar.add %ctx, %ct_847, %ct_852 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_854 = cheddar.add %ctx, %ct_842, %ct_853 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_855 = cheddar.hrot %ctx, %ct_854, %c138 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_855 = cheddar.hrot %ctx, %ui, %ct_854, %c138 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_856 = cheddar.mult_plain %ctx, %extracted_539, %extracted_165 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_857 = cheddar.mult_plain %ctx, %ct_540, %extracted_166 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_858 = cheddar.mult_plain %ctx, %ct_542, %extracted_167 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4293,7 +4293,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_988 = cheddar.add %ctx, %ct_985, %ct_987 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_989 = cheddar.add %ctx, %ct_983, %ct_988 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_990 = cheddar.add %ctx, %ct_978, %ct_989 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_991 = cheddar.hrot %ctx, %ct_990, %c207 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_991 = cheddar.hrot %ctx, %ui, %ct_990, %c207 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_992 = cheddar.mult_plain %ctx, %extracted_539, %extracted_234 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_993 = cheddar.mult_plain %ctx, %ct_540, %extracted_235 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_994 = cheddar.mult_plain %ctx, %ct_542, %extracted_236 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4429,7 +4429,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1124 = cheddar.add %ctx, %ct_1121, %ct_1123 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1125 = cheddar.add %ctx, %ct_1119, %ct_1124 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1126 = cheddar.add %ctx, %ct_1114, %ct_1125 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1127 = cheddar.hrot %ctx, %ct_1126, %c276 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1127 = cheddar.hrot %ctx, %ui, %ct_1126, %c276 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1128 = cheddar.mult_plain %ctx, %extracted_539, %extracted_303 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1129 = cheddar.mult_plain %ctx, %ct_540, %extracted_304 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1130 = cheddar.mult_plain %ctx, %ct_542, %extracted_305 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4565,7 +4565,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1260 = cheddar.add %ctx, %ct_1257, %ct_1259 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1261 = cheddar.add %ctx, %ct_1255, %ct_1260 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1262 = cheddar.add %ctx, %ct_1250, %ct_1261 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1263 = cheddar.hrot %ctx, %ct_1262, %c345 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1263 = cheddar.hrot %ctx, %ui, %ct_1262, %c345 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1264 = cheddar.mult_plain %ctx, %extracted_539, %extracted_372 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1265 = cheddar.mult_plain %ctx, %ct_540, %extracted_373 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1266 = cheddar.mult_plain %ctx, %ct_542, %extracted_374 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4701,7 +4701,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1396 = cheddar.add %ctx, %ct_1393, %ct_1395 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1397 = cheddar.add %ctx, %ct_1391, %ct_1396 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1398 = cheddar.add %ctx, %ct_1386, %ct_1397 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1399 = cheddar.hrot %ctx, %ct_1398, %c414 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1399 = cheddar.hrot %ctx, %ui, %ct_1398, %c414 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1400 = cheddar.mult_plain %ctx, %extracted_539, %extracted_441 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1401 = cheddar.mult_plain %ctx, %ct_540, %extracted_442 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1402 = cheddar.mult_plain %ctx, %ct_542, %extracted_443 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4837,7 +4837,7 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1532 = cheddar.add %ctx, %ct_1529, %ct_1531 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1533 = cheddar.add %ctx, %ct_1527, %ct_1532 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1534 = cheddar.add %ctx, %ct_1522, %ct_1533 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1535 = cheddar.hrot %ctx, %ct_1534, %c483 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1535 = cheddar.hrot %ctx, %ui, %ct_1534, %c483 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1536 = cheddar.mult_plain %ctx, %extracted_539, %extracted_510 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1537 = cheddar.mult_plain %ctx, %ct_540, %extracted_511 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1538 = cheddar.mult_plain %ctx, %ct_542, %extracted_512 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4870,31 +4870,31 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1565 = cheddar.add %ctx, %ct_1562, %ct_1564 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1566 = cheddar.add %ctx, %ct_1560, %ct_1565 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1567 = cheddar.add %ctx, %ct_1556, %ct_1566 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1568 = cheddar.hrot_add %ctx, %ct_628, %ct_583 {distance = 23 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1569 = cheddar.hrot_add %ctx, %ct_673, %ct_719 {distance = 46 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1570 = cheddar.hrot_add %ctx, %ct_764, %ct_1569 {distance = 92 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1568 = cheddar.hrot_add %ctx, %ui, %ct_628, %ct_583 {distance = 23 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1569 = cheddar.hrot_add %ctx, %ui, %ct_673, %ct_719 {distance = 46 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1570 = cheddar.hrot_add %ctx, %ui, %ct_764, %ct_1569 {distance = 92 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1571 = cheddar.add %ctx, %ct_1568, %ct_1570 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1572 = cheddar.hrot_add %ctx, %ct_809, %ct_855 {distance = 115 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1573 = cheddar.hrot_add %ctx, %ct_900, %ct_1572 {distance = 161 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1574 = cheddar.hrot_add %ctx, %ct_945, %ct_991 {distance = 184 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1575 = cheddar.hrot_add %ctx, %ct_1036, %ct_1574 {distance = 230 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1572 = cheddar.hrot_add %ctx, %ui, %ct_809, %ct_855 {distance = 115 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1573 = cheddar.hrot_add %ctx, %ui, %ct_900, %ct_1572 {distance = 161 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1574 = cheddar.hrot_add %ctx, %ui, %ct_945, %ct_991 {distance = 184 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1575 = cheddar.hrot_add %ctx, %ui, %ct_1036, %ct_1574 {distance = 230 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1576 = cheddar.add %ctx, %ct_1573, %ct_1575 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1577 = cheddar.add %ctx, %ct_1571, %ct_1576 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1578 = cheddar.hrot_add %ctx, %ct_1081, %ct_1127 {distance = 253 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1579 = cheddar.hrot_add %ctx, %ct_1172, %ct_1578 {distance = 299 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1580 = cheddar.hrot_add %ctx, %ct_1217, %ct_1263 {distance = 322 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1581 = cheddar.hrot_add %ctx, %ct_1308, %ct_1580 {distance = 368 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1578 = cheddar.hrot_add %ctx, %ui, %ct_1081, %ct_1127 {distance = 253 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1579 = cheddar.hrot_add %ctx, %ui, %ct_1172, %ct_1578 {distance = 299 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1580 = cheddar.hrot_add %ctx, %ui, %ct_1217, %ct_1263 {distance = 322 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1581 = cheddar.hrot_add %ctx, %ui, %ct_1308, %ct_1580 {distance = 368 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1582 = cheddar.add %ctx, %ct_1579, %ct_1581 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1583 = cheddar.hrot_add %ctx, %ct_1353, %ct_1399 {distance = 391 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1584 = cheddar.hrot_add %ctx, %ct_1444, %ct_1583 {distance = 437 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1585 = cheddar.hrot_add %ctx, %ct_1489, %ct_1535 {distance = 460 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1586 = cheddar.hrot_add %ctx, %ct_1546, %ct_1585 {distance = 506 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1583 = cheddar.hrot_add %ctx, %ui, %ct_1353, %ct_1399 {distance = 391 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1584 = cheddar.hrot_add %ctx, %ui, %ct_1444, %ct_1583 {distance = 437 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1585 = cheddar.hrot_add %ctx, %ui, %ct_1489, %ct_1535 {distance = 460 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1586 = cheddar.hrot_add %ctx, %ui, %ct_1546, %ct_1585 {distance = 506 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1587 = cheddar.add %ctx, %ct_1584, %ct_1586 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1588 = cheddar.add %ctx, %ct_1582, %ct_1587 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1589 = cheddar.add %ctx, %ct_1577, %ct_1588 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1590 = cheddar.add %ctx, %ct_1567, %ct_1589 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1591 = cheddar.add_plain %ctx, %ct_1590, %extracted : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1592 = cheddar.hrot_add %ctx, %ct_1590, %ct_1591 {distance = 512 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1592 = cheddar.hrot_add %ctx, %ui, %ct_1590, %ct_1591 {distance = 512 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1593 = cheddar.rescale %ctx, %ct_1592 : (!context, !ciphertext) -> !ciphertext
     %ct_1594 = cheddar.mult_plain %ctx, %ct_1593, %extracted_516 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1595 = cheddar.rescale %ctx, %ct_1594 : (!context, !ciphertext) -> !ciphertext
@@ -4928,13 +4928,13 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1623 = cheddar.add %ctx, %ct_1622, %ct_1619 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1624 = cheddar.rescale %ctx, %ct_1623 : (!context, !ciphertext) -> !ciphertext
     %ct_1625 = cheddar.mult_plain %ctx, %ct_1624, %extracted_523 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1626 = cheddar.hrot %ctx, %ct_1623, %c1 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1626 = cheddar.hrot %ctx, %ui, %ct_1623, %c1 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1627 = cheddar.rescale %ctx, %ct_1626 : (!context, !ciphertext) -> !ciphertext
     %ct_1628 = cheddar.mult_plain %ctx, %ct_1627, %extracted_524 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1629 = cheddar.hrot %ctx, %ct_1623, %c2 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1629 = cheddar.hrot %ctx, %ui, %ct_1623, %c2 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1630 = cheddar.rescale %ctx, %ct_1629 : (!context, !ciphertext) -> !ciphertext
     %ct_1631 = cheddar.mult_plain %ctx, %ct_1630, %extracted_525 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1632 = cheddar.hrot %ctx, %ct_1623, %c3 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1632 = cheddar.hrot %ctx, %ui, %ct_1623, %c3 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1633 = cheddar.rescale %ctx, %ct_1632 : (!context, !ciphertext) -> !ciphertext
     %ct_1634 = cheddar.mult_plain %ctx, %ct_1633, %extracted_526 : (!context, !ciphertext, !plaintext) -> !ciphertext
     %ct_1635 = cheddar.mult_plain %ctx, %ct_1624, %extracted_527 : (!context, !ciphertext, !plaintext) -> !ciphertext
@@ -4958,19 +4958,19 @@ module @jit_func attributes {backend.cheddar, cheddar.P = array<i64: 11529215046
     %ct_1653 = cheddar.add %ctx, %ct_1649, %ct_1650 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1654 = cheddar.add %ctx, %ct_1651, %ct_1652 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1655 = cheddar.add %ctx, %ct_1653, %ct_1654 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1656 = cheddar.hrot %ctx, %ct_1655, %c12 : (!context, !ciphertext, index) -> !ciphertext
+    %ct_1656 = cheddar.hrot %ctx, %ui, %ct_1655, %c12 : (!context, !user_interface, !ciphertext, index) -> !ciphertext
     %ct_1657 = cheddar.add %ctx, %ct_1625, %ct_1628 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1658 = cheddar.add %ctx, %ct_1657, %ct_1631 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1659 = cheddar.hrot_add %ctx, %ct_1641, %ct_1634 {distance = 4 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1660 = cheddar.hrot_add %ctx, %ct_1648, %ct_1656 {distance = 8 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1659 = cheddar.hrot_add %ctx, %ui, %ct_1641, %ct_1634 {distance = 4 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1660 = cheddar.hrot_add %ctx, %ui, %ct_1648, %ct_1656 {distance = 8 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1661 = cheddar.add %ctx, %ct_1659, %ct_1660 : (!context, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1662 = cheddar.add %ctx, %ct_1658, %ct_1661 : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1663 = cheddar.hrot_add %ctx, %ct_1662, %ct_1662 {distance = 256 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1664 = cheddar.hrot_add %ctx, %ct_1663, %ct_1663 {distance = 128 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1665 = cheddar.hrot_add %ctx, %ct_1664, %ct_1664 {distance = 64 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
-    %ct_1666 = cheddar.hrot_add %ctx, %ct_1665, %ct_1665 {distance = 32 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1663 = cheddar.hrot_add %ctx, %ui, %ct_1662, %ct_1662 {distance = 256 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1664 = cheddar.hrot_add %ctx, %ui, %ct_1663, %ct_1663 {distance = 128 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1665 = cheddar.hrot_add %ctx, %ui, %ct_1664, %ct_1664 {distance = 64 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1666 = cheddar.hrot_add %ctx, %ui, %ct_1665, %ct_1665 {distance = 32 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %ct_1667 = cheddar.add_plain %ctx, %ct_1666, %extracted_3 : (!context, !ciphertext, !plaintext) -> !ciphertext
-    %ct_1668 = cheddar.hrot_add %ctx, %ct_1666, %ct_1667 {distance = 16 : i64} : (!context, !ciphertext, !ciphertext) -> !ciphertext
+    %ct_1668 = cheddar.hrot_add %ctx, %ui, %ct_1666, %ct_1667 {distance = 16 : i64} : (!context, !user_interface, !ciphertext, !ciphertext) -> !ciphertext
     %0 = tensor.empty() : tensor<1x!ciphertext>
     %ct_1669 = cheddar.rescale %ctx, %ct_1668 : (!context, !ciphertext) -> !ciphertext
     %inserted = tensor.insert %ct_1669 into %0[%c0] : tensor<1x!ciphertext>

@@ -88,7 +88,7 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %dps_9 = bufferization.alloc_tensor() : tensor<!ciphertext>
     %ct = cheddar.mult_plain %ctx, %extracted_3, %extracted, %dps_9 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
     %dps_10 = bufferization.alloc_tensor() : tensor<!ciphertext>
-    %ct_4 = cheddar.hrot %ctx, %extracted_3, %dps_10, %c1 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
+    %ct_4 = cheddar.hrot %ctx, %ui, %extracted_3, %dps_10, %c1 : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>, index) -> tensor<!ciphertext>
     %dps_11 = bufferization.alloc_tensor() : tensor<!ciphertext>
     %ct_5 = cheddar.mult_plain %ctx, %ct_4, %extracted_0, %dps_11 : (!context, tensor<!ciphertext>, tensor<!plaintext>, tensor<!ciphertext>) -> tensor<!ciphertext>
     %dps_12 = bufferization.alloc_tensor() : tensor<!ciphertext>
@@ -100,7 +100,7 @@ module attributes {backend.cheddar, cheddar.P = array<i64: 1152921504606994433>,
     %dps_15 = bufferization.alloc_tensor() : tensor<!ciphertext>
     %ct_9 = cheddar.add %ctx, %ct, %ct_5, %dps_15 : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
     %dps_16 = bufferization.alloc_tensor() : tensor<!ciphertext>
-    %ct_10 = cheddar.hrot_add %ctx, %ct_8, %ct_9, %dps_16 {distance = 2 : i64} : (!context, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+    %ct_10 = cheddar.hrot_add %ctx, %ui, %ct_8, %ct_9, %dps_16 {distance = 2 : i64} : (!context, !user_interface, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
     %0 = tensor.empty() : tensor<1x!ciphertext>
     %dps_17 = bufferization.alloc_tensor() : tensor<!ciphertext>
     %ct_11 = cheddar.rescale %ctx, %ct_10, %dps_17 : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
