@@ -181,6 +181,48 @@ TEST(HoistingTest, RowMajorLayoutExpandVecSlots) {
   ASSERT_TRUE(actual.isEqual(expected));
 }
 
+TEST(HoistingTest, AbsorbVectorLayoutIntoMatrix) {
+  // A 4x8 matrix in the squat-diagonal layout (4 ct x 8 slots), with the
+  // input vector packed by the affine permutation slot = 3*j mod 8 — a
+  // permutation that is NOT a rotation, so it cannot be handled by
+  // hoistConversionThroughMatvec's (ct, slot) re-packing.
+  MLIRContext context;
+  auto vecLayout =
+      getIntegerRelationFromIslStr(
+          "{ [d] -> [ct, slot] : ct = 0 and (slot - 3d) mod 8 = 0 and 0 <= d "
+          "<= 7 and 0 <= slot <= 7 }")
+          .value();
+  auto matrixLayout =
+      getIntegerRelationFromIslStr(
+          "{ [row, col] -> [ct, slot] : (row - col + ct) mod 4 = 0 and (-col "
+          "+ ct + slot) mod 8 = 0 and 0 <= row <= 3 and 0 <= col <= 7 and 0 "
+          "<= ct <= 3 and 0 <= slot <= 7 }")
+          .value();
+
+  IntegerRelation actual =
+      absorbVectorLayoutIntoMatrix(matrixLayout, vecLayout);
+
+  // Each (row, col) entry keeps exactly one home, at the (ct, slot) the
+  // original diagonal layout assigns to column position 3*col mod 8.
+  for (int row = 0; row < 4; ++row) {
+    for (int col = 0; col < 8; ++col) {
+      int s = (3 * col) % 8;
+      int ct = ((s - row) % 4 + 4) % 4;
+      int slot = ((s - ct) % 8 + 8) % 8;
+      auto maybeExists = actual.containsPointNoLocal({row, col, ct, slot});
+      if (!maybeExists.has_value()) {
+        FAIL() << "Failed to find point (" << row << ", " << col << ", " << ct
+               << ", " << slot << ") in actual relation.";
+      }
+    }
+  }
+
+  // ... and no other points.
+  PointPairCollector collector(2, 2);
+  enumeratePoints(actual, collector);
+  EXPECT_EQ(collector.points.size(), 32);
+}
+
 TEST(HoistingTest, PushThroughInsertSlice) {
   // Insert a 4x4 slice (from a 32 slot ciphertext) into a 1x2x4x4 tensor. The
   // result tensor should have two ciphertexts.

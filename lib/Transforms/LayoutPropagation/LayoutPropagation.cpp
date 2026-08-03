@@ -611,11 +611,60 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
   // TODO(#1597): a layout optimizer should really be selecting the diagonal
   // layout instead of this pass.
 
+  // The Halevi-Shoup kernel's diagonal convention ties the matrix's column
+  // coordinate to the slot position of the packed input vector, so it
+  // normally requires a row-major vector. When the vector instead arrives
+  // packed as a permutation of the slots (e.g. the pixel-shuffled gap layout
+  // a strided conv produces), converting the ciphertext costs a log-depth
+  // shift network -- one multiplicative level per stage. Re-indexing the
+  // plaintext matrix's columns by the vector's slot positions is free and
+  // leaves the kernel (rotations, fold, result layout) unchanged: each
+  // (row, col) entry keeps exactly one (ct, slot) home in its row's residue
+  // class, which is all the squat fold needs.
+  auto vector = matvecOp.rhs();
+  auto vectorType = cast<RankedTensorType>(vector.getType());
+  LayoutAttr vectorLayout = getComposedLayoutAttr(vector);
+  bool absorbVectorPacking = false;
+  if (!isRelationRowMajor(vectorType, minSlotCount,
+                          vectorLayout.getIntegerRelation())) {
+    if (isSingleCiphertextPermutation(vectorLayout.getIntegerRelation(),
+                                      vectorType.getNumElements())) {
+      absorbVectorPacking = true;
+    } else {
+      // Replicated or multi-ciphertext packings can't be absorbed into the
+      // matrix layout; fall back to converting the vector to row-major.
+      MLIRContext* ctx = &getContext();
+      mlir::IRRewriter builder(ctx);
+      auto [toReplace, newVectorLayoutAttr] = convertToLayout(
+          ctx, builder, op, vector, vectorLayout,
+          getRowMajorLayoutRelation(vectorType, minSlotCount));
+      debugAssignLayout(toReplace, newVectorLayoutAttr);
+      assignedLayouts.insert({toReplace, newVectorLayoutAttr});
+      vector = toReplace;
+    }
+  }
+
   LayoutAttr matrixLayout = getComposedLayoutAttr(matrix);
   // The Halevi-Shoup kernel (all we support at this time) requires one
   // ciphertext per matrix row.
-  if (!isRelationSquatDiagonal(matrixType, minSlotCount,
-                               matrixLayout.getIntegerRelation())) {
+  if (absorbVectorPacking) {
+    // Unconditionally re-assign the matrix layout: default matrix layouts
+    // never match a permuted-column diagonal, and the matrix is always
+    // plaintext, so the re-packing happens at compile time (the composed
+    // relation is materialized by the constant-evaluation path in
+    // assign_layout lowering, never by ISL loop codegen).
+    MLIRContext* ctx = &getContext();
+    mlir::IRRewriter builder(ctx);
+    auto [toReplace, newMatrixLayoutAttr] = convertToLayout(
+        ctx, builder, op, matrix, matrixLayout,
+        absorbVectorLayoutIntoMatrix(
+            getDiagonalLayoutRelation(matrixType, minSlotCount),
+            vectorLayout.getIntegerRelation()));
+    debugAssignLayout(toReplace, newMatrixLayoutAttr);
+    assignedLayouts.insert({toReplace, newMatrixLayoutAttr});
+    matrix = toReplace;
+  } else if (!isRelationSquatDiagonal(matrixType, minSlotCount,
+                                      matrixLayout.getIntegerRelation())) {
     // Insert a layout conversion op to make the matrix layout squat diagonal
     MLIRContext* ctx = &getContext();
     mlir::IRRewriter builder(ctx);
@@ -625,23 +674,6 @@ LogicalResult LayoutPropagation::visitOperation(MatvecOp op) {
     debugAssignLayout(toReplace, newMatrixLayoutAttr);
     assignedLayouts.insert({toReplace, newMatrixLayoutAttr});
     matrix = toReplace;
-  }
-
-  // We also require the input to be row-major.
-  auto vector = matvecOp.rhs();
-  auto vectorType = cast<RankedTensorType>(vector.getType());
-  LayoutAttr vectorLayout = getComposedLayoutAttr(vector);
-  if (!isRelationRowMajor(vectorType, minSlotCount,
-                          vectorLayout.getIntegerRelation())) {
-    // Insert a layout conversion op to make the matrix layout squat diagonal
-    MLIRContext* ctx = &getContext();
-    mlir::IRRewriter builder(ctx);
-    auto [toReplace, newVectorLayoutAttr] =
-        convertToLayout(ctx, builder, op, vector, vectorLayout,
-                        getRowMajorLayoutRelation(vectorType, minSlotCount));
-    debugAssignLayout(toReplace, newVectorLayoutAttr);
-    assignedLayouts.insert({toReplace, newVectorLayoutAttr});
-    vector = toReplace;
   }
 
   // Always one result, and for the kernels we have right now it's always a

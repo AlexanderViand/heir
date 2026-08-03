@@ -83,6 +83,36 @@ presburger::IntegerRelation hoistConversionThroughMatvec(
   return result;
 }
 
+presburger::IntegerRelation absorbVectorLayoutIntoMatrix(
+    const IntegerRelation& matrixLayout, const IntegerRelation& vecLayout) {
+  assert(vecLayout.getNumDomainVars() == 1 &&
+         "expected a vector (1-D domain) layout");
+  assert(vecLayout.getNumRangeVars() == 2 &&
+         "expected a (ct, slot) range layout");
+  assert(matrixLayout.getNumDomainVars() == 2 &&
+         "expected a matrix (2-D domain) layout");
+
+  // Build the lifted relation (row, j) -> (row, slot_V(j)) from the vector
+  // packing (j) -> (ct = 0, slot).
+  IntegerRelation lift(vecLayout);
+  // Drop the ct range var (the vector occupies a single ciphertext).
+  lift.projectOut(lift.getVarKindOffset(VarKind::Range), 1);
+  // Insert the row coordinate as a pass-through on both sides.
+  lift.insertVar(VarKind::Domain, 0, 1);
+  lift.insertVar(VarKind::Range, 0, 1);
+  SmallVector<int64_t> rowEq(lift.getNumCols(), 0);
+  rowEq[lift.getVarKindOffset(VarKind::Domain)] = 1;
+  rowEq[lift.getVarKindOffset(VarKind::Range)] = -1;
+  lift.addEquality(rowEq);
+
+  // result = matrixLayout ∘ lift: (row, j) -> matrixLayout(row, slot_V(j)).
+  IntegerRelation result(lift);
+  result.compose(matrixLayout);
+  result.removeRedundantConstraints();
+  result.simplify();
+  return result;
+}
+
 FailureOr<presburger::IntegerRelation> pushSliceLayoutThroughInsertSlice(
     SmallVector<int64_t> insertSliceSizes, ArrayRef<int64_t> resultShape,
     const presburger::IntegerRelation& sliceLayout) {
