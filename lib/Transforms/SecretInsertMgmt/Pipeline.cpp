@@ -468,6 +468,10 @@ void insertModReduceBeforeOrAfterMult(Operation* top, bool afterMul,
   } else {
     patterns.add<ModReduceBefore<arith::MulIOp>>(ctx, beforeMulIncludeFirstMul,
                                                  top, &solver);
+    // Kept (lintrans) rotate_and_reduce behaves like a ct x pt mult under
+    // rescale-before-mult policies too.
+    patterns.add<ModReduceBefore<tensor_ext::RotateAndReduceOp>>(
+        ctx, beforeMulIncludeFirstMul, top, &solver);
     if (includeFloats)
       patterns.add<ModReduceBefore<arith::MulFOp>>(
           ctx, beforeMulIncludeFirstMul, top, &solver);

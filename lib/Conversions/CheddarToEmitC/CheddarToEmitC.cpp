@@ -1515,6 +1515,82 @@ bool isPayloadArgWritten(func::FuncOp fn, unsigned i) {
   return false;
 }
 
+// The cheddar.linear_transform lowering calls this shim, emitted once at
+// module scope so generated kernels are self-contained (no consumer prelude
+// copy). Backend headers (extension/linalg/{LinearTransform,StripedMatrix}.h
+// or a test stub) are the consumer's to include — their layout is
+// backend-specific — hence only std includes and fully qualified names here.
+constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
+  // cheddar.linear_transform shim (emitted by cheddar-emitc-boundary): pack the
+  // diagonal-packed weights into a StripedMatrix, construct the transform at
+  // the op's level/scale, evaluate with CHEDDAR's hoisted BSGS kernel. diagT:
+  // f64 (orion frontend) or f32 (torch-linalg path). Construction encodes every
+  // diagonal (the dominant cost); the weights are process-lifetime constants,
+  // so the transform is memoized on the diagonal array's address.
+#include <complex>
+#include <initializer_list>
+#include <map>
+#include <vector>
+  // Evaluate with min_ks=true when the fork supports it: scale-snu CHEDDAR's
+  // hoisted BSGS silently corrupts transforms at deep levels (beta == 1) when
+  // key-switching with chain-max keys, and its EvkMap cannot hold per-level
+  // keys; min_ks selects its non-hoisted per-rotation key-switch, which (like
+  // a plain hrot) is correct at any level with chain-max keys. Cyclops'
+  // Evaluate has no such flag and handles levels correctly on its own, so the
+  // 4-argument overload is selected there.
+  template <typename LT, typename CP, typename Ct, typename EM>
+  static auto RunLinearTransformEval(const LT& lt, CP cp, Ct& out, const Ct& in,
+                                     const EM& em, int)
+      -> decltype(lt.Evaluate(cp, out, in, em, true), void()) {
+    // min_ks only for actual BSGS shapes: scale-snu's gs==1 evaluation paths
+    // assert min_ks==false (and are level-correct on their own).
+    lt.Evaluate(cp, out, in, em, /*min_ks=*/lt.IsUsingBSGS());
+  }
+  template <typename LT, typename CP, typename Ct, typename EM>
+  static void RunLinearTransformEval(const LT& lt, CP cp, Ct& out, const Ct& in,
+                                     const EM& em, long) {
+    lt.Evaluate(cp, out, in, em);
+  }
+  template <int W, typename wordT, typename diagT>
+  static void RunLinearTransform(cheddar::Ciphertext<wordT>& out,
+                                 cheddar::Context<wordT>* ctx,
+                                 const cheddar::Ciphertext<wordT>& in,
+                                 const cheddar::EvkMap<wordT>& evk_map,
+                                 diagT diag[][W],
+                                 std::initializer_list<int> idx, int level,
+                                 int bs, int gs) {
+    // Heap-allocated and intentionally never destroyed: cached transforms
+    // hold GPU resources, and static teardown runs after the CUDA context is
+    // gone (destructing then SIGSEGVs on process exit).
+    static auto* cache =
+        new std::map<const void*, cheddar::LinearTransform<wordT>>();
+    cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
+    auto it = cache->find(diag);
+    if (it == cache->end()) {
+      cheddar::StripedMatrix m(W, W);
+      int d = 0;
+      for (int k : idx) {
+        m[k] = std::vector<std::complex<double>>(diag[d], diag[d] + W);
+        ++d;
+      }
+      it = cache
+               ->emplace(std::piecewise_construct, std::forward_as_tuple(diag),
+                         std::forward_as_tuple(
+                             cp, m, level, ctx->param_.GetScale(level), bs, gs))
+               .first;
+    }
+    RunLinearTransformEval(it->second, cp, out, in, evk_map, 0);
+    // CHEDDAR forks differ on whether Evaluate rescales internally (cyclops
+    // does via ModDownAndRescale; scale-snu cheddar leaves scale^2). The
+    // shim's contract is a rescaled output: rescale iff the library did not.
+    if (out.GetNP().num_main_ == in.GetNP().num_main_) {
+      cheddar::Ciphertext<wordT> rescaled;
+      ctx->Rescale(rescaled, out);
+      out = std::move(rescaled);
+    }
+  }
+)cpp";
+
 struct CheddarToEmitCPass
     : public impl::CheddarToEmitCBase<CheddarToEmitCPass> {
   using CheddarToEmitCBase::CheddarToEmitCBase;
@@ -1524,6 +1600,28 @@ struct CheddarToEmitCPass
     if (diagnoseUnsupportedGetters(getOperation())) {
       signalPassFailure();
       return;
+    }
+
+    // Generated kernels carry the RunLinearTransform shim themselves; emit it
+    // once at module scope when any lowering produced a call to it. Idempotent
+    // so pipelines that run this pass more than once (e.g. a separate emitc
+    // lowering invocation after scheme-to-cheddar's) don't redefine it.
+    auto module = cast<ModuleOp>(getOperation());
+    bool usesLinearTransform = false;
+    module->walk([&](emitc::CallOpaqueOp call) {
+      if (call.getCallee().starts_with("RunLinearTransform"))
+        usesLinearTransform = true;
+    });
+    bool shimAlreadyEmitted = false;
+    for (auto verbatim : module.getBody()->getOps<emitc::VerbatimOp>()) {
+      if (verbatim.getValue().contains("RunLinearTransform"))
+        shimAlreadyEmitted = true;
+    }
+    if (usesLinearTransform && !shimAlreadyEmitted) {
+      OpBuilder builder(ctx);
+      builder.setInsertionPointToStart(module.getBody());
+      emitc::VerbatimOp::create(builder, module.getLoc(),
+                                kRunLinearTransformShim);
     }
 
     // Erase the external `__heir_debug_*` declarations: ConvertDebugCall

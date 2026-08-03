@@ -52,24 +52,8 @@ genrule(
 #include "tests/Conversions/CheddarToEmitC/compile/cheddar_stub.h"
 using namespace cheddar;
 using word = uint64_t;
-// HEIR-side emitter shim (see the orion_mlp_lt BUILD for the rationale): the
-// cheddar.linear_transform lowering calls this, so the compile guard must see it.
-template <int W, typename wordT>
-void RunLinearTransform(Ciphertext<wordT>& out, Context<wordT>* ctx,
-                        const Ciphertext<wordT>& in,
-                        const EvkMap<wordT>& evk_map, double diag[][W],
-                        std::initializer_list<int> idx, int level, int bs,
-                        int gs) {
-  StripedMatrix m(W, W);
-  int d = 0;
-  for (int k : idx) {
-    m[k] = std::vector<Complex>(diag[d], diag[d] + W);
-    ++d;
-  }
-  ConstContextPtr<wordT> cp(ConstContextPtr<wordT>(), ctx);
-  LinearTransform<wordT> lt(cp, m, level, ctx->param_.GetScale(level), bs, gs);
-  lt.Evaluate(cp, out, in, evk_map);
-}
+// The RunLinearTransform shim is emitted into kernels_raw.cc itself by
+// cheddar-emitc-boundary; the stub above provides the types it needs.
 PRELUDE_EOF
 cat $(location :kernels_raw.cc) >> $@
 """,

@@ -34,8 +34,12 @@ namespace cheddar {
 using Complex = std::complex<double>;
 
 // Number-of-primes info a ciphertext carries; the EvalPoly emitter maps it back
-// to a level via Parameter::NPToLevel.
-struct NPInfo {};
+// to a level via Parameter::NPToLevel. The RunLinearTransform shim reads
+// num_main_ to detect whether the library's Evaluate rescaled internally
+// (public field, mirroring the real API).
+struct NPInfo {
+  int num_main_ = 0;
+};
 
 // Minimal parameter stub: the LinearTransform emitter reads the per-level
 // canonical scale via `ctx->param_.GetScale(level)`; the EvalPoly emitter reads
@@ -185,6 +189,7 @@ class LinearTransform {
   void Evaluate(ConstContextPtr<word> context, Ciphertext<word>& res,
                 const Ciphertext<word>& input, const EvkMap<word>& evk_map,
                 bool min_ks = false) const;
+  bool IsUsingBSGS() const;
 };
 
 // CHEDDAR's EvalPoly extension: also a class -- construct from coefficients,
