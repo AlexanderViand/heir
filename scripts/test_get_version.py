@@ -76,10 +76,12 @@ class GetVersionTest(absltest.TestCase):
     self.assertEqual(should_publish, "true")
 
   @patch("scripts.get_version.get_next_dev_version")
-  def test_calculate_version_workflow_dispatch_main(self, mock_get_next_dev):
+  def test_calculate_version_workflow_dispatch_ml_pipeline(
+      self, mock_get_next_dev
+  ):
     mock_get_next_dev.return_value = "2026.04.01.dev0"
     version, should_publish = calculate_version(
-        "workflow_dispatch", "refs/heads/main", None, "heir_py"
+        "workflow_dispatch", "refs/heads/ml-pipeline", None, "heir_py"
     )
     self.assertEqual(version, "2026.04.01.dev0")
     self.assertEqual(should_publish, "true")

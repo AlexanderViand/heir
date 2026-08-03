@@ -60,7 +60,7 @@ def calculate_version(event, ref, tag, package):
         # workflow fails to trigger wheel upload.
         version = tag.lstrip("v")
         should_publish = "true"
-      elif ref == "refs/heads/main":
+      elif ref == "refs/heads/ml-pipeline":
         # For dev releases
         version = get_next_dev_version(package)
         should_publish = "true"
