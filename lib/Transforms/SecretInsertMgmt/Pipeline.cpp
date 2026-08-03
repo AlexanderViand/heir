@@ -15,7 +15,9 @@
 #include "lib/Transforms/Halo/Patterns.h"
 #include "lib/Transforms/SecretInsertMgmt/SecretInsertMgmtPatterns.h"
 #include "lib/Utils/Utils.h"
+#include "llvm/include/llvm/ADT/DenseMap.h"                // from @llvm-project
 #include "llvm/include/llvm/ADT/STLExtras.h"               // from @llvm-project
+#include "llvm/include/llvm/ADT/SetVector.h"               // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallPtrSet.h"             // from @llvm-project
 #include "llvm/include/llvm/Support/Debug.h"               // from @llvm-project
 #include "llvm/include/llvm/Support/DebugLog.h"            // from @llvm-project
@@ -77,6 +79,92 @@ void makeAndRunSecretnessAndLevelSolver(Operation* top, DataFlowSolver& solver,
   solver.load<SecretnessAnalysis>();
   solver.load<LevelAnalysis>(levelBudget);
   runSolver(top, solver);
+}
+
+// Forward-simulation bootstrap placement (orion-style, concrete levels).
+//
+// The greedy waterline (BootstrapWaterLine) triggers on `level % waterline ==
+// 0` using HEIR's LevelState lattice, which cannot reason about a deep
+// activation landing a *multiply* at the bottom of the modulus chain (HEIR's
+// cross-level gap, BootstrapWaterLine "TODO(#1642)"). Deep composite-sign ReLUs
+// hit this: the `x*step` multiply lands at the floor where its mandatory
+// post-mul rescale overflows -> a malformed ckks.rescale onto the full chain
+// that fails verification. Greedy lattice-based fixes don't converge because
+// the lattice reuses the isMaxLevel/Invalid sentinels for both structural
+// artifacts and genuine exhaustion.
+//
+// Instead, simulate level consumption with our OWN concrete counter (never the
+// lattice), following orion's level-DAG insight (work with concrete levels and
+// a fixed budget l_eff): every value carries a "remaining levels" count; a
+// fresh or just-bootstrapped value starts at l_eff; a mod_reduce (the CKKS
+// rescale, the only op that drops a level) decrements it; a join (mul/add)
+// takes the min of its operands. When a mod_reduce would drive an operand below
+// zero (the multiply that precedes it has exhausted the chain), bootstrap that
+// operand first. Processing ops in SSA order (defs precede uses) makes this a
+// single forward pass; min-at-joins handles the DAG without orion's SESE
+// machinery. Self-consistent on l_eff: levels stay in [0, l_eff], so param-gen
+// sizes the chain to l_eff (+ the bootstrap's own internal depth).
+void insertBootstrapsByForwardLevelSim(Operation* top, int lEff) {
+  DataFlowSolver solver;
+  makeAndRunSecretnessSolver(top, solver);
+
+  llvm::DenseMap<Value, int> remaining;
+  auto rem = [&](Value v) -> int {
+    auto it = remaining.find(v);
+    return it == remaining.end() ? lEff : it->second;  // default: fresh
+  };
+
+  SmallVector<Operation*> ops;
+  top->walk([&](Operation* op) { ops.push_back(op); });
+
+  for (Operation* op : ops) {
+    if (isa<mgmt::BootstrapOp>(op)) {
+      for (Value res : op->getResults()) remaining[res] = lEff;
+      continue;
+    }
+    // mod_reduce is the level-consuming rescale; when its result lands at the
+    // bottom of the budget, refresh by bootstrapping the RESULT. The rescale
+    // itself stays: it is what brings the post-mul scale 2*Delta back to
+    // Delta, so the bootstrap input is at the default scale -- exactly the
+    // standard CKKS pattern (rescale to the floor, then bootstrap). The two
+    // alternatives both fail: bootstrapping the rescale's *input* hands the
+    // backend a 2*Delta ciphertext (lattigo rejects it: Q[0]/Scale below the
+    // MessageRatio bound), and replacing the rescale with the bootstrap
+    // leaves a Delta-deficit in the scale that every downstream ct*ct
+    // squaring doubles -- the exponential negative coefficient scales seen
+    // in deep Chebyshev-PS evals.
+    if (auto modReduce = dyn_cast<mgmt::ModReduceOp>(op)) {
+      Value in = modReduce.getInput();
+      int r = rem(in) - 1;
+      remaining[modReduce.getResult()] = r;
+      if (r <= 0) {
+        OpBuilder builder(op);
+        builder.setInsertionPointAfter(op);
+        Value res = modReduce.getResult();
+        auto bootstrap = mgmt::BootstrapOp::create(builder, op->getLoc(),
+                                                   res.getType(), res);
+        res.replaceAllUsesExcept(bootstrap.getResult(), bootstrap);
+        remaining[bootstrap.getResult()] = lEff;
+      }
+      continue;
+    }
+    // Everything else: result remaining = min over secret operands
+    // (level_reduce and relinearize don't drop levels in this model;
+    // min-at-joins is exact for the placement decision since cross-level
+    // matching aligns to the min).
+    if (op->getNumResults() == 0) continue;
+    int r = lEff;
+    bool sawSecret = false;
+    for (Value operand : op->getOperands()) {
+      if (isSecret(operand, &solver)) {
+        r = std::min(r, rem(operand));
+        sawSecret = true;
+      }
+    }
+    for (Value res : op->getResults()) {
+      if (isSecret(res, &solver)) remaining[res] = sawSecret ? r : lEff;
+    }
+  }
 }
 
 LogicalResult runInsertMgmtPipeline(Operation* top,
@@ -141,11 +229,8 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
 
   int idCounter = 0;  // for making adjust_scale op different to avoid cse
   if (options.bootstrapWaterline.has_value()) {
-    LDBG(2) << "Bootstrap waterline";
-    int absoluteWaterline = budget - options.bootstrapWaterline.value();
-    insertBootstrapWaterLine(top, absoluteWaterline, budget,
-                             bootstrapLevelsConsumed, options.includeFloats,
-                             &idCounter);
+    LDBG(2) << "Bootstrap placement (forward level simulation)";
+    insertBootstrapsByForwardLevelSim(top, options.bootstrapWaterline.value());
   }
 
   // An if statement must have each branch producing the same level as a result,
