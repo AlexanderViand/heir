@@ -131,6 +131,7 @@ class OpenFhePkeEmitter {
   LogicalResult printOperation(DecodeOp op);
   LogicalResult printOperation(DecryptOp op);
   LogicalResult printOperation(EncryptOp op);
+  LogicalResult printOperation(EvalChebyshevSeriesOp op);
   LogicalResult printOperation(FastRotationOp op);
   LogicalResult printOperation(FastRotationExtOp op);
   LogicalResult printOperation(FastRotationPrecomputeOp op);
