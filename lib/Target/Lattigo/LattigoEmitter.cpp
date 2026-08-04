@@ -2488,6 +2488,25 @@ LogicalResult LattigoEmitter::printNewMethod(::mlir::Value result,
 LogicalResult LattigoEmitter::printEvalInPlaceMethod(
     ::mlir::Value evaluator, ::mlir::ValueRange operands, std::string_view op,
     bool err) {
+  // Lattigo's in-place evaluator methods clamp the output level to the
+  // RECEIVER's level (min over operands and opOut). A reused in-place buffer
+  // (AllocToInPlace) whose previous value sat at a lower level than the
+  // current operand -- e.g. a pre-bootstrap accumulator reused for the
+  // post-bootstrap chain -- silently truncates the result's modulus chain
+  // (observed as `N levels < log(d)` panics in polynomial evaluation).
+  // Resize the receiver to the first operand's level first, mirroring the
+  // Rotate emission; lattigo still clamps down to the true min over operands
+  // internally, so this never over-promises.
+  if (operands.size() >= 2) {
+    Value dst = operands.back();
+    Value src = operands.front();
+    if (isa<RLWECiphertextType>(dst.getType()) &&
+        isa<RLWECiphertextType>(src.getType()) &&
+        getName(dst) != getName(src)) {
+      os << getName(dst) << ".Resize(" << getName(dst) << ".Degree(),"
+         << getName(src) << ".Level())\n";
+    }
+  }
   std::string errName = getErrName();
   if (err) {
     os << errName << " := ";
