@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <map>
 
+#include "lib/Analysis/SecretnessAnalysis/SecretnessAnalysis.h"
+#include "lib/Dialect/Kernel/IR/KernelOps.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialAttributes.h"
 #include "lib/Dialect/Polynomial/IR/PolynomialOps.h"
 #include "lib/Kernel/AbstractValue.h"
@@ -223,6 +225,25 @@ LogicalResult LowerViaPatersonStockmeyerChebyshev::matchAndRewrite(
   Value finalOutput = visitor.process(resultNode, b)[0];
 
   rewriter.replaceOp(op, finalOutput);
+  return success();
+}
+
+LogicalResult LowerToKernelEvalChebyshev::matchAndRewrite(
+    EvalOp op, PatternRewriter& rewriter) const {
+  if (!mlir::heir::isSecret(op.getValue(), &solver)) {
+    return rewriter.notifyMatchFailure(op, "operand is not secret");
+  }
+  auto attr = dyn_cast<polynomial::TypedChebyshevPolynomialAttr>(
+      op.getPolynomialAttr());
+  if (!attr) return failure();
+
+  auto lowerAttr = op->getAttrOfType<FloatAttr>("domain_lower");
+  auto upperAttr = op->getAttrOfType<FloatAttr>("domain_upper");
+  if (!lowerAttr || !upperAttr) return failure();
+
+  rewriter.replaceOpWithNewOp<kernel::EvalChebyshevOp>(
+      op, op.getType(), op.getValue(), attr.getValue().getCoefficients(),
+      lowerAttr, upperAttr);
   return success();
 }
 
