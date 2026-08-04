@@ -28,11 +28,7 @@ struct AnnotateModule : impl::AnnotateModuleBase<AnnotateModule> {
       moduleSetCGGI(module);
     }
 
-    // Cheddar is a fork-local backend not present in upstream's
-    // CompilationTargetRegistry; handle it before the registry-based path.
-    if (backend == "cheddar") {
-      moduleSetCheddar(module);
-    } else if (!backend.empty()) {
+    if (!backend.empty()) {
       BackendName backendEnum = parseBackendName(backend);
       if (backendEnum == BackendName::None) {
         module.emitError() << "Unknown backend: " << backend;
@@ -52,6 +48,9 @@ struct AnnotateModule : impl::AnnotateModuleBase<AnnotateModule> {
           break;
         case BackendName::Lattigo:
           moduleSetLattigo(module);
+          break;
+        case BackendName::Cheddar:
+          moduleSetCheddar(module);
           break;
       }
     }
