@@ -37,6 +37,7 @@
 #include "mlir/include/mlir/Dialect/Affine/IR/AffineOps.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
+#include "mlir/include/mlir/Dialect/Math/IR/Math.h"      // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/IR/MemRef.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"        // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
@@ -148,6 +149,7 @@ LogicalResult LattigoEmitter::translate(Operation& op) {
               [&](auto op) { return printOperation(op); })
           .Case<preprocessing::LoadResourceOp>(
               [&](auto op) { return printOperation(op); })
+          // Math ops
           .Case<math::SqrtOp>([&](auto op) { return printOperation(op); })
 
           // Lattigo ops
@@ -2372,9 +2374,42 @@ LogicalResult LattigoEmitter::printOperation(CKKSChebyshevOp op) {
   os << bignumPoly << " := bignum.NewPolynomial(bignum.Chebyshev, "
      << polyCoeffs << ", " << intervalArg << ")\n";
   std::string resultName = getName(op.getOutput());
+  std::string inputCiphertext = getName(op.getCiphertext());
+  bool isIdentityDomain = false;
+  if (DenseF64ArrayAttr domainAttr = op.getDomainAttr()) {
+    ArrayRef<double> domain = domainAttr.asArrayRef();
+    if (domain.size() == 2 && domain[0] == -1.0 && domain[1] == 1.0) {
+      isIdentityDomain = true;
+    }
+  }
+  if (op.getDomainAttr() && !isIdentityDomain) {
+    std::string transformedCiphertext = resultName + "_transformed";
+    std::string scalarName = resultName + "_scalar";
+    std::string constantName = resultName + "_constant";
+
+    os << scalarName << ", " << constantName << " := " << bignumPoly
+       << ".ChangeOfBasis()\n";
+
+    os << transformedCiphertext << ", " << errName
+       << " := " << getName(op.getEvaluator()) << ".MulNew(" << inputCiphertext
+       << ", " << scalarName << ")\n";
+    printErrPanic(errName);
+
+    os << errName << " = " << getName(op.getEvaluator()) << ".Add("
+       << transformedCiphertext << ", " << constantName << ", "
+       << transformedCiphertext << ")\n";
+    printErrPanic(errName);
+
+    os << errName << " = " << getName(op.getEvaluator()) << ".Rescale("
+       << transformedCiphertext << ", " << transformedCiphertext << ")\n";
+    printErrPanic(errName);
+
+    inputCiphertext = transformedCiphertext;
+  }
+
   os << resultName << ", " << errName << " := ";
   os << getName(op.getEvaluator()) << ".Evaluate(";
-  os << getName(op.getCiphertext()) << ", ";
+  os << inputCiphertext << ", ";
   os << bignumPoly << ", ";
   os << "rlwe.NewScale(" << op.getTargetScale().getInt() << "))\n";
   printErrPanic(errName);
