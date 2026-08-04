@@ -6,6 +6,7 @@
 #include "lib/Dialect/BGV/IR/BGVOps.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/IR/CKKSOps.h"
+#include "lib/Dialect/Kernel/IR/KernelOps.h"
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
@@ -376,6 +377,41 @@ struct ConvertBootstrapOp : public OpConversionPattern<ckks::BootstrapOp> {
   }
 };
 
+struct ConvertKernelEvalChebyshevOp
+    : public OpConversionPattern<kernel::EvalChebyshevOp> {
+  using OpConversionPattern<kernel::EvalChebyshevOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      kernel::EvalChebyshevOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    FailureOr<Value> result = getContextualCryptoContext(op.getOperation());
+    if (failed(result)) return result;
+    Value cryptoContext = result.value();
+
+    Type resultType = getTypeConverter()->convertType(op.getResult().getType());
+
+    auto coefficients = adaptor.getCoefficients();
+    SmallVector<Attribute> newCoeffs;
+    newCoeffs.reserve(coefficients.size());
+    if (!coefficients.empty()) {
+      auto firstAttr = llvm::cast<FloatAttr>(coefficients[0]);
+      double firstVal = firstAttr.getValue().convertToDouble();
+      auto newFirstAttr =
+          rewriter.getFloatAttr(firstAttr.getType(), firstVal * 2.0);
+      newCoeffs.push_back(newFirstAttr);
+      for (size_t i = 1; i < coefficients.size(); ++i) {
+        newCoeffs.push_back(coefficients[i]);
+      }
+    }
+    auto newCoeffsAttr = rewriter.getArrayAttr(newCoeffs);
+
+    rewriter.replaceOpWithNewOp<openfhe::EvalChebyshevSeriesOp>(
+        op, resultType, cryptoContext, adaptor.getInput(), newCoeffsAttr,
+        adaptor.getDomainLowerAttr(), adaptor.getDomainUpperAttr());
+    return success();
+  }
+};
+
 }  // namespace
 
 struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
@@ -423,6 +459,7 @@ struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
     target.addIllegalDialect<bgv::BGVDialect>();
     target.addIllegalDialect<ckks::CKKSDialect>();
     target.addIllegalDialect<lwe::LWEDialect>();
+    target.addIllegalOp<kernel::EvalChebyshevOp>();
     target.addDynamicallyLegalDialect<preprocessing::PreprocessingDialect>(
         [&](Operation* op) { return typeConverter.isLegal(op); });
 
@@ -516,7 +553,9 @@ struct LWEToOpenfhe : public impl::LWEToOpenfheBase<LWEToOpenfhe> {
         lwe::ConvertLevelReduceOp<bgv::LevelReduceOp>,
         lwe::ConvertLevelReduceOp<ckks::LevelReduceOp>,
         // Bootstrap (CKKS only)
-        ConvertBootstrapOp>(typeConverter, context);
+        ConvertBootstrapOp,
+        // Kernel
+        ConvertKernelEvalChebyshevOp>(typeConverter, context);
 
     preprocessing::populatePreprocessingConversions(patterns, typeConverter,
                                                     context);
