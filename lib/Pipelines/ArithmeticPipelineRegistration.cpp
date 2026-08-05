@@ -5,7 +5,9 @@
 
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
+#include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
@@ -16,6 +18,7 @@
 #include "lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Openfhe/Transforms/CountAddAndKeySwitch.h"
 #include "lib/Dialect/Openfhe/Transforms/FastRotationPrecompute.h"
+#include "lib/Dialect/Preprocessing/Conversions/PreprocessingToCheddar/PreprocessingToCheddar.h"
 #include "lib/Dialect/Preprocessing/Conversions/PreprocessingToLattigo/PreprocessingToLattigo.h"
 #include "lib/Dialect/Preprocessing/Conversions/PreprocessingToOpenfhe/PreprocessingToOpenfhe.h"
 #include "lib/Dialect/Preprocessing/Transforms/ValidatePreprocessing.h"
@@ -73,6 +76,7 @@
 #include "mlir/include/mlir/Dialect/Linalg/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Pass/PassManager.h"       // from @llvm-project
 #include "mlir/include/mlir/Pass/PassOptions.h"       // from @llvm-project
+#include "mlir/include/mlir/Pass/PassRegistry.h"      // from @llvm-project
 #include "mlir/include/mlir/Transforms/Passes.h"      // from @llvm-project
 
 namespace mlir::heir {
@@ -687,6 +691,88 @@ BackendPipelineBuilder toLattigoPipelineBuilder() {
 
     // Lower Linalg to loops
     pm.addNestedPass<func::FuncOp>(createConvertLinalgToLoopsPass());
+  };
+}
+
+BackendPipelineBuilder toCheddarPipelineBuilder() {
+  return [=](OpPassManager& pm, const BackendOptions& options) {
+    // Convert CKKS to LWE
+    pm.addPass(ckks::createCKKSToLWE());
+
+    // Lower any debug.validate ops (inserted by the frontend at meaningful
+    // layer boundaries -- the same high-level annotation the lattigo path uses)
+    // to `__heir_debug_*` func calls. Run while values are still
+    // `!lwe.ciphertext` so the shared lwe machinery applies; LWEToCheddar then
+    // converts the decls/calls to the cheddar context+ciphertext form, and
+    // CheddarToEmitC emits them as `__heir_debug(...)` C++ calls. We never
+    // insert-after-every-op here: cheddar --debug uses the per-layer annotation
+    // (with a plaintext comparison), and an every-op decrypt would both bury
+    // those points and break op fusion's adjacency. `options.debug` instead
+    // just marks a debug build (skips fusion below).
+    lwe::AddDebugPortOptions addDebugPortOptions{
+        .entryFunction = options.entryFunction,
+        .insertDebugAfterEveryOp = options.debugEveryOp,
+    };
+    pm.addPass(lwe::createAddDebugPort(addDebugPortOptions));
+
+    // Convert LWE to CHEDDAR
+    pm.addPass(lwe::createLWEToCheddar());
+
+    // Lower split-preprocessing storage to memrefs of cheddar plaintexts
+    // (mirrors PreprocessingToLattigo/Openfhe in their backend builders).
+    pm.addPass(preprocessing::createPreprocessingToCheddar());
+
+    // Simplify, in case the lowering revealed redundancy
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+
+    // Re-expose the scheme parameters as cheddar.* module attributes and drop
+    // the CKKS module attributes.
+    auto cheddarConfigureOptions =
+        cheddar::CheddarConfigureCryptoContextOptions{};
+    cheddarConfigureOptions.logMessageRatio = options.cheddarLogMessageRatio;
+    pm.addPass(
+        cheddar::createCheddarConfigureCryptoContext(cheddarConfigureOptions));
+
+    pm.addPass(createRemoveUnusedPureCall());
+    pm.addPass(createCSEPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createSymbolDCEPass());
+
+    if (!options.lowerToEmitc) {
+      // Stop at the cheddar dialect; the caller applies the EmitC lowering (and
+      // `heir-translate --mlir-to-cpp`) separately.
+      return;
+    }
+
+    // Cheddar dialect -> EmitC C++. Kept as a textual sub-pipeline so it stays
+    // byte-identical to the flags the e2e tests run. `convert-to-emitc` is
+    // restricted to cheddar's dialects: the stock func->emitc.func interface
+    // (registered for the openfhe path) would otherwise win the func dialect
+    // and form emitc.func, which cannot carry cheddar's move-only lvalue/array
+    // payload args (excluding func keeps func.func, whose structural conversion
+    // cheddar's own interface performs).
+    std::string emitcPipeline =
+        "arith-expand,"
+        "one-shot-bufferize{bufferize-function-boundaries=true "
+        "function-boundary-type-conversion=identity-layout-map},"
+        "buffer-results-to-out-params{hoist-static-allocs=true "
+        "modify-public-functions=true add-result-attr=true},"
+        "convert-linalg-to-loops,"
+        "inline,"
+        "fold-memref-alias-ops,"
+        "canonicalize,"
+        "cheddar-free-intermediates,"
+        "canonicalize,"
+        "convert-to-emitc{filter-dialects=cheddar,arith,scf,memref},"
+        "cheddar-emitc-boundary,"
+        "cheddar-externalize-weights{data-dir=" +
+        options.weightsDataDir.getValue() +
+        "},"
+        "reconcile-unrealized-casts";
+    if (failed(parsePassPipeline(emitcPipeline, pm))) {
+      llvm::report_fatal_error("failed to build cheddar EmitC sub-pipeline");
+    }
   };
 }
 

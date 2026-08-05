@@ -512,11 +512,9 @@ void addMemRefConversionPatterns(TypeConverter& typeConverter,
 }
 
 FailureOr<Value> getContextualArgFromFunc(Operation* op, Type argType) {
-  for (auto blockArg : op->getParentOfType<func::FuncOp>()
-                           .getBody()
-                           .getBlocks()
-                           .front()
-                           .getArguments()) {
+  auto func = op->getParentOfType<func::FuncOp>();
+  if (!func) return failure();
+  for (auto blockArg : func.getBody().getBlocks().front().getArguments()) {
     if (blockArg.getType() == argType) {
       return blockArg;
     }

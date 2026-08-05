@@ -195,6 +195,29 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       llvm::cl::desc("Insert function calls to an externally-defined debug "
                      "function (cf. --lwe-add-debug-port)"),
       llvm::cl::init(false)};
+  // Cheddar-only: bootstrap message headroom ~ log2(max|m|)+margin, forwarded
+  // to cheddar-configure-crypto-context's log-message-ratio (governs EvalMod
+  // precision; -1 = the pass default). Smaller = more pre-EvalMod scale-up =
+  // more precision, as long as 2^ratio still bounds the boot inputs.
+  PassOptions::Option<int> cheddarLogMessageRatio{
+      *this, "cheddar-log-message-ratio",
+      llvm::cl::desc("Bootstrap message headroom passed to CHEDDAR's "
+                     "BootParameter (-1 = pass default)"),
+      llvm::cl::init(-1)};
+  // Cheddar-only: continue past the cheddar dialect all the way to EmitC C++
+  // (bufferize -> convert-to-emitc -> boundary fixups -> reconcile). Other
+  // backends ignore this.
+  PassOptions::Option<bool> lowerToEmitc{
+      *this, "lower-to-emitc",
+      llvm::cl::desc(
+          "(cheddar) Lower the cheddar dialect all the way to EmitC."),
+      llvm::cl::init(true)};
+  PassOptions::Option<std::string> weightsDataDir{
+      *this, "weights-data-dir",
+      llvm::cl::desc(
+          "(cheddar, lower-to-emitc) Directory to externalize weight "
+          "globals into as <name>.bin blobs (empty = inline them)."),
+      llvm::cl::init("")};
   PassOptions::Option<int> firstModSize{
       *this, "first-mod-size",
       llvm::cl::desc("Manually specify the first mod size"), llvm::cl::init(0)};
@@ -219,6 +242,14 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
   PassOptions::Option<bool> insecure{
       *this, "insecure", llvm::cl::desc("Whether to use insecure parameter"),
       llvm::cl::init(false)};
+  PassOptions::Option<bool> debugEveryOp{
+      *this, "insert-debug-after-every-op",
+      llvm::cl::desc(
+          "Insert a debug handler call after EVERY ciphertext op "
+          "(coarse every-op decrypt trace), instead of only lowering "
+          "pre-existing per-layer debug.validate annotations. "
+          "Requires insert-debug-handler-calls."),
+      llvm::cl::init(false)};
 };
 
 using RLWEPipelineBuilder =
@@ -242,6 +273,8 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(RLWEScheme scheme);
 BackendPipelineBuilder toOpenFhePipelineBuilder();
 
 BackendPipelineBuilder toLattigoPipelineBuilder();
+
+BackendPipelineBuilder toCheddarPipelineBuilder();
 
 // A subpipeline that preprocesses linalg ops to make them more suitable for
 // FHE.

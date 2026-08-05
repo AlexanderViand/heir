@@ -154,10 +154,12 @@ LogicalResult runInsertMgmtPipeline(Operation* top,
   adjustScalesForRegionBranchOps(top, &idCounter);
 
   LDBG(2) << "Handling cross level ops";
-  handleCrossLevelOps(top, &idCounter, options.includeFloats, budget);
+  handleCrossLevelOps(top, &idCounter, options.includeFloats, budget,
+                      options.cheddarMode);
 
   LDBG(2) << "Handling cross mul depth ops";
-  handleCrossMulDepthOps(top, &idCounter, options.includeFloats, budget);
+  handleCrossMulDepthOps(top, &idCounter, options.includeFloats, budget,
+                         options.cheddarMode);
 
   // An if statement must have each branch producing the same level as a result,
   // so the branch with the higher level must insert a level_reduce op.
@@ -251,7 +253,7 @@ void insertRelinearizeAfterMult(Operation* top, bool includeFloats) {
 }
 
 void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
-                         int levelBudget) {
+                         int levelBudget, bool cheddarMode) {
   DataFlowSolver solver;
   makeAndRunSecretnessAndLevelSolver(top, solver, levelBudget);
   MLIRContext* ctx = top->getContext();
@@ -259,10 +261,12 @@ void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
   patterns.add<MatchCrossLevel<arith::AddIOp>, MatchCrossLevel<arith::SubIOp>,
                MatchCrossLevel<arith::MulIOp>,
                MatchCrossLevel<tensor::InsertSliceOp>,
-               MatchCrossLevel<tensor::InsertOp>>(ctx, idCounter, top, &solver);
+               MatchCrossLevel<tensor::InsertOp>>(ctx, idCounter, top, &solver,
+                                                  cheddarMode);
   if (includeFloats)
     patterns.add<MatchCrossLevel<arith::AddFOp>, MatchCrossLevel<arith::SubFOp>,
-                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver);
+                 MatchCrossLevel<arith::MulFOp>>(ctx, idCounter, top, &solver,
+                                                 cheddarMode);
   (void)walkAndApplyPatterns(top, std::move(patterns));
 }
 
@@ -270,7 +274,19 @@ void handleCrossLevelOps(Operation* top, int* idCounter, bool includeFloats,
 // at the first level, a Value can be both mulResult or not mulResult
 // we should match their scale by adding one adjust scale op
 void handleCrossMulDepthOps(Operation* top, int* idCounter, bool includeFloats,
-                            int levelBudget) {
+                            int levelBudget, bool cheddarMode) {
+  // Cheddar uses rescale-after-mult and a fixed canonical scale per level, so
+  // every ciphertext is always at its level's canonical scale. By the time we
+  // get here, handleCrossLevelOps has already aligned operand levels with
+  // level_reduce, so the two operands of any add/sub share a level and hence
+  // share the canonical scale -- there is no same-level scale mismatch to fix.
+  // The MulDepthAnalysis can still report a {0,1} "cross mul depth" because
+  // mgmt.modreduce does not reset the mul-depth lattice (only mgmt.bootstrap
+  // does), so a rescaled first-mul-after-bootstrap result still reads as depth
+  // 1. Emitting adjust_scale for that phantom mismatch would actually corrupt
+  // the scale (and Cheddar rejects adjust_scale outright), so skip it.
+  if (cheddarMode) return;
+
   DataFlowSolver solver;
   makeAndRunSolver(top, solver, levelBudget);
   MLIRContext* ctx = top->getContext();

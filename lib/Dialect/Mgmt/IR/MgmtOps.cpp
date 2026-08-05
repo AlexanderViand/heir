@@ -2,6 +2,7 @@
 
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtPatterns.h"
+#include "mlir/include/mlir/IR/BuiltinOps.h"    // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"   // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"     // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"  // from @llvm-project
@@ -14,11 +15,28 @@ namespace mgmt {
 // Canonicalization Patterns
 //===----------------------------------------------------------------------===//
 
+// The CHEDDAR backend does not emit adjust_scale: it resolves cross-level
+// mismatches with level_reduce alone (lowered to cheddar.level_down). The
+// mod_reduce/level_reduce reorderings assume an adjust_scale is present to
+// correct the scale, and they push level_reduce *before* mod_reduce -- which,
+// without adjust_scale, would level_down a pre-rescale (squared-scale)
+// ciphertext and drift its scale (cheddar's LevelDown is only exact on
+// single-scale inputs). So gate those reorderings off for cheddar, keeping
+// mod_reduce innermost (rescale first, then level_down). Checks the module's
+// backend attribute directly (mirrors kCheddarBackendAttrName in
+// lib/Dialect/ModuleAttributes.h) to avoid a dependency cycle: ModuleAttributes
+// depends on the CKKS/BGV dialects, which would cycle back into Mgmt.
+static bool isCheddarModule(Operation* op) {
+  auto module = op->getParentOfType<ModuleOp>();
+  return module && module->hasAttr("backend.cheddar");
+}
+
 struct ModReduceAfterLevelReduce : public OpRewritePattern<LevelReduceOp> {
   using OpRewritePattern<LevelReduceOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(LevelReduceOp op,
                                 PatternRewriter& rewriter) const override {
+    if (isCheddarModule(op)) return failure();
     auto modReduceOp = op.getInput().getDefiningOp<ModReduceOp>();
     if (!modReduceOp || !modReduceOp->hasOneUse() || !op->hasOneUse())
       return failure();
@@ -170,6 +188,7 @@ struct MergeModReduce : public OpRewritePattern<ModReduceOp> {
 
   LogicalResult matchAndRewrite(ModReduceOp op,
                                 PatternRewriter& rewriter) const override {
+    if (isCheddarModule(op)) return failure();
     auto innerMr = op.getInput().getDefiningOp<ModReduceOp>();
     if (!innerMr || !innerMr->hasOneUse()) return failure();
 
