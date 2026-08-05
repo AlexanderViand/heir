@@ -722,6 +722,7 @@ def Cheddar_PrepareLinearTransformOp :
     Builtin_IntegerAttr:$gs
   );
   let results = (outs Cheddar_LinearTransformResult:$result);
+  let hasVerifier = 1;
 }
 
 def Cheddar_ApplyPreparedLinearTransformOp :
@@ -746,6 +747,7 @@ def Cheddar_ApplyPreparedLinearTransformOp :
     Builtin_IntegerAttr:$gs
   );
   let results = (outs Cheddar_CtResult:$result);
+  let hasVerifier = 1;
 }
 
 def Cheddar_EvalPolyOp : Cheddar_DpsOp<"eval_poly"> {
