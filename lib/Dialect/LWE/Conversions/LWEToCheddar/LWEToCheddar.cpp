@@ -1,5 +1,6 @@
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -457,7 +458,17 @@ struct ConvertLWEDecodeOp : public OpConversionPattern<lwe::RLWEDecodeOp> {
   }
 };
 
-// orion.linear_transform -> cheddar.linear_transform.
+// orion.linear_transform (+ its trailing ckks.rescale) ->
+// cheddar.linear_transform.
+//
+// At the scheme level orion.linear_transform outputs at scale^2 and an
+// explicit ckks.rescale follows (lattigo's lintrans has exactly these
+// semantics). CHEDDAR's LinearTransform::Evaluate instead rescales
+// internally (ModDownAndRescale), so this conversion consumes BOTH ops into
+// one cheddar.linear_transform — emitting them 1:1 would rescale twice at
+// runtime ("Number of primes differ" on the next op). A linear_transform
+// whose result does not feed a rescale is unimplementable on CHEDDAR and is
+// rejected at compile time.
 struct ConvertOrionLinearTransformOp
     : public OpConversionPattern<orion::LinearTransformOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -466,12 +477,52 @@ struct ConvertOrionLinearTransformOp
       ConversionPatternRewriter& rewriter) const override {
     auto ctx = getContextualContext(op.getOperation());
     if (failed(ctx)) return ctx;
+    // The result must feed exactly one ckks.rescale; __heir_debug observers
+    // (--debug inserts one after every op) are additionally allowed and get
+    // redirected to the rescaled result, which is what the runtime value is
+    // (CHEDDAR's LinearTransform rescales internally).
+    ckks::RescaleOp rescaleUser = nullptr;
+    bool hasDebugUsers = false;
+    for (Operation* user : op.getResult().getUsers()) {
+      if (auto rescale = dyn_cast<ckks::RescaleOp>(user)) {
+        if (rescaleUser) {
+          rescaleUser = nullptr;
+          break;
+        }
+        rescaleUser = rescale;
+        continue;
+      }
+      auto call = dyn_cast<func::CallOp>(user);
+      if (call && call.getCallee().starts_with("__heir_debug")) {
+        hasDebugUsers = true;
+        continue;
+      }
+      rescaleUser = nullptr;
+      break;
+    }
+    if (!rescaleUser)
+      return op.emitError()
+             << "cannot lower to cheddar.linear_transform: CHEDDAR's "
+                "LinearTransform rescales internally, so the "
+                "orion.linear_transform result must feed exactly one "
+                "ckks.rescale (which is absorbed into the op)";
     auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
     if (failed(evkMap)) return evkMap;
     auto level = rewriter.getI64IntegerAttr(op.getOrionLevelAttr().getInt());
-    double bsgsRatio = op.getBsgsRatioAttr().getValueAsDouble();
-    int64_t ratio =
-        bsgsRatio > 0 ? static_cast<int64_t>(std::llround(bsgsRatio)) : 2;
+    // Baby-step/giant-step split. The Orion frontend stamps bsgs_ratio = 2.0 on
+    // every orion.linear_transform (SecretToCKKS), a CPU-oriented convention:
+    // gs = ceil(sqrt(need / ratio)), so a bigger ratio shifts work from giant
+    // steps into baby steps. GPU backends want that shift -- giant steps are
+    // the expensive axis there (each one is a hoisted rotation whose
+    // accumulators live in per-thread registers, which is also why CHEDDAR's
+    // fused-BSGS kernel caps num_gs), while baby steps amortize inside one
+    // kernel. Override the frontend's ratio with a GPU-appropriate 4 here
+    // rather than changing the shared attribute: the Lattigo path reads the
+    // same attr with a log2 convention (LWEToLattigo: logBsgsRatio =
+    // llround(log2(bsgsRatio))), so editing SecretToCKKS's 2.0 would silently
+    // retune the CPU backend too.
+    constexpr int64_t kGpuBsgsRatio = 4;
+    int64_t ratio = kGpuBsgsRatio;
     if (ratio < 1) ratio = 1;
     int64_t maxRot = 0;
     for (int32_t d : op.getDiagonalIndicesAttr().asArrayRef())
@@ -481,12 +532,23 @@ struct ConvertOrionLinearTransformOp
         std::ceil(std::sqrt(static_cast<double>(need) / ratio)));
     if (gs < 1) gs = 1;
     int64_t bs = (need + gs - 1) / gs;
-    Type resultTy = typeConverter->convertType(op.getResult().getType());
+    // The cheddar op's result stands in for the RESCALE's result (the
+    // internal rescale is part of the kernel).
+    Type resultTy =
+        typeConverter->convertType(rescaleUser.getOutput().getType());
     Value dest = makeDest(rewriter, op.getLoc(), resultTy);
-    rewriter.replaceOpWithNewOp<cheddar::LinearTransformOp>(
-        op, resultTy, ctx.value(), adaptor.getInput(), evkMap.value(),
-        adaptor.getDiagonals(), dest, op.getDiagonalIndicesAttr(), level,
-        rewriter.getI64IntegerAttr(bs), rewriter.getI64IntegerAttr(gs));
+    auto ltOp = cheddar::LinearTransformOp::create(
+        rewriter, op.getLoc(), resultTy, ctx.value(), adaptor.getInput(),
+        evkMap.value(), adaptor.getDiagonals(), dest,
+        op.getDiagonalIndicesAttr(), level, rewriter.getI64IntegerAttr(bs),
+        rewriter.getI64IntegerAttr(gs));
+    rewriter.replaceOp(rescaleUser, ltOp.getResult());
+    if (hasDebugUsers)
+      // Debug observers of the pre-rescale value see the rescaled result (the
+      // lwe->cheddar ciphertext type is level-erased, so this is type-legal).
+      rewriter.replaceOp(op, ltOp.getResult());
+    else
+      rewriter.eraseOp(op);
     return success();
   }
 };
@@ -790,6 +852,43 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       module->emitOpError("CHEDDAR backend only supports CKKS scheme");
       return signalPassFailure();
     }
+
+    // Configure bootstrap transforms for the slots actually represented by
+    // each ciphertext, not the enclosing RLWE ring's maximum CKKS capacity.
+    // Ciphertext-semantics packing records that count in the plaintext ring
+    // polynomial (x^slots + 1). Preparing the larger capacity wastes FFT
+    // transforms and rotation keys without changing the program semantics.
+    std::optional<int64_t> bootstrapSlots;
+    WalkResult slotWalk =
+        module->walk([&](ckks::BootstrapOp op) {
+          auto ctType = dyn_cast<lwe::LWECiphertextType>(
+              getElementTypeOrSelf(op.getInput().getType()));
+          if (!ctType) return WalkResult::advance();
+          int64_t slots = ctType.getPlaintextSpace()
+                              .getRing()
+                              .getPolynomialModulus()
+                              .getPolynomial()
+                              .getDegree();
+          if (bootstrapSlots && *bootstrapSlots != slots) {
+            op.emitOpError()
+                << "mixed bootstrap slot counts are not yet supported: "
+                << *bootstrapSlots << " and " << slots;
+            return WalkResult::interrupt();
+          }
+          bootstrapSlots = slots;
+          return WalkResult::advance();
+        });
+    if (slotWalk.wasInterrupted()) return signalPassFailure();
+    // Both supported Cheddar runtimes require at least 256 slots in their
+    // special-FFT bootstrap implementation.  Padding a smaller logical layout
+    // to that backend minimum preserves its values while still avoiding the
+    // much larger full-ring transform/key setup.
+    constexpr int64_t kMinBootstrapSlots = 256;
+    if (bootstrapSlots)
+      module->setAttr(
+          kActualSlotCountAttrName,
+          IntegerAttr::get(IntegerType::get(context, 64),
+                           std::max(*bootstrapSlots, kMinBootstrapSlots)));
 
     ConversionTarget target(*context);
     target.addLegalDialect<cheddar::CheddarDialect>();

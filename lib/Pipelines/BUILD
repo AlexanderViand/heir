@@ -107,6 +107,7 @@ cc_library(
         "@heir//lib/Dialect/Cheddar/Transforms:ConfigureCryptoContext",
         "@heir//lib/Dialect/Cheddar/Transforms:FreeIntermediates",
         "@heir//lib/Dialect/Cheddar/Transforms:FuseOps",
+        "@heir//lib/Dialect/Cheddar/Transforms:PrepareLinearTransforms",
         "@heir//lib/Dialect/Debug/Transforms:ValidateNames",
         "@heir//lib/Dialect/LWE/Conversions/LWEToCheddar",
         "@heir//lib/Dialect/LWE/Conversions/LWEToLattigo",

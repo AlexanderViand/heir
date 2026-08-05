@@ -68,6 +68,22 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "PrepareLinearTransforms",
+    srcs = ["PrepareLinearTransforms.cpp"],
+    hdrs = ["PrepareLinearTransforms.h"],
+    deps = [
+        ":prepare_linear_transforms_inc_gen",
+        "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@llvm-project//mlir:Analysis",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TensorDialect",
+    ],
+)
+
 add_heir_transforms(
     generated_target_name = "configure_crypto_context_inc_gen",
     header_filename = "ConfigureCryptoContext.h.inc",
@@ -87,4 +103,11 @@ add_heir_transforms(
     header_filename = "FreeIntermediates.h.inc",
     pass_name = "CheddarFreeIntermediates",
     td_file = "FreeIntermediates.td",
+)
+
+add_heir_transforms(
+    generated_target_name = "prepare_linear_transforms_inc_gen",
+    header_filename = "PrepareLinearTransforms.h.inc",
+    pass_name = "CheddarPrepareLinearTransforms",
+    td_file = "PrepareLinearTransforms.td",
 )

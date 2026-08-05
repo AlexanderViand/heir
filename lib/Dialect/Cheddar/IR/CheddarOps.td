@@ -83,11 +83,14 @@ class Cheddar_DpsOp<string mnemonic, list<Trait> traits = [],
 def Cheddar_CtLike : TensorOrMemRef<[Cheddar_Ciphertext]>;
 def Cheddar_PtLike : TensorOrMemRef<[Cheddar_Plaintext]>;
 def Cheddar_ConstLike : TensorOrMemRef<[Cheddar_Constant]>;
+def Cheddar_LinearTransformLike : TensorOrMemRef<[Cheddar_LinearTransform]>;
 def Cheddar_FloatLike : TensorOrMemRef<[AnyFloat, AnyComplex]>;
 
 def Cheddar_CtResult : Variadic<RankedTensorOf<[Cheddar_Ciphertext]>>;
 def Cheddar_PtResult : Variadic<RankedTensorOf<[Cheddar_Plaintext]>>;
 def Cheddar_ConstResult : Variadic<RankedTensorOf<[Cheddar_Constant]>>;
+def Cheddar_LinearTransformResult :
+    Variadic<RankedTensorOf<[Cheddar_LinearTransform]>>;
 
 // Owning setup-handle destinations. The `create_*` setup ops are
 // destination-passing like the payload ops: in tensor form they produce an SSA
@@ -243,7 +246,14 @@ def Cheddar_PrepareRotKeyOp : Cheddar_DpsOp<"prepare_rot_key", [], "Ui",
   let arguments = (ins
     Cheddar_UserInterfaceLike:$ui,
     Builtin_IntegerAttr:$distance,
-    Builtin_IntegerAttr:$maxLevel
+    Builtin_IntegerAttr:$maxLevel,
+    // Set for linear-transform rotation keys: the emitter then dispatches per
+    // CHEDDAR fork (cyclops prepares the key level-specifically at $maxLevel;
+    // scale-snu cheddar holds one key per rotation index and would crash
+    // overwriting it, so it prepares at $chainMaxLevel once -- duplicates
+    // dedupe -- and evaluates transforms with min_ks, which is correct with
+    // chain-max keys at any level).
+    OptionalAttr<Builtin_IntegerAttr>:$chainMaxLevel
   );
   let results = (outs Cheddar_UserInterfaceResult:$result);
 }
@@ -691,6 +701,51 @@ def Cheddar_LinearTransformOp : Cheddar_DpsOp<"linear_transform", [
   );
   let results = (outs Cheddar_CtResult:$result);
   let hasVerifier = 1;
+}
+
+def Cheddar_PrepareLinearTransformOp :
+    Cheddar_DpsOp<"prepare_linear_transform"> {
+  let summary = "Compile and encode a reusable linear transform";
+  let description = [{
+    Packs the cleartext diagonals into a StripedMatrix and constructs the
+    backend LinearTransform object, including all diagonal encodes. This is a
+    server-side, data-independent preprocessing operation and must execute in
+    the split `__preprocessing` function, never once per encrypted inference.
+  }];
+  let arguments = (ins
+    Cheddar_AnyContext:$ctx,
+    TensorOrMemRef<[AnyFloat]>:$diagonals,
+    Cheddar_LinearTransformLike:$output,
+    DenseI32ArrayAttr:$diagonal_indices,
+    Builtin_IntegerAttr:$level,
+    Builtin_IntegerAttr:$bs,
+    Builtin_IntegerAttr:$gs
+  );
+  let results = (outs Cheddar_LinearTransformResult:$result);
+}
+
+def Cheddar_ApplyPreparedLinearTransformOp :
+    Cheddar_DpsOp<"apply_prepared_linear_transform", [
+      DeclareOpInterfaceMethods<RotationOpInterface>
+    ]> {
+  let summary = "Evaluate a precompiled linear transform";
+  let description = [{
+    Evaluates a LinearTransform object prepared by
+    `cheddar.prepare_linear_transform`. No cleartext layout or encoding work is
+    performed by this op.
+  }];
+  let arguments = (ins
+    Cheddar_AnyContext:$ctx,
+    Cheddar_CtLike:$input,
+    Cheddar_EvkMap:$evkMap,
+    Cheddar_LinearTransformLike:$transform,
+    Cheddar_CtLike:$output,
+    DenseI32ArrayAttr:$diagonal_indices,
+    Builtin_IntegerAttr:$level,
+    Builtin_IntegerAttr:$bs,
+    Builtin_IntegerAttr:$gs
+  );
+  let results = (outs Cheddar_CtResult:$result);
 }
 
 def Cheddar_EvalPolyOp : Cheddar_DpsOp<"eval_poly"> {

@@ -101,6 +101,16 @@ def Cheddar_Constant : Cheddar_Type<"Constant", "constant"> {
   let asmName = "const";
 }
 
+def Cheddar_LinearTransform : Cheddar_Type<"LinearTransform", "linear_transform"> {
+  let description = [{
+    This type represents a process-local, precompiled CHEDDAR
+    LinearTransform<word>. The object owns the encoded diagonal plaintexts and
+    is prepared once by the split-preprocessing function, then reused by every
+    encrypted evaluation.
+  }];
+  let asmName = "lintrans";
+}
+
 // Key types
 
 def Cheddar_EvalKey : Cheddar_Type<"EvalKey", "eval_key"> {

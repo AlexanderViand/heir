@@ -212,6 +212,16 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       llvm::cl::desc("Bootstrap message headroom passed to CHEDDAR's "
                      "BootParameter (-1 = pass default)"),
       llvm::cl::init(-1)};
+  // Cheddar-only: defer split-preprocessed linear-transform rotation keys to
+  // runtime (the harness calls AddRequiredRotations on each prepared transform
+  // after zero-diagonal pruning) instead of emitting the full conservative
+  // BSGS key set for every transform in __configure. Trims GPU keygen
+  // residency on transform-heavy bootstrapping models.
+  PassOptions::Option<bool> cheddarDeferLintransKeys{
+      *this, "cheddar-defer-lintrans-keys",
+      llvm::cl::desc("Defer split-preprocessed linear-transform rotation keys "
+                     "to runtime (harness AddRequiredRotations)"),
+      llvm::cl::init(false)};
   // Cheddar-only: continue past the cheddar dialect all the way to EmitC C++
   // (bufferize -> convert-to-emitc -> boundary fixups -> reconcile). Other
   // backends ignore this.

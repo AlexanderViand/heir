@@ -27,7 +27,7 @@ namespace {
 // Is this a memref of a move-only CHEDDAR payload (owns GPU memory)?
 static bool isPayloadMemRef(Type t) {
   if (!isa<MemRefType>(t)) return false;
-  return isa<CiphertextType, PlaintextType>(
+  return isa<CiphertextType, PlaintextType, LinearTransformType>(
       cast<MemRefType>(t).getElementType());
 }
 
