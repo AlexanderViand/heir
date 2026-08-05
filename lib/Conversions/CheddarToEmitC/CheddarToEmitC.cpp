@@ -1288,20 +1288,6 @@ struct ConvertGlobalDropAlign
 // ConvertToEmitC dialect interface
 //===----------------------------------------------------------------------===//
 
-// The func dialect *promises* ConvertToEmitCPatternInterface, and
-// --convert-to-emitc dyn_casts every loaded dialect to it (a hard error if a
-// promise is unimplemented). We must NOT use the stock FuncToEmitC (it forms
-// `emitc.func`, which cannot carry the move-only payload `lvalue` args); the
-// cheddar interface instead keeps `func.func` via a structural type conversion.
-// So we satisfy func's promise with this no-op implementation.
-struct NoOpToEmitCInterface : public ConvertToEmitCPatternInterface {
-  NoOpToEmitCInterface(Dialect* dialect)
-      : ConvertToEmitCPatternInterface(dialect) {}
-  void populateConvertToEmitCConversionPatterns(
-      ConversionTarget&, TypeConverter&, RewritePatternSet&,
-      std::optional<bool>) const final {}
-};
-
 // Populate target legality, type conversions, and patterns for lowering cheddar
 // (plus the func-boundary structural conversion that keeps `func.func`) to
 // EmitC. Driven by `--convert-to-emitc` (which also pulls in arith/scf/memref
@@ -1735,27 +1721,20 @@ struct CheddarExternalizeWeights
 }  // namespace
 
 void registerCheddarConvertToEmitCInterface(DialectRegistry& registry) {
+  // Registers ONLY the cheddar dialect's interface. heir-opt registers the
+  // stock func/memref/arith/scf interfaces separately (Dialect::addInterface
+  // is first-wins, so attaching competing no-op interfaces here would be
+  // dead code). The cheddar pipeline excludes the stock FuncToEmitC -- whose
+  // emitc.func cannot carry the move-only payload lvalue args -- via
+  // `--convert-to-emitc=filter-dialects=cheddar,arith,scf,memref` and keeps
+  // func.func through this interface's structural conversion; for memref the
+  // stock patterns coexist with this interface's own memref patterns and
+  // type conversions (the compile test under
+  // tests/Conversions/CheddarToEmitC/compile pins the emitted result).
   registry.addExtension(
       +[](MLIRContext* ctx, cheddar::CheddarDialect* dialect) {
         dialect->addInterfaces<CheddarToEmitCDialectInterface>();
       });
-  // Satisfy the func dialect's ConvertToEmitCPatternInterface promise without
-  // pulling in the stock FuncToEmitC (the cheddar interface keeps func.func via
-  // a structural conversion; see NoOpToEmitCInterface).
-  registry.addExtension(+[](MLIRContext* ctx, func::FuncDialect* dialect) {
-    dialect->addInterfaces<NoOpToEmitCInterface>();
-  });
-  // Likewise satisfy the memref dialect's promise with a no-op: the cheddar
-  // interface OWNS memref->emitc lowering (it calls
-  // populateMemRefToEmitCConversionPatterns itself plus higher-benefit custom
-  // patterns, with its own memref type conversions). Letting the stock
-  // MemRefToEmitC interface also register would add a competing set of
-  // patterns/type-conversions to the shared converter whose visitation order
-  // isn't controlled, producing irreconcilable ptr<->array casts on float
-  // buffers. So `registerConvertMemRefToEmitCInterface` must NOT be called.
-  registry.addExtension(+[](MLIRContext* ctx, mlir::memref::MemRefDialect* d) {
-    d->addInterfaces<NoOpToEmitCInterface>();
-  });
 }
 
 void registerCheddarToEmitCExternalModels(DialectRegistry& registry) {

@@ -218,7 +218,6 @@ cc_binary(
         "@llvm-project//mlir:ComplexToLLVM",
         "@llvm-project//mlir:ControlFlowToLLVM",
         "@llvm-project//mlir:ControlFlowTransforms",
-        "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:ConvertToEmitC",
         "@llvm-project//mlir:ConvertToLLVM",
         "@llvm-project//mlir:EmitCDialect",

@@ -160,7 +160,6 @@
 #include "mlir/include/mlir/Conversion/MathToLLVM/MathToLLVM.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MemRefToEmitC/MemRefToEmitC.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"  // from @llvm-project
-#include "mlir/include/mlir/Conversion/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/SCFToEmitC/SCFToEmitC.h"  // from @llvm-project
@@ -371,23 +370,16 @@ int main(int argc, char** argv) {
   // plus the `cheddar-emitc-boundary` cleanup pass.
   mlir::heir::registerCheddarToEmitCExternalModels(registry);
 
-  // ConvertToEmitC dialect interfaces: cheddar plugs into --convert-to-emitc
-  // alongside arith/scf/memref. func is intentionally NOT registered here --
-  // the cheddar interface keeps func.func via a structural type conversion, and
-  // the pipeline runs
+  // cheddar plugs into the stock --convert-to-emitc via its
+  // ConvertToEmitCPatternInterface, like OpenfheToEmitC; the stock
+  // arith/scf/func/memref interfaces are registered in the "Converting to
+  // EmitC" block above. The cheddar pipeline passes
   //   --convert-to-emitc=filter-dialects=cheddar,arith,scf,memref
-  // so the stock FuncToEmitC (which forms emitc.func, unable to carry the
-  // move-only payload lvalue args) is excluded.
-  // cheddar's interface also attaches a no-op interface to the func dialect
-  // (to satisfy func's promise) and keeps func.func via a structural
-  // conversion -- so the stock FuncToEmitC is intentionally NOT registered.
+  // which excludes the stock FuncToEmitC (emitc.func cannot carry the
+  // move-only payload lvalue args); the cheddar interface keeps func.func
+  // via a structural conversion instead. See
+  // registerCheddarConvertToEmitCInterface for the memref story.
   mlir::heir::registerCheddarConvertToEmitCInterface(registry);
-  mlir::registerConvertArithToEmitCInterface(registry);
-  mlir::registerConvertSCFToEmitCInterface(registry);
-  // NOTE: the stock MemRefToEmitC interface is intentionally NOT registered.
-  // registerCheddarConvertToEmitCInterface attaches a no-op interface to the
-  // memref dialect and the cheddar interface owns memref->emitc lowering, so
-  // there is no competing pattern/type-conversion set (see CheddarToEmitC.cpp).
 
   // Bufferization and external models
   bufferization::registerBufferizationPasses();
@@ -417,7 +409,6 @@ int main(int argc, char** argv) {
 
   // Custom passes in HEIR
   registerEmitCInterfacePass();
-  mlir::registerConvertToEmitC();
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
   registerCheddarToEmitCPasses();
