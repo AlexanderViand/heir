@@ -282,6 +282,13 @@ struct CheddarConfigureCryptoContext
             else
               d = getConstantIntValue(cast<Value>(idx));
             if (!d.has_value() || *d < 0) {
+              // A single unresolvable index (e.g. a loop-carried rotation)
+              // disables the LT-only key classification wholesale -- exactly
+              // the chain-max key blow-up this pass exists to avoid on deep
+              // circuits -- so say it rather than silently regressing.
+              rotOp->emitRemark()
+                  << "rotation index is not statically resolvable; keeping "
+                     "chain-max keys for all rotations";
               keepAllMaxKeys = true;
               return;
             }
