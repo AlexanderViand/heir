@@ -28,7 +28,8 @@ class Cheddar_Op<string mnemonic, list<Trait> traits = []> :
 // `$output` of most ops; `decode` writes `$value`, `mad_unsafe` its
 // `$accumulator` for a true in-place update).
 class Cheddar_DpsOp<string mnemonic, list<Trait> traits = [],
-                    string initName = "Output"> :
+                    string initName = "Output",
+                    bit mutatesRuntimeState = 0> :
         Cheddar_Op<mnemonic, traits # [DestinationStyleOpInterface,
             DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
   let extraClassDeclaration = [{
@@ -45,6 +46,13 @@ class Cheddar_DpsOp<string mnemonic, list<Trait> traits = [],
   // ownership-based buffer-deallocation analyze the bufferized cheddar ops and
   // free intermediate GPU buffers at their last use. (Defined out-of-line: the
   // declaration comes from DeclareOpInterfaceMethods<MemoryEffectsOpInterface>.)
+  //
+  // Ops flagged `mutatesRuntimeState` additionally write the
+  // RuntimeStateResource UNCONDITIONALLY: keygen (prepare_*), library/GPU
+  // setup (create_*), and randomized encryption act on CHEDDAR state outside
+  // the IR's value graph, so even in tensor form they must be neither
+  // CSE-merged (two encryptions of one value are distinct ciphertexts) nor
+  // DCE'd when their threaded result is unused.
   let extraClassDefinition = [{
     void $cppClass::getEffects(::llvm::SmallVectorImpl<
         ::mlir::SideEffects::EffectInstance<::mlir::MemoryEffects::Effect>>
@@ -59,6 +67,11 @@ class Cheddar_DpsOp<string mnemonic, list<Trait> traits = [],
           effects.emplace_back(::mlir::MemoryEffects::Read::get(), &operand,
                                ::mlir::SideEffects::DefaultResource::get());
       }
+  }] # !if(mutatesRuntimeState, [{
+      effects.emplace_back(
+          ::mlir::MemoryEffects::Write::get(),
+          ::mlir::heir::cheddar::RuntimeStateResource::get());
+  }], "") # [{
     }
   }];
 }
@@ -105,7 +118,8 @@ def Cheddar_AnyOwningContextLike :
 // Setup operations
 //===----------------------------------------------------------------------===//
 
-def Cheddar_CreateContextOp : Cheddar_DpsOp<"create_context"> {
+def Cheddar_CreateContextOp : Cheddar_DpsOp<"create_context", [], "Output",
+    /*mutatesRuntimeState=*/1> {
   let summary = "Create a CHEDDAR context from parameters";
   let description = [{
     Creates a CHEDDAR Context<word> from a Parameter object (DPS). The result is
@@ -119,7 +133,8 @@ def Cheddar_CreateContextOp : Cheddar_DpsOp<"create_context"> {
   let results = (outs Cheddar_ContextResult:$result);
 }
 
-def Cheddar_CreateUserInterfaceOp : Cheddar_DpsOp<"create_user_interface"> {
+def Cheddar_CreateUserInterfaceOp : Cheddar_DpsOp<"create_user_interface",
+    [], "Output", /*mutatesRuntimeState=*/1> {
   let summary = "Create a CHEDDAR UserInterface for key gen and encrypt/decrypt";
   let description = [{
     Creates a UserInterface<word> from an owning context (DPS). The result is the
@@ -132,7 +147,8 @@ def Cheddar_CreateUserInterfaceOp : Cheddar_DpsOp<"create_user_interface"> {
   let results = (outs Cheddar_UserInterfaceResult:$result);
 }
 
-def Cheddar_CreateBootContextOp : Cheddar_DpsOp<"create_boot_context"> {
+def Cheddar_CreateBootContextOp : Cheddar_DpsOp<"create_boot_context", [],
+    "Output", /*mutatesRuntimeState=*/1> {
   let summary = "Create a CHEDDAR bootstrapping context from parameters";
   let description = [{
     Creates a `BootContext<word>` from a Parameter object (DPS), for programs
@@ -161,7 +177,8 @@ def Cheddar_CreateBootContextOp : Cheddar_DpsOp<"create_boot_context"> {
   let results = (outs Cheddar_BootContextResult:$result);
 }
 
-def Cheddar_PrepareBootstrapOp : Cheddar_DpsOp<"prepare_bootstrap", [], "Ui"> {
+def Cheddar_PrepareBootstrapOp : Cheddar_DpsOp<"prepare_bootstrap", [], "Ui",
+    /*mutatesRuntimeState=*/1> {
   let summary = "Run the one-time bootstrap precompute and rotation-key setup";
   let description = [{
     Performs the one-time bootstrapping preparation on a `!cheddar.boot_context`
@@ -212,7 +229,8 @@ def Cheddar_GetMultKeyOp : Cheddar_Op<"get_mult_key", [Pure]> {
   let results = (outs Cheddar_EvalKey:$key);
 }
 
-def Cheddar_PrepareRotKeyOp : Cheddar_DpsOp<"prepare_rot_key", [], "Ui"> {
+def Cheddar_PrepareRotKeyOp : Cheddar_DpsOp<"prepare_rot_key", [], "Ui",
+    /*mutatesRuntimeState=*/1> {
   let summary = "Generate a rotation key for a given distance";
   let description = [{
     Calls `ui->PrepareRotationKey(distance, maxLevel)` to generate a rotation
@@ -316,7 +334,8 @@ def Cheddar_DecodeOp : Cheddar_DpsOp<"decode", [], "Value"> {
   let results = (outs Variadic<AnyRankedTensor>:$decoded);
 }
 
-def Cheddar_EncryptOp : Cheddar_DpsOp<"encrypt"> {
+def Cheddar_EncryptOp : Cheddar_DpsOp<"encrypt", [], "Output",
+    /*mutatesRuntimeState=*/1> {
   let summary = "Encrypt a plaintext into a ciphertext";
   let description = [{
     Calls ui.Encrypt(ct, pt). Test-only operation. `$output` is the destination
