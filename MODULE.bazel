@@ -105,6 +105,17 @@ use_repo(
 cheddar_extensions = use_extension("//bazel:extensions.bzl", "cheddar_deps")
 use_repo(cheddar_extensions, "cheddar")
 
+# rules_foreign_cc's default make and pkg-config toolchains build those tools
+# from source (pkg-config is itself a configure_make project, which first
+# bootstraps GNU make); that autoconf bootstrap breaks under the hermetic
+# clang toolchain. The cheddar cmake build only needs the (downloaded,
+# prebuilt) cmake + ninja, so prefer the preinstalled system tools for the
+# rest. Root-module registrations take precedence over rules_foreign_cc's own.
+register_toolchains(
+    "@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain",
+    "@rules_foreign_cc//toolchains:preinstalled_make_toolchain",
+)
+
 # CUDA toolkit (for CHEDDAR and other GPU backends)
 cuda = use_extension("@rules_cuda//cuda:extensions.bzl", "toolchain")
 cuda.toolkit(

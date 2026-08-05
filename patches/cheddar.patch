@@ -86,3 +86,24 @@ index 2222222..3333333 100644
    /**
     * @brief Encode a message into a plaintext for a given level and scale.
     * The message will be padded to the nearest power of 2.
+diff --git a/cmake/bazel_toolchain.cmake b/cmake/bazel_toolchain.cmake
+new file mode 100644
+--- /dev/null
++++ b/cmake/bazel_toolchain.cmake
+@@ -0,0 +1,16 @@
++# Added by HEIR (patches/cheddar.patch); referenced as CMAKE_TOOLCHAIN_FILE
++# by bazel/cheddar/cheddar.BUILD.
++#
++# The surrounding bazel build (rules_foreign_cc) exports its hermetic clang
++# toolchain through CC/CXX/CFLAGS/CXXFLAGS/LDFLAGS. CHEDDAR must instead be
++# compiled entirely with the system toolchain matching nvcc's host compiler:
++# the hermetic clang cannot link outside bazel's action inputs, g++/nvcc
++# cannot parse its clang-specific flags, and mixing host stdlibs inside one
++# library would be worse. Pin the compilers and force the flag caches empty
++# before the environment-derived values can seed them.
++set(CMAKE_C_COMPILER /usr/bin/gcc)
++set(CMAKE_CXX_COMPILER /usr/bin/g++)
++set(CMAKE_C_FLAGS "" CACHE STRING "" FORCE)
++set(CMAKE_CXX_FLAGS "" CACHE STRING "" FORCE)
++set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "" FORCE)
++set(CMAKE_SHARED_LINKER_FLAGS "" CACHE STRING "" FORCE)
