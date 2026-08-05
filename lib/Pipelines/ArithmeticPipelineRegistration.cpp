@@ -6,6 +6,7 @@
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
+#include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
@@ -725,6 +726,15 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     // Simplify, in case the lowering revealed redundancy
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
+
+    // Fuse cheddar op sequences into compound GPU kernels (mult+relin+rescale
+    // -> hmult, hrot+add -> hrot_add, hconj+add -> hconj_add). Skip under
+    // --debug: the per-op __heir_debug calls break the fusable op adjacency,
+    // which can drop a rescale and corrupt the level chain ("num primes
+    // mismatch"); the unfused path is slower but correct, which is what a debug
+    // trace needs.
+    if (!options.debug && options.cheddarFuseOps)
+      pm.addPass(cheddar::createCheddarFuseOps());
 
     // Re-expose the scheme parameters as cheddar.* module attributes and drop
     // the CKKS module attributes.

@@ -20,6 +20,7 @@
 #include "lib/Dialect/Cheddar/Transforms/BufferizableOpInterfaceImpl.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Cheddar/Transforms/FreeIntermediates.h"
+#include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Comb/IR/CombDialect.h"
 #include "lib/Dialect/Debug/IR/DebugDialect.h"
 #include "lib/Dialect/Debug/Transforms/Passes.h"
@@ -384,6 +385,7 @@ int main(int argc, char** argv) {
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
   cheddar::registerCheddarFreeIntermediatesPasses();
+  cheddar::registerCheddarFuseOpsPasses();
   cheddar::registerCheddarConfigureCryptoContextPasses();
   ckks::registerCKKSPasses();
   lattigo::registerLattigoPasses();

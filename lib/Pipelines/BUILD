@@ -104,6 +104,7 @@ cc_library(
         "@heir//lib/Dialect/BGV/Conversions/BGVToLWE",
         "@heir//lib/Dialect/CKKS/Transforms:CKKSToLWE",
         "@heir//lib/Dialect/Cheddar/Transforms:ConfigureCryptoContext",
+        "@heir//lib/Dialect/Cheddar/Transforms:FuseOps",
         "@heir//lib/Dialect/Debug/Transforms:ValidateNames",
         "@heir//lib/Dialect/LWE/Conversions/LWEToCheddar",
         "@heir//lib/Dialect/LWE/Conversions/LWEToLattigo",

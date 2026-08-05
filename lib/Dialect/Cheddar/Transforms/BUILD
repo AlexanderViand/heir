@@ -40,6 +40,21 @@ cc_library(
 )
 
 cc_library(
+    name = "FuseOps",
+    srcs = ["FuseOps.cpp"],
+    hdrs = ["FuseOps.h"],
+    deps = [
+        ":fuse_ops_inc_gen",
+        "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@llvm-project//mlir:BufferizationDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
     name = "FreeIntermediates",
     srcs = ["FreeIntermediates.cpp"],
     hdrs = ["FreeIntermediates.h"],
@@ -58,6 +73,13 @@ add_heir_transforms(
     header_filename = "ConfigureCryptoContext.h.inc",
     pass_name = "CheddarConfigureCryptoContext",
     td_file = "ConfigureCryptoContext.td",
+)
+
+add_heir_transforms(
+    generated_target_name = "fuse_ops_inc_gen",
+    header_filename = "FuseOps.h.inc",
+    pass_name = "CheddarFuseOps",
+    td_file = "FuseOps.td",
 )
 
 add_heir_transforms(
