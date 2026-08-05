@@ -1,9 +1,6 @@
-load("@heir//bazel/cheddar:config.bzl", "requires_cheddar")
+load("@heir//bazel/cheddar:e2e.bzl", "cheddar_e2e_test", "cheddar_system_cc_binary")
 load("@heir//tools:heir-opt.bzl", "heir_opt")
 load("@heir//tools:heir-translate.bzl", "heir_translate")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["@heir//:license"],
@@ -12,11 +9,9 @@ package(
 
 # Cheap no-GPU helper to dump CHEDDAR's exact per-level GetScale for the
 # mlp-medium parameter set (used to bake mlp_medium.mlir's bias-encode scales).
-cc_binary(
+cheddar_system_cc_binary(
     name = "scale_dump",
     srcs = ["scale_dump.cpp"],
-    target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
 )
 
 heir_opt(
@@ -58,29 +53,15 @@ cat $(location :mlp_medium_raw.cc) >> $@
 """,
 )
 
-cc_library(
-    name = "mlp_medium_lib",
-    srcs = [":mlp_medium_lib_src"],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        "@cheddar",
-        "@heir//tests/Examples/cheddar:cheddar_emit_prelude",
-    ],
-)
-
-cc_test(
+cheddar_e2e_test(
     name = "mlp_medium_test",
-    srcs = ["mlp_medium_test.cpp"],
+    srcs = [
+        "mlp_medium_test.cpp",
+        ":mlp_medium_lib_src",
+    ],
+    hdrs = [
+        "@heir//tests/Examples/cheddar:cheddar_emit_prelude.h",
+        "@heir//tests/Examples/cheddar:e2e_check.h",
+    ],
     data = glob(["data/*.bin"]),
-    tags = [
-        "exclusive",
-        "notap",
-    ],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        ":mlp_medium_lib",
-        "@cheddar",
-        "@googletest//:gtest_main",
-        "@heir//tests/Examples/cheddar:cheddar_test_fixture",
-    ],
 )

@@ -1,9 +1,6 @@
-load("@heir//bazel/cheddar:config.bzl", "requires_cheddar")
+load("@heir//bazel/cheddar:e2e.bzl", "cheddar_e2e_test", "cheddar_system_cc_binary")
 load("@heir//tools:heir-opt.bzl", "heir_opt")
 load("@heir//tools:heir-translate.bzl", "heir_translate")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["@heir//:license"],
@@ -12,11 +9,9 @@ package(
 
 # Cheap no-GPU helper to dump CHEDDAR's exact per-level GetScale for the
 # orion-MLP parameter set (used to bake orion_mlp_lt.mlir's bias-encode scales).
-cc_binary(
+cheddar_system_cc_binary(
     name = "scale_dump",
     srcs = ["scale_dump.cpp"],
-    target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
 )
 
 heir_opt(
@@ -58,29 +53,15 @@ cat $(location :orion_mlp_lt_raw.cc) >> $@
 """,
 )
 
-cc_library(
-    name = "orion_mlp_lt_lib",
-    srcs = [":orion_mlp_lt_lib_src"],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        "@cheddar",
-        "@heir//tests/Examples/cheddar:cheddar_emit_prelude",
-    ],
-)
-
-cc_test(
+cheddar_e2e_test(
     name = "orion_mlp_lt_test",
-    srcs = ["orion_mlp_lt_test.cpp"],
+    srcs = [
+        "orion_mlp_lt_test.cpp",
+        ":orion_mlp_lt_lib_src",
+    ],
+    hdrs = [
+        "@heir//tests/Examples/cheddar:cheddar_emit_prelude.h",
+        "@heir//tests/Examples/cheddar:e2e_check.h",
+    ],
     data = glob(["data/*.bin"]),
-    tags = [
-        "exclusive",
-        "notap",
-    ],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        ":orion_mlp_lt_lib",
-        "@cheddar",
-        "@googletest//:gtest_main",
-        "@heir//tests/Examples/cheddar:cheddar_test_fixture",
-    ],
 )

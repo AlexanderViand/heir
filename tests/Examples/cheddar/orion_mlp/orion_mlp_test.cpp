@@ -17,8 +17,6 @@
 // from the checked-in t10k ubyte files; the plaintext reference is computed
 // here.
 
-#include <gtest/gtest.h>
-
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -34,6 +32,7 @@
 #include "core/Context.h"
 #include "core/Encode.h"
 #include "core/Parameter.h"
+#include "tests/Examples/cheddar/e2e_check.h"
 
 using word = uint64_t;
 using Complex = std::complex<double>;

@@ -5,8 +5,6 @@
 // `add__preprocessing` that encodes the 2.0/0.5 constants, and the `add`
 // compute kernel -- so the harness just calls the generated functions.
 
-#include <gtest/gtest.h>
-
 #include <array>
 #include <cmath>
 #include <complex>
@@ -21,6 +19,7 @@
 #include "core/Context.h"
 #include "core/Encode.h"
 #include "core/Parameter.h"
+#include "tests/Examples/cheddar/e2e_check.h"
 
 using word = uint64_t;
 using Ct = cheddar::Ciphertext<word>;

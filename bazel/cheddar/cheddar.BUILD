@@ -1,4 +1,3 @@
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
 
 package(
@@ -57,17 +56,10 @@ cmake(
     targets = ["cheddar"],
 )
 
-# Wrap the cmake output with CUDA + Thrust headers so downstream consumers
-# can resolve cheddar's public `#include <thrust/...>` directives.  The
-# `@cuda//:thrust` target only globs `cuda/include/thrust/**`, so its
-# sibling `cuda/include/cuda/__cccl_config` (transitively required by
-# `thrust/detail/config.h`) wouldn't end up in the sandbox without
-# `@cuda//:cuda_headers`.
-cc_library(
-    name = "cheddar",
-    deps = [
-        ":cheddar_cmake",
-        "@cuda//:cuda_headers",
-        "@cuda//:thrust",
-    ],
+# The full cmake install tree (include/ + lib/), for consumers that compile
+# against the library with the system toolchain (bazel/cheddar/e2e.bzl).
+filegroup(
+    name = "install_dir",
+    srcs = [":cheddar_cmake"],
+    output_group = "gen_dir",
 )

@@ -7,8 +7,6 @@
 // bootstrapping preserves the message (boot(x) ~= x). Mirrors CHEDDAR's own
 // Bootstrapping unit test, but driven through HEIR-emitted code.
 
-#include <gtest/gtest.h>
-
 #include <array>
 #include <cmath>
 #include <complex>
@@ -25,6 +23,7 @@
 #include "core/EvkRequest.h"
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
+#include "tests/Examples/cheddar/e2e_check.h"
 
 using word = uint64_t;
 using Ct = cheddar::Ciphertext<word>;

@@ -17,8 +17,6 @@
 // MNIST test image 0; argmax is class 7 (the true label). We assert the FHE run
 // reproduces these logits in slots 0..9 within CKKS noise.
 
-#include <gtest/gtest.h>
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -39,6 +37,7 @@
 #include "core/Parameter.h"
 #include "extension/LinearTransform.h"
 #include "extension/StripedMatrix.h"
+#include "tests/Examples/cheddar/e2e_check.h"
 
 using word = uint64_t;
 using Complex = std::complex<double>;

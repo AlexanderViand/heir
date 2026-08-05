@@ -5,8 +5,6 @@
 // weight diagonals, and the combined `matvec` kernel -- so the harness just
 // calls the generated functions and checks against the plaintext product.
 
-#include <gtest/gtest.h>
-
 #include <array>
 #include <cmath>
 #include <complex>
@@ -21,6 +19,7 @@
 #include "core/Context.h"
 #include "core/Encode.h"
 #include "core/Parameter.h"
+#include "tests/Examples/cheddar/e2e_check.h"
 
 using word = uint64_t;
 using Ct = cheddar::Ciphertext<word>;

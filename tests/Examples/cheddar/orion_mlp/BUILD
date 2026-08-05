@@ -1,8 +1,6 @@
-load("@heir//bazel/cheddar:config.bzl", "requires_cheddar")
+load("@heir//bazel/cheddar:e2e.bzl", "cheddar_e2e_test")
 load("@heir//tools:heir-opt.bzl", "heir_opt")
 load("@heir//tools:heir-translate.bzl", "heir_translate")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 
 package(
@@ -81,30 +79,16 @@ genrule(
     tools = [":dump_weights"],
 )
 
-cc_library(
-    name = "orion_mlp_lib",
-    srcs = [":orion_mlp_lib_src"],
-    target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
-)
-
-cc_test(
+cheddar_e2e_test(
     name = "orion_mlp_test",
-    srcs = ["orion_mlp_test.cpp"],
+    srcs = [
+        "orion_mlp_test.cpp",
+        ":orion_mlp_lib_src",
+    ],
+    hdrs = ["@heir//tests/Examples/cheddar:e2e_check.h"],
     data = [
         ":orion_mlp_weights.bin",
         "@heir//tests/Examples/common/mnist/data:t10k-images-idx3-ubyte",
         "@heir//tests/Examples/common/mnist/data:t10k-labels-idx1-ubyte",
-    ],
-    tags = [
-        "exclusive",
-        "notap",
-    ],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        ":orion_mlp_lib",
-        "@cheddar",
-        "@googletest//:gtest_main",
-        "@heir//tests/Examples/cheddar:cheddar_test_fixture",
     ],
 )

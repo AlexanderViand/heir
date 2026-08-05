@@ -12,8 +12,6 @@
 // run reproduces these 10 logits in slots 0..9; the difference is CKKS noise
 // plus the degree-7 Chebyshev SiLU approximation the FHE circuit evaluates.
 
-#include <gtest/gtest.h>
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -34,6 +32,7 @@
 #include "core/Parameter.h"
 #include "extension/LinearTransform.h"
 #include "extension/StripedMatrix.h"
+#include "tests/Examples/cheddar/e2e_check.h"
 
 using word = uint64_t;
 using Complex = std::complex<double>;

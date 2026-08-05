@@ -1,8 +1,6 @@
-load("@heir//bazel/cheddar:config.bzl", "requires_cheddar")
+load("@heir//bazel/cheddar:e2e.bzl", "cheddar_e2e_test")
 load("@heir//tools:heir-opt.bzl", "heir_opt")
 load("@heir//tools:heir-translate.bzl", "heir_translate")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["@heir//:license"],
@@ -58,24 +56,11 @@ cat $(location :dot_product_raw.cc) >> $@
 """,
 )
 
-cc_library(
-    name = "dot_product_lib",
-    srcs = [":dot_product_lib_src"],
-    target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
-)
-
-cc_test(
+cheddar_e2e_test(
     name = "dot_product_test",
-    srcs = ["dot_product_test.cpp"],
-    tags = [
-        "exclusive",
-        "notap",
+    srcs = [
+        "dot_product_test.cpp",
+        ":dot_product_lib_src",
     ],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        ":dot_product_lib",
-        "@cheddar",
-        "@googletest//:gtest_main",
-    ],
+    hdrs = ["@heir//tests/Examples/cheddar:e2e_check.h"],
 )

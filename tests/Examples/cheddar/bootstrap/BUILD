@@ -1,9 +1,6 @@
-load("@heir//bazel/cheddar:config.bzl", "requires_cheddar")
+load("@heir//bazel/cheddar:e2e.bzl", "cheddar_e2e_test", "cheddar_system_cc_binary")
 load("@heir//tools:heir-opt.bzl", "heir_opt")
 load("@heir//tools:heir-translate.bzl", "heir_translate")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_applicable_licenses = ["@heir//:license"],
@@ -12,11 +9,9 @@ package(
 
 # Cheap no-GPU helper to dump CHEDDAR's exact per-level GetScale for the
 # bootparam_40_64bit parameter set (used to bake bootstrap.mlir's encode scale).
-cc_binary(
+cheddar_system_cc_binary(
     name = "scale_dump",
     srcs = ["scale_dump.cpp"],
-    target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
 )
 
 # End-to-end: a real CHEDDAR GPU bootstrap. Encrypt at level 0, refresh with
@@ -72,24 +67,11 @@ cat $(location :bootstrap_raw.cc) >> $@
 """,
 )
 
-cc_library(
-    name = "bootstrap_lib",
-    srcs = [":bootstrap_lib_src"],
-    target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
-)
-
-cc_test(
+cheddar_e2e_test(
     name = "bootstrap_test",
-    srcs = ["bootstrap_test.cpp"],
-    tags = [
-        "exclusive",
-        "notap",
+    srcs = [
+        "bootstrap_test.cpp",
+        ":bootstrap_lib_src",
     ],
-    target_compatible_with = requires_cheddar(),
-    deps = [
-        ":bootstrap_lib",
-        "@cheddar",
-        "@googletest//:gtest_main",
-    ],
+    hdrs = ["@heir//tests/Examples/cheddar:e2e_check.h"],
 )
