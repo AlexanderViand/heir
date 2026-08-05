@@ -44,6 +44,7 @@ cc_binary(
         "@heir//lib/Analysis/NoiseAnalysis",  # buildcleaner: keep
         "@heir//lib/Analysis/NoiseAnalysis/BFV:NoiseAnalysis",  # buildcleaner: keep
         "@heir//lib/Analysis/NoiseAnalysis/BGV:NoiseAnalysis",  # buildcleaner: keep
+        "@heir//lib/Conversions/CheddarToEmitC",
         "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect/Arith/Conversions/ArithToCGGI",
         "@heir//lib/Dialect/Arith/Conversions/ArithToCGGIQuart",
@@ -217,6 +218,7 @@ cc_binary(
         "@llvm-project//mlir:ComplexToLLVM",
         "@llvm-project//mlir:ControlFlowToLLVM",
         "@llvm-project//mlir:ControlFlowTransforms",
+        "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:ConvertToEmitC",
         "@llvm-project//mlir:ConvertToLLVM",
         "@llvm-project//mlir:EmitCDialect",
@@ -275,6 +277,8 @@ cc_binary(
         "@heir//lib/Target/TfheRustHL:TfheRustHLEmitter",
         "@heir//lib/Target/Verilog:VerilogEmitter",
         "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:AllTranslations",
+        "@llvm-project//mlir:TargetCpp",
         "@llvm-project//mlir:TranslateLib",
     ],
 )

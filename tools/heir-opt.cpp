@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGI/ArithToCGGI.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGIQuart/ArithToCGGIQuart.h"
 #include "lib/Dialect/Arith/Conversions/ArithToModArith/ArithToModArith.h"
@@ -159,6 +160,7 @@
 #include "mlir/include/mlir/Conversion/MathToLLVM/MathToLLVM.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MemRefToEmitC/MemRefToEmitC.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/SCFToEmitC/SCFToEmitC.h"  // from @llvm-project
@@ -171,6 +173,7 @@
 #include "mlir/include/mlir/Dialect/Arith/IR/ValueBoundsOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/Transforms/BufferDeallocationOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/Transforms/BufferizableOpInterfaceImpl.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Arith/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/IR/Bufferization.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/Transforms/Passes.h"  // from @llvm-project
@@ -185,6 +188,7 @@
 #include "mlir/include/mlir/Dialect/Math/IR/Math.h"      // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/IR/MemRef.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/IR/ValueBoundsOpInterfaceImpl.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/ValueBoundsOpInterfaceImpl.h"  // from @llvm-project
@@ -327,9 +331,11 @@ int main(int argc, char** argv) {
   mlir::registerConvertSCFToEmitCInterface(registry);
 
   // Misc
-  registerTransformsPasses();      // canonicalize, cse, etc.
-  affine::registerAffinePasses();  // loop unrolling
-  registerLinalgPasses();          // linalg to loops
+  registerTransformsPasses();                 // canonicalize, cse, etc.
+  affine::registerAffinePasses();             // loop unrolling
+  registerLinalgPasses();                     // linalg to loops
+  mlir::memref::registerMemRefPasses();       // expand-strided-metadata, etc.
+  mlir::arith::registerArithExpandOpsPass();  // expand floordivsi/ceildiv/etc.
 
   // These are only needed by two tests that build a pass pipeline
   // from the CLI. Those tests can probably eventually be removed.
@@ -358,6 +364,31 @@ int main(int argc, char** argv) {
   registerPass(
       []() -> std::unique_ptr<Pass> { return createConvertToEmitC(); });
 
+  // Attaches MemRefElementTypeInterface to emitc::OpaqueType (a marker-only
+  // external model). The cheddar EmitC lowering runs via stock
+  // `--convert-to-emitc` (cheddar's ConvertToEmitCPatternInterface owns the
+  // cheddar ops, func, and memref; arith/scf plug in via their own interfaces)
+  // plus the `cheddar-emitc-boundary` cleanup pass.
+  mlir::heir::registerCheddarToEmitCExternalModels(registry);
+
+  // ConvertToEmitC dialect interfaces: cheddar plugs into --convert-to-emitc
+  // alongside arith/scf/memref. func is intentionally NOT registered here --
+  // the cheddar interface keeps func.func via a structural type conversion, and
+  // the pipeline runs
+  //   --convert-to-emitc=filter-dialects=cheddar,arith,scf,memref
+  // so the stock FuncToEmitC (which forms emitc.func, unable to carry the
+  // move-only payload lvalue args) is excluded.
+  // cheddar's interface also attaches a no-op interface to the func dialect
+  // (to satisfy func's promise) and keeps func.func via a structural
+  // conversion -- so the stock FuncToEmitC is intentionally NOT registered.
+  mlir::heir::registerCheddarConvertToEmitCInterface(registry);
+  mlir::registerConvertArithToEmitCInterface(registry);
+  mlir::registerConvertSCFToEmitCInterface(registry);
+  // NOTE: the stock MemRefToEmitC interface is intentionally NOT registered.
+  // registerCheddarConvertToEmitCInterface attaches a no-op interface to the
+  // memref dialect and the cheddar interface owns memref->emitc lowering, so
+  // there is no competing pattern/type-conversion set (see CheddarToEmitC.cpp).
+
   // Bufferization and external models
   bufferization::registerBufferizationPasses();
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
@@ -371,6 +402,10 @@ int main(int argc, char** argv) {
   registry.addExtension(+[](MLIRContext* ctx, LLVM::LLVMDialect* dialect) {
     dialect->addInterfaces<LLVMDummyInlinerInterface>();
   });
+  // Needed by --buffer-results-to-out-params=hoist-static-allocs=true: it
+  // queries memref.alloc's AllocationOpInterface to elide the result->out-param
+  // copy (essential for move-only cheddar payloads).
+  mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
   mlir::arith::registerConvertArithToLLVMInterface(registry);
 
   // ValueBoundsOpInterface
@@ -382,8 +417,10 @@ int main(int argc, char** argv) {
 
   // Custom passes in HEIR
   registerEmitCInterfacePass();
+  mlir::registerConvertToEmitC();
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
+  registerCheddarToEmitCPasses();
   cheddar::registerCheddarFreeIntermediatesPasses();
   cheddar::registerCheddarFuseOpsPasses();
   cheddar::registerCheddarConfigureCryptoContextPasses();
