@@ -762,8 +762,28 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     // and form emitc.func, which cannot carry cheddar's move-only lvalue/array
     // payload args (excluding func keeps func.func, whose structural conversion
     // cheddar's own interface performs).
+    // Weight externalization (only when weights-data-dir is set; the
+    // generated C++ then requires the harness to call __load_constants()):
+    // the upstream externalize-constants pass writes the blobs (before
+    // bufferization, while the weights are still arith.constant tensors) and
+    // cheddar-externalize-weights wires the resulting tagged globals to the
+    // generated __load_constants() loader and strips large splat
+    // initializers. The runtime load path is relative to the harness cwd
+    // (the generated source dir), hence the fixed "data" load dir.
+    bool externalizeWeights = !options.weightsDataDir.getValue().empty();
     std::string emitcPipeline =
+        (externalizeWeights ? "externalize-constants{output-dir=" +
+                                  options.weightsDataDir.getValue() +
+                                  " runtime-load-dir=data},"
+                            : std::string()) +
         "arith-expand,"
+        // The layout-management pipeline lowers assign_layout materializations
+        // and plaintext weight prep to affine loops over tensors
+        // (TensorLinalgToAffineLoops / codegen-strategy loops). One-shot
+        // bufferization has no interface for affine.for tensor iter_args, so
+        // lower affine to scf first; scf.for + tensor.insert/extract bufferize
+        // fine, and convert-to-emitc handles the resulting scf.for.
+        "lower-affine,"
         "one-shot-bufferize{bufferize-function-boundaries=true "
         "function-boundary-type-conversion=identity-layout-map},"
         "buffer-results-to-out-params{hoist-static-allocs=true "
@@ -775,10 +795,8 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
         "cheddar-free-intermediates,"
         "canonicalize,"
         "convert-to-emitc{filter-dialects=cheddar,arith,scf,memref},"
-        "cheddar-emitc-boundary,"
-        "cheddar-externalize-weights{data-dir=" +
-        options.weightsDataDir.getValue() +
-        "},"
+        "cheddar-emitc-boundary," +
+        (externalizeWeights ? "cheddar-externalize-weights," : std::string()) +
         "reconcile-unrealized-casts";
     if (failed(parsePassPipeline(emitcPipeline, pm))) {
       llvm::report_fatal_error("failed to build cheddar EmitC sub-pipeline");
