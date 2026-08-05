@@ -6,9 +6,27 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+# The linear-transform runtime is a checked-in header (reviewable, and
+# CI-compiled via the tests/Conversions/CheddarToEmitC/compile build_test on
+# emitted kernels containing it); this genrule wraps it into a raw-string
+# literal the pass embeds, so generated kernels stay self-contained.
+genrule(
+    name = "lintrans_runtime_inc",
+    srcs = ["CheddarLintransRuntime.h"],
+    outs = ["CheddarLintransRuntime.inc"],
+    cmd = "(printf 'R\"shim(\\n' && cat $(SRCS) && printf ')shim\"\\n') > $@",
+)
+
+# Exported so consumers can also #include the runtime directly (the injected
+# copy carries the same include guard).
+exports_files(["CheddarLintransRuntime.h"])
+
 cc_library(
     name = "CheddarToEmitC",
-    srcs = ["CheddarToEmitC.cpp"],
+    srcs = [
+        "CheddarToEmitC.cpp",
+        ":lintrans_runtime_inc",
+    ],
     hdrs = ["CheddarToEmitC.h"],
     deps = [
         ":pass_inc_gen",
