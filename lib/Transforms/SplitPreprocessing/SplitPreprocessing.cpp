@@ -13,6 +13,7 @@
 #include "llvm/include/llvm/ADT/STLExtras.h"    // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Affine/IR/AffineOps.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Affine/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"    // from @llvm-project
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"   // from @llvm-project
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"  // from @llvm-project
@@ -207,6 +208,19 @@ struct SplitPreprocessingPass
 
   void runOnOperation() override {
     Operation* root = getOperation();
+
+    // The storage layout sizes each site by the enclosing loops' trip counts,
+    // while the store/load indices are those loops' induction variables.
+    // Normalize affine loops before capturing those indices so a later loop
+    // normalization cannot rewrite a captured index to an affine.apply of the
+    // original non-zero-based, non-unit-step induction variable.
+    OpPassManager normalizeLoops("builtin.module");
+    normalizeLoops.addNestedPass<func::FuncOp>(
+        affine::createAffineLoopNormalizePass(true));
+    if (failed(runPipeline(normalizeLoops, root))) {
+      signalPassFailure();
+      return;
+    }
 
     // Annotate each encode op with a stable site id
     int32_t encodeId = 0;
