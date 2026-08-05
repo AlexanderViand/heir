@@ -33,6 +33,7 @@
 #include "mlir/include/mlir/IR/BuiltinTypes.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/PatternMatch.h"           // from @llvm-project
 #include "mlir/include/mlir/IR/SymbolTable.h"            // from @llvm-project
+#include "mlir/include/mlir/IR/TypeUtilities.h"          // from @llvm-project
 #include "mlir/include/mlir/IR/Value.h"                  // from @llvm-project
 #include "mlir/include/mlir/Interfaces/DestinationStyleOpInterface.h"  // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"           // from @llvm-project
@@ -428,27 +429,37 @@ struct ConvertMakeParameter
                            std::to_string(defaultEncLevel) + ", " + levelCfg +
                            ", " + primeVec(mainPrimes) + ", " +
                            primeVec(auxPrimes);
-    StringRef name = "cheddar_param";
+    // Unique within the enclosing function: a second make_parameter would
+    // otherwise redefine the static (a C++ compile error) -- and, being
+    // `static`, silently reuse the first construction across calls.
+    int ordinal = 0;
+    if (auto fn = op->getParentOfType<func::FuncOp>()) {
+      fn->walk([&](cheddar::MakeParameterOp mp) {
+        if (mp == op) return WalkResult::interrupt();
+        ++ordinal;
+        return WalkResult::advance();
+      });
+    }
+    std::string name = ordinal == 0
+                           ? "cheddar_param"
+                           : "cheddar_param_" + std::to_string(ordinal);
     VerbatimOp::create(rewriter, op.getLoc(),
-                       ("static Parameter<word> " + name +
-                        " = Parameter<word>(" + ctorArgs + ");")
-                           .str(),
+                       "static Parameter<word> " + name +
+                           " = Parameter<word>(" + ctorArgs + ");",
                        ValueRange{});
     // Bootstrapping needs the secret-key hamming weights set on the Parameter
     // (sparse-secret bootstrapping); CHEDDAR's BootContext relies on them.
     if (op.getDenseHammingWeight())
       VerbatimOp::create(
           rewriter, op.getLoc(),
-          (name + ".SetDenseHammingWeight(" +
-           std::to_string(op.getDenseHammingWeightAttr().getInt()) + ");")
-              .str(),
+          name + ".SetDenseHammingWeight(" +
+              std::to_string(op.getDenseHammingWeightAttr().getInt()) + ");",
           ValueRange{});
     if (op.getSparseHammingWeight())
       VerbatimOp::create(
           rewriter, op.getLoc(),
-          (name + ".SetSparseHammingWeight(" +
-           std::to_string(op.getSparseHammingWeightAttr().getInt()) + ");")
-              .str(),
+          name + ".SetSparseHammingWeight(" +
+              std::to_string(op.getSparseHammingWeightAttr().getInt()) + ");",
           ValueRange{});
     auto lit = emitc::LiteralOp::create(rewriter, op.getLoc(), t, name);
     rewriter.replaceOp(op, lit.getResult());
@@ -495,12 +506,18 @@ static Value findContextArgInFunction(Operation* op) {
   auto fn = op->getParentOfType<func::FuncOp>();
   if (!fn) return nullptr;
   auto mentionsContext = [](Type t) {
+    // MLIR handle types, possibly wrapped in a tensor/memref. A BootContext
+    // qualifies: CHEDDAR's BootContext<word> IS-A Context<word>, and skipping
+    // it left encodes in a bootstrapping __configure without a context --
+    // hence untagged plaintexts, which cyclops aborts on at Encrypt.
+    Type elem = getElementTypeOrSelf(t);
+    if (isa<cheddar::ContextType, cheddar::BootContextType>(elem)) return true;
+    // Post-boundary emitc opaques name the C++ type; "Context<" matches both
+    // Context<word> and BootContext<word>.
     std::string s;
     llvm::raw_string_ostream os(s);
     t.print(os);
-    if (StringRef(s).contains_insensitive("boot")) return false;
-    return StringRef(s).contains("cheddar.context") ||
-           StringRef(s).contains("Context<");
+    return StringRef(s).contains("Context<");
   };
   for (Value arg : fn.getArguments())
     if (mentionsContext(arg.getType())) return arg;
@@ -606,6 +623,9 @@ struct ConvertPrepareBootstrap
                        "{}->PrepareEvalSpecialFFT(" + n +
                            ", cheddar::BootVariant::kImaginaryRemoving);",
                        ValueRange{ctx});
+    // Braced scope so a second prepare_bootstrap in one function does not
+    // redefine boot_evk_req (same idiom as ConvertEvalPoly's locals).
+    VerbatimOp::create(rewriter, op.getLoc(), "{", ValueRange{});
     VerbatimOp::create(rewriter, op.getLoc(), "EvkRequest boot_evk_req;",
                        ValueRange{});
     VerbatimOp::create(rewriter, op.getLoc(),
@@ -617,6 +637,7 @@ struct ConvertPrepareBootstrap
     VerbatimOp::create(rewriter, op.getLoc(),
                        "HeirPrepareBootRotKeys({}, boot_evk_req, {});",
                        ValueRange{ui, ctx});
+    VerbatimOp::create(rewriter, op.getLoc(), "}", ValueRange{});
     rewriter.eraseOp(op);
     return success();
   }

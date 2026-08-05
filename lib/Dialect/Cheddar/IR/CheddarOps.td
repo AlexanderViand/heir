@@ -297,9 +297,15 @@ def Cheddar_MakeParameterOp : Cheddar_Op<"make_parameter", [Pure]> {
 def Cheddar_EncodeOp : Cheddar_DpsOp<"encode", [PlaintextEncodeOpInterface]> {
   let summary = "Encode a message vector into a CHEDDAR plaintext";
   let description = [{
-    Calls encoder.Encode(pt, level, scale, message). The message is a vector
-    of complex numbers (or reals). `scale` is the C++ `double` value used by
-    CHEDDAR's Encoder. `$output` is the destination plaintext.
+    Calls encoder.Encode(pt, level, encoder.GetScale(level), message). The
+    message is a vector of complex numbers (or reals). `$output` is the
+    destination plaintext.
+
+    NOTE: `scale` records HEIR's nominal scale for the value but is
+    INFORMATIONAL ONLY -- CHEDDAR has one canonical scale per level, so the
+    emitter always encodes at `GetScale(level)`. A divergence between the two
+    indicates the scale analysis and the backend disagree (debug with
+    scale_dump); it is not consumed by the lowering.
   }];
   let arguments = (ins
     Cheddar_Encoder:$encoder,
