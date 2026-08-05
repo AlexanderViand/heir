@@ -49,8 +49,8 @@ def CheddarExternalizeWeights : Pass<"cheddar-externalize-weights"> {
 
       * Collects the tagged globals into a generated `__load_constants()`
         function of `emitc.verbatim` calls (`heir_load_f32("<path>",
-        reinterpret_cast<float*>(<name>), <n>);`) for the harness to call once
-        before inference.
+        reinterpret_cast<float*>(<name>), <n>);`, or `heir_load_f64`/`double`
+        for f64 globals) for the harness to call once before inference.
       * Strips the initializer from any *large splat* float global (which
         externalize-constants deliberately leaves inline): heir-translate
         expands array initializers element-by-element, so a splat global

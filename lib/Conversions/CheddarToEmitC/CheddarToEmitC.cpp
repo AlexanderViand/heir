@@ -16,6 +16,7 @@
 #include "llvm/include/llvm/ADT/STLExtras.h"        // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallString.h"      // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"      // from @llvm-project
+#include "llvm/include/llvm/ADT/StringExtras.h"     // from @llvm-project
 #include "llvm/include/llvm/ADT/StringSet.h"        // from @llvm-project
 #include "llvm/include/llvm/Support/FileSystem.h"   // from @llvm-project
 #include "llvm/include/llvm/Support/raw_ostream.h"  // from @llvm-project
@@ -1307,15 +1308,35 @@ struct ConvertLoadResource
     Type arrayTy = getTypeConverter()->convertType(memrefType);
     if (!isa_and_present<emitc::ArrayType>(arrayTy)) return failure();
 
-    // "data/constant_<md5>.bin" -> "constant_<md5>" (a valid C identifier).
+    // "data/constant_<md5>.bin" -> "constant_<md5>". The upstream pass names
+    // blobs by content hash, but the path is whatever the load_resource op
+    // carries: sanitize it into a valid C identifier rather than emitting
+    // uncompilable C++ for a hyphen or leading digit.
     StringRef path = op.getPath();
     StringRef base = path;
     if (auto pos = base.rfind('/'); pos != StringRef::npos)
       base = base.drop_front(pos + 1);
     base.consume_back(".bin");
-    std::string globalName = base.str();
+    std::string globalName;
+    globalName.reserve(base.size());
+    for (char c : base)
+      globalName.push_back(llvm::isAlnum(c) || c == '_' ? c : '_');
+    if (globalName.empty() || llvm::isDigit(globalName.front()))
+      globalName = "constant_" + globalName;
 
     auto module = op->getParentOfType<ModuleOp>();
+    // Two DISTINCT blobs may collide on the derived name (same basename in
+    // different directories, or sanitization). Sharing a global would load
+    // the second tensor from the wrong file, so uniquify by suffix; only a
+    // global recorded with the SAME path is shared.
+    std::string candidate = globalName;
+    int suffix = 2;
+    while (auto existing = module.lookupSymbol<emitc::GlobalOp>(candidate)) {
+      auto existingPath = existing->getAttrOfType<StringAttr>(kLoadPathAttr);
+      if (existingPath && existingPath.getValue() == path) break;
+      candidate = globalName + "_" + std::to_string(suffix++);
+    }
+    globalName = candidate;
     if (!module.lookupSymbol<emitc::GlobalOp>(globalName)) {
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(module.getBody());
@@ -1662,7 +1683,8 @@ struct CheddarToEmitCPass
 
 // Write a large emitc.global weight initializer's raw float bytes to
 // <data-dir>/<name>.bin and strip the initializer; emit a __load_constants()
-// loader of verbatim `heir_load_f32(...)` calls. See the .td.
+// loader of verbatim `heir_load_f32(...)` / `heir_load_f64(...)` calls
+// matching the global's element type. See the .td.
 struct CheddarExternalizeWeights
     : impl::CheddarExternalizeWeightsBase<CheddarExternalizeWeights> {
   using CheddarExternalizeWeightsBase::CheddarExternalizeWeightsBase;
@@ -1671,21 +1693,40 @@ struct CheddarExternalizeWeights
     ModuleOp mod = cast<ModuleOp>(getOperation());
     MLIRContext* ctx = &getContext();
 
-    // (name, path, numElements) for globals whose blob the upstream
-    // externalize-constants pass already wrote; ConvertLoadResource tagged
-    // them with the runtime path.
-    SmallVector<std::tuple<std::string, std::string, int64_t>> loaded;
-    // (name, numElements, valueLiteral) for large non-zero splats filled at
-    // load time; all-zero splats need no entry (C++ static zero-init).
-    SmallVector<std::tuple<std::string, int64_t, std::string>> splatFills;
+    // (name, path, numElements, C element type) for globals whose blob the
+    // upstream externalize-constants pass already wrote; ConvertLoadResource
+    // tagged them with the runtime path.
+    SmallVector<std::tuple<std::string, std::string, int64_t, std::string>>
+        loaded;
+    // (name, numElements, valueLiteral, C element type) for large non-zero
+    // splats filled at load time; all-zero splats need no entry (C++ static
+    // zero-init).
+    SmallVector<std::tuple<std::string, int64_t, std::string, std::string>>
+        splatFills;
+    bool hadError = false;
     mod.walk([&](emitc::GlobalOp g) {
       auto arrTy = dyn_cast<emitc::ArrayType>(g.getType());
       if (!arrTy || !isa<FloatType>(arrTy.getElementType())) return;
       int64_t n = 1;
       for (int64_t d : arrTy.getShape()) n *= d;
+      // The loader/fill code reinterprets the array's storage, so the C
+      // element type must match the MLIR one exactly; anything but f32/f64
+      // would silently load garbage.
+      Type elemTy = arrTy.getElementType();
+      bool typedOk = elemTy.isF32() || elemTy.isF64();
+      std::string cType = elemTy.isF32() ? "float" : "double";
 
       if (auto pathAttr = g->getAttrOfType<StringAttr>(kLoadPathAttr)) {
-        loaded.emplace_back(g.getSymName().str(), pathAttr.getValue().str(), n);
+        if (!typedOk) {
+          g.emitError(
+              "cheddar-externalize-weights only supports f32/f64 "
+              "weight globals, got ")
+              << elemTy;
+          hadError = true;
+          return;
+        }
+        loaded.emplace_back(g.getSymName().str(), pathAttr.getValue().str(), n,
+                            cType);
         g->removeAttr(kLoadPathAttr);
         return;
       }
@@ -1713,14 +1754,39 @@ struct CheddarExternalizeWeights
       // __load_constants.
       auto de = dyn_cast_if_present<DenseElementsAttr>(g.getInitialValueAttr());
       if (!de || !de.isSplat() || n <= threshold) return;
+      if (!typedOk) {
+        g.emitError(
+            "cheddar-externalize-weights only supports f32/f64 "
+            "weight globals, got ")
+            << elemTy;
+        hadError = true;
+        return;
+      }
+      // Dropping the initializer of a non-static global would leave an
+      // `extern` declaration with no definition anywhere.
+      if (!g.getStaticSpecifier()) {
+        g.emitError(
+            "cannot externalize the large splat initializer of a non-static "
+            "global");
+        hadError = true;
+        return;
+      }
       APFloat sv = de.getSplatValue<APFloat>();
+      if (!sv.isZero() && !sv.isFinite()) {
+        // toString would print "Inf"/"NaN", which is not valid C++.
+        g.emitError("non-finite splat initializer cannot be externalized");
+        hadError = true;
+        return;
+      }
       g.removeInitialValueAttr();
       if (!sv.isZero()) {
         SmallString<32> sbuf;
         sv.toString(sbuf);
-        splatFills.emplace_back(g.getSymName().str(), n, std::string(sbuf));
+        splatFills.emplace_back(g.getSymName().str(), n, std::string(sbuf),
+                                cType);
       }
     });
+    if (hadError) return signalPassFailure();
     // Generate `void __load_constants()` that loads each blob into its global
     // and fills any large non-zero splat global. Emitted even when empty:
     // the pass only runs in the externalized-weights pipeline, whose harness
@@ -1734,16 +1800,16 @@ struct CheddarExternalizeWeights
                                    FunctionType::get(ctx, {}, {}));
     fn.setPublic();
     b.setInsertionPointToStart(fn.addEntryBlock());
-    for (auto& [name, path, n] : loaded) {
-      std::string txt = "heir_load_f32(\"" + path + "\", " +
-                        "reinterpret_cast<float*>(" + name + "), " +
-                        std::to_string(n) + ");";
+    for (auto& [name, path, n, cType] : loaded) {
+      std::string loader = cType == "float" ? "heir_load_f32" : "heir_load_f64";
+      std::string txt = loader + "(\"" + path + "\", " + "reinterpret_cast<" +
+                        cType + "*>(" + name + "), " + std::to_string(n) + ");";
       VerbatimOp::create(b, loc, txt, ValueRange{});
     }
-    for (auto& [name, n, val] : splatFills) {
+    for (auto& [name, n, val, cType] : splatFills) {
       std::string txt = "for (size_t __i = 0; __i < " + std::to_string(n) +
-                        "; ++__i) reinterpret_cast<float*>(" + name +
-                        ")[__i] = static_cast<float>(" + val + ");";
+                        "; ++__i) reinterpret_cast<" + cType + "*>(" + name +
+                        ")[__i] = static_cast<" + cType + ">(" + val + ");";
       VerbatimOp::create(b, loc, txt, ValueRange{});
     }
     func::ReturnOp::create(b, loc);
