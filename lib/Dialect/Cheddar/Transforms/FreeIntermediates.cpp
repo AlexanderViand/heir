@@ -31,16 +31,27 @@ static bool isPayloadMemRef(Type t) {
       cast<MemRefType>(t).getElementType());
 }
 
-// Does `op` declare only Read effects on `v`? (Ops without the effect
-// interface are treated as unknown -> false.)
+// Does `op` produce a memref result (a view/cast/subview)? Such a user
+// creates an alias none of the checks below track, so it always disqualifies
+// -- note that Pure view ops implement the effect interface with an EMPTY
+// effect list, which an all-of-effects check would vacuously accept.
+static bool producesMemRef(Operation* op) {
+  return llvm::any_of(op->getResults(),
+                      [](Value r) { return isa<BaseMemRefType>(r.getType()); });
+}
+
+// Does `op` declare at least one effect on `v`, all of them Read? (Ops
+// without the effect interface, or declaring nothing about `v`, are treated
+// as unknown -> false.)
 static bool onlyReads(Operation* op, Value v) {
   auto iface = dyn_cast<MemoryEffectOpInterface>(op);
   if (!iface) return false;
   SmallVector<MemoryEffects::EffectInstance> effects;
   iface.getEffectsOnValue(v, effects);
-  return llvm::all_of(effects, [](const MemoryEffects::EffectInstance& e) {
-    return isa<MemoryEffects::Read>(e.getEffect());
-  });
+  return !effects.empty() &&
+         llvm::all_of(effects, [](const MemoryEffects::EffectInstance& e) {
+           return isa<MemoryEffects::Read>(e.getEffect());
+         });
 }
 
 // Is `buf` never written and never aliased in its enclosing function? Only
@@ -50,6 +61,7 @@ static bool bufferIsReadOnly(Value buf) {
   return llvm::all_of(buf.getUsers(), [&](Operation* user) {
     if (auto load = dyn_cast<memref::LoadOp>(user))
       return load.getMemref() == buf;
+    if (producesMemRef(user)) return false;
     return onlyReads(user, buf);
   });
 }
@@ -89,8 +101,8 @@ static void forwardReadOnlyStagedPayloads(Block* block) {
     SmallVector<Operation*> readers;
     bool ok = true;
     for (Operation* user : buf.getUsers()) {
-      // ponytail: same-block, straight-line only (post-unroll/inline code is
-      // flat); nested-region readers just keep the staging copy.
+      // Same-block, straight-line only (post-unroll/inline code is flat);
+      // nested-region readers just keep the staging copy.
       if (user->getBlock() != block) {
         ok = false;
         break;
@@ -192,10 +204,17 @@ struct CheddarFreeIntermediates
       // alloc. Walking each top-level op's subtree once attributes nested uses
       // (e.g. inside an scf.for body) to the enclosing block-level op.
       DenseMap<Value, Operation*> lastUse;
+      // Buffers with a view/cast user have aliases this direct-operand sweep
+      // cannot track -- a later read through the alias would land after the
+      // inserted dealloc. Conservatively leave them to scope cleanup.
+      DenseSet<Value> aliased;
       for (Operation& top : *block) {
         top.walk([&](Operation* inner) {
           for (Value operand : inner->getOperands())
-            if (localAllocs.contains(operand)) lastUse[operand] = &top;
+            if (localAllocs.contains(operand)) {
+              lastUse[operand] = &top;
+              if (producesMemRef(inner)) aliased.insert(operand);
+            }
 
           // Split-preprocessing stores an encoded payload into persistent
           // storage as bufferized `%v = memref.load %localAlloc[] ;
@@ -220,6 +239,7 @@ struct CheddarFreeIntermediates
       }
 
       for (Value buf : localAllocs) {
+        if (aliased.contains(buf)) continue;
         auto it = lastUse.find(buf);
         if (it == lastUse.end()) continue;  // unused -> leave to scope cleanup
         toFree.push_back({buf, it->second});

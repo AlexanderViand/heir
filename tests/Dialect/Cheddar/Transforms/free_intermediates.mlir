@@ -96,3 +96,19 @@ func.func @keep_staging_of_written_buffer(%ctx: !context,
   cheddar.mult_plain %ctx, %ct, %staged, %out : (!context, memref<!ciphertext>, memref<!plaintext>, memref<!ciphertext>) -> ()
   return
 }
+
+// A local payload buffer with a view user has aliases the linear sweep cannot
+// track: the subview's consumer would run AFTER the dealloc a naive last-use
+// placement inserts (the alloc's last direct use is the subview itself).
+// Conservatively, such buffers are left to scope cleanup.
+// CHECK: @no_free_for_aliased
+// CHECK-NOT: memref.dealloc
+func.func @no_free_for_aliased(%ctx: !context, %arg0: memref<4x!ciphertext>,
+    %arg1: memref<!ciphertext>, %out: memref<!ciphertext> {bufferize.result}) {
+  %alloc = memref.alloc() : memref<4x!ciphertext>
+  %c0 = arith.constant 0 : index
+  %sv = memref.subview %alloc[0] [1] [1] : memref<4x!ciphertext> to memref<!ciphertext>
+  cheddar.add %ctx, %arg1, %arg1, %sv : (!context, memref<!ciphertext>, memref<!ciphertext>, memref<!ciphertext>) -> ()
+  cheddar.add %ctx, %sv, %arg1, %out : (!context, memref<!ciphertext>, memref<!ciphertext>, memref<!ciphertext>) -> ()
+  return
+}
