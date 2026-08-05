@@ -161,10 +161,16 @@ func::FuncOp getOrCreateEncryptionOfZerosFunc(func::FuncOp parentFunc,
   arith::ConstantOp constantOp = arith::ConstantOp::create(builder, zeroAttr);
 
   auto plaintextSpace = plaintextType.getPlaintextSpace();
+  // Thread the target ciphertext's level so backends with canonical
+  // per-level scales (cheddar) encode the zero at the right scale, matching
+  // the other rlwe_encode creation sites.
+  IntegerAttr levelAttr;
+  if (auto chain = ciphertextType.getModulusChain())
+    levelAttr = builder.getI64IntegerAttr(chain.getCurrent());
   auto encodeOp = RLWEEncodeOp::create(
       builder, plaintextType, constantOp.getResult(),
       plaintextSpace.getEncoding(), plaintextSpace.getRing(),
-      /*level=*/nullptr);
+      /*level=*/levelAttr);
   auto encrypted = RLWEEncryptOp::create(
       builder, ciphertextType, encodeOp.getResult(), encFuncOp.getArgument(0));
   encrypted->setAttrs(originalOp->getAttrs());

@@ -342,8 +342,14 @@ struct ConvertCKKSLevelReduceOp
     if (failed(ctx)) return ctx;
     auto outputCtType = dyn_cast<lwe::LWECiphertextType>(
         getElementTypeOrSelf(op.getOutput().getType()));
-    int64_t targetLevelVal =
-        outputCtType ? outputCtType.getModulusChain().getCurrent() : 0;
+    // Defaulting the target level would emit a level_down to the BOTTOM of
+    // the chain -- silently discarding every remaining level -- so a result
+    // type we cannot read a level from is an error, not a fallback.
+    if (!outputCtType || !outputCtType.getModulusChain())
+      return op.emitOpError()
+             << "cannot lower to cheddar.level_down: result is not an LWE "
+                "ciphertext carrying a modulus chain";
+    int64_t targetLevelVal = outputCtType.getModulusChain().getCurrent();
     Type resultTy = typeConverter->convertType(op.getOutput().getType());
     Value dest = makeDest(rewriter, op.getLoc(), resultTy);
     rewriter.replaceOpWithNewOp<cheddar::LevelDownOp>(
@@ -388,7 +394,13 @@ struct ConvertLWEEncodeOp : public OpConversionPattern<lwe::RLWEEncodeOp> {
              << "cannot lower to cheddar.encode: plaintext has no "
                 "InverseCanonicalEncoding (not a CKKS plaintext)";
     double scale = static_cast<double>(invEncoding.getScalingFactor());
-    int64_t level = op.getLevel() ? op.getLevel().value() : 0;
+    // cheddar encodes at the target level's canonical scale, so an encode
+    // without a level would silently land at level 0 (the bottom of the
+    // chain) and mismatch every consumer above it.
+    if (!op.getLevel())
+      return op.emitOpError()
+             << "cannot lower to cheddar.encode without a `level` attribute";
+    int64_t level = op.getLevel().value();
     Type resultTy = typeConverter->convertType(op.getOutput().getType());
     Value dest = makeDest(rewriter, op.getLoc(), resultTy);
     rewriter.replaceOpWithNewOp<cheddar::EncodeOp>(
