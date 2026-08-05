@@ -166,17 +166,19 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     if (moduleIsLattigo(getOperation()) || moduleIsCheddar(getOperation())) {
       encryptionTechniqueExtended = true;
       LDBG() << "For lattigo/cheddar, fixing extended encryption technique";
+    }
 
-      // Lattigo bootstrapping requires LogN >= 14, i.e., ringDim >= 16384.
-      // Since ringDim is computed from minSlotCount (minRingDim = 2 *
-      // minSlotCount), we bump minSlotCount to 8192 if bootstrapping is
-      // present.
-      if (containsBootstrap(getOperation())) {
-        if (minSlotCount < 8192) {
-          LDBG() << "Lattigo bootstrapping detected, bumping minSlotCount from "
-                 << minSlotCount << " to 8192";
-          minSlotCount = 8192;
-        }
+    // Lattigo bootstrapping requires LogN >= 14, i.e., ringDim >= 16384.
+    // Since ringDim is computed from minSlotCount (minRingDim = 2 *
+    // minSlotCount), we bump minSlotCount to 8192 if bootstrapping is
+    // present. This is a Lattigo library constraint; cheddar's own bootstrap
+    // minimum (256 slots) is enforced by lwe-to-cheddar, and its ring size
+    // ends up security-driven by the boot chain's logQP.
+    if (moduleIsLattigo(getOperation()) && containsBootstrap(getOperation())) {
+      if (minSlotCount < 8192) {
+        LDBG() << "Lattigo bootstrapping detected, bumping minSlotCount from "
+               << minSlotCount << " to 8192";
+        minSlotCount = 8192;
       }
     }
 

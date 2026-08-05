@@ -11,7 +11,7 @@
 
 module attributes {
   ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [36028797018652673, 1125899907366913, 1125899907760129, 1125899908035841, 1125899908145153, 1125899908397057], P = [1152921504606994433], logDefaultScale = 45>,
-  scheme.actual_slot_count = 4 : i64
+  cheddar.boot.num_slots = 4 : i64
 } {
   func.func @main(%ctx: !boot_context, %ui: !ui, %ct: tensor<!ciphertext>,
                   %evk: !evk_map, %dg: tensor<2x4xf64>)

@@ -57,6 +57,14 @@ constexpr const static ::llvm::StringLiteral kLattigoBackendAttrName =
 constexpr const static ::llvm::StringLiteral kCheddarBackendAttrName =
     "backend.cheddar";
 
+// Slot count the cheddar bootstrap context must be configured for: set by
+// lwe-to-cheddar from the bootstrapped ciphertexts' packing (padded to the
+// backend's 256-slot minimum), read by cheddar-configure-crypto-context. Kept
+// separate from scheme.actual_slot_count, which generate-param owns and
+// defines as ringDim/2.
+constexpr const static ::llvm::StringLiteral kCheddarBootSlotCountAttrName =
+    "cheddar.boot.num_slots";
+
 bool moduleIsOpenfhe(Operation* moduleOp);
 bool moduleIsLattigo(Operation* moduleOp);
 bool moduleIsCheddar(Operation* moduleOp);

@@ -304,16 +304,17 @@ struct CheddarConfigureCryptoContext
         // has already run at this point).
         bool bootstraps = false;
         moduleOp.walk([&](BootOp) { bootstraps = true; });
-        // Full-slot bootstrap refreshes the context's slot count; the lowering
-        // records it as the `scheme.actual_slot_count` module attribute.
+        // The boot context is configured for the slots the bootstrapped
+        // ciphertexts actually use; lwe-to-cheddar records that count as the
+        // cheddar.boot.num_slots module attribute.
         int64_t numSlots = 0;
         if (bootstraps) {
           if (auto slotsAttr = moduleOp->getAttrOfType<IntegerAttr>(
-                  kActualSlotCountAttrName))
+                  kCheddarBootSlotCountAttrName))
             numSlots = slotsAttr.getInt();
           else {
             entry->emitOpError(
-                "bootstrapping program is missing the scheme.actual_slot_count "
+                "bootstrapping program is missing the cheddar.boot.num_slots "
                 "module attribute needed to configure the boot context");
             signalPassFailure();
             return;

@@ -886,7 +886,7 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     constexpr int64_t kMinBootstrapSlots = 256;
     if (bootstrapSlots)
       module->setAttr(
-          kActualSlotCountAttrName,
+          kCheddarBootSlotCountAttrName,
           IntegerAttr::get(IntegerType::get(context, 64),
                            std::max(*bootstrapSlots, kMinBootstrapSlots)));
 
