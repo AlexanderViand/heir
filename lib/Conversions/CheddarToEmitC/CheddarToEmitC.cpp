@@ -1900,13 +1900,15 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
   // the op's level/scale, evaluate with CHEDDAR's hoisted BSGS kernel. diagT:
   // f64 (orion frontend) or f32 (torch-linalg path). Construction encodes every
   // diagonal (the dominant cost); the weights are process-lifetime constants,
-  // so the transform is memoized on the diagonal array's address.
+  // so the transform is memoized on the diagonal array's address plus the
+  // construction parameters (level, bs, gs).
 #include <algorithm>
 #include <complex>
 #include <initializer_list>
 #include <map>
 #include <memory>
 #include <set>
+#include <tuple>
 #include <type_traits>
 #include <vector>
   // MinKS (minimal key-switching) eligibility. scale-snu CHEDDAR's Evaluate /
@@ -2124,27 +2126,28 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
                                  int bs, int gs) {
     // Heap-allocated and intentionally never destroyed: cached transforms
     // hold GPU resources, and static teardown runs after the CUDA context is
-    // gone (destructing then SIGSEGVs on process exit).
+    // gone (destructing then SIGSEGVs on process exit). The key includes
+    // (level, bs, gs), not just the weight array's address: the level and its
+    // scale are baked into the transform at construction, and identical
+    // weights CAN be evaluated at two levels (content-hashed weight
+    // externalization dedupes byte-identical matrices into one array).
     static auto* cache =
-        new std::map<const void*, cheddar::LinearTransform<wordT>>();
-    auto it = cache->find(diag);
+        new std::map<std::tuple<const void*, int, int, int>,
+                     std::shared_ptr<cheddar::LinearTransform<wordT>>>();
+    auto key = std::make_tuple(static_cast<const void*>(diag), level, bs, gs);
+    auto it = cache->find(key);
     if (it == cache->end()) {
-      cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
-      cheddar::StripedMatrix m(W, W);
-      int d = 0;
-      for (int k : idx) {
-        m[k] = std::vector<std::complex<double>>(diag[d], diag[d] + W);
-        ++d;
-      }
-      it = cache
-               ->emplace(std::piecewise_construct, std::forward_as_tuple(diag),
-                         std::forward_as_tuple(
-                             cp, m, level, ctx->param_.GetScale(level), bs, gs))
-               .first;
+      // Construct through PrepareLinearTransform so this path and the
+      // split-preprocessing path share one construction site: it applies the
+      // compact per-prime plaintext period AND memoizes MinKS eligibility.
+      // Constructing directly here used to skip both, so inline transforms
+      // evaluated with min_ks=false -- the documented scale-snu deep-level
+      // corruption case -- and kept full-ring plaintexts on cyclops.
+      std::shared_ptr<cheddar::LinearTransform<wordT>> lt;
+      PrepareLinearTransform<W>(lt, ctx, diag, idx, level, bs, gs);
+      it = cache->emplace(key, std::move(lt)).first;
     }
-    auto borrowed = std::shared_ptr<cheddar::LinearTransform<wordT>>(
-        &it->second, [](cheddar::LinearTransform<wordT>*) {});
-    RunPreparedLinearTransform(out, ctx, in, evk_map, borrowed);
+    RunPreparedLinearTransform(out, ctx, in, evk_map, it->second);
   }
 )cpp";
 
