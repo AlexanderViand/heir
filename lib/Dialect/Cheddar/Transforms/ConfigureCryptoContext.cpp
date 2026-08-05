@@ -131,18 +131,18 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
   Value ui = CreateUserInterfaceOp::create(builder, loc, TypeRange{uiTensor},
                                            ValueRange{context, uiInit})
                  ->getResult(0);
-  for (int64_t d : rotationIndices)
-    ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
-                                 i64(maxLevel))
-             ->getResult(0);
   // Bootstrap precompute has the largest transient GPU-memory footprint. Run
-  // it before preparing the (potentially hundreds of) linear-transform keys;
+  // it before preparing the (potentially hundreds of) rotation keys;
   // otherwise those resident keys can make an otherwise-valid N=16 context
-  // OOM during CtS/StC precomputation. Both CHEDDAR forks safely add or widen
-  // the transform keys afterward, and all keys still land in the same EvkMap.
+  // OOM during CtS/StC precomputation. CHEDDAR safely adds keys afterward,
+  // and all keys still land in the same EvkMap.
   if (bootstraps)
     ui = PrepareBootstrapOp::create(builder, loc, TypeRange{uiTensor}, context,
                                     ui, i64(numSlots))
+             ->getResult(0);
+  for (int64_t d : rotationIndices)
+    ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
+                                 i64(maxLevel))
              ->getResult(0);
   func::ReturnOp::create(builder, loc, ValueRange{context, ui});
 }
