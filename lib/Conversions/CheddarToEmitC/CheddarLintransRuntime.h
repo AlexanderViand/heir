@@ -136,11 +136,16 @@ static void RunPreparedLinearTransform(
   // hrot) is correct at any level with chain-max keys.
   transform->Evaluate(cp, out, in, evk_map,
                       /*min_ks=*/LinearTransformUsesMinKS(transform.get()));
-  // Evaluate leaves the product at scale^2; rescale to the next level so the
-  // result matches the ckks.rescale the lowering absorbed into this op.
-  cheddar::Ciphertext<wordT> rescaled;
-  ctx->Rescale(rescaled, out);
-  out = std::move(rescaled);
+  // The op's contract is one level consumed (the lowering absorbed the
+  // ckks.rescale). CHEDDAR's Evaluate paths already rescale internally (the
+  // hoisted giant step ends in ModDownAndRescale, the min_ks giant step in
+  // Rescale), so probe instead of assuming: only rescale here if the
+  // evaluation left the input level untouched.
+  if (out.GetNP().num_main_ == in.GetNP().num_main_) {
+    cheddar::Ciphertext<wordT> rescaled;
+    ctx->Rescale(rescaled, out);
+    out = std::move(rescaled);
+  }
 }
 template <int W, typename wordT, typename diagT>
 static void RunLinearTransform(cheddar::Ciphertext<wordT>& out,
