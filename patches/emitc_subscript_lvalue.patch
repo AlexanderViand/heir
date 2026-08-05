@@ -1,0 +1,17 @@
+# HEIR-maintained LLVM patch (NOT auto-generated): allow `emitc.subscript` to
+# take an `!emitc.lvalue` base. The cheddar EmitC emitter subscripts move-only
+# payload buffers carried as `lvalue<opaque "std::array<...>">`. Upstream
+# candidate; drop this once the change lands in the pinned LLVM.
+diff -ruN --strip-trailing-cr a/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td b/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
+--- a/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
++++ b/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
+@@ -1623,7 +1623,8 @@
+   let arguments = (ins Arg<AnyTypeOf<[
+       EmitC_ArrayType,
+       EmitC_OpaqueType,
+-      EmitC_PointerType]>,
++      EmitC_PointerType,
++      EmitC_LValueType]>,
+     "the value to subscript">:$value,
+     Variadic<EmitCType>:$indices);
+   let results = (outs EmitC_LValueType:$result);
