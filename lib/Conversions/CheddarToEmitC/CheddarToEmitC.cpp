@@ -617,15 +617,6 @@ struct ConvertPrepareBootstrap
     VerbatimOp::create(rewriter, op.getLoc(),
                        "HeirPrepareBootRotKeys({}, boot_evk_req, {});",
                        ValueRange{ui, ctx});
-    // Bootstrap CtS/StC precompute is the largest transient GPU allocation and
-    // some forks' binning allocators cache the freed scratch. Reclaim it at
-    // this boundary (before weight encode + transform keygen) via a
-    // consumer-provided hook: the cyclops prelude calls
-    // cheddar::GPU::ReleaseUnusedMemory(); the scale-snu prelude defines it as
-    // a no-op (no such pool API). Keeps this emission backend-agnostic, like
-    // heir_load_f32 / __heir_debug.
-    VerbatimOp::create(rewriter, op.getLoc(), "__medusa_reclaim();",
-                       ValueRange{});
     rewriter.eraseOp(op);
     return success();
   }
