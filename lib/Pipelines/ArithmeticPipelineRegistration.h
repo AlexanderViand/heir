@@ -196,9 +196,9 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
                      "function (cf. --lwe-add-debug-port)"),
       llvm::cl::init(false)};
   // Cheddar-only: fuse ops into compound GPU kernels (default). The fused
-  // kernels are numerically coarser on some runtimes: on the cyclops fork a
-  // deep bootstrap cascade accumulates ~3x more error fused than unfused, so
-  // callers can trade eval speed for precision.
+  // kernels can be numerically coarser (a deep bootstrap cascade has been
+  // observed to accumulate ~3x more error fused than unfused), so callers can
+  // trade eval speed for precision.
   PassOptions::Option<bool> cheddarFuseOps{
       *this, "cheddar-fuse-ops",
       llvm::cl::desc("Fuse CHEDDAR ops into compound GPU kernels"),

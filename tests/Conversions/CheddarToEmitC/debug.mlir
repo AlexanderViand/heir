@@ -3,7 +3,7 @@
 // A `__heir_debug_*` call (the form LWEToCheddar produces for cheddar --debug)
 // lowers to a free C++ `__heir_debug(encoder, ui, ct, "name", "metadata")`
 // call. The external `func.func` declaration is erased (the upstream Cpp
-// emitter cannot print an external func.func), so medusa's C++ prelude defines
+// emitter cannot print an external func.func), so the consumer's C++ prelude defines
 // `__heir_debug`.
 
 !ciphertext = !cheddar.ciphertext
@@ -33,7 +33,7 @@ func.func @debug_chain(%enc: !encoder, %ui: !user_interface, %ct: tensor<!cipher
 }
 
 // A rank-1 (1-element array) ciphertext value -- the usual cheddar value rep --
-// lowers the ct operand to a const std::array<Ciphertext<word>, N>& (the medusa
+// lowers the ct operand to a const std::array<Ciphertext<word>, N>& (the consumer
 // C++ hook should accept both this and the scalar form, e.g. via a template).
 // CHECK: func.func @debug_arr
 // CHECK: emitc.call_opaque "__heir_debug"

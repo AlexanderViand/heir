@@ -33,6 +33,5 @@ module attributes {
 // CHECK: func.func @main__configure
 // CHECK: cheddar.prepare_bootstrap
 // CHECK: cheddar.prepare_rot_key
-// CHECK-SAME: chainMaxLevel = 5
 // CHECK-SAME: distance = 1
-// CHECK-SAME: maxLevel = 3
+// CHECK-SAME: maxLevel = 5

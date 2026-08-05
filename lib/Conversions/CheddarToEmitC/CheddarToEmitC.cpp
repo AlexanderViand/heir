@@ -467,76 +467,6 @@ struct ConvertMakeParameter
   }
 };
 
-// Recover the Context a UserInterface was created from by walking back the
-// destination-passing `$ui` chain (prepare_rot_key / prepare_bootstrap thread
-// it through) to the create_user_interface that owns it.
-// cheddar.prepare_rot_key carries no ctx operand, but cyclops' post-CYC-173
-// keygen needs a SecretId, which only the Context's Parameter can supply -- so
-// the emitted call takes the context and the shim SFINAEs on whether the fork
-// wants it.
-static Value findContextForUi(Value ui) {
-  while (ui) {
-    Operation* def = ui.getDefiningOp();
-    if (!def) return nullptr;
-    if (auto cui = dyn_cast<cheddar::CreateUserInterfaceOp>(def))
-      return cui.getCtx();
-    if (auto prk = dyn_cast<cheddar::PrepareRotKeyOp>(def)) {
-      ui = prk.getUi();
-      continue;
-    }
-    if (auto pb = dyn_cast<cheddar::PrepareBootstrapOp>(def)) {
-      ui = pb.getUi();
-      continue;
-    }
-    return nullptr;
-  }
-  return nullptr;
-}
-
-// After bufferization the DPS `$ui` is a memref that create_user_interface
-// *writes into* rather than defines, so the def-chain walk above dead-ends.
-// Two fallbacks, in order: the create_user_interface in this function whose
-// destination is that same memref, then the enclosing function's context
-// parameter (in a generated __configure the context is an out-param).
-// The enclosing function's Context parameter, if it has one. Generated entry /
-// encrypt / configure functions take the Context as their first parameter,
-// which is the only handle some ops (cheddar.encode) have for reaching the
-// secret.
-static Value findContextArgInFunction(Operation* op) {
-  auto fn = op->getParentOfType<func::FuncOp>();
-  if (!fn) return nullptr;
-  auto mentionsContext = [](Type t) {
-    // MLIR handle types, possibly wrapped in a tensor/memref. A BootContext
-    // qualifies: CHEDDAR's BootContext<word> IS-A Context<word>, and skipping
-    // it left encodes in a bootstrapping __configure without a context --
-    // hence untagged plaintexts, which cyclops aborts on at Encrypt.
-    Type elem = getElementTypeOrSelf(t);
-    if (isa<cheddar::ContextType, cheddar::BootContextType>(elem)) return true;
-    // Post-boundary emitc opaques name the C++ type; "Context<" matches both
-    // Context<word> and BootContext<word>.
-    std::string s;
-    llvm::raw_string_ostream os(s);
-    t.print(os);
-    return StringRef(s).contains("Context<");
-  };
-  for (Value arg : fn.getArguments())
-    if (mentionsContext(arg.getType())) return arg;
-  return nullptr;
-}
-
-static Value findContextFallback(Operation* op, Value ui) {
-  auto fn = op->getParentOfType<func::FuncOp>();
-  if (!fn) return nullptr;
-  Value found;
-  fn.walk([&](cheddar::CreateUserInterfaceOp cui) {
-    if (found) return;
-    for (Value operand : cui->getOperands())
-      if (operand == ui) found = cui.getCtx();
-  });
-  if (found) return found;
-  return findContextArgInFunction(op);
-}
-
 struct ConvertPrepareRotKey
     : public OpConversionPattern<cheddar::PrepareRotKeyOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -545,23 +475,9 @@ struct ConvertPrepareRotKey
       ConversionPatternRewriter& rewriter) const override {
     std::string extra =
         intLit(op.getDistanceAttr()) + ", " + intLit(op.getMaxLevelAttr());
-    Value origCtx = findContextForUi(op.getUi());
-    if (!origCtx) origCtx = findContextFallback(op, op.getUi());
-    if (!origCtx)
-      return rewriter.notifyMatchFailure(
-          op,
-          "cannot locate the Context owning this $ui, so cyclops' SecretId "
-          "is unavailable");
-    Value ctxV = rewriter.getRemappedValue(origCtx);
-    if (!ctxV) ctxV = origCtx;
-    // Linear-transform rotation keys go through the fork-dispatching wrapper
-    // (level-specific on cyclops, chain-max + dedupe on scale-snu cheddar).
-    std::string call = op.getChainMaxLevelAttr()
-                           ? "PrepareLintransRotKey({}, " + extra + ", " +
-                                 intLit(op.getChainMaxLevelAttr()) + ", {});"
-                           : "HeirPrepareRotKey({}, " + extra + ", {});";
-    VerbatimOp::create(rewriter, op.getLoc(), call,
-                       ValueRange{adaptor.getUi(), ctxV});
+    VerbatimOp::create(rewriter, op.getLoc(),
+                       "{}->PrepareRotationKey(" + extra + ");",
+                       ValueRange{adaptor.getUi()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -631,12 +547,8 @@ struct ConvertPrepareBootstrap
     VerbatimOp::create(rewriter, op.getLoc(),
                        "{}->AddRequiredRotations(boot_evk_req, " + n + ");",
                        ValueRange{ctx});
-    // Boot keys are built under the boot secret on cyclops (post-CYC-173);
-    // scale-snu CHEDDAR takes the request alone. The shim dispatches on which
-    // signature exists, so this stays fork-agnostic.
     VerbatimOp::create(rewriter, op.getLoc(),
-                       "HeirPrepareBootRotKeys({}, boot_evk_req, {});",
-                       ValueRange{ui, ctx});
+                       "{}->PrepareRotationKey(boot_evk_req);", ValueRange{ui});
     VerbatimOp::create(rewriter, op.getLoc(), "}", ValueRange{});
     rewriter.eraseOp(op);
     return success();
@@ -673,19 +585,6 @@ struct ConvertEncode : public OpConversionPattern<cheddar::EncodeOp> {
         rewriter, op.getLoc(),
         "{}.Encode({}, " + lvl + ", {}.GetScale(" + lvl + "), {});",
         ValueRange{adaptor.getEncoder(), out, adaptor.getEncoder(), vec});
-    // Tag the encoded plaintext when this function has a Context to name the
-    // secret from. cyclops rejects untagged containers downstream (Encrypt's
-    // CheckSecret), and ciphertexts inherit the tag from here. Not every
-    // encoding function has a Context -- the split-preprocessing weight encode
-    // takes only an Encoder -- so this is best-effort: no context, no tag.
-    // Those plaintexts feed plain (non-key-switching) multiplies, which do not
-    // consult a secret; the tag matters on the encrypt path.
-    if (Value ctxArg = findContextArgInFunction(op)) {
-      Value ctxV = rewriter.getRemappedValue(ctxArg);
-      if (!ctxV) ctxV = ctxArg;
-      VerbatimOp::create(rewriter, op.getLoc(), "HeirTagPlaintext({}, {});",
-                         ValueRange{out, ctxV});
-    }
     rewriter.eraseOp(op);
     return success();
   }
@@ -757,15 +656,14 @@ struct ConvertHRot : public OpConversionPattern<cheddar::HRotOp> {
       std::string d = intLit(sd);
       VerbatimOp::create(
           rewriter, op.getLoc(),
-          "{}->HRot({}, {}, HeirRotationKey({}, " + d + ", {}), " + d + ");",
-          ValueRange{adaptor.getCtx(), out, adaptor.getInput(), ui,
-                     adaptor.getInput()});
+          "{}->HRot({}, {}, {}->GetRotationKey(" + d + "), " + d + ");",
+          ValueRange{adaptor.getCtx(), out, adaptor.getInput(), ui});
     } else {
       Value dyn = adaptor.getDynamicDistance();
-      VerbatimOp::create(rewriter, op.getLoc(),
-                         "{}->HRot({}, {}, HeirRotationKey({}, {}, {}), {});",
-                         ValueRange{adaptor.getCtx(), out, adaptor.getInput(),
-                                    ui, dyn, adaptor.getInput(), dyn});
+      VerbatimOp::create(
+          rewriter, op.getLoc(),
+          "{}->HRot({}, {}, {}->GetRotationKey({}), {});",
+          ValueRange{adaptor.getCtx(), out, adaptor.getInput(), ui, dyn, dyn});
     }
     rewriter.eraseOp(op);
     return success();
@@ -781,10 +679,9 @@ struct ConvertHRotAdd : public OpConversionPattern<cheddar::HRotAddOp> {
     std::string d = intLit(op.getDistanceAttr());
     VerbatimOp::create(
         rewriter, op.getLoc(),
-        "{}->HRotAdd({}, {}, {}, HeirRotationKey({}, " + d + ", {}), " + d +
-            ");",
+        "{}->HRotAdd({}, {}, {}, {}->GetRotationKey(" + d + "), " + d + ");",
         ValueRange{adaptor.getCtx(), adaptor.getOutput(), adaptor.getInput(),
-                   adaptor.getAddend(), ui, adaptor.getInput()});
+                   adaptor.getAddend(), ui});
     rewriter.eraseOp(op);
     return success();
   }
@@ -797,9 +694,9 @@ struct ConvertHConj : public OpConversionPattern<cheddar::HConjOp> {
       ConversionPatternRewriter& rewriter) const override {
     Value ui = adaptor.getUi();
     VerbatimOp::create(rewriter, op.getLoc(),
-                       "{}->HConj({}, {}, HeirConjugationKey({}, {}));",
+                       "{}->HConj({}, {}, {}->GetConjugationKey());",
                        ValueRange{adaptor.getCtx(), adaptor.getOutput(),
-                                  adaptor.getInput(), ui, adaptor.getInput()});
+                                  adaptor.getInput(), ui});
     rewriter.eraseOp(op);
     return success();
   }
@@ -811,11 +708,10 @@ struct ConvertHConjAdd : public OpConversionPattern<cheddar::HConjAddOp> {
       cheddar::HConjAddOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
     Value ui = adaptor.getUi();
-    VerbatimOp::create(
-        rewriter, op.getLoc(),
-        "{}->HConjAdd({}, {}, {}, HeirConjugationKey({}, {}));",
-        ValueRange{adaptor.getCtx(), adaptor.getOutput(), adaptor.getInput(),
-                   adaptor.getAddend(), ui, adaptor.getInput()});
+    VerbatimOp::create(rewriter, op.getLoc(),
+                       "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());",
+                       ValueRange{adaptor.getCtx(), adaptor.getOutput(),
+                                  adaptor.getInput(), adaptor.getAddend(), ui});
     rewriter.eraseOp(op);
     return success();
   }
@@ -995,8 +891,8 @@ struct ConvertEvalPoly : public OpConversionPattern<cheddar::EvalPolyOp> {
              ", _ep_lvl, _ep_is, _ep_ts, true);",
          {});
     emit("_ep.Compile(_ep_cp);", {});
-    emit("_ep.Evaluate(_ep_cp, {}, {}, HeirMultiplicationKey({}, {}));",
-         {out, in, evk, in});
+    emit("_ep.Evaluate(_ep_cp, {}, {}, {}.GetMultiplicationKey());",
+         {out, in, evk});
     emit("}", {});
 
     rewriter.eraseOp(op);
@@ -1008,7 +904,7 @@ struct ConvertEvalPoly : public OpConversionPattern<cheddar::EvalPolyOp> {
 // to (Encoder, UserInterface, Ciphertext)) -> a free C++ call to an
 // externally-defined `__heir_debug(encoder, ui, ct, "name", "metadata")`. The
 // debug name/metadata travel as `debug.name`/`debug.metadata` dialect attrs;
-// they are baked into the call as trailing string-literal args. Medusa's C++
+// they are baked into the call as trailing string-literal args. The consumer's
 // prelude defines `__heir_debug` (decrypt + decode + print); the external
 // `func.func` declaration is erased by the cheddar-emitc-boundary pass (the
 // upstream Cpp emitter cannot print an external func.func declaration).
@@ -1761,155 +1657,6 @@ bool isPayloadArgWritten(func::FuncOp fn, unsigned i) {
   return false;
 }
 
-// Evaluation-key lookup shims, emitted once at module scope (unconditionally:
-// any program that rotates, conjugates or multiplies needs them).
-//
-// cyclops from CYC-173 ("Residual/boot parameter split + ring & secret
-// identity") indexes every evaluation key by a SecretId and takes an explicit
-// level on rotation lookups; scale-snu CHEDDAR keeps the older secret-less
-// signatures (GetRotationKey(int), GetConjugationKey(),
-// GetMultiplicationKey()). Tag-dispatch on whichever expression compiles, same
-// int/long idiom as PrepareLintransRotKey below, so one emitted TU serves both
-// forks.
-//
-// The secret is always taken from the operand ciphertext's own tag, which is
-// how cyclops itself does it (src/extension/jkls18/Matmul.cpp,
-// src/extension/nn/Pooling.cpp) and what core/Type.h prescribes: containers
-// carry a SecretId and key resolution matches the ciphertext's tag.
-//
-// level is passed as -1, cyclops' documented "unconstrained" lookup: EvkMap
-// asserts level == -1 || 0 <= level <= max_level_ and then selects the
-// compatible key with the most Q primes, i.e. the chain-max key CHEDDAR uses at
-// any level. This deliberately avoids threading per-op levels through the
-// cheddar dialect, whose ops carry no level attribute. NB: it also means
-// lookups do not exercise cyclops' level-specific key selection.
-constexpr llvm::StringLiteral kKeyLookupShim = R"cpp(
-#include <type_traits>
-#include <utility>
-  // A ciphertext's SecretId, whether the emitted value is an object or pointer.
-  template <typename T>
-  static auto HeirSecretOf(const T& ct, int) -> decltype(ct.GetSecretId()) {
-    return ct.GetSecretId();
-  }
-  template <typename T>
-  static auto HeirSecretOf(T* ct, long) -> decltype(ct->GetSecretId()) {
-    return ct->GetSecretId();
-  }
-  // Rotation key: (d, level=-1, secret) on cyclops, (d) on scale-snu CHEDDAR.
-  template <typename UIP, typename CtT>
-  static auto HeirRotationKeyImpl(UIP& ui, int d, const CtT& in, int)
-      -> decltype(ui->GetRotationKey(d, -1, HeirSecretOf(in, 0))) {
-    return ui->GetRotationKey(d, -1, HeirSecretOf(in, 0));
-  }
-  template <typename UIP, typename CtT>
-  static auto HeirRotationKeyImpl(UIP& ui, int d, const CtT&,
-                                  long) -> decltype(ui->GetRotationKey(d)) {
-    return ui->GetRotationKey(d);
-  }
-  template <typename UIP, typename CtT>
-  static decltype(auto) HeirRotationKey(UIP& ui, int d, const CtT& in) {
-    return HeirRotationKeyImpl(ui, d, in, 0);
-  }
-  // Conjugation key. Not just an arity change: cyclops has no
-  // UserInterface::GetConjugationKey at all (only a private
-  // PrepareConjugationKey) and the lookup lives on the EvkMap, reached through
-  // the public GetEvkMap() -- which is how cyclops' own BootContext.cpp does it
-  // (evk_map.GetConjugationKey(ct.GetSecretId())). scale-snu CHEDDAR keeps the
-  // zero-arg accessor directly on the UserInterface.
-  template <typename UIP, typename CtT>
-  static auto HeirConjugationKeyImpl(UIP& ui, const CtT& in, int)
-      -> decltype(ui->GetEvkMap().GetConjugationKey(HeirSecretOf(in, 0))) {
-    return ui->GetEvkMap().GetConjugationKey(HeirSecretOf(in, 0));
-  }
-  template <typename UIP, typename CtT>
-  static auto HeirConjugationKeyImpl(UIP& ui, const CtT&, long)
-      -> decltype(ui->GetConjugationKey()) {
-    return ui->GetConjugationKey();
-  }
-  template <typename UIP, typename CtT>
-  static decltype(auto) HeirConjugationKey(UIP& ui, const CtT& in) {
-    return HeirConjugationKeyImpl(ui, in, 0);
-  }
-  // Multiplication key off an EvkMap-like holder: (secret) on cyclops, () on
-  // scale-snu CHEDDAR. Taken from the operand being multiplied.
-  template <typename EM, typename CtT>
-  static auto HeirMultiplicationKeyImpl(EM& em, const CtT& in, int)
-      -> decltype(em.GetMultiplicationKey(HeirSecretOf(in, 0))) {
-    return em.GetMultiplicationKey(HeirSecretOf(in, 0));
-  }
-  template <typename EM, typename CtT>
-  static auto HeirMultiplicationKeyImpl(EM& em, const CtT&, long)
-      -> decltype(em.GetMultiplicationKey()) {
-    return em.GetMultiplicationKey();
-  }
-  template <typename EM, typename CtT>
-  static decltype(auto) HeirMultiplicationKey(EM& em, const CtT& in) {
-    return HeirMultiplicationKeyImpl(em, in, 0);
-  }
-  // Tag a freshly encoded plaintext with the secret it is destined for.
-  // cyclops containers start UNTAGGED (SecretId{-1}) and every consumer that
-  // needs a secret rejects them: UserInterface::Encrypt does
-  // CheckSecret(ptxt.GetSecretId()) and aborts with "unset secret handle".
-  // Ciphertexts then inherit the tag from the plaintext (Encrypt copies it) and
-  // propagate it through ops via MatchRing, so tagging at encode is enough --
-  // no per-container tagging downstream. Residual secret: this is the
-  // evaluation chain (cyclops currently aliases residual_secret_ =
-  // boot_secret_, but naming the residual one keeps it correct if they
-  // diverge). scale-snu CHEDDAR has no SetSecretId at all, so it no-ops.
-  template <typename PtT, typename CtxP>
-  static auto HeirTagPlaintextImpl(PtT& pt, const CtxP& ctx, int)
-      -> decltype(pt.SetSecretId(ctx->param_.ResidualSecretId()), void()) {
-    pt.SetSecretId(ctx->param_.ResidualSecretId());
-  }
-  template <typename PtT, typename CtxP>
-  static void HeirTagPlaintextImpl(PtT&, const CtxP&, long) {}
-  template <typename PtT, typename CtxP>
-  static void HeirTagPlaintext(PtT& pt, const CtxP& ctx) {
-    HeirTagPlaintextImpl(pt, ctx, 0);
-  }
-  // Keygen-side rotation key. Unlike the lookups above there is no ciphertext
-  // to take a tag from, so cyclops' SecretId comes from the Parameter behind
-  // the Context (Context::param_ is public; cyclops' own extension code uses
-  // context_->param_ the same way). The residual secret is the one evaluation
-  // keys are built under -- the residual/boot split is what introduced these
-  // signatures. scale-snu CHEDDAR keeps (rot, max_level).
-  template <typename UIP, typename CtxP>
-  static auto HeirPrepareRotKeyImpl(UIP& ui, int d, int max_level,
-                                    const CtxP& ctx, int)
-      -> decltype(ui->PrepareRotationKey(d, ctx->param_.ResidualSecretId(),
-                                         max_level),
-                  void()) {
-    ui->PrepareRotationKey(d, ctx->param_.ResidualSecretId(), max_level);
-  }
-  template <typename UIP, typename CtxP>
-  static void HeirPrepareRotKeyImpl(UIP& ui, int d, int max_level, const CtxP&,
-                                    long) {
-    ui->PrepareRotationKey(d, max_level);
-  }
-  template <typename UIP, typename CtxP>
-  static void HeirPrepareRotKey(UIP& ui, int d, int max_level,
-                                const CtxP& ctx) {
-    HeirPrepareRotKeyImpl(ui, d, max_level, ctx, 0);
-  }
-  // Bootstrap rotation keys from an EvkRequest. Boot keys are built under the
-  // boot secret, not the residual one, so this takes BootSecretId() (matching
-  // cyclops' own test/bench usage) rather than the residual secret above.
-  template <typename UIP, typename Req, typename CtxP>
-  static auto HeirPrepareBootRotKeysImpl(UIP& ui, Req& req, const CtxP& ctx,
-                                         int)
-      -> decltype(ui->PrepareRotationKey(req, ctx->BootSecretId()), void()) {
-    ui->PrepareRotationKey(req, ctx->BootSecretId());
-  }
-  template <typename UIP, typename Req, typename CtxP>
-  static void HeirPrepareBootRotKeysImpl(UIP& ui, Req& req, const CtxP&, long) {
-    ui->PrepareRotationKey(req);
-  }
-  template <typename UIP, typename Req, typename CtxP>
-  static void HeirPrepareBootRotKeys(UIP& ui, Req& req, const CtxP& ctx) {
-    HeirPrepareBootRotKeysImpl(ui, req, ctx, 0);
-  }
-)cpp";
-
 // The cheddar.linear_transform lowering calls this shim, emitted once at
 // module scope so generated kernels are self-contained (no consumer prelude
 // copy). Backend headers (extension/linalg/{LinearTransform,StripedMatrix}.h
@@ -1930,9 +1677,8 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
 #include <memory>
 #include <set>
 #include <tuple>
-#include <type_traits>
 #include <vector>
-  // MinKS (minimal key-switching) eligibility. scale-snu CHEDDAR's Evaluate /
+  // MinKS (minimal key-switching) eligibility. CHEDDAR's Evaluate /
   // AddRequiredRotations assert (abort) with min_ks=true unless the transform's
   // nonzero baby AND giant rotations each form a COMPLETE arithmetic
   // progression. IsUsingBSGS() alone (bs>1 && gs>1) is too permissive: a
@@ -1992,115 +1738,6 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
     auto it = modes.find(transform);
     return it != modes.end() && it->second;
   }
-  // Evaluate with min_ks=true when the fork supports it: scale-snu CHEDDAR's
-  // hoisted BSGS silently corrupts transforms at deep levels (beta == 1) when
-  // key-switching with chain-max keys, and its EvkMap cannot hold per-level
-  // keys; min_ks selects its non-hoisted per-rotation key-switch, which (like
-  // a plain hrot) is correct at any level with chain-max keys. Cyclops'
-  // Evaluate has no such flag and handles levels correctly on its own, so the
-  // 4-argument overload is selected there.
-  template <typename LT, typename CP, typename Ct, typename EM>
-  static auto RunLinearTransformEval(const LT& lt, CP cp, Ct& out, const Ct& in,
-                                     const EM& em, int)
-      -> decltype(lt.Evaluate(cp, out, in, em, true), void()) {
-    // min_ks only when the rotations form complete arithmetic progressions
-    // (see CanUseLinearTransformMinKS); IsUsingBSGS() alone abort()s scale-snu
-    // on gap-structured transforms.
-    lt.Evaluate(cp, out, in, em, /*min_ks=*/LinearTransformUsesMinKS(&lt));
-  }
-  template <typename LT, typename CP, typename Ct, typename EM>
-  static void RunLinearTransformEval(const LT& lt, CP cp, Ct& out, const Ct& in,
-                                     const EM& em, long) {
-    lt.Evaluate(cp, out, in, em);
-  }
-  // Rotation-key prep for linear-transform rotations, dispatched on
-  // PrepareRotationKey's arity: cyclops has a (rot, level, force, ...)
-  // overload and builds level-specific keys (its best-fit lookup wants the
-  // exact per-level key-switch config; keys live under distinct indices);
-  // scale-snu cheddar only has (rot, level), holds ONE key per rotation
-  // index (a re-prep at another level overwrites it and crashes), and its
-  // min_ks evaluation is correct with chain-max keys at any level, so
-  // everything is prepared at chain max there and duplicates dedupe.
-  // Since CYC-173 cyclops' arity is (rot, secret, max_level, force, ...), so
-  // the preferred overload is gated on that signature and takes the residual
-  // secret from the Context's Parameter (see HeirPrepareRotKey above).
-  template <typename UIP, typename CtxP>
-  static auto PrepareLintransRotKeyImpl(UIP& ui, int d, int level,
-                                        int chain_max, const CtxP& ctx, int)
-      -> decltype(ui->PrepareRotationKey(d, ctx->param_.ResidualSecretId(),
-                                         level, false),
-                  void()) {
-    ui->PrepareRotationKey(d, ctx->param_.ResidualSecretId(), level);
-  }
-  template <typename UIP, typename CtxP>
-  static void PrepareLintransRotKeyImpl(UIP& ui, int d, int level,
-                                        int chain_max, const CtxP&, long) {
-    ui->PrepareRotationKey(d, chain_max);
-  }
-  template <typename UIP, typename CtxP>
-  static void PrepareLintransRotKey(UIP& ui, int d, int level, int chain_max,
-                                    const CtxP& ctx) {
-    PrepareLintransRotKeyImpl(ui, d, level, chain_max, ctx, 0);
-  }
-  // Construct a LinearTransform, passing a compact per-prime plaintext period
-  // when the fork's constructor supports it. An arbitrary W-slot CKKS message
-  // has only a 2*W-word period in cyclops' bit-reversed NTT plaintext layout,
-  // so keeping a single period (log_pt_size_per_prime = floor(log2 W) + 1)
-  // instead of the full ring-degree plaintext sharply cuts a prepared
-  // transform's device residency (the LogN-16 driver of GPU OOM). scale-snu
-  // CHEDDAR has no such constructor argument; SFINAE selects its base
-  // constructor there (mirrors the RunLinearTransformEval dispatch above).
-  static int LinearTransformLogPtSizePerPrime(int W) {
-    int lps = 1;
-    for (int n = W; n > 1; n >>= 1) ++lps;
-    return lps;
-  }
-  template <typename LT, typename CP, typename M>
-  static auto MakeLinearTransform(CP cp, const M& m, int level, double scale,
-                                  int bs, int gs, int logPtSizePerPrime, int)
-      -> std::enable_if_t<std::is_constructible_v<LT, CP, M, int, double, int,
-                                                  int, int, int, int>,
-                          std::shared_ptr<LT>> {
-    // NB: constrain on is_constructible_v, NOT decltype(make_shared<LT>(...)):
-    // make_shared is variadic, so its return type is well-formed for ANY args
-    // and the ctor-viability check happens in its (non-immediate) body -> that
-    // decltype never SFINAEs, so it would always pick this 9-arg overload and
-    // hard-error on scale-snu cheddar's 8-arg ctor. is_constructible_v tests
-    // the ctor in the immediate context, so it correctly falls back below.
-    return std::make_shared<LT>(cp, m, level, scale, bs, gs,
-                                /*pre_rotation=*/0, /*additional_pt_rot=*/0,
-                                logPtSizePerPrime);
-  }
-  template <typename LT, typename CP, typename M>
-  static std::shared_ptr<LT> MakeLinearTransform(CP cp, const M& m, int level,
-                                                 double scale, int bs, int gs,
-                                                 int /*logPtSizePerPrime*/,
-                                                 long) {
-    return std::make_shared<LT>(cp, m, level, scale, bs, gs);
-  }
-  // Deferred linear-transform keygen: ask a prepared transform for exactly the
-  // rotations it needs (post zero-diagonal pruning) so the harness can generate
-  // only those keys, instead of __configure emitting the full conservative BSGS
-  // set. scale-snu cheddar's AddRequiredRotations takes (req, min_ks) and must
-  // use the SAME min_ks decision as evaluation (RunLinearTransformEval passes
-  // lt.IsUsingBSGS()), or keygen and eval disagree and a needed key is missing;
-  // cyclops exposes only AddRequiredRotations(req) and needs no such flag.
-  // Prefer the 2-arg form (the (int) overload) so cheddar matches its eval;
-  // cyclops (no 2-arg / no IsUsingBSGS) falls to the (long) 1-arg overload.
-  template <typename T, typename Req>
-  static auto AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
-                                           Req& req, int)
-      -> decltype(lt->AddRequiredRotations(req, lt->IsUsingBSGS()), void()) {
-    // Same min_ks decision as eval (RunLinearTransformEval) so keygen requests
-    // exactly the keys eval uses; IsUsingBSGS() would over-approximate and
-    // abort scale-snu on gap-structured transforms.
-    lt->AddRequiredRotations(req, LinearTransformUsesMinKS(lt.get()));
-  }
-  template <typename T, typename Req>
-  static void AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
-                                           Req& req, long) {
-    lt->AddRequiredRotations(req);
-  }
   template <int W, typename wordT, typename diagT>
   static void PrepareLinearTransform(
       std::shared_ptr<cheddar::LinearTransform<wordT>>& out,
@@ -2113,13 +1750,24 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
       ++d;
     }
     cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
-    out = MakeLinearTransform<cheddar::LinearTransform<wordT>>(
-        cp, m, level, ctx->param_.GetScale(level), bs, gs,
-        LinearTransformLogPtSizePerPrime(W), 0);
+    out = std::make_shared<cheddar::LinearTransform<wordT>>(
+        cp, m, level, ctx->param_.GetScale(level), bs, gs);
     // Memoize MinKS eligibility keyed on the transform pointer; keygen and eval
-    // both look it up (no-op on cyclops, which ignores the min_ks flag).
+    // both look it up.
     LinearTransformMinKSMap()[out.get()] =
         CanUseLinearTransformMinKS(m, W, bs, gs);
+  }
+  // Deferred linear-transform keygen: ask a prepared transform for exactly the
+  // rotations it needs (post zero-diagonal pruning) so the harness can generate
+  // only those keys, instead of __configure emitting the full conservative BSGS
+  // set. AddRequiredRotations takes (req, min_ks) and must use the SAME min_ks
+  // decision as evaluation, or keygen and eval disagree and a needed key is
+  // missing; IsUsingBSGS() would over-approximate and abort on gap-structured
+  // transforms.
+  template <typename T, typename Req>
+  static void AddLintransRequiredRotations(const std::shared_ptr<T>& lt,
+                                           Req& req) {
+    lt->AddRequiredRotations(req, LinearTransformUsesMinKS(lt.get()));
   }
   template <typename wordT>
   static void RunPreparedLinearTransform(
@@ -2128,14 +1776,19 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
       const cheddar::EvkMap<wordT>& evk_map,
       const std::shared_ptr<cheddar::LinearTransform<wordT>>& transform) {
     cheddar::ConstContextPtr<wordT> cp(cheddar::ConstContextPtr<wordT>(), ctx);
-    RunLinearTransformEval(*transform, cp, out, in, evk_map, 0);
-    // CHEDDAR forks differ on whether Evaluate rescales internally (cyclops
-    // does via ModDownAndRescale; scale-snu cheddar leaves scale^2).
-    if (out.GetNP().num_main_ == in.GetNP().num_main_) {
-      cheddar::Ciphertext<wordT> rescaled;
-      ctx->Rescale(rescaled, out);
-      out = std::move(rescaled);
-    }
+    // min_ks only when the rotations form complete arithmetic progressions
+    // (see CanUseLinearTransformMinKS): CHEDDAR's hoisted BSGS silently
+    // corrupts transforms at deep levels (beta == 1) when key-switching with
+    // chain-max keys, and its EvkMap cannot hold per-level keys; min_ks
+    // selects the non-hoisted per-rotation key-switch, which (like a plain
+    // hrot) is correct at any level with chain-max keys.
+    transform->Evaluate(cp, out, in, evk_map,
+                        /*min_ks=*/LinearTransformUsesMinKS(transform.get()));
+    // Evaluate leaves the product at scale^2; rescale to the next level so the
+    // result matches the ckks.rescale the lowering absorbed into this op.
+    cheddar::Ciphertext<wordT> rescaled;
+    ctx->Rescale(rescaled, out);
+    out = std::move(rescaled);
   }
   template <int W, typename wordT, typename diagT>
   static void RunLinearTransform(cheddar::Ciphertext<wordT>& out,
@@ -2159,11 +1812,8 @@ constexpr llvm::StringLiteral kRunLinearTransformShim = R"cpp(
     auto it = cache->find(key);
     if (it == cache->end()) {
       // Construct through PrepareLinearTransform so this path and the
-      // split-preprocessing path share one construction site: it applies the
-      // compact per-prime plaintext period AND memoizes MinKS eligibility.
-      // Constructing directly here used to skip both, so inline transforms
-      // evaluated with min_ks=false -- the documented scale-snu deep-level
-      // corruption case -- and kept full-ring plaintexts on cyclops.
+      // split-preprocessing path share one construction site (and the MinKS
+      // memoization).
       std::shared_ptr<cheddar::LinearTransform<wordT>> lt;
       PrepareLinearTransform<W>(lt, ctx, diag, idx, level, bs, gs);
       it = cache->emplace(key, std::move(lt)).first;
@@ -2193,19 +1843,15 @@ struct CheddarToEmitCPass
       if (call.getCallee().contains("LinearTransform"))
         usesLinearTransform = true;
     });
-    // The __configure key prep also calls into the shim (the
-    // PrepareLintransRotKey fork dispatch), emitted as a verbatim call.
+    // The deferred keygen hook is also a shim call, emitted as a verbatim.
     module->walk([&](emitc::VerbatimOp verbatim) {
-      if (verbatim.getValue().starts_with("PrepareLintransRotKey"))
+      if (verbatim.getValue().contains("AddLintransRequiredRotations"))
         usesLinearTransform = true;
     });
     bool shimAlreadyEmitted = false;
-    bool keyShimAlreadyEmitted = false;
     for (auto verbatim : module.getBody()->getOps<emitc::VerbatimOp>()) {
       if (verbatim.getValue().contains("RunLinearTransform"))
         shimAlreadyEmitted = true;
-      if (verbatim.getValue().contains("HeirRotationKeyImpl"))
-        keyShimAlreadyEmitted = true;
     }
     if (usesLinearTransform && !shimAlreadyEmitted) {
       OpBuilder builder(ctx);
@@ -2213,21 +1859,11 @@ struct CheddarToEmitCPass
       emitc::VerbatimOp::create(builder, module.getLoc(),
                                 kRunLinearTransformShim);
     }
-    // The key-lookup shims are emitted unconditionally: unlike the linear
-    // transform, rotation/conjugation/multiplication lookups appear in almost
-    // every program, and the shim is header-only + template-only, so an unused
-    // copy costs nothing. Inserted at the start so it precedes both the
-    // linear-transform shim (which calls no key helper) and all functions.
-    if (!keyShimAlreadyEmitted) {
-      OpBuilder builder(ctx);
-      builder.setInsertionPointToStart(module.getBody());
-      emitc::VerbatimOp::create(builder, module.getLoc(), kKeyLookupShim);
-    }
 
     // Erase the external `__heir_debug_*` declarations: ConvertDebugCall
     // already rewrote their call sites to emitc.call_opaque "__heir_debug", and
     // the upstream Cpp emitter cannot print an external (bodyless) func.func
-    // (it mis-emits it as an empty zero-arg definition). Medusa's C++ prelude
+    // (it mis-emits it as an empty zero-arg definition). The consumer's prelude
     // declares + defines `__heir_debug`.
     SmallVector<func::FuncOp> debugDecls;
     getOperation()->walk([&](func::FuncOp fn) {

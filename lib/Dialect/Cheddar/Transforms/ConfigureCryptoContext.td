@@ -19,7 +19,7 @@ def CheddarConfigureCryptoContext : Pass<"cheddar-configure-crypto-context"> {
     context and user_interface are handed back to the caller through owning
     out-params (`std::shared_ptr<Context<word>>&` /
     `std::unique_ptr<UserInterface<word>>&`), mirroring the lattigo backend's
-    `__configure` so the medusa harness stays a thin wrapper.
+    `__configure` so a consuming harness stays a thin wrapper.
 
     After this pass, the module no longer depends on the CKKS dialect.
   }];

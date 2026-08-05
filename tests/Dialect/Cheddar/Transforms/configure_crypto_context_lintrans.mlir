@@ -1,13 +1,9 @@
 // RUN: heir-opt --cheddar-configure-crypto-context=entry-function=main %s | FileCheck %s
 
-// cheddar.linear_transform evaluates its BSGS rotations at the op's level, and
-// CHEDDAR's level-specific key lookup (best-fit on the key-switch config) can
-// reject a chain-max key for a much lower level. The configure function
-// prepares each transform's rotations at the op's actual level. Rotations used
-// only by linear transforms get NO chain-max copy (duplicates dominate key
-// material on deep circuits); rotations any other op uses keep a chain-max key
-// (hrot & co. look keys up without level constraints), and an LT at chain max
-// sharing such a rotation adds nothing.
+// CHEDDAR holds one rotation key per index, looked up with no level
+// constraint, so the configure function prepares each distinct rotation index
+// exactly once at chain max -- linear-transform rotations included (transforms
+// evaluate with min_ks, which is correct with chain-max keys at any level).
 
 !ciphertext = !cheddar.ciphertext
 !context = !cheddar.context
@@ -32,16 +28,8 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [3602879
 }
 
 // CHECK: func.func @main__configure
-// The hrot's rotation keeps a chain-max key (Q has 6 primes -> maxLevel 5) ...
-// CHECK: cheddar.prepare_rot_key
-// CHECK-SAME: distance = 2
-// CHECK-SAME: maxLevel = 5
-// ... and the LT-only rotation is keyed per transform level (3 and 5), with
-// no chain-max duplicate for the hrot-shared rotation's chain-max transform.
-// CHECK: cheddar.prepare_rot_key
-// CHECK-SAME: distance = 1
-// CHECK-SAME: maxLevel = 3
-// CHECK: cheddar.prepare_rot_key
-// CHECK-SAME: distance = 1
-// CHECK-SAME: maxLevel = 5
+// One key per distinct rotation index (Q has 6 primes -> maxLevel 5): the
+// hrot's rotation 2 and the transforms' rotation 1, each exactly once.
+// CHECK-DAG: cheddar.prepare_rot_key {{.*}}distance = 2 : i64, maxLevel = 5
+// CHECK-DAG: cheddar.prepare_rot_key {{.*}}distance = 1 : i64, maxLevel = 5
 // CHECK-NOT: cheddar.prepare_rot_key

@@ -52,7 +52,6 @@ namespace {
 void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
                         int64_t logScale, DenseI64ArrayAttr Q,
                         DenseI64ArrayAttr P, ArrayRef<int64_t> rotationIndices,
-                        ArrayRef<std::pair<int64_t, int64_t>> ltRotationKeys,
                         bool bootstraps, int64_t numSlots, int64_t numCtsLevels,
                         int64_t numStcLevels, int64_t defaultEncLevel,
                         int64_t denseHammingWeight, int64_t sparseHammingWeight,
@@ -134,7 +133,7 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
                  ->getResult(0);
   for (int64_t d : rotationIndices)
     ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
-                                 i64(maxLevel), /*chainMaxLevel=*/IntegerAttr())
+                                 i64(maxLevel))
              ->getResult(0);
   // Bootstrap precompute has the largest transient GPU-memory footprint. Run
   // it before preparing the (potentially hundreds of) linear-transform keys;
@@ -145,17 +144,6 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
     ui = PrepareBootstrapOp::create(builder, loc, TypeRange{uiTensor}, context,
                                     ui, i64(numSlots))
              ->getResult(0);
-  // cheddar.linear_transform evaluates its BSGS rotations at the op's level;
-  // CHEDDAR's level-specific key lookup (best-fit on the key-switch config)
-  // can reject a chain-max key for a much lower level, so prepare each
-  // transform's rotations at its actual usage level. The caller has already
-  // removed pairs covered by the chain-max loop above. chainMaxLevel makes
-  // the emitter dispatch per fork (scale-snu prepares at chain max instead).
-  for (auto [d, level] : ltRotationKeys) {
-    ui = PrepareRotKeyOp::create(builder, loc, TypeRange{uiTensor}, ui, i64(d),
-                                 i64(level), i64(maxLevel))
-             ->getResult(0);
-  }
   func::ReturnOp::create(builder, loc, ValueRange{context, ui});
 }
 
@@ -219,56 +207,34 @@ struct CheddarConfigureCryptoContext
         // (rotation, level) pairs for linear_transform ops: their rotations
         // run at the op's level and need level-specific keys under CHEDDAR's
         // best-fit key lookup.
-        // Inline (non-prepared) linear_transform ops: their rotations run at
-        // the op's level and need level-specific keys. They have no runtime
-        // handle, so __configure always emits their keys.
-        SetVector<std::pair<int64_t, int64_t>> ltKeySet;
+        // scale-snu CHEDDAR holds ONE rotation key per index, looked up with
+        // no level constraint, so every key __configure emits is a chain-max
+        // key and the only question is WHICH indices get one. Inline
+        // linear_transform rotations always do (no runtime handle exists to
+        // key them later).
+        DenseSet<int64_t> inlineLtRotations;
         moduleOp.walk([&](LinearTransformOp ltOp) {
-          int64_t ltLevel = ltOp.getLevel().getInt();
-          for (OpFoldResult idx : ltOp.getRotationIndices()) {
+          for (OpFoldResult idx : ltOp.getRotationIndices())
             if (auto attr = dyn_cast<Attribute>(idx))
-              ltKeySet.insert({cast<IntegerAttr>(attr).getInt(), ltLevel});
-          }
+              inlineLtRotations.insert(cast<IntegerAttr>(attr).getInt());
         });
         // Split-preprocessed (prepared) transforms hand the harness owning
-        // shared_ptr<LinearTransform> handles. ALWAYS record their (rotation,
-        // level) pairs: the ltOnly() classifier below uses this set to keep
-        // these rotations OUT of the chain-max maxKeyRotations set. (Dropping
-        // them from the classification -- as a naive `if (!defer) walk` does --
-        // silently reclassifies them as generic rotations and emits
-        // full-modulus keys for each, which is the transform-heavy GPU keygen
-        // OOM.) Whether
-        // __configure *emits* per-level keys for them is the deferLintransKeys
-        // choice: when deferring, the harness requests exactly the pruned
+        // shared_ptr<LinearTransform> handles, so their keys CAN be deferred:
+        // under deferLintransKeys the harness requests exactly the pruned
         // rotations each prepared transform needs at runtime
-        // (AddRequiredRotations), at the transform's own level -- so we record
-        // but do not emit here.
-        SetVector<std::pair<int64_t, int64_t>> preparedLtKeySet;
+        // (AddLintransRequiredRotations) and __configure emits nothing for
+        // rotations used solely by prepared transforms.
+        DenseSet<int64_t> preparedLtRotations;
         moduleOp.walk([&](ApplyPreparedLinearTransformOp ltOp) {
-          int64_t ltLevel = ltOp.getLevel().getInt();
-          for (OpFoldResult idx : ltOp.getRotationIndices()) {
+          for (OpFoldResult idx : ltOp.getRotationIndices())
             if (auto attr = dyn_cast<Attribute>(idx))
-              preparedLtKeySet.insert(
-                  {cast<IntegerAttr>(attr).getInt(), ltLevel});
-          }
+              preparedLtRotations.insert(cast<IntegerAttr>(attr).getInt());
         });
-        // Keys emitted by __configure: inline always; prepared only when NOT
-        // deferring (deferral leaves prepared keys to the harness at runtime).
-        SetVector<std::pair<int64_t, int64_t>> emittedLtKeySet(ltKeySet);
-        if (!deferLintransKeys)
-          for (auto p : preparedLtKeySet) emittedLtKeySet.insert(p);
-        SmallVector<std::pair<int64_t, int64_t>> ltRotationKeys(
-            emittedLtKeySet.begin(), emittedLtKeySet.end());
-        llvm::sort(ltRotationKeys);
 
-        // Rotations used by any non-linear-transform op (hrot & co. look
-        // their keys up without level constraints) keep a chain-max key.
-        // Rotations used ONLY by linear transforms are keyed at each
-        // transform's own level instead: duplicating them at chain max
-        // dominates key material on deep bootstrapping circuits (criteo:
-        // ~36 GiB of keys, GPU OOM). If any non-LT rotation index cannot be
-        // resolved statically (or is negative, i.e. not in the analysis'
-        // normalized form), fall back to chain-max keys for everything.
+        // Rotations used by any non-linear-transform op always keep their
+        // key. If a non-LT rotation index cannot be resolved statically (or
+        // is negative, i.e. not in the analysis' normalized form), fall back
+        // to keys for everything.
         DenseSet<int64_t> nonLtRotations;
         bool keepAllMaxKeys = false;
         moduleOp.walk([&](RotationOpInterface rotOp) {
@@ -283,9 +249,8 @@ struct CheddarConfigureCryptoContext
               d = getConstantIntValue(cast<Value>(idx));
             if (!d.has_value() || *d < 0) {
               // A single unresolvable index (e.g. a loop-carried rotation)
-              // disables the LT-only key classification wholesale -- exactly
-              // the chain-max key blow-up this pass exists to avoid on deep
-              // circuits -- so say it rather than silently regressing.
+              // disables the deferral classification wholesale -- so say it
+              // rather than silently regressing to full keygen.
               rotOp->emitRemark()
                   << "rotation index is not statically resolvable; keeping "
                      "chain-max keys for all rotations";
@@ -295,15 +260,12 @@ struct CheddarConfigureCryptoContext
             nonLtRotations.insert(*d);
           }
         });
-        // Classify using ALL linear-transform rotations (inline + prepared,
-        // regardless of deferral) so a prepared-transform rotation is never
-        // mistaken for a generic rotation and keyed at chain max.
-        DenseSet<int64_t> ltRotationSet;
-        for (auto [d, level] : ltKeySet) ltRotationSet.insert(d);
-        for (auto [d, level] : preparedLtKeySet) ltRotationSet.insert(d);
-        auto ltOnly = [&](int64_t d) {
-          return !keepAllMaxKeys && ltRotationSet.contains(d) &&
-                 !nonLtRotations.contains(d);
+        // A rotation is deferrable only when NOTHING but a prepared transform
+        // uses it; a shared index still gets its key from __configure.
+        auto deferredOnly = [&](int64_t d) {
+          return !keepAllMaxKeys && deferLintransKeys &&
+                 preparedLtRotations.contains(d) &&
+                 !inlineLtRotations.contains(d) && !nonLtRotations.contains(d);
         };
 
         // Bootstrapping programs need a BootContext + the one-time boot
@@ -353,23 +315,15 @@ struct CheddarConfigureCryptoContext
           denseHammingWeight = int64_t{1} << (logN - 1);
           sparseHammingWeight = 32;
         }
-        // Chain-max keys only for rotations some non-LT op uses; LT-only
-        // rotations are keyed per (rotation, LT level) below (including
-        // chain-max LTs).
-        int64_t maxLevel = static_cast<int64_t>(Q.size()) - 1;
+        // One chain-max key per rotation index (RotationAnalysis already
+        // collected LT and non-LT rotations alike), minus the deferred ones.
         SmallVector<int64_t> maxKeyRotations;
         for (int64_t d : rotationIndices)
-          if (!ltOnly(d)) maxKeyRotations.push_back(d);
-        SmallVector<std::pair<int64_t, int64_t>> ltLevelKeys;
-        for (auto [d, level] : ltRotationKeys) {
-          if (level == maxLevel && !ltOnly(d)) continue;  // covered above
-          ltLevelKeys.push_back({d, level});
-        }
+          if (!deferredOnly(d)) maxKeyRotations.push_back(d);
         buildConfigureFunc(moduleOp, entry, logN, logDefaultScale, Q, P,
-                           maxKeyRotations, ltLevelKeys, bootstraps, numSlots,
-                           bootNumCts, bootNumStc, defaultEncLevel,
-                           denseHammingWeight, sparseHammingWeight,
-                           logMessageRatio);
+                           maxKeyRotations, bootstraps, numSlots, bootNumCts,
+                           bootNumStc, defaultEncLevel, denseHammingWeight,
+                           sparseHammingWeight, logMessageRatio);
       }
 
       // Remove the CKKS scheme param attribute — consumed
