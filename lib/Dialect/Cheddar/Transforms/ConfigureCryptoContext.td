@@ -28,7 +28,7 @@ def CheddarConfigureCryptoContext : Pass<"cheddar-configure-crypto-context"> {
     Option<"entryFunction", "entry-function", "std::string", "", "Entry function to configure (auto-detected if empty)">,
     Option<"numCtsLevels", "num-cts-levels", "int", /*default=*/"3", "Bootstrap CoeffToSlot (CtS) level budget (cf. OpenFHE level-budget-encode); only used when the program bootstraps">,
     Option<"numStcLevels", "num-stc-levels", "int", /*default=*/"3", "Bootstrap SlotToCoeff (StC) level budget (cf. OpenFHE level-budget-decode); only used when the program bootstraps">,
-    Option<"logMessageRatio", "log-message-ratio", "int", /*default=*/"-1", "Bootstrap message headroom ~ log2(q0/scale) passed to CHEDDAR's BootParameter (governs EvalMod precision). -1 = auto (firstModBits - logScale - 2); only used when the program bootstraps">,
+    Option<"logMessageRatio", "log-message-ratio", "int", /*default=*/"-1", "Bootstrap message headroom ~ log2(q0/scale) passed to CHEDDAR's BootParameter (governs EvalMod precision). -1 = auto (5); only used when the program bootstraps">,
   ];
 
   let dependentDialects = [

@@ -733,7 +733,7 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     // which can drop a rescale and corrupt the level chain ("num primes
     // mismatch"); the unfused path is slower but correct, which is what a debug
     // trace needs.
-    if (!options.debug && options.cheddarFuseOps)
+    if (!options.debug && !options.debugEveryOp && options.cheddarFuseOps)
       pm.addPass(cheddar::createCheddarFuseOps());
 
     // Re-expose the scheme parameters as cheddar.* module attributes and drop

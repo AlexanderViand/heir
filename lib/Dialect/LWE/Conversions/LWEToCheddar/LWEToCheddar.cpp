@@ -855,12 +855,16 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     auto hasCryptoOps = [&](Operation* op) -> bool {
       return containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>(op);
     };
-    auto hasEncodeOps = [&](Operation* op) -> bool {
-      auto funcOp = dyn_cast<func::FuncOp>(op);
-      if (!funcOp) return false;
-      bool found = false;
-      funcOp->walk([&](lwe::RLWEEncodeOp) { found = true; });
-      return found;
+    // Precomputed once: funcs containing an rlwe_encode. The context-arg
+    // evaluators and the func legality callback run per legality query, so a
+    // fresh whole-body walk there is quadratic on large kernels.
+    DenseSet<Operation*> funcsWithEncode;
+    module->walk([&](lwe::RLWEEncodeOp op) {
+      if (auto funcOp = op->getParentOfType<func::FuncOp>())
+        funcsWithEncode.insert(funcOp);
+    });
+    auto hasEncodeOps = [&funcsWithEncode](Operation* op) -> bool {
+      return isa<func::FuncOp>(op) && funcsWithEncode.contains(op);
     };
     auto needsEvkMap = [&needsEvkMapTransitively](Operation* op) -> bool {
       auto funcOp = dyn_cast<func::FuncOp>(op);
@@ -935,8 +939,7 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
                                  cheddar::EvalKeyType>(op);
       bool hasCryptoArg =
           containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>(op);
-      bool hasEncodeOp = false;
-      op.walk([&](lwe::RLWEEncodeOp) { hasEncodeOp = true; });
+      bool hasEncodeOp = funcsWithEncode.contains(op);
       return typeConverter.isSignatureLegal(op.getFunctionType()) &&
              typeConverter.isLegal(&op.getBody()) &&
              (!(hasCryptoArg || hasEncodeOp) || hasCheddarCtxArg);

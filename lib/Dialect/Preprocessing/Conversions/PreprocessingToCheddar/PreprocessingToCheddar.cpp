@@ -216,6 +216,10 @@ struct PreprocessingToCheddar
 
     ConversionTarget target(getContext());
     target.addIllegalDialect<PreprocessingDialect>();
+    // load_resource survives to the EmitC stage, where ConvertLoadResource
+    // lowers it to a tagged emitc.global (mirrors the lattigo/openfhe
+    // preprocessing conversions, which also keep it legal).
+    target.addLegalOp<preprocessing::LoadResourceOp>();
     target.addLegalDialect<memref::MemRefDialect, tensor::TensorDialect,
                            arith::ArithDialect, affine::AffineDialect,
                            func::FuncDialect>();

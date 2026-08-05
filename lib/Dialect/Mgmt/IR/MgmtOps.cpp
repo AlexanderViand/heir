@@ -2,6 +2,7 @@
 
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtPatterns.h"
+#include "lib/Dialect/ModuleAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"    // from @llvm-project
 #include "mlir/include/mlir/IR/MLIRContext.h"   // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"     // from @llvm-project
@@ -22,13 +23,10 @@ namespace mgmt {
 // without adjust_scale, would level_down a pre-rescale (squared-scale)
 // ciphertext and drift its scale (cheddar's LevelDown is only exact on
 // single-scale inputs). So gate those reorderings off for cheddar, keeping
-// mod_reduce innermost (rescale first, then level_down). Checks the module's
-// backend attribute directly (mirrors kCheddarBackendAttrName in
-// lib/Dialect/ModuleAttributes.h) to avoid a dependency cycle: ModuleAttributes
-// depends on the CKKS/BGV dialects, which would cycle back into Mgmt.
+// mod_reduce innermost (rescale first, then level_down).
 static bool isCheddarModule(Operation* op) {
   auto module = op->getParentOfType<ModuleOp>();
-  return module && module->hasAttr("backend.cheddar");
+  return module && module->hasAttr(kCheddarBackendAttrName);
 }
 
 struct ModReduceAfterLevelReduce : public OpRewritePattern<LevelReduceOp> {
