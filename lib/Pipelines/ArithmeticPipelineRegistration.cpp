@@ -3,9 +3,11 @@
 #include <cstdlib>
 #include <string>
 
+#include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
+#include "lib/Dialect/Cheddar/Transforms/FreeIntermediates.h"
 #include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
@@ -73,12 +75,18 @@
 #include "lib/Transforms/ValidateNoise/ValidateNoise.h"
 #include "llvm/include/llvm/Support/CommandLine.h"  // from @llvm-project
 #include "llvm/include/llvm/Support/raw_ostream.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/AffineToStandard/AffineToStandard.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/ConvertToEmitC/ConvertToEmitCPass.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Affine/Transforms/Passes.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Arith/Transforms/Passes.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Bufferization/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Linalg/Passes.h"  // from @llvm-project
-#include "mlir/include/mlir/Pass/PassManager.h"       // from @llvm-project
-#include "mlir/include/mlir/Pass/PassOptions.h"       // from @llvm-project
-#include "mlir/include/mlir/Pass/PassRegistry.h"      // from @llvm-project
-#include "mlir/include/mlir/Transforms/Passes.h"      // from @llvm-project
+#include "mlir/include/mlir/Dialect/MemRef/Transforms/Passes.h"  // from @llvm-project
+#include "mlir/include/mlir/Pass/PassManager.h"   // from @llvm-project
+#include "mlir/include/mlir/Pass/PassOptions.h"   // from @llvm-project
+#include "mlir/include/mlir/Pass/PassRegistry.h"  // from @llvm-project
+#include "mlir/include/mlir/Transforms/Passes.h"  // from @llvm-project
 
 namespace mlir::heir {
 
@@ -755,13 +763,7 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
       return;
     }
 
-    // Cheddar dialect -> EmitC C++. Kept as a textual sub-pipeline so it stays
-    // byte-identical to the flags the e2e tests run. `convert-to-emitc` is
-    // restricted to cheddar's dialects: the stock func->emitc.func interface
-    // (registered for the openfhe path) would otherwise win the func dialect
-    // and form emitc.func, which cannot carry cheddar's move-only lvalue/array
-    // payload args (excluding func keeps func.func, whose structural conversion
-    // cheddar's own interface performs).
+    // Cheddar dialect -> EmitC C++.
     // Weight externalization (only when weights-data-dir is set; the
     // generated C++ then requires the harness to call __load_constants()):
     // the upstream externalize-constants pass writes the blobs (before
@@ -771,36 +773,59 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     // initializers. The runtime load path is relative to the harness cwd
     // (the generated source dir), hence the fixed "data" load dir.
     bool externalizeWeights = !options.weightsDataDir.getValue().empty();
-    std::string emitcPipeline =
-        (externalizeWeights ? "externalize-constants{output-dir=" +
-                                  options.weightsDataDir.getValue() +
-                                  " runtime-load-dir=data},"
-                            : std::string()) +
-        "arith-expand,"
-        // The layout-management pipeline lowers assign_layout materializations
-        // and plaintext weight prep to affine loops over tensors
-        // (TensorLinalgToAffineLoops / codegen-strategy loops). One-shot
-        // bufferization has no interface for affine.for tensor iter_args, so
-        // lower affine to scf first; scf.for + tensor.insert/extract bufferize
-        // fine, and convert-to-emitc handles the resulting scf.for.
-        "lower-affine,"
-        "one-shot-bufferize{bufferize-function-boundaries=true "
-        "function-boundary-type-conversion=identity-layout-map},"
-        "buffer-results-to-out-params{hoist-static-allocs=true "
-        "modify-public-functions=true add-result-attr=true},"
-        "convert-linalg-to-loops,"
-        "inline,"
-        "fold-memref-alias-ops,"
-        "canonicalize,"
-        "cheddar-free-intermediates,"
-        "canonicalize,"
-        "convert-to-emitc{filter-dialects=cheddar,arith,scf,memref},"
-        "cheddar-emitc-boundary," +
-        (externalizeWeights ? "cheddar-externalize-weights," : std::string()) +
-        "reconcile-unrealized-casts";
-    if (failed(parsePassPipeline(emitcPipeline, pm))) {
-      llvm::report_fatal_error("failed to build cheddar EmitC sub-pipeline");
+    if (externalizeWeights) {
+      ExternalizeConstantsOptions extConstOptions;
+      extConstOptions.outputDir = options.weightsDataDir.getValue();
+      extConstOptions.runtimeLoadDir = "data";
+      pm.addPass(createExternalizeConstants(extConstOptions));
     }
+
+    pm.addPass(arith::createArithExpandOpsPass());
+
+    // The layout-management pipeline lowers assign_layout materializations
+    // and plaintext weight prep to affine loops over tensors
+    // (TensorLinalgToAffineLoops / codegen-strategy loops). One-shot
+    // bufferization has no interface for affine.for tensor iter_args, so
+    // lower affine to scf first; scf.for + tensor.insert/extract bufferize
+    // fine, and convert-to-emitc handles the resulting scf.for.
+    pm.addPass(createLowerAffinePass());
+
+    bufferization::OneShotBufferizePassOptions bufferizeOptions;
+    bufferizeOptions.bufferizeFunctionBoundaries = true;
+    bufferizeOptions.functionBoundaryTypeConversion =
+        bufferization::LayoutMapOption::IdentityLayoutMap;
+    pm.addPass(bufferization::createOneShotBufferizePass(bufferizeOptions));
+
+    bufferization::BufferResultsToOutParamsPassOptions outParamsOptions;
+    outParamsOptions.hoistStaticAllocs = true;
+    outParamsOptions.modifyPublicFunctions = true;
+    outParamsOptions.addResultAttribute = true;
+    pm.addPass(
+        bufferization::createBufferResultsToOutParamsPass(outParamsOptions));
+
+    pm.addPass(createConvertLinalgToLoopsPass());
+    pm.addPass(createInlinerPass());
+    // cheddar-free-intermediates' alias-freedom relies on view ops having
+    // been folded away; keep fold-memref-alias-ops + canonicalize directly
+    // before it.
+    pm.addPass(memref::createFoldMemRefAliasOpsPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(cheddar::createCheddarFreeIntermediates());
+    pm.addPass(createCanonicalizerPass());
+
+    // `convert-to-emitc` is restricted to cheddar's dialects: the stock
+    // func->emitc.func interface (registered for the openfhe path) would
+    // otherwise win the func dialect and form emitc.func, which cannot carry
+    // cheddar's move-only lvalue/array payload args (excluding func keeps
+    // func.func, whose structural conversion cheddar's own interface
+    // performs).
+    ConvertToEmitCOptions convertToEmitCOptions;
+    convertToEmitCOptions.filterDialects = {"cheddar", "arith", "scf",
+                                            "memref"};
+    pm.addPass(createConvertToEmitC(convertToEmitCOptions));
+    pm.addPass(createCheddarToEmitC());
+    if (externalizeWeights) pm.addPass(createCheddarExternalizeWeights());
+    pm.addPass(createReconcileUnrealizedCastsPass());
   };
 }
 
