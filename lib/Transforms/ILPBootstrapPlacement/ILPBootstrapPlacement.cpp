@@ -9,6 +9,7 @@
 #include "lib/Dialect/Mgmt/IR/MgmtOps.h"
 #include "lib/Dialect/Mgmt/Transforms/AnnotateMgmt.h"
 #include "lib/Dialect/Secret/IR/SecretOps.h"
+#include "lib/Target/CompilationTarget/CompilationTarget.h"
 #include "lib/Transforms/SecretInsertMgmt/Pipeline.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"               // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"             // from @llvm-project
@@ -469,6 +470,24 @@ struct ILPBootstrapPlacement
 
   void runOnOperation() override {
     Operation* module = getOperation();
+
+    // This placement corrects scales with mgmt.adjust_scale; a target that
+    // cannot represent it (can_emit_adjust_scale = 0, e.g. cheddar's fixed
+    // canonical scale per level) must use the greedy secret-insert-mgmt path
+    // instead. Reject up front rather than emitting ops the backend lowering
+    // cannot consume.
+    if (auto moduleOp = dyn_cast<ModuleOp>(module)) {
+      if (auto target = getTargetConfig(moduleOp);
+          succeeded(target) && !target->can_emit_adjust_scale) {
+        moduleOp.emitOpError()
+            << "ilp-bootstrap-placement emits mgmt.adjust_scale, which the "
+               "target backend cannot represent "
+               "(can_emit_adjust_scale = 0); use the greedy "
+               "ciphertext-management style instead";
+        signalPassFailure();
+        return;
+      }
+    }
 
     SmallVector<secret::GenericOp> genericOps;
     module->walk(

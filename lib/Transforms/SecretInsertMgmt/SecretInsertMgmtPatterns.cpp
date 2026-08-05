@@ -221,7 +221,7 @@ LogicalResult MatchCrossLevel<Op>::matchAndRewrite(
       if (resultLevelState.isMaxLevel()) {
         managed =
             mgmt::LevelReduceMinOp::create(rewriter, op.getLoc(), managed);
-      } else if (cheddarMode) {
+      } else if (noAdjustScale) {
         // Cheddar exposes a fixed canonical scale per level, so simply bringing
         // the operand down to the result level (a single mgmt.level_reduce,
         // lowered to cheddar.level_down / context->LevelDown) is enough to make

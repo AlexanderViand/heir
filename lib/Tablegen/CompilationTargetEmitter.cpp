@@ -83,13 +83,14 @@ bool emitCompilationTargetRegistration(const llvm::RecordKeeper& records,
     auto bootstrapLevelsConsumed =
         target->getValueAsInt("bootstrapLevelsConsumed");
     auto hasKernelChebyshev = target->getValueAsInt("has_kernel_chebyshev");
+    auto canEmitAdjustScale = target->getValueAsInt("can_emit_adjust_scale");
 
     os << "void registerTarget" << name << "() {\n"
        << "  "
           "CompilationTargetRegistry::registerTarget(CompilationTarget{"
           "BackendName::"
        << name << ", " << bootstrapLevelsConsumed << ", " << hasKernelChebyshev
-       << "});\n"
+       << ", " << canEmitAdjustScale << "});\n"
        << "}\n\n";
   }
   return false;
