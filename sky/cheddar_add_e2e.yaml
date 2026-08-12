@@ -1,8 +1,7 @@
-# SkyPilot config for running ONLY the cheddar add_e2e end-to-end test in
-# default (debug) compilation mode on a GPU instance. Mirrors
-# sky/cheddar_test_dbg.yaml but targets a single test target, so it doesn't
-# trip over the other cheddar e2e examples that are not yet migrated to the
-# destination-passing-style cheddar dialect.
+# SkyPilot config for the migrated scale-snu/cheddar tests in default (debug)
+# compilation mode on a GPU instance. It runs the ordinary repository suite
+# first, then explicitly opts the real Cheddar compile/runtime targets into the
+# scale-snu dependency and GPU toolchain.
 #
 # Usage: sky launch -c heir-cheddar-dbg -i 10 sky/cheddar_add_e2e.yaml
 #
@@ -41,7 +40,25 @@ setup: |
 
 run: |
   set -ex
-  bazel fetch //tests/Examples/cheddar/add_e2e:add_e2e_test --config=cheddar
-  bazel test //tests/Examples/cheddar/add_e2e:add_e2e_test \
+  bazel test //... --test_output=errors --test_timeout=1800
+  bazel fetch \
+    //tests/Conversions/CheddarToEmitC/compile:real_compile_test \
+    //tests/Conversions/CheddarToEmitC/compile:real_setup_compile_test \
+    //tests/Examples/cheddar/emitc_abi:abi_test \
+    //tests/Examples/cheddar/add_e2e:add_e2e_test \
+    //tests/Examples/cheddar/bootstrap:bootstrap_test \
+    //tests/Examples/cheddar/configure_smoke:configure_smoke_test \
+    //tests/Examples/cheddar/generated_bootstrap_setup:generated_bootstrap_setup_test \
+    //tests/Examples/cheddar/pipeline_matvec:pipeline_matvec_test \
+    --config=cheddar
+  bazel test \
+    //tests/Conversions/CheddarToEmitC/compile:real_compile_test \
+    //tests/Conversions/CheddarToEmitC/compile:real_setup_compile_test \
+    //tests/Examples/cheddar/emitc_abi:abi_test \
+    //tests/Examples/cheddar/add_e2e:add_e2e_test \
+    //tests/Examples/cheddar/bootstrap:bootstrap_test \
+    //tests/Examples/cheddar/configure_smoke:configure_smoke_test \
+    //tests/Examples/cheddar/generated_bootstrap_setup:generated_bootstrap_setup_test \
+    //tests/Examples/cheddar/pipeline_matvec:pipeline_matvec_test \
     --config=cheddar --test_output=all --test_timeout=1800
   echo "## DONE ##"

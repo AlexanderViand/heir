@@ -25,8 +25,8 @@ cuda_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "@cuda//:cccl_headers",
-        "@cuda//:cudart_headers",
+        "@cuda//:cuda_headers",
+        "@cuda//:libcudacxx",
         "@cuda//:thrust",
         "@libtommath//:tommath",
         "@rmm",
@@ -70,8 +70,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":cheddar_cuda",
-        "@cuda//:cccl_headers",
-        "@cuda//:cudart_headers",
+        "@cuda//:cuda_headers",
+        "@cuda//:libcudacxx",
         "@cuda//:thrust",
         "@libtommath//:tommath",
         "@rmm",

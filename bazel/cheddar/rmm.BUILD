@@ -13,8 +13,8 @@ cc_library(
     includes = ["include"],
     visibility = ["//visibility:public"],
     deps = [
-        "@cuda//:cccl_headers",
-        "@cuda//:cudart_headers",
+        "@cuda//:cuda_headers",
+        "@cuda//:libcudacxx",
         "@cuda//:thrust",
         "@rules_cuda//cuda:runtime",
         "@spdlog",
