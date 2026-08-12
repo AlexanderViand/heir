@@ -8,6 +8,12 @@ package(
 )
 
 cc_library(
+    name = "CleartextResource",
+    hdrs = ["CleartextResource.h"],
+    strip_include_prefix = "/include",
+)
+
+cc_library(
     name = "CheddarRuntime",
     hdrs = ["CheddarRuntime.h"],
     strip_include_prefix = "/include",
