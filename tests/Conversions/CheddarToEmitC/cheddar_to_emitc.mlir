@@ -18,6 +18,7 @@
 !user_interface = !cheddar.user_interface
 !parameter = !cheddar.parameter
 !boot_context = !cheddar.boot_context
+!linear_transform = !cheddar.linear_transform
 
 // CHECK: emitc.global static @resource : !emitc.array<4xf32> = dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00]>
 memref.global "private" constant @resource : memref<4xf32> = dense_resource<weights>
@@ -225,6 +226,67 @@ func.func @eval_poly(%ctx: !context, %enc: !encoder, %ct: tensor<!ciphertext>, %
   %d0 = tensor.empty() : tensor<!ciphertext>
   %r = cheddar.eval_poly %ctx, %ct, %evk, %d0 {coefficients = [1.0 : f64, 2.0 : f64, 3.0 : f64], levelConsumption = 2 : i64} : (!context, tensor<!ciphertext>, !evk_map, tensor<!ciphertext>) -> tensor<!ciphertext>
   return %r : tensor<!ciphertext>
+}
+
+// scale-snu evaluates a single ciphertext, while HEIR represents ciphertext
+// payloads as one-element tensors. Both direct and prepared transforms must
+// therefore pass the array element, not the std::array itself.
+// CHECK: func.func @linear_transform
+// CHECK: emitc.verbatim "_lt_matrix[0] = std::vector<Complex>({} + 4, {} + 8);"
+// CHECK: emitc.verbatim "_lt_matrix[1] = std::vector<Complex>({} + 12, {} + 16);"
+// CHECK: emitc.verbatim "_lt.Evaluate(_lt_cp, {}[0], {}[0], {});"
+func.func @linear_transform(
+    %ctx: !context, %ct: tensor<1x!ciphertext>, %evk: !evk_map,
+    %diagonals: tensor<4x4xf64>) -> tensor<1x!ciphertext> {
+  %out = tensor.empty() : tensor<1x!ciphertext>
+  %result = cheddar.linear_transform %ctx, %ct, %evk, %diagonals, %out
+      {diagonal_indices = array<i32: 0, 1>, source_row_indices = array<i32: 1, 3>, level = 1 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<1x!ciphertext>, !evk_map, tensor<4x4xf64>,
+         tensor<1x!ciphertext>) -> tensor<1x!ciphertext>
+  return %result : tensor<1x!ciphertext>
+}
+
+// CHECK: func.func @linear_transform_min_ks
+// CHECK: emitc.verbatim "_lt.Evaluate(_lt_cp, {}[0], {}[0], {}, true);"
+func.func @linear_transform_min_ks(
+    %ctx: !context, %ct: tensor<1x!ciphertext>, %evk: !evk_map,
+    %diagonals: tensor<4x4xf64>) -> tensor<1x!ciphertext> {
+  %out = tensor.empty() : tensor<1x!ciphertext>
+  %result = cheddar.linear_transform %ctx, %ct, %evk, %diagonals, %out
+      {diagonal_indices = array<i32: 0, 1, 2, 3>, source_row_indices = array<i32: 0, 1, 2, 3>,
+       level = 1 : i64, bs = 2 : i64, gs = 2 : i64, min_ks = true}
+      : (!context, tensor<1x!ciphertext>, !evk_map, tensor<4x4xf64>,
+         tensor<1x!ciphertext>) -> tensor<1x!ciphertext>
+  return %result : tensor<1x!ciphertext>
+}
+
+// CHECK: func.func @apply_prepared_linear_transform
+// CHECK: emitc.verbatim "{}->Evaluate(_lt_cp, {}[0], {}[0], {});"
+func.func @apply_prepared_linear_transform(
+    %ctx: !context, %ct: tensor<1x!ciphertext>, %evk: !evk_map,
+    %transform: tensor<!linear_transform>) -> tensor<1x!ciphertext> {
+  %out = tensor.empty() : tensor<1x!ciphertext>
+  %result = cheddar.apply_prepared_linear_transform
+      %ctx, %ct, %evk, %transform, %out
+      : (!context, tensor<1x!ciphertext>, !evk_map,
+         tensor<!linear_transform>, tensor<1x!ciphertext>)
+      -> tensor<1x!ciphertext>
+  return %result : tensor<1x!ciphertext>
+}
+
+// CHECK: func.func @apply_prepared_linear_transform_min_ks
+// CHECK: emitc.verbatim "{}->Evaluate(_lt_cp, {}[0], {}[0], {}, true);"
+func.func @apply_prepared_linear_transform_min_ks(
+    %ctx: !context, %ct: tensor<1x!ciphertext>, %evk: !evk_map,
+    %transform: tensor<!linear_transform>) -> tensor<1x!ciphertext> {
+  %out = tensor.empty() : tensor<1x!ciphertext>
+  %result = cheddar.apply_prepared_linear_transform
+      %ctx, %ct, %evk, %transform, %out {min_ks = true}
+      : (!context, tensor<1x!ciphertext>, !evk_map,
+         tensor<!linear_transform>, tensor<1x!ciphertext>)
+      -> tensor<1x!ciphertext>
+  return %result : tensor<1x!ciphertext>
 }
 
 {-#

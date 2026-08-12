@@ -696,7 +696,9 @@ def Cheddar_LinearTransformOp : Cheddar_DpsOp<"linear_transform", [
     with BSGS optimization and hoisting.
 
     The `diagonals` input is a 2D tensor where each row is a non-zero diagonal.
-    The `diagonal_indices` attribute specifies which diagonal each row represents.
+    The `diagonal_indices` attribute specifies which diagonal each row
+    represents. If `source_row_indices` is present, diagonal
+    `diagonal_indices[i]` is read from row `source_row_indices[i]`.
     The `level` attribute specifies the modulus level for the operation.
     `min_ks` selects scale-snu's minimum-key-switch evaluation when the baby-
     and giant-step rotations are complete arithmetic progressions.
@@ -708,6 +710,7 @@ def Cheddar_LinearTransformOp : Cheddar_DpsOp<"linear_transform", [
     TensorOrMemRef<[AnyFloat]>:$diagonals,
     Cheddar_CtLike:$output,
     DenseI32ArrayAttr:$diagonal_indices,
+    OptionalAttr<DenseI32ArrayAttr>:$source_row_indices,
     Builtin_IntegerAttr:$level,
     Builtin_IntegerAttr:$bs,
     Builtin_IntegerAttr:$gs,
@@ -726,6 +729,8 @@ def Cheddar_PrepareLinearTransformOp :
     Packs cleartext diagonals into a StripedMatrix and constructs the scale-snu
     LinearTransform object. This data-independent work belongs in split
     preprocessing and is reused by encrypted evaluation.
+    If `source_row_indices` is present, diagonal `diagonal_indices[i]` is read
+    from row `source_row_indices[i]`.
     `min_ks` records the key-switch strategy chosen by the source lowering.
   }];
   let arguments = (ins
@@ -733,6 +738,7 @@ def Cheddar_PrepareLinearTransformOp :
     TensorOrMemRef<[AnyFloat]>:$diagonals,
     Cheddar_LinearTransformLike:$output,
     DenseI32ArrayAttr:$diagonal_indices,
+    OptionalAttr<DenseI32ArrayAttr>:$source_row_indices,
     Builtin_IntegerAttr:$width,
     Builtin_IntegerAttr:$level,
     Builtin_IntegerAttr:$bs,

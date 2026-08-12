@@ -8,6 +8,7 @@ class CompilationTarget<string name> {
   int has_kernel_chebyshev = 0;
   int has_kernel_linear_transform = 0;
   int has_prepared_linear_transform = 0;
+  int supports_single_diagonal_prepared_linear_transform = 1;
   int requires_matching_ciphertext_plaintext_levels = 0;
   int can_emit_adjust_scale = 1;
 }
@@ -17,7 +18,7 @@ def TestTarget : CompilationTarget<"test_target"> {
 }
 
 // REG: void registerTargetTestTarget() {
-// REG:   CompilationTargetRegistry::registerTarget(CompilationTarget{BackendName::TestTarget, 1, 0, 0, 0, 0, 1});
+// REG:   CompilationTargetRegistry::registerTarget(CompilationTarget{BackendName::TestTarget, 1, 0, 0, 0, 1, 0, 1});
 // REG: }
 
 // OVERRIDE: mlir::LogicalResult applyCompilationTargetOverride(CompilationTarget& target,
@@ -122,6 +123,7 @@ def TestTarget : CompilationTarget<"test_target"> {
 // STRUCT:   int64_t has_kernel_chebyshev = 0;
 // STRUCT:   int64_t has_kernel_linear_transform = 0;
 // STRUCT:   int64_t has_prepared_linear_transform = 0;
+// STRUCT:   int64_t supports_single_diagonal_prepared_linear_transform = 1;
 // STRUCT:   int64_t requires_matching_ciphertext_plaintext_levels = 0;
 // STRUCT:   int64_t can_emit_adjust_scale = 1;
 // STRUCT: };

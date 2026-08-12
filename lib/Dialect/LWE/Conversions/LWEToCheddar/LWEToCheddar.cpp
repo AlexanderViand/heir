@@ -1,7 +1,10 @@
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <numeric>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -12,6 +15,8 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "lib/Dialect/Kernel/IR/KernelOps.h"
+#include "lib/Dialect/Kernel/IR/KernelTypes.h"
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
@@ -66,6 +71,9 @@ class ToCheddarTypeConverter : public TypeConverter {
     });
     addConversion([ctx](lwe::LWEPlaintextType type) -> Type {
       return RankedTensorType::get({}, cheddar::PlaintextType::get(ctx));
+    });
+    addConversion([ctx](kernel::PreparedLinearTransformType type) -> Type {
+      return RankedTensorType::get({}, cheddar::LinearTransformType::get(ctx));
     });
     // Keys are absorbed into the UserInterface (threaded as contextual args).
     addConversion([ctx](lwe::LWEPublicKeyType type) -> Type {
@@ -523,6 +531,247 @@ struct ConvertLWEDecodeOp : public OpConversionPattern<lwe::RLWEDecodeOp> {
   }
 };
 
+struct LinearTransformPlan {
+  DenseI32ArrayAttr diagonalIndices;
+  int64_t width;
+  int64_t bs;
+  int64_t gs;
+  bool minKs;
+};
+
+DenseI32ArrayAttr convertI64ArrayAttr(PatternRewriter& rewriter,
+                                      DenseI64ArrayAttr attr) {
+  if (!attr) return nullptr;
+  SmallVector<int32_t> values;
+  values.reserve(attr.size());
+  for (int64_t value : attr.asArrayRef())
+    values.push_back(static_cast<int32_t>(value));
+  return rewriter.getDenseI32ArrayAttr(values);
+}
+
+FailureOr<LinearTransformPlan> getLinearTransformPlan(
+    Operation* op, int64_t width, ArrayRef<int64_t> diagonalIndices,
+    double ratio, bool enableMinKs, PatternRewriter& rewriter) {
+  if (width <= 0)
+    return op->emitOpError("requires a statically known positive width");
+  if (!std::isfinite(ratio) || ratio <= 0)
+    return op->emitOpError("bsgs_ratio must be finite and positive");
+
+  SmallVector<int32_t> indices;
+  indices.reserve(diagonalIndices.size());
+  int64_t stride = 0;
+  int64_t maxRotation = 0;
+  for (int64_t index : diagonalIndices) {
+    int64_t normalized = ((index % width) + width) % width;
+    if (normalized > std::numeric_limits<int32_t>::max())
+      return op->emitOpError("normalized diagonal index does not fit i32: ")
+             << normalized;
+    indices.push_back(static_cast<int32_t>(normalized));
+    stride = std::gcd(stride, normalized);
+    maxRotation = std::max(maxRotation, normalized);
+  }
+  if (indices.size() < 2 || stride == 0)
+    return op->emitOpError(
+        "scale-snu CHEDDAR linear transforms require at least two "
+        "diagonals and one non-zero rotation");
+
+  int64_t steps = maxRotation / stride + 1;
+  int64_t gs = std::max<int64_t>(
+      1, static_cast<int64_t>(std::ceil(std::sqrt(steps / ratio))));
+  int64_t bs = (steps + gs - 1) / gs;
+  auto indicesAttr = rewriter.getDenseI32ArrayAttr(indices);
+  return LinearTransformPlan{
+      indicesAttr, width, bs, gs,
+      enableMinKs && cheddar::supportsMinKs(indicesAttr, width, bs, gs)};
+}
+
+FailureOr<LinearTransformPlan> getLinearTransformPlan(
+    Operation* op, Type diagonalsType, ArrayRef<int64_t> diagonalIndices,
+    double ratio, bool enableMinKs, PatternRewriter& rewriter) {
+  auto shapedType = dyn_cast<ShapedType>(diagonalsType);
+  if (!shapedType || !shapedType.hasRank() || shapedType.getRank() != 2)
+    return op->emitOpError("requires statically shaped 2D diagonals");
+  return getLinearTransformPlan(op, shapedType.getDimSize(1), diagonalIndices,
+                                ratio, enableMinKs, rewriter);
+}
+
+// kernel.linear_transform -> cheddar.linear_transform.
+struct ConvertKernelLinearTransformOp
+    : public OpConversionPattern<kernel::LinearTransformOp> {
+  ConvertKernelLinearTransformOp(const TypeConverter& converter,
+                                 MLIRContext* context, bool enableMinKs)
+      : OpConversionPattern(converter, context), enableMinKs(enableMinKs) {}
+
+  LogicalResult matchAndRewrite(
+      kernel::LinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualContext(op.getOperation());
+    if (failed(ctx)) return ctx;
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
+
+    auto inputType = dyn_cast<lwe::LWECiphertextType>(
+        getElementTypeOrSelf(op.getInput().getType()));
+    auto outputType = dyn_cast<lwe::LWECiphertextType>(
+        getElementTypeOrSelf(op.getOutput().getType()));
+    if (!inputType || !inputType.getModulusChain() || !outputType ||
+        !outputType.getModulusChain())
+      return op.emitOpError(
+          "cannot lower to cheddar.linear_transform without input and output "
+          "modulus chains; run CKKS level analysis first");
+    int64_t inputLevel = inputType.getModulusChain().getCurrent();
+    int64_t outputLevel = outputType.getModulusChain().getCurrent();
+    if (inputLevel <= 0)
+      return op.emitOpError(
+          "scale-snu CHEDDAR linear transforms require an input level above "
+          "zero");
+    if (outputLevel != inputLevel - 1)
+      return op.emitOpError(
+                 "scale-snu CHEDDAR linear transforms consume exactly one "
+                 "level; expected output level ")
+             << inputLevel - 1 << " but got " << outputLevel;
+
+    double ratio = 4.0;
+    if (auto ratioAttr = op.getBsgsRatioAttr())
+      ratio = ratioAttr.getValueAsDouble();
+    auto plan = getLinearTransformPlan(op, op.getDiagonals().getType(),
+                                       op.getDiagonalIndices(), ratio,
+                                       enableMinKs, rewriter);
+    if (failed(plan)) return failure();
+
+    Type resultType = typeConverter->convertType(op.getOutput().getType());
+    Value dest =
+        makeReusableDest(rewriter, op.getLoc(), resultType, adaptor.getInput());
+    auto result = cheddar::LinearTransformOp::create(
+        rewriter, op.getLoc(), resultType, ctx.value(), adaptor.getInput(),
+        evkMap.value(), adaptor.getDiagonals(), dest, plan->diagonalIndices,
+        convertI64ArrayAttr(rewriter, op.getSourceRowIndicesAttr()),
+        rewriter.getI64IntegerAttr(inputLevel),
+        rewriter.getI64IntegerAttr(plan->bs),
+        rewriter.getI64IntegerAttr(plan->gs),
+        rewriter.getBoolAttr(plan->minKs));
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+
+ private:
+  bool enableMinKs;
+};
+
+struct ConvertKernelPrepareLinearTransformOp
+    : public OpConversionPattern<kernel::PrepareLinearTransformOp> {
+  ConvertKernelPrepareLinearTransformOp(const TypeConverter& converter,
+                                        MLIRContext* context, bool enableMinKs)
+      : OpConversionPattern(converter, context), enableMinKs(enableMinKs) {}
+
+  LogicalResult matchAndRewrite(
+      kernel::PrepareLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualContext(op.getOperation());
+    if (failed(ctx)) return failure();
+    auto preparedType = op.getPrepared().getType();
+    double ratio = preparedType.getLogBsgsRatio() == 0
+                       ? 4.0
+                       : std::exp2(preparedType.getLogBsgsRatio());
+    auto plan = getLinearTransformPlan(op, op.getDiagonals().getType(),
+                                       op.getDiagonalIndices(), ratio,
+                                       enableMinKs, rewriter);
+    if (failed(plan)) return failure();
+
+    Type resultType = typeConverter->convertType(preparedType);
+    Value dest = makeEmptyDest(rewriter, op.getLoc(), resultType);
+    auto result = cheddar::PrepareLinearTransformOp::create(
+        rewriter, op.getLoc(), resultType, ctx.value(), adaptor.getDiagonals(),
+        dest, plan->diagonalIndices,
+        convertI64ArrayAttr(rewriter, op.getSourceRowIndicesAttr()),
+        rewriter.getI64IntegerAttr(plan->width),
+        rewriter.getI64IntegerAttr(preparedType.getLevel()),
+        rewriter.getI64IntegerAttr(plan->bs),
+        rewriter.getI64IntegerAttr(plan->gs),
+        rewriter.getBoolAttr(plan->minKs));
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+
+ private:
+  bool enableMinKs;
+};
+
+struct ConvertKernelApplyLinearTransformOp
+    : public OpConversionPattern<kernel::ApplyLinearTransformOp> {
+  ConvertKernelApplyLinearTransformOp(const TypeConverter& converter,
+                                      MLIRContext* context, bool enableMinKs)
+      : OpConversionPattern(converter, context), enableMinKs(enableMinKs) {}
+
+  LogicalResult matchAndRewrite(
+      kernel::ApplyLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualContext(op.getOperation());
+    if (failed(ctx)) return failure();
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return failure();
+    Type resultType = typeConverter->convertType(op.getOutput().getType());
+    Value dest =
+        makeReusableDest(rewriter, op.getLoc(), resultType, adaptor.getInput());
+    auto preparedType = op.getPrepared().getType();
+    auto diagonalIndices = op.getDiagonalIndicesAttr();
+    auto diagonalWidth = op.getDiagonalWidthAttr();
+    if (!diagonalIndices || !diagonalWidth)
+      return op.emitOpError(
+          "requires diagonal_indices and diagonal_width planning metadata");
+    double ratio = preparedType.getLogBsgsRatio() == 0
+                       ? 4.0
+                       : std::exp2(preparedType.getLogBsgsRatio());
+    auto plan = getLinearTransformPlan(op, diagonalWidth.getInt(),
+                                       diagonalIndices.asArrayRef(), ratio,
+                                       enableMinKs, rewriter);
+    if (failed(plan)) return failure();
+    auto result = cheddar::ApplyPreparedLinearTransformOp::create(
+        rewriter, op.getLoc(), resultType, ctx.value(), adaptor.getInput(),
+        evkMap.value(), adaptor.getPrepared(), dest,
+        rewriter.getBoolAttr(plan->minKs));
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+
+ private:
+  bool enableMinKs;
+};
+
+// kernel.eval_chebyshev -> cheddar.eval_poly. Both operations use Chebyshev
+// coefficients on [-1, 1].
+struct ConvertKernelEvalChebyshevOp
+    : public OpConversionPattern<kernel::EvalChebyshevOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      kernel::EvalChebyshevOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualContext(op.getOperation());
+    if (failed(ctx)) return ctx;
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
+
+    // The kernel op's upstream level interface is the single source of truth
+    // for Chebyshev depth. CKKS level analysis applies the same value to the
+    // ciphertext result type.
+    int64_t requiredLevels = op.getLevelsToDrop();
+    if (requiredLevels < 2)
+      return op.emitOpError(
+          "scale-snu CHEDDAR EvalPoly requires an effective degree of at "
+          "least two");
+    Type resultType = typeConverter->convertType(op.getOutput().getType());
+    Value dest =
+        makeReusableDest(rewriter, op.getLoc(), resultType, adaptor.getInput());
+    auto result = cheddar::EvalPolyOp::create(
+        rewriter, op.getLoc(), resultType, ctx.value(), adaptor.getInput(),
+        evkMap.value(), dest, op.getCoefficientsAttr(),
+        rewriter.getI64IntegerAttr(requiredLevels));
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Payload packing: scalar-index tensor ops -> rank-reducing slice ops
 //===----------------------------------------------------------------------===//
@@ -809,6 +1058,8 @@ struct ConvertDebugCall : public OpConversionPattern<func::CallOp> {
 namespace {
 
 struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
+  using Base::Base;
+
   void runOnOperation() override {
     MLIRContext* context = &getContext();
     auto* module = getOperation();
@@ -864,6 +1115,9 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     target.addLegalDialect<cheddar::CheddarDialect>();
     target.addLegalDialect<bufferization::BufferizationDialect>();
     target.addIllegalDialect<ckks::CKKSDialect, lwe::LWEDialect>();
+    target.addIllegalOp<
+        kernel::LinearTransformOp, kernel::PrepareLinearTransformOp,
+        kernel::ApplyLinearTransformOp, kernel::EvalChebyshevOp>();
     // preprocessing.* ops are legal once their plaintext element types have
     // been converted to cheddar's; --preprocessing-to-cheddar lowers them
     // after.
@@ -889,7 +1143,9 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       bool evk = false;
       f.walk([&](Operation* inner) {
         if (isa<ckks::BootstrapOp>(inner)) boots = true;
-        if (isa<ckks::BootstrapOp>(inner)) evk = true;
+        if (isa<ckks::BootstrapOp, kernel::LinearTransformOp,
+                kernel::ApplyLinearTransformOp, kernel::EvalChebyshevOp>(inner))
+          evk = true;
       });
       bootstrapsTransitively[f] = boots;
       needsEvkMapTransitively[f] = evk;
@@ -917,6 +1173,11 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     auto hasCryptoOps = [&](Operation* op) -> bool {
       return containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>(op);
     };
+    auto hasPrepareLinearTransform = [&](Operation* op) -> bool {
+      auto funcOp = dyn_cast<func::FuncOp>(op);
+      if (!funcOp) return false;
+      return !funcOp.getOps<kernel::PrepareLinearTransformOp>().empty();
+    };
     auto hasEncodeOps = [&](Operation* op) -> bool {
       auto funcOp = dyn_cast<func::FuncOp>(op);
       if (!funcOp) return false;
@@ -935,8 +1196,11 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     auto hasCryptoOrEncode = [&](Operation* op) {
       return hasCryptoOps(op) || hasEncodeOps(op);
     };
+    auto hasContextOps = [&](Operation* op) {
+      return hasCryptoOps(op) || hasPrepareLinearTransform(op);
+    };
     std::vector<std::pair<Type, OpPredicate>> evaluators = {
-        {cheddar::ContextType::get(context), hasCryptoOps},
+        {cheddar::ContextType::get(context), hasContextOps},
         {cheddar::BootContextType::get(context), funcBootstraps},
         {cheddar::EncoderType::get(context), hasCryptoOrEncode},
         {cheddar::UserInterfaceType::get(context), hasCryptoOps},
@@ -962,6 +1226,11 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
         typeConverter, context);
     patterns.add<ConvertLWEEncodeOp, ConvertLWEDecodeOp, ConvertLWEEncryptOp,
                  ConvertLWEDecryptOp>(typeConverter, context);
+    patterns.add<ConvertKernelLinearTransformOp,
+                 ConvertKernelPrepareLinearTransformOp,
+                 ConvertKernelApplyLinearTransformOp>(typeConverter, context,
+                                                      enableMinKs);
+    patterns.add<ConvertKernelEvalChebyshevOp>(typeConverter, context);
     // Payload packing ops -> rank-reducing slice ops (benefit 2 so they win
     // over the structural tensor conversion for payload-typed tensors).
     patterns.add<ConvertPayloadExtract, ConvertPayloadInsert,
@@ -994,9 +1263,12 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
           containsArgumentOfDialect<lwe::LWEDialect, ckks::CKKSDialect>(op);
       bool hasEncodeOp = false;
       op.walk([&](lwe::RLWEEncodeOp) { hasEncodeOp = true; });
+      bool hasPrepareOp =
+          !op.getOps<kernel::PrepareLinearTransformOp>().empty();
       return typeConverter.isSignatureLegal(op.getFunctionType()) &&
              typeConverter.isLegal(&op.getBody()) &&
-             (!(hasCryptoArg || hasEncodeOp) || hasCheddarCtxArg);
+             (!(hasCryptoArg || hasEncodeOp || hasPrepareOp) ||
+              hasCheddarCtxArg);
     });
 
     target.addDynamicallyLegalOp<func::CallOp>([&](func::CallOp op) {

@@ -5,10 +5,10 @@ def Cheddar : CompilationTarget<"cheddar"> {
   // compute modulus chain, so a bootstrap consumes no compute levels.
   let bootstrapLevelsConsumed = 0;
 
-  // Keep linear transforms decomposed until the separate Cheddar LT stack is
-  // present. Advertising this capability would leave kernel.linear_transform
-  // operations that LWEToCheddar intentionally cannot lower.
-  let has_kernel_linear_transform = 0;
+  let has_kernel_linear_transform = 1;
+  let has_prepared_linear_transform = 1;
+  let supports_single_diagonal_prepared_linear_transform = 0;
+  let has_kernel_chebyshev = 1;
 
   // Cheddar rejects ciphertext-plaintext operations with different prime sets.
   let requires_matching_ciphertext_plaintext_levels = 1;

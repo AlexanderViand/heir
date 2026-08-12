@@ -72,13 +72,42 @@ cc_library(
     deps = [":cheddar_stub"],
 )
 
+genrule(
+    name = "kernels_cyclops_lib_src",
+    srcs = [":kernels_raw.cc"],
+    outs = ["kernels_cyclops_lib.cc"],
+    cmd = """cat > $@ <<'PRELUDE_EOF'
+// AUTO-GENERATED: do not edit. See tests/Conversions/CheddarToEmitC/compile/BUILD.
+#include <array>
+#include <complex>
+#include <cstdint>
+#include <initializer_list>
+#include <vector>
+#define HEIR_CYCLOPS_STUB
+#include "tests/Conversions/CheddarToEmitC/compile/cheddar_stub.h"
+using namespace cheddar;
+using word = uint64_t;
+PRELUDE_EOF
+cat $(location :kernels_raw.cc) >> $@
+""",
+)
+
+cc_library(
+    name = "kernels_cyclops_compiled",
+    srcs = [":kernels_cyclops_lib_src"],
+    deps = [":cheddar_stub"],
+)
+
 # Compiling the generated C++ against the stub *is* the assertion: if the
 # emitter produced C++ that violates CHEDDAR's move/const contract, this fails
 # to build. build_test compiles without linking, so the stub only needs
 # declarations (no method bodies), and no GPU/CUDA is involved.
 build_test(
     name = "compile_test",
-    targets = [":kernels_compiled"],
+    targets = [
+        ":kernels_compiled",
+        ":kernels_cyclops_compiled",
+    ],
 )
 
 # Compile the same generated kernels against the pinned scale-snu CHEDDAR API.
@@ -103,6 +132,7 @@ genrule(
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
 #include "extension/EvalPoly.h"
+#include "extension/LinearTransform.h"
 using namespace cheddar;
 using word = uint64_t;
 PRELUDE_EOF
@@ -167,6 +197,7 @@ genrule(
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
 #include "extension/EvalPoly.h"
+#include "extension/LinearTransform.h"
 using namespace cheddar;
 using word = uint64_t;
 PRELUDE_EOF
