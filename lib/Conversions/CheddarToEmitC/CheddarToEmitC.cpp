@@ -9,6 +9,8 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "lib/Dialect/Preprocessing/IR/PreprocessingOps.h"
+#include "lib/Dialect/Preprocessing/IR/PreprocessingTypes.h"
 #include "lib/Utils/TargetUtils.h"
 #include "llvm/include/llvm/ADT/DenseSet.h"         // from @llvm-project
 #include "llvm/include/llvm/ADT/STLExtras.h"        // from @llvm-project
@@ -238,6 +240,9 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
   });
   tc.addConversion(
       [ctx](IndexType) -> Type { return emitc::SizeTType::get(ctx); });
+  tc.addConversion([ctx](preprocessing::ResourceDirType) -> Type {
+    return OpaqueType::get(ctx, "std::string_view");
+  });
   // Payload buffers: the element lvalue (rank 0) or an `emitc.array` of the
   // payload type (static rank >= 1). Primitive buffers: a flat pointer,
   // whatever their storage (alloc, alloca, global, subview).
@@ -728,6 +733,49 @@ struct ConvertAllocLocal : public OpConversionPattern<mlir::memref::AllocOp> {
         rewriter, op.getLoc(), converted,
         emitc::OpaqueAttr::get(rewriter.getContext(), ""));
     rewriter.replaceOp(op, variable);
+    return success();
+  }
+};
+
+// preprocessing.load_resource -> `heir::loadResource<T>(path, data, n)` from
+// heir/runtime/CleartextResource.h.
+struct ConvertLoadResource
+    : public OpConversionPattern<preprocessing::LoadResourceOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      preprocessing::LoadResourceOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto memrefType = dyn_cast<MemRefType>(op.getDestination().getType());
+    if (!memrefType) return failure();
+    auto pointerType =
+        dyn_cast<emitc::PointerType>(adaptor.getDestination().getType());
+    if (!pointerType || pointerType.getPointee() != memrefType.getElementType())
+      return failure();
+    ensureInclude(op, rewriter, "heir/runtime/CleartextResource.h");
+    std::string path = "\"";
+    for (char c : op.getPath()) {
+      if (c == '"' || c == '\\') path += '\\';
+      path += c;
+    }
+    path += '"';
+    // heir::loadResource([directory,] path, data, count)
+    SmallVector<Value> operands;
+    SmallVector<Attribute> args;
+    if (Value directory = adaptor.getDirectory()) {
+      operands.push_back(directory);
+      args.push_back(rewriter.getIndexAttr(0));
+    }
+    args.push_back(emitc::OpaqueAttr::get(rewriter.getContext(), path));
+    operands.push_back(adaptor.getDestination());
+    args.push_back(rewriter.getIndexAttr(operands.size() - 1));
+    args.push_back(emitc::OpaqueAttr::get(
+        rewriter.getContext(),
+        std::to_string(numElements(memrefType.getShape()))));
+    emitc::CallOpaqueOp::create(
+        rewriter, op.getLoc(), TypeRange{}, "heir::loadResource", operands,
+        rewriter.getArrayAttr(args),
+        rewriter.getArrayAttr({TypeAttr::get(memrefType.getElementType())}));
+    rewriter.eraseOp(op);
     return success();
   }
 };
@@ -1283,16 +1331,17 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
         [&typeConverter](Operation* op) { return typeConverter.isLegal(op); });
     // memref.global has no operands/results, so isLegal() would always pass.
     target.addIllegalOp<mlir::memref::GlobalOp>();
+    target.addIllegalOp<preprocessing::LoadResourceOp>();
 
     // Stock MemRefToEmitC patterns at default benefit; ours below win at 2.
     mlir::populateMemRefToEmitCConversionPatterns(patterns, typeConverter);
 
-    patterns.add<ConvertAllocLocal, EraseDealloc, ConvertLoadPointer,
-                 ConvertLoadArray, ConvertStoreArray,
-                 ConvertMemRefCopyPrimitive, ConvertSubViewSubscript,
-                 ConvertSubViewToPointer, ConvertPayloadCast,
-                 ConvertGlobalDropAlign, ConvertGetGlobalPointer>(
-        typeConverter, ctx, /*benefit=*/2);
+    patterns.add<
+        ConvertAllocLocal, EraseDealloc, ConvertLoadPointer, ConvertLoadArray,
+        ConvertStoreArray, ConvertMemRefCopyPrimitive, ConvertSubViewSubscript,
+        ConvertSubViewToPointer, ConvertPayloadCast, ConvertGlobalDropAlign,
+        ConvertGetGlobalPointer, ConvertLoadResource>(typeConverter, ctx,
+                                                      /*benefit=*/2);
     patterns.add<ConvertPayloadCopy>(typeConverter, ctx, /*benefit=*/3);
     patterns.add<MoveCopyFromDeadLocal>(typeConverter, ctx, /*benefit=*/4);
 
