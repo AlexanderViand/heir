@@ -57,6 +57,34 @@ module {
     }
   }
 
+  // Cheddar follows scale-snu EvalPoly's ceil(log2(degree + 1)) depth.
+  // CHECK: module @test_cheddar
+  module @test_cheddar attributes {backend.cheddar} {
+    func.func @test_cheddar_deg3(%arg0: !secret.secret<tensor<16xf32>>) -> !secret.secret<tensor<16xf32>> {
+      %0 = secret.generic(%arg0 : !secret.secret<tensor<16xf32>>) {
+      ^body(%val: tensor<16xf32>):
+        // CHECK: kernel.eval_chebyshev
+        // CHECK-SAME: mgmt.level = 2 : index
+        %1 = kernel.eval_chebyshev %val {coefficients = [0.0 : f64, 0.75 : f64, 0.0 : f64, 0.25 : f64]} : tensor<16xf32> -> tensor<16xf32>
+        secret.yield %1 : tensor<16xf32>
+      } -> !secret.secret<tensor<16xf32>>
+      return %0 : !secret.secret<tensor<16xf32>>
+    }
+
+    func.func @test_cheddar_trailing_zeros(%arg0: !secret.secret<tensor<16xf32>>) -> !secret.secret<tensor<16xf32>> {
+      %0 = secret.generic(%arg0 : !secret.secret<tensor<16xf32>>) {
+      ^body(%val: tensor<16xf32>):
+        // scale-snu prunes trailing coefficients below 1e-9, so this has
+        // effective degree 3 rather than 5 and consumes two levels.
+        // CHECK: kernel.eval_chebyshev
+        // CHECK-SAME: mgmt.level = 2 : index
+        %1 = kernel.eval_chebyshev %val {coefficients = [0.0 : f64, 0.75 : f64, 0.0 : f64, 0.25 : f64, 0.0 : f64, 0.0 : f64]} : tensor<16xf32> -> tensor<16xf32>
+        secret.yield %1 : tensor<16xf32>
+      } -> !secret.secret<tensor<16xf32>>
+      return %0 : !secret.secret<tensor<16xf32>>
+    }
+  }
+
   // No backend target test (defaults to lattigo logic)
   // CHECK: module @test_default
   module @test_default {

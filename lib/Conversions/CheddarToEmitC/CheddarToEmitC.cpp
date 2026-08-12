@@ -85,6 +85,15 @@ std::string payloadTypeName(Type t) {
   return "";
 }
 
+// Opaque C++ element types that need lvalue/array buffer storage.
+std::string opaqueBufferElementName(Type t) {
+  std::string p = payloadTypeName(t);
+  if (!p.empty()) return p;
+  if (isa<cheddar::LinearTransformType>(t))
+    return "std::shared_ptr<LinearTransform<word>>";
+  return "";
+}
+
 // The owning handle type of a rank-0 context/user-interface buffer: written by
 // create_context/create_user_interface and handed back through an out-param.
 std::string owningHandleTypeName(Type t) {
@@ -93,6 +102,8 @@ std::string owningHandleTypeName(Type t) {
     return "std::shared_ptr<BootContext<word>>";
   if (isa<cheddar::UserInterfaceType>(t))
     return "std::unique_ptr<UserInterface<word>>";
+  if (isa<cheddar::LinearTransformType>(t))
+    return "std::shared_ptr<LinearTransform<word>>";
   return "";
 }
 
@@ -104,6 +115,15 @@ std::string floatLit(FloatAttr a) {
   char buf[40];
   std::snprintf(buf, sizeof(buf), "%.17g", a.getValueAsDouble());
   return std::string(buf);
+}
+
+std::string floatArrayLit(ArrayAttr a) {
+  std::string s = "{";
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (i > 0) s += ", ";
+    s += floatLit(cast<FloatAttr>(a[i]));
+  }
+  return s + "}";
 }
 
 int64_t numElements(ArrayRef<int64_t> shape) {
@@ -238,6 +258,9 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
   tc.addConversion([ctx](cheddar::ConstantType) -> Type {
     return OpaqueType::get(ctx, "Constant<word>");
   });
+  tc.addConversion([ctx](cheddar::LinearTransformType) -> Type {
+    return OpaqueType::get(ctx, "std::shared_ptr<LinearTransform<word>>");
+  });
   tc.addConversion(
       [ctx](IndexType) -> Type { return emitc::SizeTType::get(ctx); });
   tc.addConversion([ctx](preprocessing::ResourceDirType) -> Type {
@@ -253,20 +276,21 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
       if (!owning.empty())
         return Type(LValueType::get(OpaqueType::get(ctx, owning)));
     }
-    std::string payloadName = payloadTypeName(eltType);
-    bool payload = !payloadName.empty();
-    if (!payload && !isa<FloatType, IntegerType>(eltType)) return std::nullopt;
+    std::string opaqueName = opaqueBufferElementName(eltType);
+    bool opaqueElement = !opaqueName.empty();
+    if (!opaqueElement && !isa<FloatType, IntegerType>(eltType))
+      return std::nullopt;
     if (type.getRank() == 0) {
-      if (payload)
-        return Type(LValueType::get(OpaqueType::get(ctx, payloadName)));
+      if (opaqueElement)
+        return Type(LValueType::get(OpaqueType::get(ctx, opaqueName)));
       return Type(emitc::PointerType::get(eltType));
     }
     if (!type.hasStaticShape() || llvm::is_contained(type.getShape(), 0) ||
         !memref::isStaticShapeAndContiguousRowMajor(type))
       return Type();
-    if (payload)
+    if (opaqueElement)
       return Type(emitc::ArrayType::get(type.getShape(),
-                                        OpaqueType::get(ctx, payloadName)));
+                                        OpaqueType::get(ctx, opaqueName)));
     return Type(emitc::PointerType::get(eltType));
   });
 }
@@ -661,10 +685,214 @@ struct ConvertHConjAdd : public OpConversionPattern<cheddar::HConjAddOp> {
   }
 };
 
+static void emitLinearTransformPreamble(OpBuilder& builder, Location loc,
+                                        Value ctx, Value diagonals,
+                                        ShapedType diagonalsType,
+                                        DenseI32ArrayAttr diagonalIndices,
+                                        DenseI32ArrayAttr sourceRowIndices) {
+  int64_t width = diagonalsType.getDimSize(1);
+  VerbatimOp::create(builder, loc, "{", ValueRange{});
+  VerbatimOp::create(
+      builder, loc,
+      "ConstContextPtr<word> _lt_cp(ConstContextPtr<word>(), {});",
+      ValueRange{ctx});
+  VerbatimOp::create(builder, loc,
+                     "StripedMatrix _lt_matrix(" + std::to_string(width) +
+                         ", " + std::to_string(width) + ");",
+                     ValueRange{});
+  for (int64_t row = 0; row < static_cast<int64_t>(diagonalIndices.size());
+       ++row) {
+    int32_t index = diagonalIndices.asArrayRef()[row];
+    int64_t sourceRow =
+        sourceRowIndices ? sourceRowIndices.asArrayRef()[row] : row;
+    if (isa<emitc::PointerType>(diagonals.getType())) {
+      int64_t offset = sourceRow * width;
+      VerbatimOp::create(builder, loc,
+                         "_lt_matrix[" + std::to_string(index) +
+                             "] = std::vector<Complex>({} + " +
+                             std::to_string(offset) + ", {} + " +
+                             std::to_string(offset + width) + ");",
+                         ValueRange{diagonals, diagonals});
+    } else {
+      VerbatimOp::create(builder, loc,
+                         "_lt_matrix[" + std::to_string(index) +
+                             "] = std::vector<Complex>(&{}[" +
+                             std::to_string(sourceRow) + "][0], &{}[" +
+                             std::to_string(sourceRow) + "][0] + " +
+                             std::to_string(width) + ");",
+                         ValueRange{diagonals, diagonals});
+    }
+  }
+}
+
+static std::string linearTransformPayloadRef(Type type) {
+  auto shaped = dyn_cast<ShapedType>(type);
+  return shaped && shaped.hasStaticShape() && shaped.getRank() > 0 &&
+                 shaped.getNumElements() == 1
+             ? "{}[0]"
+             : "{}";
+}
+
+// Scale-snu defaults min_ks to false, while Cyclops exposes only the
+// four-argument Evaluate API.
+static std::string optionalMinKsArgument(bool minKs) {
+  return minKs ? ", true" : "";
+}
+
+// Direct scale-snu LinearTransform lowering. A later optimization moves this
+// construction into split preprocessing so model evaluations can reuse it.
+struct ConvertLinearTransform
+    : public OpConversionPattern<cheddar::LinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::LinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto diagonalsType = cast<ShapedType>(op.getDiagonals().getType());
+    Location loc = op.getLoc();
+    Value ctx = adaptor.getCtx();
+    emitLinearTransformPreamble(rewriter, loc, ctx, adaptor.getDiagonals(),
+                                diagonalsType, op.getDiagonalIndicesAttr(),
+                                op.getSourceRowIndicesAttr());
+    VerbatimOp::create(
+        rewriter, loc,
+        "LinearTransform<word> _lt(_lt_cp, _lt_matrix, " +
+            intLit(op.getLevelAttr()) + ", {}->param_.GetScale(" +
+            intLit(op.getLevelAttr()) + "), " + intLit(op.getBsAttr()) + ", " +
+            intLit(op.getGsAttr()) + ");",
+        ValueRange{ctx});
+    markDestination(
+        VerbatimOp::create(
+            rewriter, loc,
+            "_lt.Evaluate(_lt_cp, " +
+                linearTransformPayloadRef(op.getOutput().getType()) + ", " +
+                linearTransformPayloadRef(op.getInput().getType()) + ", {}" +
+                optionalMinKsArgument(op.getMinKs()) + ");",
+            ValueRange{adaptor.getOutput(), adaptor.getInput(),
+                       adaptor.getEvkMap()}),
+        0);
+    VerbatimOp::create(rewriter, loc, "}", ValueRange{});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertPrepareLinearTransform
+    : public OpConversionPattern<cheddar::PrepareLinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::PrepareLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto diagonalsType = cast<ShapedType>(op.getDiagonals().getType());
+    Location loc = op.getLoc();
+    Value ctx = adaptor.getCtx();
+    emitLinearTransformPreamble(rewriter, loc, ctx, adaptor.getDiagonals(),
+                                diagonalsType, op.getDiagonalIndicesAttr(),
+                                op.getSourceRowIndicesAttr());
+    markDestination(
+        VerbatimOp::create(
+            rewriter, loc,
+            "{} = std::make_shared<LinearTransform<word>>("
+            "_lt_cp, _lt_matrix, " +
+                intLit(op.getLevelAttr()) + ", {}->param_.GetScale(" +
+                intLit(op.getLevelAttr()) + "), " + intLit(op.getBsAttr()) +
+                ", " + intLit(op.getGsAttr()) + ");",
+            ValueRange{adaptor.getOutput(), ctx}),
+        0);
+    VerbatimOp::create(rewriter, loc, "}", ValueRange{});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertApplyPreparedLinearTransform
+    : public OpConversionPattern<cheddar::ApplyPreparedLinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::ApplyPreparedLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    VerbatimOp::create(rewriter, op.getLoc(), "{", ValueRange{});
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        "ConstContextPtr<word> _lt_cp(ConstContextPtr<word>(), {});",
+        ValueRange{adaptor.getCtx()});
+    markDestination(
+        VerbatimOp::create(
+            rewriter, op.getLoc(),
+            "{}->Evaluate(_lt_cp, " +
+                linearTransformPayloadRef(op.getOutput().getType()) + ", " +
+                linearTransformPayloadRef(op.getInput().getType()) + ", {}" +
+                optionalMinKsArgument(op.getMinKs()) + ");",
+            ValueRange{adaptor.getTransform(), adaptor.getOutput(),
+                       adaptor.getInput(), adaptor.getEvkMap()}),
+        1);
+    VerbatimOp::create(rewriter, op.getLoc(), "}", ValueRange{});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// cheddar.eval_poly -> CHEDDAR's EvalPoly<word> class, used like EvalMod does:
+// the level/scale come from the input ciphertext and target_scale follows the
+// square/divide recurrence over GetRescalePrimeProd. Emitted as verbatim
+// statements (member calls on lvalue receivers, `ctx->param_`) in a `{ }` block
+// so the EvalPoly and its GPU power basis die right after Evaluate.
+struct ConvertEvalPoly : public OpConversionPattern<cheddar::EvalPolyOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::EvalPolyOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Location loc = op.getLoc();
+    Value ctxV = adaptor.getCtx();
+    Value in = adaptor.getInput();
+    Value out = adaptor.getOutput();
+    Value evk = adaptor.getEvkMap();
+    int64_t levelConsumption = op.getLevelConsumptionAttr().getInt();
+
+    auto emit = [&](const Twine& fmt, ValueRange operands) {
+      VerbatimOp::create(rewriter, loc, rewriter.getStringAttr(fmt.str()),
+                         operands);
+    };
+
+    emit("{", {});
+    // Compile/Evaluate take a ConstContextPtr (shared_ptr<const Context>); wrap
+    // the raw Context* in a non-owning alias (it does not own the context).
+    emit("ConstContextPtr<word> _ep_cp(ConstContextPtr<word>(), {});", {ctxV});
+    // level + input scale taken from the actual input ciphertext.
+    emit("int _ep_lvl = {}->param_.NPToLevel({}.GetNP());", {ctxV, in});
+    emit("double _ep_is = {}.GetScale();", {in});
+    // target_scale recurrence: ts <- ts*ts / GetRescalePrimeProd(lvl - i).
+    emit("double _ep_ts = _ep_is;", {});
+    for (int64_t i = 0; i < levelConsumption; ++i)
+      emit(
+          "_ep_ts = _ep_ts * _ep_ts / {}->param_.GetRescalePrimeProd(_ep_lvl "
+          "- " +
+              Twine(i) + ");",
+          {ctxV});
+    // Construct (no operands -> the coefficient brace-list is emitted
+    // verbatim).
+    emit("EvalPoly<word> _ep(" + floatArrayLit(op.getCoefficientsAttr()) +
+             ", _ep_lvl, _ep_is, _ep_ts, true);",
+         {});
+    emit("_ep.Compile(_ep_cp);", {});
+    StringRef evaluate =
+        "_ep.Evaluate(_ep_cp, {}, {}, {}.GetMultiplicationKey());";
+    markDestination(
+        VerbatimOp::create(rewriter, loc, rewriter.getStringAttr(evaluate),
+                           ValueRange{out, in, evk}),
+        0);
+    emit("}", {});
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 // A `__heir_debug_*` call (see LWEToCheddar) -> a free C++ call
 // `__heir_debug(encoder, ui, ct, "name", "metadata")` (`ct, N` for a buffer of
 // N ciphertexts), the name/metadata taken from the
 // `debug.name`/`debug.metadata` attributes.
+// `__heir_debug(encoder, ui, ct, "name", "metadata")`, the name/metadata
+// taken from the `debug.name`/`debug.metadata` attributes.
 struct ConvertDebugCall : public OpConversionPattern<func::CallOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -718,8 +946,8 @@ struct ConvertDebugCall : public OpConversionPattern<func::CallOp> {
 // memref op patterns (payload + float)
 //===----------------------------------------------------------------------===//
 
-// memref.alloc of a payload buffer -> a local variable; the payload owns its
-// device memory.
+// memref.alloc of a payload buffer -> a local variable; the payload owns
+// its device memory.
 struct ConvertAllocLocal : public OpConversionPattern<mlir::memref::AllocOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -809,8 +1037,9 @@ struct ConvertLoadPointer : public OpConversionPattern<mlir::memref::LoadOp> {
 };
 
 // memref.dealloc of a payload -> `v = T();`, releasing the device buffer at
-// last use instead of at scope exit (peak memory would otherwise be the sum of
-// all intermediates). `v = {}` does not compile: the constructors are explicit.
+// last use instead of at scope exit (peak memory would otherwise be the sum
+// of all intermediates). `v = {}` does not compile: the constructors are
+// explicit.
 struct EraseDealloc : public OpConversionPattern<mlir::memref::DeallocOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -850,8 +1079,8 @@ struct EraseDealloc : public OpConversionPattern<mlir::memref::DeallocOp> {
   }
 };
 
-// memref.load on a payload buffer -> `base[i...]`, kept as an lvalue (payloads
-// are move-only).
+// memref.load on a payload buffer -> `base[i...]`, kept as an lvalue
+// (payloads are move-only).
 struct ConvertLoadArray : public OpConversionPattern<mlir::memref::LoadOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -896,15 +1125,16 @@ static Value unwrapSingleUnrealizedCast(Value v) {
 }
 
 // True for a cheddar element type that is moved, not copied, out of a dead
-// temporary: the payloads and the owning setup handles.
+// temporary: the payloads, prepared transforms and the owning setup handles.
 bool isMoveOnlyElement(Type elementType) {
-  return !payloadTypeName(elementType).empty() ||
+  return !opaqueBufferElementName(elementType).empty() ||
          !owningHandleTypeName(elementType).empty();
 }
 
 // A copy whose source is a temporary allocated in the same block and never
-// used again (its deallocation aside). Nothing can observe the temporary after
-// the copy, so transferring its storage is indistinguishable from copying it.
+// used again (its deallocation aside). Nothing can observe the temporary
+// after the copy, so transferring its storage is indistinguishable from
+// copying it.
 bool isCopyFromDeadLocal(mlir::memref::CopyOp copy) {
   if (copy.getSource() == copy.getTarget()) return false;
   auto alloc = copy.getSource().getDefiningOp<mlir::memref::AllocOp>();
@@ -912,7 +1142,8 @@ bool isCopyFromDeadLocal(mlir::memref::CopyOp copy) {
   for (Operation* user : alloc->getUsers()) {
     if (user == copy || isa<mlir::memref::DeallocOp>(user)) continue;
     // Anything that could hand out an alias of the temporary (a view, a
-    // buffer-typed result, a region terminator yielding it) disqualifies it.
+    // buffer-typed result, a region terminator yielding it) disqualifies
+    // it.
     if (isa<ViewLikeOpInterface>(user) ||
         user->hasTrait<OpTrait::IsTerminator>() ||
         llvm::any_of(user->getResultTypes(),
@@ -924,9 +1155,10 @@ bool isCopyFromDeadLocal(mlir::memref::CopyOp copy) {
   return true;
 }
 
-// A copy out of a dead local temporary moves instead: `dst = std::move(tmp)`.
-// This is the shape One-Shot Bufferize leaves when a value needed a fresh
-// buffer (its destination was still live) and is then placed into the result.
+// A copy out of a dead local temporary moves instead: `dst =
+// std::move(tmp)`. This is the shape One-Shot Bufferize leaves when a value
+// needed a fresh buffer (its destination was still live) and is then placed
+// into the result.
 struct MoveCopyFromDeadLocal
     : public OpConversionPattern<mlir::memref::CopyOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -958,8 +1190,8 @@ struct MoveCopyFromDeadLocal
   }
 };
 
-// Any other payload copy is a real copy: ciphertexts use CHEDDAR's deep copy,
-// the other payload types have none.
+// Any other payload copy is a real copy: ciphertexts use CHEDDAR's deep
+// copy, the other payload types have none.
 struct ConvertPayloadCopy : public OpConversionPattern<mlir::memref::CopyOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -967,7 +1199,7 @@ struct ConvertPayloadCopy : public OpConversionPattern<mlir::memref::CopyOp> {
       ConversionPatternRewriter& rewriter) const override {
     auto sourceType = cast<MemRefType>(op.getSource().getType());
     Type elementType = sourceType.getElementType();
-    if (payloadTypeName(elementType).empty()) return failure();
+    if (opaqueBufferElementName(elementType).empty()) return failure();
     if (op.getSource() == op.getTarget()) {
       rewriter.eraseOp(op);
       return success();
@@ -992,7 +1224,8 @@ struct ConvertPayloadCopy : public OpConversionPattern<mlir::memref::CopyOp> {
     }
     if (!context)
       return op.emitOpError(
-          "cannot deep-copy a Cheddar ciphertext without a context argument");
+          "cannot deep-copy a Cheddar ciphertext without a context "
+          "argument");
 
     if (sourceType.getRank() == 1) {
       markDestination(
@@ -1025,7 +1258,8 @@ struct ConvertStoreArray : public OpConversionPattern<mlir::memref::StoreOp> {
     Type elt =
         getTypeConverter()->convertType(op.getMemRefType().getElementType());
     if (!elt) return failure();
-    // Rank-0: the payload lvalue itself; a primitive pointer still subscripts.
+    // Rank-0: the payload lvalue itself; a primitive pointer still
+    // subscripts.
     if (!isPointer && adaptor.getIndices().empty()) {
       if (isa<emitc::LValueType>(baseTy) && isa<emitc::OpaqueType>(elt)) {
         markDestination(
@@ -1113,8 +1347,8 @@ struct ConvertPayloadCast : public OpConversionPattern<mlir::memref::CastOp> {
   }
 };
 
-// memref.subview producing a contiguous cleartext slice -> pointer arithmetic
-// using the source memref's actual static strides.
+// memref.subview producing a contiguous cleartext slice -> pointer
+// arithmetic using the source memref's actual static strides.
 struct ConvertSubViewToPointer
     : public OpConversionPattern<mlir::memref::SubViewOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -1206,9 +1440,9 @@ bool isPositiveZeroSplat(Attribute attr) {
   return false;
 }
 
-// Upstream ConvertGlobal, minus its rejection of the `alignment` attribute that
-// bufferized constants carry; the global is C-array storage behind the flat
-// pointer handle.
+// Upstream ConvertGlobal, minus its rejection of the `alignment` attribute
+// that bufferized constants carry; the global is C-array storage behind the
+// flat pointer handle.
 struct ConvertGlobalDropAlign
     : public OpConversionPattern<mlir::memref::GlobalOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -1304,8 +1538,8 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
     MLIRContext* ctx = patterns.getContext();
     addCheddarEmitCTypeConversions(typeConverter, ctx);
 
-    // Keep func.func; convert only its signature (checking body legality here
-    // would be circular).
+    // Keep func.func; convert only its signature (checking body legality
+    // here would be circular).
     populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(
         patterns, typeConverter);
     target.addDynamicallyLegalOp<func::FuncOp>(
@@ -1329,7 +1563,8 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
     target.addIllegalDialect<arith::ArithDialect>();
     target.addDynamicallyLegalDialect<mlir::memref::MemRefDialect>(
         [&typeConverter](Operation* op) { return typeConverter.isLegal(op); });
-    // memref.global has no operands/results, so isLegal() would always pass.
+    // memref.global has no operands/results, so isLegal() would always
+    // pass.
     target.addIllegalOp<mlir::memref::GlobalOp>();
     target.addIllegalOp<preprocessing::LoadResourceOp>();
 
@@ -1349,6 +1584,8 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
                  ConvertCreateBootContext, ConvertPrepareBootstrap,
                  ConvertEncode, ConvertEncodeConstant, ConvertDecode,
                  ConvertHRot, ConvertHRotAdd, ConvertHConj, ConvertHConjAdd,
+                 ConvertLinearTransform, ConvertPrepareLinearTransform,
+                 ConvertApplyPreparedLinearTransform, ConvertEvalPoly,
                  ConvertGetEvkMap>(typeConverter, ctx);
     patterns.add<ConvertRuntimeAccessor<cheddar::GetEncoderOp>>(
         typeConverter, ctx, "heir::getEncoder");
@@ -1396,7 +1633,11 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
 
 // Scalar payload argument: `T&` (written) / `const T&` (read-only). Payload
 // array argument: stays an `emitc.array` of `T` (printed `T name[N]`) when
-// written, becomes an `emitc.array` of `const T` when read-only.
+// written, becomes an `emitc.array` of `const T` when read-only. The
+// non-copyable handle types (Encoder, EvkMap, EvaluationKey) are `const T&`.
+// array argument: stays an `emitc.array` (printed `T name[N]`) when
+// written; a read-only rank-1 one becomes `const T* const` (an
+// `emitc.opaque` may not end in `*`, and `emitc.ptr` cannot carry const).
 Type referenceArgType(MLIRContext* ctx, Type converted, bool written) {
   if (isPayloadArray(converted)) {
     if (written) return {};
@@ -1418,8 +1659,8 @@ Type referenceArgType(MLIRContext* ctx, Type converted, bool written) {
   return {};
 }
 
-// Is `root` (or a subscript/cast of it) a marked destination, or passed to a
-// written callee argument?
+// Is `root` (or a subscript/cast of it) a marked destination, or passed to
+// a written callee argument?
 bool valueWrittenAsDest(
     Value root,
     const llvm::StringMap<SmallVector<bool>>& writtenFunctionArguments) {
