@@ -47,6 +47,7 @@ cc_library(
         ":dialect_inc_gen",
         ":types_inc_gen",
         "@heir//lib/Dialect:HEIRInterfaces",
+        "@llvm-project//llvm:Support",
         "@llvm-project//mlir:IR",
     ],
 )

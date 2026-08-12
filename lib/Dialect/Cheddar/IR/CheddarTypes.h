@@ -20,6 +20,9 @@ namespace cheddar {
 // type, or after EmitC conversion from a C++ type name.
 constexpr ::llvm::StringLiteral kSupportArgAttrName = "cheddar.support";
 
+// The support kind of `type`, or empty when it is not a support type.
+::llvm::StringRef getSupportKind(::mlir::Type type);
+
 }  // namespace cheddar
 }  // namespace heir
 }  // namespace mlir
