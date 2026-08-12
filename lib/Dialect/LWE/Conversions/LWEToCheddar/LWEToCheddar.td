@@ -15,10 +15,6 @@ def LWEToCheddar : Pass<"lwe-to-cheddar"> {
     pattern as the LWE-to-Lattigo pass. Rotation and conjugation keys are not
     threaded individually: the `cheddar-to-emitc` lowering reads them off the
     evaluation-key map at the use site.
-
-    Linear transforms are intentionally not lowered by this pass. They must be
-    decomposed before conversion until the separate Cheddar linear-transform
-    support is available.
   }];
 
   let dependentDialects = [
@@ -27,6 +23,11 @@ def LWEToCheddar : Pass<"lwe-to-cheddar"> {
     "mlir::heir::lwe::LWEDialect",
     "mlir::tensor::TensorDialect",
     "mlir::bufferization::BufferizationDialect",
+  ];
+
+  let options = [
+    Option<"enableMinKs", "enable-min-ks", "bool", "true",
+           "Use scale-snu's minimum-key-switch linear-transform evaluation">
   ];
 }
 

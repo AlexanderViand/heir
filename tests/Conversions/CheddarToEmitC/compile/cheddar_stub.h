@@ -16,6 +16,22 @@ namespace cheddar {
 
 using Complex = std::complex<double>;
 
+template <typename word>
+class Context;
+
+// Number-of-primes info a ciphertext carries; the EvalPoly emitter maps it back
+// to a level via Parameter::NPToLevel.
+struct NPInfo {
+  int num_main_ = 0;
+};
+
+template <typename word>
+struct Parameter {
+  double GetScale(int level) const;
+  double GetRescalePrimeProd(int level) const;
+  int NPToLevel(NPInfo np) const;
+};
+
 // The encoder exposes the per-level canonical scale.
 template <typename word>
 struct Encoder {
@@ -31,6 +47,8 @@ struct Ciphertext {
   Ciphertext& operator=(Ciphertext&&) = default;
   Ciphertext(const Ciphertext&) = delete;
   Ciphertext& operator=(const Ciphertext&) = delete;
+  double GetScale() const;
+  NPInfo GetNP() const;
 };
 template <typename word>
 struct Plaintext {
@@ -68,6 +86,29 @@ struct EvkMap {
   const EvaluationKey<word>& GetRotationKey(int) const;
   const EvaluationKey<word>& GetConjugationKey() const;
   const EvaluationKey<word>& GetMultiplicationKey() const;
+};
+
+class StripedMatrix {
+ public:
+  StripedMatrix(int rows, int columns);
+  std::vector<Complex>& operator[](int diagonal);
+};
+
+template <typename word>
+class LinearTransform {
+ public:
+  LinearTransform(std::shared_ptr<const Context<word>> context,
+                  const StripedMatrix& matrix, int level, double scale, int bs,
+                  int gs);
+#ifdef HEIR_CYCLOPS_STUB
+  void Evaluate(std::shared_ptr<const Context<word>> context,
+                Ciphertext<word>& result, const Ciphertext<word>& input,
+                const EvkMap<word>& evk_map) const;
+#else
+  void Evaluate(std::shared_ptr<const Context<word>> context,
+                Ciphertext<word>& result, const Ciphertext<word>& input,
+                const EvkMap<word>& evk_map, bool min_ks = false) const;
+#endif
 };
 
 template <typename word>
@@ -123,12 +164,26 @@ class Context {
   // In-place: `res` is a non-const reference.
   void MadUnsafe(Ct& res, const Ct& a, const Const& b) const;
 
+  Parameter<word> param_;
   Encoder<word> encoder_;
 };
 
 // ConstContextPtr is a non-owning shared_ptr aliased onto the raw Context*.
 template <typename word>
 using ConstContextPtr = std::shared_ptr<const Context<word>>;
+
+// CHEDDAR's EvalPoly extension: construct from coefficients, Compile(), then
+// Evaluate() with the multiplication key.
+template <typename word>
+class EvalPoly {
+ public:
+  EvalPoly(const std::vector<double>& coefficients, int input_level,
+           double input_scale, double target_scale, bool chebyshev = false);
+  void Compile(ConstContextPtr<word> context);
+  void Evaluate(ConstContextPtr<word> context, Ciphertext<word>& res,
+                const Ciphertext<word>& input,
+                const EvaluationKey<word>& mult_key) const;
+};
 
 // Boot lives on BootContext, not Context.
 template <typename word>
