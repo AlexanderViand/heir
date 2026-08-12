@@ -387,14 +387,15 @@ func.func @test_linear_transform(
     %ctx: !cheddar.context,
     %ct: tensor<!cheddar.ciphertext>,
     %evk: !cheddar.evk_map,
-    %diags: tensor<2x4xf64>,
+    %diags: tensor<4x4xf64>,
     %out: tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext> {
   // CHECK: cheddar.linear_transform
   // CHECK-SAME: bs = 2
   // CHECK-SAME: diagonal_indices = array<i32: 0, 1>
   // CHECK-SAME: gs = 1
   // CHECK-SAME: level = 5
-  %result = cheddar.linear_transform %ctx, %ct, %evk, %diags, %out {diagonal_indices = array<i32: 0, 1>, level = 5 : i64, bs = 2 : i64, gs = 1 : i64} : (!cheddar.context, tensor<!cheddar.ciphertext>, !cheddar.evk_map, tensor<2x4xf64>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
+  // CHECK-SAME: source_row_indices = array<i32: 1, 3>
+  %result = cheddar.linear_transform %ctx, %ct, %evk, %diags, %out {diagonal_indices = array<i32: 0, 1>, source_row_indices = array<i32: 1, 3>, level = 5 : i64, bs = 2 : i64, gs = 1 : i64} : (!cheddar.context, tensor<!cheddar.ciphertext>, !cheddar.evk_map, tensor<4x4xf64>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
   return %result : tensor<!cheddar.ciphertext>
 }
 

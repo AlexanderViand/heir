@@ -28,6 +28,11 @@ def LWEToCheddar : Pass<"lwe-to-cheddar"> {
     "mlir::tensor::TensorDialect",
     "mlir::bufferization::BufferizationDialect",
   ];
+
+  let options = [
+    Option<"enableMinKs", "enable-min-ks", "bool", "true",
+           "Use scale-snu's minimum-key-switch linear-transform evaluation">
+  ];
 }
 
 #endif  // LIB_DIALECT_LWE_CONVERSIONS_LWETOCHEDDAR_LWETOCHEDDAR_TD_

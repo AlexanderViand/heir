@@ -117,9 +117,18 @@ int EvalChebyshevOp::getLevelsToDrop() {
 
   int baseDepth = 0;
   uint32_t degree = coefficients.size() - 1;
+  if (backend == BackendName::Cheddar) {
+    while (degree > 0 &&
+           std::abs(cast<FloatAttr>(coefficients[degree]).getValueAsDouble()) <
+               1e-9)
+      --degree;
+  }
   switch (backend) {
     case BackendName::Lattigo:
       baseDepth = lattigoChebyshevDepth(degree);
+      break;
+    case BackendName::Cheddar:
+      baseDepth = std::bit_width(static_cast<uint64_t>(degree));
       break;
     case BackendName::OpenFHE:
       if (degree == 0) {
@@ -258,6 +267,15 @@ LogicalResult PrepareLinearTransformOp::verify() {
 LogicalResult ApplyLinearTransformOp::verify() {
   PreparedLinearTransformType preparedType = getPrepared().getType();
 
+  if (static_cast<bool>(getDiagonalIndicesAttr()) !=
+      static_cast<bool>(getDiagonalWidthAttr())) {
+    return emitOpError(
+        "diagonal_indices and diagonal_width must be specified together");
+  }
+  if (auto width = getDiagonalWidthAttr(); width && width.getInt() <= 0) {
+    return emitOpError("diagonal_width must be positive");
+  }
+
   // A wrong level would silently evaluate a wrongly-scaled transform, so
   // require the prepared level to match the ciphertext exactly.
   std::optional<int64_t> inputLevel = getInputLevel(getInput().getType());
@@ -296,10 +314,10 @@ LogicalResult LinearTransformOp::verify() {
       auto ring = plaintextSpace.getRing();
       slotsPerCiphertext =
           ring.getPolynomialModulus().getPolynomial().getDegree();
-      if (isa<lwe::InverseCanonicalEncodingAttr>(
-              plaintextSpace.getEncoding())) {
-        slotsPerCiphertext /= 2;
-      }
+      // HEIR's CKKS packed message tensor is already sized in logical complex
+      // slots. The RLWE polynomial modulus carried by this type uses that
+      // logical slot degree, so halving it again rejects correctly packed
+      // kernel transforms after SecretToCKKS.
     }
 
     if (inputRankedType.getRank() == 1) {

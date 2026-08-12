@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "lib/Dialect/HEIRInterfaces.h"
+#include "lib/Dialect/Kernel/IR/KernelOps.h"
 #include "lib/Dialect/LWE/IR/LWETypes.h"
 #include "lib/Dialect/ModuleAttributes.h"
 #include "lib/Dialect/Preprocessing/IR/PreprocessingOps.h"
@@ -105,8 +106,10 @@ static SetVector<Operation*> computeDependenciesToClone(
 
 struct PreprocessingAnalysis {
   SmallVector<Operation*> encodeOps;
+  SmallVector<Operation*> preprocessingRoots;
   SetVector<Value> inputs;
   SetVector<Operation*> opsToClone;
+  bool hasLinearTransforms = false;
 };
 
 // Encode ops can be elementwise-mappable, so if we're encoding a tensor we need
@@ -242,7 +245,7 @@ struct SplitPreprocessingPass
 
   void convertFunc(FuncOp funcOp) {
     PreprocessingAnalysis analysis = analyzePreprocessing(funcOp);
-    if (analysis.encodeOps.empty()) {
+    if (analysis.preprocessingRoots.empty() && !analysis.hasLinearTransforms) {
       return;
     }
 
@@ -609,14 +612,23 @@ struct SplitPreprocessingPass
     funcOp.walk<WalkOrder::PreOrder>([&](Operation* op) {
       if (isa<PlaintextEncodeOpInterface>(op)) {
         analysis.encodeOps.push_back(op);
+        analysis.preprocessingRoots.push_back(op);
+      }
+      if (auto linearTransform = dyn_cast<kernel::LinearTransformOp>(op)) {
+        analysis.hasLinearTransforms = true;
+        if (Operation* root = linearTransform.getDiagonals().getDefiningOp()) {
+          analysis.preprocessingRoots.push_back(root);
+        } else {
+          analysis.inputs.insert(linearTransform.getDiagonals());
+        }
       }
     });
-    if (analysis.encodeOps.empty()) {
+    if (analysis.preprocessingRoots.empty() && !analysis.hasLinearTransforms) {
       return analysis;
     }
 
     analysis.opsToClone =
-        computeDependenciesToClone(analysis.encodeOps, funcOp);
+        computeDependenciesToClone(analysis.preprocessingRoots, funcOp);
 
     // Gather any required block arguments for inputs. These are all expected to
     // be args of the func.func, but we filter out Ciphertext types.
@@ -645,6 +657,15 @@ struct SplitPreprocessingPass
 
         analysis.inputs.insert(arg);
       }
+    }
+
+    // Constant-only linear transforms are handled by the backend's prepared
+    // transform pass directly. Splitting them here would manufacture an empty
+    // preprocessing.storage value that storage-lowering correctly rejects.
+    if (analysis.encodeOps.empty() && analysis.inputs.empty()) {
+      analysis.preprocessingRoots.clear();
+      analysis.opsToClone.clear();
+      analysis.hasLinearTransforms = false;
     }
 
     return analysis;

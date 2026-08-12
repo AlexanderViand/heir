@@ -738,6 +738,15 @@ CheddarBackendPipelineBuilder toCheddarPipelineBuilder() {
     pm.addPass(lwe::createAddDebugPort(debugOptions));
 
     pm.addPass(lwe::createLWEToCheddar());
+    // Run generic externalization after target lowering so packed constants
+    // materialized by kernel-to-Cheddar conversions are included as well.
+    if (!extConstOutputDir.empty()) {
+      ExternalizeConstantsOptions extConstOptions;
+      extConstOptions.outputDir = extConstOutputDir;
+      extConstOptions.runtimeLoadDir = extConstRuntimeLoadDir;
+      extConstOptions.thresholdElements = extConstThreshold;
+      pm.addPass(createExternalizeConstants(extConstOptions));
+    }
     pm.addPass(preprocessing::createPreprocessingToCheddar());
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
