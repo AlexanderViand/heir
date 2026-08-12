@@ -1,0 +1,45 @@
+// RUN: heir-opt --lwe-to-cheddar %s | FileCheck %s
+
+#enc = #lwe.inverse_canonical_encoding<scaling_factor = 45>
+#key = #lwe.key<>
+#chain_in = #lwe.modulus_chain<elements = <36028797018652673 : i64, 35184372121601 : i64>, current = 1>
+#chain_out = #lwe.modulus_chain<elements = <36028797018652673 : i64, 35184372121601 : i64>, current = 0>
+#rf = #polynomial.ring<coefficientType = f64, polynomialModulus = <1 + x**1024>>
+!rns_in = !rns.rns<!mod_arith.int<36028797018652673 : i64>, !mod_arith.int<35184372121601 : i64>>
+!rns_out = !rns.rns<!mod_arith.int<36028797018652673 : i64>>
+#rr_in = #polynomial.ring<coefficientType = !rns_in, polynomialModulus = <1 + x**1024>>
+#rr_out = #polynomial.ring<coefficientType = !rns_out, polynomialModulus = <1 + x**1024>>
+#cs_in = #lwe.ciphertext_space<ring = #rr_in, encryption_type = mix>
+#cs_out = #lwe.ciphertext_space<ring = #rr_out, encryption_type = mix>
+!ct_in = !lwe.lwe_ciphertext<plaintext_space = <ring = #rf, encoding = #enc>, ciphertext_space = #cs_in, key = #key, modulus_chain = #chain_in>
+!ct_out = !lwe.lwe_ciphertext<plaintext_space = <ring = #rf, encoding = #enc>, ciphertext_space = #cs_out, key = #key, modulus_chain = #chain_out>
+
+module attributes {backend.cheddar, ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [36028797018652673, 35184372121601], P = [1152921504606994433], logDefaultScale = 45, encryptionTechnique = extended>, scheme.ckks} {
+  // CHECK: func.func @linear_transform
+  // CHECK: arith.constant dense<
+  // CHECK: cheddar.linear_transform
+  // CHECK-SAME: bs = 4 : i64
+  // CHECK-SAME: diagonal_indices = array<i32: 0, 1, 3>
+  // CHECK-SAME: gs = 1 : i64
+  // CHECK-SAME: level = 1 : i64
+  func.func @linear_transform(%ct: !ct_in) -> !ct_out {
+    %diagonals = arith.constant dense<1.0> : tensor<3x8xf64>
+    %0 = kernel.linear_transform %ct, %diagonals {diagonal_indices = array<i64: 0, 1, 3>} : !ct_in, tensor<3x8xf64> -> !ct_out
+    return %0 : !ct_out
+  }
+
+  // Complete baby- and giant-step progressions select scale-snu's minimum-key
+  // switch path and plan only the two progression-stride keys.
+  // CHECK: func.func @linear_transform_min_ks
+  // CHECK: cheddar.linear_transform
+  // CHECK-SAME: bs = 4 : i64
+  // CHECK-SAME: diagonal_indices = array<i32: 0, 1, 2, 3, 4, 5, 6, 7>
+  // CHECK-SAME: gs = 2 : i64
+  // CHECK-SAME: level = 1 : i64
+  // CHECK-SAME: min_ks = true
+  func.func @linear_transform_min_ks(%ct: !ct_in) -> !ct_out {
+    %diagonals = arith.constant dense<1.0> : tensor<8x8xf64>
+    %0 = kernel.linear_transform %ct, %diagonals {diagonal_indices = array<i64: 0, 1, 2, 3, 4, 5, 6, 7>} : !ct_in, tensor<8x8xf64> -> !ct_out
+    return %0 : !ct_out
+  }
+}

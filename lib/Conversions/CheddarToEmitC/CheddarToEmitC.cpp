@@ -83,6 +83,15 @@ std::string payloadTypeName(Type t) {
   return "";
 }
 
+// Opaque C++ element types that need lvalue/std::array buffer storage.
+std::string opaqueBufferElementName(Type t) {
+  std::string p = payloadTypeName(t);
+  if (!p.empty()) return p;
+  if (isa<cheddar::LinearTransformType>(t))
+    return "std::shared_ptr<cheddar::LinearTransform<word>>";
+  return "";
+}
+
 // Build the (nested) `std::array` C++ type for a buffer shape + element name.
 // shape [1, 1024], elt "float" -> "std::array<std::array<float, 1024>, 1>".
 std::string stdArrayName(ArrayRef<int64_t> shape, StringRef elt) {
@@ -104,6 +113,8 @@ std::string owningHandleTypeName(Type t) {
     return "std::shared_ptr<BootContext<word>>";
   if (isa<cheddar::UserInterfaceType>(t))
     return "std::unique_ptr<UserInterface<word>>";
+  if (isa<cheddar::LinearTransformType>(t))
+    return "std::shared_ptr<cheddar::LinearTransform<word>>";
   return "";
 }
 
@@ -260,6 +271,10 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
   tc.addConversion([ctx](cheddar::ConstantType) -> Type {
     return OpaqueType::get(ctx, "Constant<word>");
   });
+  tc.addConversion([ctx](cheddar::LinearTransformType) -> Type {
+    return OpaqueType::get(ctx,
+                           "std::shared_ptr<cheddar::LinearTransform<word>>");
+  });
   tc.addConversion(
       [ctx](IndexType) -> Type { return emitc::SizeTType::get(ctx); });
   // Bufferized buffers split by element kind:
@@ -287,19 +302,21 @@ void addCheddarEmitCTypeConversions(TypeConverter& tc, MLIRContext* ctx) {
       if (!owning.empty())
         return Type(LValueType::get(OpaqueType::get(ctx, owning)));
     }
-    std::string payloadName = payloadTypeName(eltType);
-    bool payload = !payloadName.empty();
-    if (!payload && !isa<FloatType, IntegerType>(eltType)) return std::nullopt;
+    std::string opaqueName = opaqueBufferElementName(eltType);
+    bool opaqueElement = !opaqueName.empty();
+    if (!opaqueElement && !isa<FloatType, IntegerType>(eltType))
+      return std::nullopt;
     if (type.getRank() == 0) {
-      if (payload) return Type(LValueType::get(OpaqueType::get(ctx, elt)));
+      if (opaqueElement)
+        return Type(LValueType::get(OpaqueType::get(ctx, opaqueName)));
       return Type(emitc::PointerType::get(eltType));
     }
-    if (payload) {
+    if (opaqueElement) {
       if (!type.hasStaticShape() || llvm::is_contained(type.getShape(), 0))
         return Type();
       if (!memref::isStaticShapeAndContiguousRowMajor(type)) return Type();
       return Type(LValueType::get(
-          OpaqueType::get(ctx, stdArrayName(type.getShape(), payloadName))));
+          OpaqueType::get(ctx, stdArrayName(type.getShape(), opaqueName))));
     }
     if (!type.hasStaticShape() || llvm::is_contained(type.getShape(), 0) ||
         !memref::isStaticShapeAndContiguousRowMajor(type))
@@ -708,6 +725,134 @@ struct ConvertHConjAdd : public OpConversionPattern<cheddar::HConjAddOp> {
             ValueRange{adaptor.getCtx(), adaptor.getOutput(),
                        adaptor.getInput(), adaptor.getAddend(), ui}),
         1);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+static void emitLinearTransformPreamble(OpBuilder& builder, Location loc,
+                                        Value ctx, Value diagonals,
+                                        ShapedType diagonalsType,
+                                        DenseI32ArrayAttr diagonalIndices) {
+  int64_t height = diagonalsType.getDimSize(0);
+  int64_t width = diagonalsType.getDimSize(1);
+  VerbatimOp::create(builder, loc, "{", ValueRange{});
+  VerbatimOp::create(
+      builder, loc,
+      "ConstContextPtr<word> _lt_cp(ConstContextPtr<word>(), {});",
+      ValueRange{ctx});
+  VerbatimOp::create(builder, loc,
+                     "cheddar::StripedMatrix _lt_matrix(" +
+                         std::to_string(width) + ", " + std::to_string(width) +
+                         ");",
+                     ValueRange{});
+  for (int64_t row = 0; row < height; ++row) {
+    int32_t index = diagonalIndices.asArrayRef()[row];
+    VerbatimOp::create(builder, loc,
+                       "_lt_matrix[" + std::to_string(index) +
+                           "] = std::vector<Complex>(&{}[" +
+                           std::to_string(row) + "][0], &{}[" +
+                           std::to_string(row) + "][0] + " +
+                           std::to_string(width) + ");",
+                       ValueRange{diagonals, diagonals});
+  }
+}
+
+static std::string linearTransformPayloadRef(Type type) {
+  auto shaped = dyn_cast<ShapedType>(type);
+  return shaped && shaped.hasStaticShape() && shaped.getRank() > 0 &&
+                 shaped.getNumElements() == 1
+             ? "{}[0]"
+             : "{}";
+}
+
+// Direct scale-snu LinearTransform lowering. A later optimization moves this
+// construction into split preprocessing so model evaluations can reuse it.
+struct ConvertLinearTransform
+    : public OpConversionPattern<cheddar::LinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::LinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto diagonalsType = cast<ShapedType>(op.getDiagonals().getType());
+    Location loc = op.getLoc();
+    Value ctx = adaptor.getCtx();
+    emitLinearTransformPreamble(rewriter, loc, ctx, adaptor.getDiagonals(),
+                                diagonalsType, op.getDiagonalIndicesAttr());
+    VerbatimOp::create(
+        rewriter, loc,
+        "cheddar::LinearTransform<word> _lt(_lt_cp, _lt_matrix, " +
+            intLit(op.getLevelAttr()) + ", {}->param_.GetScale(" +
+            intLit(op.getLevelAttr()) + "), " + intLit(op.getBsAttr()) + ", " +
+            intLit(op.getGsAttr()) + ");",
+        ValueRange{ctx});
+    std::string minKs = op.getMinKs() ? "true" : "false";
+    markDestination(
+        VerbatimOp::create(
+            rewriter, loc,
+            "_lt.Evaluate(_lt_cp, " +
+                linearTransformPayloadRef(op.getOutput().getType()) + ", " +
+                linearTransformPayloadRef(op.getInput().getType()) + ", {}, " +
+                minKs + ");",
+            ValueRange{adaptor.getOutput(), adaptor.getInput(),
+                       adaptor.getEvkMap()}),
+        0);
+    VerbatimOp::create(rewriter, loc, "}", ValueRange{});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertPrepareLinearTransform
+    : public OpConversionPattern<cheddar::PrepareLinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::PrepareLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto diagonalsType = cast<ShapedType>(op.getDiagonals().getType());
+    Location loc = op.getLoc();
+    Value ctx = adaptor.getCtx();
+    emitLinearTransformPreamble(rewriter, loc, ctx, adaptor.getDiagonals(),
+                                diagonalsType, op.getDiagonalIndicesAttr());
+    markDestination(
+        VerbatimOp::create(
+            rewriter, loc,
+            "{} = std::make_shared<cheddar::LinearTransform<word>>("
+            "_lt_cp, _lt_matrix, " +
+                intLit(op.getLevelAttr()) + ", {}->param_.GetScale(" +
+                intLit(op.getLevelAttr()) + "), " + intLit(op.getBsAttr()) +
+                ", " + intLit(op.getGsAttr()) + ");",
+            ValueRange{adaptor.getOutput(), ctx}),
+        0);
+    VerbatimOp::create(rewriter, loc, "}", ValueRange{});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertApplyPreparedLinearTransform
+    : public OpConversionPattern<cheddar::ApplyPreparedLinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::ApplyPreparedLinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    VerbatimOp::create(rewriter, op.getLoc(), "{", ValueRange{});
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        "ConstContextPtr<word> _lt_cp(ConstContextPtr<word>(), {});",
+        ValueRange{adaptor.getCtx()});
+    std::string minKs = op.getMinKs() ? "true" : "false";
+    markDestination(
+        VerbatimOp::create(
+            rewriter, op.getLoc(),
+            "{}->Evaluate(_lt_cp, " +
+                linearTransformPayloadRef(op.getOutput().getType()) + ", " +
+                linearTransformPayloadRef(op.getInput().getType()) + ", {}, " +
+                minKs + ");",
+            ValueRange{adaptor.getTransform(), adaptor.getOutput(),
+                       adaptor.getInput(), adaptor.getEvkMap()}),
+        1);
+    VerbatimOp::create(rewriter, op.getLoc(), "}", ValueRange{});
     rewriter.eraseOp(op);
     return success();
   }
@@ -1519,12 +1664,13 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
                                                           /*benefit=*/3);
     patterns.add<ConvertCiphertextCopy>(typeConverter, ctx, /*benefit=*/3);
 
-    patterns
-        .add<ConvertMakeParameter, ConvertPrepareRotKey,
-             ConvertCreateBootContext, ConvertPrepareBootstrap, ConvertEncode,
-             ConvertEncodeConstant, ConvertDecode, ConvertHRot, ConvertHRotAdd,
-             ConvertHConj, ConvertHConjAdd, ConvertEvalPoly>(typeConverter,
-                                                             ctx);
+    patterns.add<ConvertMakeParameter, ConvertPrepareRotKey,
+                 ConvertCreateBootContext, ConvertPrepareBootstrap,
+                 ConvertEncode, ConvertEncodeConstant, ConvertDecode,
+                 ConvertHRot, ConvertHRotAdd, ConvertHConj, ConvertHConjAdd,
+                 ConvertLinearTransform, ConvertPrepareLinearTransform,
+                 ConvertApplyPreparedLinearTransform, ConvertEvalPoly>(
+        typeConverter, ctx);
     patterns.add<ConvertSetupAssign<cheddar::CreateContextOp>>(
         typeConverter, ctx, "Context<word>::Create");
     patterns.add<ConvertSetupAssign<cheddar::CreateUserInterfaceOp>>(

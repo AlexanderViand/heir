@@ -21,7 +21,10 @@ module attributes {
     ^body(%input: tensor<4xf32>):
       // CHECK: kernel.linear_transform
       // CHECK-SAME: diagonal_indices = array<i64: 0, 1, 2, 3>
-      // CHECK-SAME: diagonals = dense<{{\[\[}}1.000000e+00, 6.000000e+00, 0.000000e+00, 0.000000e+00], [2.000000e+00, 7.000000e+00, 0.000000e+00, 0.000000e+00], [3.000000e+00, 8.000000e+00, 0.000000e+00, 0.000000e+00], [4.000000e+00, 5.000000e+00, 0.000000e+00, 0.000000e+00]]> : tensor<4x4xf32>
+      // CHECK-SAME: tensor<4x4xf32> -> tensor<1x4xf32>
+      // Squat 2x4 packing requires one post-transform half-width reduction.
+      // CHECK: tensor_ext.rotate
+      // CHECK: arith.addf
       %3 = linalg.matvec {
         secret.kernel = #secret.kernel<name = "MatvecDiagonal", force = false>,
         tensor_ext.layout = #tensor_ext.layout<"{ [i0] -> [ct, slot] : ct = 0 and slot = i0 and 0 <= i0 <= 1 and 0 <= slot <= 3 }">

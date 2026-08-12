@@ -41,7 +41,6 @@ def Kernel_EvalChebyshevOp : Kernel_Op<"eval_chebyshev", [
 def Kernel_LinearTransformOp : Kernel_Op<"linear_transform", [
   Pure,
   DeclareOpInterfaceMethods<ReducesLevelOpInterface, ["getLevelsToDrop", "getOperandsToReduce"]>,
-  ElementwiseMappable,
   IncreasesMulDepthOpInterface
 ]> {
   let summary = "Performs a linear transform (matrix-vector multiplication) on a ciphertext.";
@@ -51,7 +50,7 @@ def Kernel_LinearTransformOp : Kernel_Op<"linear_transform", [
 
   let arguments = (ins
     AnyType:$input,
-    ElementsAttr:$diagonals,
+    AnyType:$diagonals,
     DenseI64ArrayAttr:$diagonal_indices,
     OptionalAttr<F64Attr>:$bsgs_ratio
   );
@@ -60,7 +59,7 @@ def Kernel_LinearTransformOp : Kernel_Op<"linear_transform", [
     AnyType:$output
   );
 
-  let assemblyFormat = "$input attr-dict `:` type($input) `->` type($output)";
+  let assemblyFormat = "$input `,` $diagonals attr-dict `:` type($input) `,` type($diagonals) `->` type($output)";
   let hasVerifier = 1;
 }
 

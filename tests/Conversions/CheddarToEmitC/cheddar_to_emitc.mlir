@@ -18,6 +18,7 @@
 !user_interface = !cheddar.user_interface
 !parameter = !cheddar.parameter
 !boot_context = !cheddar.boot_context
+!linear_transform = !cheddar.linear_transform
 
 // CHECK: func.func @configure
 // CHECK-SAME: !emitc.opaque<"std::shared_ptr<Context<word>>&">
@@ -213,4 +214,35 @@ func.func @eval_poly(%ctx: !context, %enc: !encoder, %ct: tensor<!ciphertext>, %
   %d0 = tensor.empty() : tensor<!ciphertext>
   %r = cheddar.eval_poly %ctx, %ct, %evk, %d0 {coefficients = [1.0 : f64, 2.0 : f64, 3.0 : f64], levelConsumption = 2 : i64} : (!context, tensor<!ciphertext>, !evk_map, tensor<!ciphertext>) -> tensor<!ciphertext>
   return %r : tensor<!ciphertext>
+}
+
+// scale-snu evaluates a single ciphertext, while HEIR represents ciphertext
+// payloads as one-element tensors. Both direct and prepared transforms must
+// therefore pass the array element, not the std::array itself.
+// CHECK: func.func @linear_transform
+// CHECK: emitc.verbatim "_lt.Evaluate(_lt_cp, {}[0], {}[0], {}, false);"
+func.func @linear_transform(
+    %ctx: !context, %ct: tensor<1x!ciphertext>, %evk: !evk_map,
+    %diagonals: tensor<2x4xf64>) -> tensor<1x!ciphertext> {
+  %out = tensor.empty() : tensor<1x!ciphertext>
+  %result = cheddar.linear_transform %ctx, %ct, %evk, %diagonals, %out
+      {diagonal_indices = array<i32: 0, 1>, level = 1 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<1x!ciphertext>, !evk_map, tensor<2x4xf64>,
+         tensor<1x!ciphertext>) -> tensor<1x!ciphertext>
+  return %result : tensor<1x!ciphertext>
+}
+
+// CHECK: func.func @apply_prepared_linear_transform
+// CHECK: emitc.verbatim "{}->Evaluate(_lt_cp, {}[0], {}[0], {}, false);"
+func.func @apply_prepared_linear_transform(
+    %ctx: !context, %ct: tensor<1x!ciphertext>, %evk: !evk_map,
+    %transform: tensor<!linear_transform>) -> tensor<1x!ciphertext> {
+  %out = tensor.empty() : tensor<1x!ciphertext>
+  %result = cheddar.apply_prepared_linear_transform
+      %ctx, %ct, %evk, %transform, %out
+      : (!context, tensor<1x!ciphertext>, !evk_map,
+         tensor<!linear_transform>, tensor<1x!ciphertext>)
+      -> tensor<1x!ciphertext>
+  return %result : tensor<1x!ciphertext>
 }

@@ -7,6 +7,7 @@
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
+#include "lib/Dialect/Cheddar/Transforms/PrepareLinearTransforms.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
@@ -717,6 +718,7 @@ BackendPipelineBuilder toCheddarPipelineBuilder() {
     pm.addPass(lwe::createAddDebugPort(debugOptions));
 
     pm.addPass(lwe::createLWEToCheddar());
+    pm.addPass(cheddar::createCheddarPrepareLinearTransforms());
     pm.addPass(preprocessing::createPreprocessingToCheddar());
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());

@@ -307,6 +307,7 @@ struct SecretToCKKS : public impl::SecretToCKKSBase<SecretToCKKS> {
         SecretGenericOpRotateConversion<ckks::RotateOp>,
         SecretGenericPlaintextDivision,
         SecretGenericOpConversion<kernel::EvalChebyshevOp>,
+        SecretGenericOpConversion<kernel::LinearTransformOp>,
         SecretGenericOpLevelReduceConversion<ckks::LevelReduceOp>>(
         typeConverter, context);
 

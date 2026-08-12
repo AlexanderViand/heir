@@ -10,14 +10,14 @@ package(
 )
 
 heir_opt(
-    name = "generated_bootstrap_setup_emitc",
-    src = "@heir//tests/Pipelines/scheme_to_cheddar:bootstrap.mlir",
+    name = "pipeline_eval_chebyshev_emitc",
+    src = "@heir//tests/Examples/common:chebyshev_cube.mlir",
     externalize_constants = False,
-    generated_filename = "generated_bootstrap_setup_emitc.mlir",
+    generated_filename = "pipeline_eval_chebyshev_emitc.mlir",
     pass_flags = [
         "--annotate-module=backend=cheddar scheme=ckks",
-        "--mlir-to-ckks=min-slot-count=8192 greedy-level-budget=6 greedy-bootstrap-waterline=3",
-        "--scheme-to-cheddar=entry-function=bootstrap",
+        "--torch-linalg-to-ckks=min-slot-count=1024",
+        "--scheme-to-cheddar=entry-function=chebyshev_cube",
         "--arith-expand",
         "--lower-affine",
         "--cheddar-bufferize",
@@ -27,6 +27,7 @@ heir_opt(
         "--cse",
         "--canonicalize",
         "--drop-equivalent-buffer-results",
+        "--buffer-results-to-out-params=hoist-static-allocs=true modify-public-functions=true add-result-attr=true",
         "--canonicalize",
         "--convert-to-emitc=filter-dialects=cheddar,arith,scf,memref",
         "--cheddar-emitc-boundary",
@@ -35,16 +36,16 @@ heir_opt(
 )
 
 heir_translate(
-    name = "generated_bootstrap_setup_cpp_raw",
-    src = ":generated_bootstrap_setup_emitc.mlir",
-    generated_filename = "generated_bootstrap_setup_raw.cc",
+    name = "pipeline_eval_chebyshev_cpp_raw",
+    src = ":pipeline_eval_chebyshev_emitc.mlir",
+    generated_filename = "pipeline_eval_chebyshev_raw.cc",
     pass_flags = ["--mlir-to-cpp"],
 )
 
 genrule(
-    name = "generated_bootstrap_setup_lib_src",
-    srcs = [":generated_bootstrap_setup_raw.cc"],
-    outs = ["generated_bootstrap_setup_lib.cc"],
+    name = "pipeline_eval_chebyshev_lib_src",
+    srcs = [":pipeline_eval_chebyshev_raw.cc"],
+    outs = ["pipeline_eval_chebyshev_lib.cc"],
     cmd = """cat > $@ <<'PRELUDE_EOF'
 // AUTO-GENERATED: do not edit.
 #include <array>
@@ -57,28 +58,27 @@ genrule(
 #include "UserInterface.h"
 #include "core/Context.h"
 #include "core/Encode.h"
-#include "core/EvkRequest.h"
 #include "core/Parameter.h"
-#include "extension/BootContext.h"
+#include "extension/EvalPoly.h"
 using namespace cheddar;
 using word = uint64_t;
 using Complex = std::complex<double>;
 PRELUDE_EOF
-cat $(location :generated_bootstrap_setup_raw.cc) >> $@
+cat $(location :pipeline_eval_chebyshev_raw.cc) >> $@
 """,
 )
 
 cc_library(
-    name = "generated_bootstrap_setup_lib",
-    srcs = [":generated_bootstrap_setup_lib_src"],
+    name = "pipeline_eval_chebyshev_lib",
+    srcs = [":pipeline_eval_chebyshev_lib_src"],
     target_compatible_with = requires_cheddar(),
     deps = ["@cheddar"],
 )
 
 cc_test(
-    name = "generated_bootstrap_setup_test",
+    name = "pipeline_eval_chebyshev_test",
     timeout = "long",
-    srcs = ["generated_bootstrap_setup_test.cpp"],
+    srcs = ["pipeline_eval_chebyshev_test.cpp"],
     linkstatic = False,
     tags = [
         "exclusive",
@@ -86,7 +86,7 @@ cc_test(
     ],
     target_compatible_with = requires_cheddar(),
     deps = [
-        ":generated_bootstrap_setup_lib",
+        ":pipeline_eval_chebyshev_lib",
         "@cheddar",
         "@googletest//:gtest_main",
     ],

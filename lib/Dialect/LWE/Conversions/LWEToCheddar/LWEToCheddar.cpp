@@ -1,7 +1,10 @@
 #include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <numeric>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -12,6 +15,7 @@
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/IR/CheddarOps.h"
 #include "lib/Dialect/Cheddar/IR/CheddarTypes.h"
+#include "lib/Dialect/Kernel/IR/KernelOps.h"
 #include "lib/Dialect/LWE/IR/LWEAttributes.h"
 #include "lib/Dialect/LWE/IR/LWEDialect.h"
 #include "lib/Dialect/LWE/IR/LWEOps.h"
@@ -521,6 +525,125 @@ struct ConvertLWEDecodeOp : public OpConversionPattern<lwe::RLWEDecodeOp> {
   }
 };
 
+// kernel.linear_transform -> cheddar.linear_transform. CHEDDAR's bs/gs are
+// actual baby/giant-step counts, not the logarithmic ratio used by Lattigo.
+struct ConvertKernelLinearTransformOp
+    : public OpConversionPattern<kernel::LinearTransformOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      kernel::LinearTransformOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualContext(op.getOperation());
+    if (failed(ctx)) return ctx;
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
+
+    auto inputType = dyn_cast<lwe::LWECiphertextType>(
+        getElementTypeOrSelf(op.getInput().getType()));
+    auto outputType = dyn_cast<lwe::LWECiphertextType>(
+        getElementTypeOrSelf(op.getOutput().getType()));
+    if (!inputType || !inputType.getModulusChain() || !outputType ||
+        !outputType.getModulusChain())
+      return op.emitOpError(
+          "cannot lower to cheddar.linear_transform without input and output "
+          "modulus chains; run CKKS level analysis first");
+    int64_t inputLevel = inputType.getModulusChain().getCurrent();
+    int64_t outputLevel = outputType.getModulusChain().getCurrent();
+    if (inputLevel <= 0)
+      return op.emitOpError(
+          "scale-snu CHEDDAR linear transforms require an input level above "
+          "zero");
+    if (outputLevel != inputLevel - 1)
+      return op.emitOpError(
+                 "scale-snu CHEDDAR linear transforms consume exactly one "
+                 "level; expected output level ")
+             << inputLevel - 1 << " but got " << outputLevel;
+
+    auto diagonalsType = cast<ShapedType>(op.getDiagonals().getType());
+    int64_t width = diagonalsType.getDimSize(1);
+    if (width <= 0)
+      return op.emitOpError("requires a statically known positive width");
+
+    SmallVector<int32_t> indices;
+    indices.reserve(op.getDiagonalIndices().size());
+    int64_t stride = 0;
+    int64_t maxRotation = 0;
+    for (int64_t index : op.getDiagonalIndices()) {
+      int64_t normalized = ((index % width) + width) % width;
+      if (normalized > std::numeric_limits<int32_t>::max())
+        return op.emitOpError("normalized diagonal index does not fit i32: ")
+               << normalized;
+      indices.push_back(static_cast<int32_t>(normalized));
+      stride = std::gcd(stride, normalized);
+      maxRotation = std::max(maxRotation, normalized);
+    }
+    if (indices.size() < 2 || stride == 0)
+      return op.emitOpError(
+          "scale-snu CHEDDAR linear transforms require at least two "
+          "diagonals and one non-zero rotation");
+
+    double ratio = 4.0;
+    if (auto ratioAttr = op.getBsgsRatioAttr()) {
+      ratio = ratioAttr.getValueAsDouble();
+      if (!std::isfinite(ratio) || ratio <= 0)
+        return op.emitOpError("bsgs_ratio must be finite and positive");
+    }
+    int64_t steps = maxRotation / stride + 1;
+    int64_t gs = std::max<int64_t>(
+        1, static_cast<int64_t>(std::ceil(std::sqrt(steps / ratio))));
+    int64_t bs = (steps + gs - 1) / gs;
+
+    auto diagonalIndices = rewriter.getDenseI32ArrayAttr(indices);
+    bool minKs = cheddar::supportsMinKs(diagonalIndices, width, bs, gs);
+
+    Type resultType = typeConverter->convertType(op.getOutput().getType());
+    Value dest =
+        makeReusableDest(rewriter, op.getLoc(), resultType, adaptor.getInput());
+    auto result = cheddar::LinearTransformOp::create(
+        rewriter, op.getLoc(), resultType, ctx.value(), adaptor.getInput(),
+        evkMap.value(), adaptor.getDiagonals(), dest, diagonalIndices,
+        rewriter.getI64IntegerAttr(inputLevel), rewriter.getI64IntegerAttr(bs),
+        rewriter.getI64IntegerAttr(gs), rewriter.getBoolAttr(minKs));
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+};
+
+// kernel.eval_chebyshev -> cheddar.eval_poly. Both operations use Chebyshev
+// coefficients on [-1, 1].
+struct ConvertKernelEvalChebyshevOp
+    : public OpConversionPattern<kernel::EvalChebyshevOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      kernel::EvalChebyshevOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto ctx = getContextualContext(op.getOperation());
+    if (failed(ctx)) return ctx;
+    auto evkMap = getContextualArg<cheddar::EvkMapType>(op.getOperation());
+    if (failed(evkMap)) return evkMap;
+
+    // The kernel op's upstream level interface is the single source of truth
+    // for Chebyshev depth. CKKS level analysis applies the same value to the
+    // ciphertext result type.
+    int64_t requiredLevels = op.getLevelsToDrop();
+    if (requiredLevels < 2)
+      return op.emitOpError(
+          "scale-snu CHEDDAR EvalPoly requires an effective degree of at "
+          "least two");
+    Type resultType = typeConverter->convertType(op.getOutput().getType());
+    Value dest =
+        makeReusableDest(rewriter, op.getLoc(), resultType, adaptor.getInput());
+    auto result = cheddar::EvalPolyOp::create(
+        rewriter, op.getLoc(), resultType, ctx.value(), adaptor.getInput(),
+        evkMap.value(), dest, op.getCoefficientsAttr(),
+        rewriter.getI64IntegerAttr(requiredLevels));
+    rewriter.replaceOp(op, result.getResult());
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Payload packing: scalar-index tensor ops -> rank-reducing slice ops
 //===----------------------------------------------------------------------===//
@@ -862,6 +985,7 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
     target.addLegalDialect<cheddar::CheddarDialect>();
     target.addLegalDialect<bufferization::BufferizationDialect>();
     target.addIllegalDialect<ckks::CKKSDialect, lwe::LWEDialect>();
+    target.addIllegalOp<kernel::LinearTransformOp, kernel::EvalChebyshevOp>();
     // preprocessing.* ops are legal once their plaintext element types have
     // been converted to cheddar's; --preprocessing-to-cheddar lowers them
     // after.
@@ -887,7 +1011,9 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
       bool evk = false;
       f.walk([&](Operation* inner) {
         if (isa<ckks::BootstrapOp>(inner)) boots = true;
-        if (isa<ckks::BootstrapOp>(inner)) evk = true;
+        if (isa<ckks::BootstrapOp, kernel::LinearTransformOp,
+                kernel::EvalChebyshevOp>(inner))
+          evk = true;
       });
       bootstrapsTransitively[f] = boots;
       needsEvkMapTransitively[f] = evk;
@@ -960,6 +1086,8 @@ struct LWEToCheddar : public impl::LWEToCheddarBase<LWEToCheddar> {
         typeConverter, context);
     patterns.add<ConvertLWEEncodeOp, ConvertLWEDecodeOp, ConvertLWEEncryptOp,
                  ConvertLWEDecryptOp>(typeConverter, context);
+    patterns.add<ConvertKernelLinearTransformOp, ConvertKernelEvalChebyshevOp>(
+        typeConverter, context);
     // Payload packing ops -> rank-reducing slice ops (benefit 2 so they win
     // over the structural tensor conversion for payload-typed tensors).
     patterns.add<ConvertPayloadExtract, ConvertPayloadInsert,

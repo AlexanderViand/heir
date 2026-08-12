@@ -943,22 +943,7 @@ struct PreserveLinalgMatvecAsLinearTransform
       return rewriter.notifyMatchFailure(op, "missing layout for matrix");
     }
 
-    Value matrix = matrixOperand;
-    if (auto assignLayoutOp =
-            matrix.getDefiningOp<tensor_ext::AssignLayoutOp>()) {
-      matrix = assignLayoutOp.getValue();
-    }
-    auto constantMatrixOp = matrix.getDefiningOp<arith::ConstantOp>();
-    if (!constantMatrixOp) {
-      return rewriter.notifyMatchFailure(op, "matrix is not a constant");
-    }
-    auto denseAttr = dyn_cast<DenseElementsAttr>(constantMatrixOp.getValue());
-    if (!denseAttr) {
-      return rewriter.notifyMatchFailure(op,
-                                         "matrix is not a DenseElementsAttr");
-    }
-
-    auto matrixType = cast<RankedTensorType>(matrix.getType());
+    auto matrixType = cast<RankedTensorType>(matrixOperand.getType());
     auto convertedMatrixType = cast<ShapedType>(
         getTypeConverter()->convertType(matrixType, matrixLayout));
     if (!convertedMatrixType) {
@@ -967,52 +952,49 @@ struct PreserveLinalgMatvecAsLinearTransform
 
     int64_t numDiagonals = convertedMatrixType.getShape()[0];
     int64_t slots = convertedMatrixType.getShape()[1];
-    auto elementType = matrixType.getElementType();
+    Value packedDiagonals = adaptor.getInputs()[0];
+    SmallVector<int64_t> diagonalIndices;
+    diagonalIndices.reserve(numDiagonals);
+    for (int64_t d = 0; d < numDiagonals; ++d) diagonalIndices.push_back(d);
 
-    Attribute zeroAttr = rewriter.getZeroAttr(elementType);
-    std::vector<Attribute> diagonalValues(numDiagonals * slots, zeroAttr);
-
-    auto matrixRelation = matrixLayout.getIntegerRelation();
-    PointPairCollector collector(2, 2);
-    enumeratePoints(matrixRelation, collector);
-
-    int64_t numCols = matrixType.getDimSize(1);
-    for (const auto& pointPair : collector.points) {
-      int64_t row = pointPair.first[0];
-      int64_t col = pointPair.first[1];
-      int64_t d = pointPair.second[0];
-      int64_t s = pointPair.second[1];
-
-      int64_t flatIndex = row * numCols + col;
-      Attribute val = denseAttr.getValues<Attribute>()[flatIndex];
-      diagonalValues[d * slots + s] = val;
-    }
-
-    std::vector<int64_t> nonZeroDiagonalIndices;
-    std::vector<Attribute> nonZeroDiagonalValues;
-    for (int64_t d = 0; d < numDiagonals; ++d) {
-      bool isZero = true;
-      for (int64_t s = 0; s < slots; ++s) {
-        if (diagonalValues[d * slots + s] != zeroAttr) {
-          isZero = false;
-          break;
+    // Dynamic matrices need every packed diagonal. Preserve the existing
+    // compact representation for constants, however, since it materially
+    // reduces rotation keys and preprocessing cost for sparse model weights.
+    if (auto constant = packedDiagonals.getDefiningOp<arith::ConstantOp>()) {
+      ElementsAttr elements = dyn_cast<ElementsAttr>(constant.getValue());
+      DenseElementsAttr dense = dyn_cast<DenseElementsAttr>(elements);
+      if (auto resource = dyn_cast<DenseResourceElementsAttr>(elements)) {
+        dense = DenseElementsAttr::getFromRawBuffer(resource.getType(),
+                                                    resource.getData());
+      }
+      if (dense) {
+        Attribute zero = rewriter.getZeroAttr(dense.getElementType());
+        SmallVector<Attribute> values(dense.getValues<Attribute>());
+        SmallVector<int64_t> nonZeroIndices;
+        SmallVector<Attribute> nonZeroValues;
+        for (int64_t d = 0; d < numDiagonals; ++d) {
+          ArrayRef<Attribute> row(values.data() + d * slots, slots);
+          if (llvm::any_of(row,
+                           [&](Attribute value) { return value != zero; })) {
+            nonZeroIndices.push_back(d);
+            llvm::append_range(nonZeroValues, row);
+          }
+        }
+        // scale-snu requires at least two diagonals. The full packed matrix is
+        // the valid fallback for a zero- or single-diagonal transform.
+        if (nonZeroIndices.size() >= 2 &&
+            nonZeroIndices.size() < static_cast<size_t>(numDiagonals)) {
+          auto type = RankedTensorType::get(
+              {static_cast<int64_t>(nonZeroIndices.size()), slots},
+              dense.getElementType());
+          auto attr = DenseElementsAttr::get(type, nonZeroValues);
+          packedDiagonals =
+              arith::ConstantOp::create(rewriter, op.getLoc(), attr);
+          diagonalIndices = std::move(nonZeroIndices);
         }
       }
-      if (!isZero) {
-        nonZeroDiagonalIndices.push_back(d);
-        for (int64_t s = 0; s < slots; ++s) {
-          nonZeroDiagonalValues.push_back(diagonalValues[d * slots + s]);
-        }
-      }
     }
-
-    auto diagonalsType = RankedTensorType::get(
-        {static_cast<int64_t>(nonZeroDiagonalIndices.size()), slots},
-        elementType);
-    auto diagonalsAttr =
-        DenseElementsAttr::get(diagonalsType, nonZeroDiagonalValues);
-    auto diagonalIndicesAttr =
-        rewriter.getDenseI64ArrayAttr(nonZeroDiagonalIndices);
+    auto diagonalIndicesAttr = rewriter.getDenseI64ArrayAttr(diagonalIndices);
 
     auto resultLayout = findAttributeAssociatedWith(
         op.getResult(0), tensor_ext::TensorExtDialect::kLayoutAttrName);
@@ -1025,15 +1007,38 @@ struct PreserveLinalgMatvecAsLinearTransform
         getTypeConverter()->convertType(outputType, resultLayout.value());
 
     rewriter.setInsertionPointAfter(op);
-    auto linearTransformOp = rewriter.create<kernel::LinearTransformOp>(
-        op.getLoc(), convertedOutputType, adaptor.getInputs()[1], diagonalsAttr,
-        diagonalIndicesAttr, /*bsgs_ratio=*/nullptr);
+    auto linearTransformOp = kernel::LinearTransformOp::create(
+        rewriter, op.getLoc(), convertedOutputType, adaptor.getInputs()[1],
+        packedDiagonals, diagonalIndicesAttr, /*bsgs_ratio=*/nullptr);
 
     setMaterializedAttr(linearTransformOp);
     linearTransformOp->setAttr(kLayoutAttrName, resultLayout.value());
 
-    addBiasAndReplace(rewriter, op, linearTransformOp.getResult(),
-                      adaptor.getOutputs()[0], resultLayout.value());
+    // Squat diagonal packing (fewer output rows than input columns) leaves
+    // partial dot products separated by powers-of-two column blocks. Fold
+    // those blocks together after the native transform. Square/tall matvecs
+    // need no post-shifts.
+    int64_t paddedRows = nextPowerOfTwo(matrixType.getDimSize(0));
+    int64_t paddedColumns = nextPowerOfTwo(matrixType.getDimSize(1));
+    Value finalOutput = linearTransformOp.getResult();
+    if (paddedColumns > paddedRows) {
+      using NodeTy = ArithmeticDagNode<SSAValue>;
+      auto summedShifts = NodeTy::leaf(SSAValue(finalOutput));
+      for (int64_t shift = paddedColumns / 2; shift >= paddedRows; shift /= 2) {
+        auto rotated = NodeTy::leftRotate(summedShifts, shift);
+        summedShifts = NodeTy::add(summedShifts, rotated);
+      }
+      IRMaterializingVisitor visitor(
+          finalOutput.getType(),
+          [&](Operation* createdOp) { setMaterializedAttr(createdOp); });
+      ImplicitLocOpBuilder builder(op.getLoc(), rewriter);
+      finalOutput = visitor.process(summedShifts, builder)[0];
+      finalOutput.getDefiningOp()->setAttr(kLayoutAttrName,
+                                           resultLayout.value());
+    }
+
+    addBiasAndReplace(rewriter, op, finalOutput, adaptor.getOutputs()[0],
+                      resultLayout.value());
     return success();
   }
 };

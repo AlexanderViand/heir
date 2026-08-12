@@ -49,7 +49,9 @@ run: |
     //tests/Examples/cheddar/bootstrap:bootstrap_test \
     //tests/Examples/cheddar/configure_smoke:configure_smoke_test \
     //tests/Examples/cheddar/generated_bootstrap_setup:generated_bootstrap_setup_test \
+    //tests/Examples/cheddar/pipeline_eval_chebyshev:pipeline_eval_chebyshev_test \
     //tests/Examples/cheddar/pipeline_matvec:pipeline_matvec_test \
+    //tests/Examples/cheddar/pipeline_mlp:pipeline_mlp_test \
     --config=cheddar
   bazel test \
     //tests/Conversions/CheddarToEmitC/compile:real_compile_test \
@@ -59,6 +61,8 @@ run: |
     //tests/Examples/cheddar/bootstrap:bootstrap_test \
     //tests/Examples/cheddar/configure_smoke:configure_smoke_test \
     //tests/Examples/cheddar/generated_bootstrap_setup:generated_bootstrap_setup_test \
+    //tests/Examples/cheddar/pipeline_eval_chebyshev:pipeline_eval_chebyshev_test \
     //tests/Examples/cheddar/pipeline_matvec:pipeline_matvec_test \
+    //tests/Examples/cheddar/pipeline_mlp:pipeline_mlp_test \
     --config=cheddar --test_output=all --test_timeout=1800
   echo "## DONE ##"

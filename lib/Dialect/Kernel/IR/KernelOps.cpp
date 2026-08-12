@@ -115,8 +115,15 @@ int EvalChebyshevOp::getLevelsToDrop() {
 
   int baseDepth = 0;
   uint32_t degree = coefficients.size() - 1;
+  if (backend == BackendName::Cheddar) {
+    while (degree > 0 &&
+           std::abs(cast<FloatAttr>(coefficients[degree]).getValueAsDouble()) <
+               1e-9)
+      --degree;
+  }
   switch (backend) {
     case BackendName::Lattigo:
+    case BackendName::Cheddar:
       baseDepth = std::bit_width(static_cast<uint64_t>(degree));
       break;
     case BackendName::OpenFHE:
@@ -150,8 +157,7 @@ int LinearTransformOp::getLevelsToDrop() { return 1; }
 
 LogicalResult LinearTransformOp::verify() {
   auto inputType = getInput().getType();
-  auto diagonalsAttr = getDiagonals();
-  auto diagonalsType = dyn_cast<ShapedType>(diagonalsAttr.getType());
+  auto diagonalsType = dyn_cast<ShapedType>(getDiagonals().getType());
   if (!diagonalsType) {
     return emitOpError("diagonals must have a shaped type");
   }
@@ -169,10 +175,10 @@ LogicalResult LinearTransformOp::verify() {
       auto ring = plaintextSpace.getRing();
       slotsPerCiphertext =
           ring.getPolynomialModulus().getPolynomial().getDegree();
-      if (isa<lwe::InverseCanonicalEncodingAttr>(
-              plaintextSpace.getEncoding())) {
-        slotsPerCiphertext /= 2;
-      }
+      // HEIR's CKKS packed message tensor is already sized in logical complex
+      // slots. The RLWE polynomial modulus carried by this type uses that
+      // logical slot degree, so halving it again rejects correctly packed
+      // kernel transforms after SecretToCKKS.
     }
 
     if (inputRankedType.getRank() == 1) {
