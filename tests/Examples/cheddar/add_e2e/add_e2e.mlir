@@ -1,6 +1,6 @@
 // Arithmetic grab-bag on two secret 1024-vectors at the cheddar level -- ct+ct,
 // then ct-ct, then ct*plaintext(2.0), then ct+plaintext(0.5), so the result is
-// 2*a + 0.5. Full-module e2e input (client encrypt/decrypt helpers + a
+// 2*b + 0.5. Full-module e2e input (client encrypt/decrypt helpers + a
 // preprocessing that encodes the 2.0 and 0.5 constants + compute).
 //
 // Destination-passing form: each payload-producing cheddar op takes an explicit
