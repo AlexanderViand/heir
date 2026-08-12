@@ -10,14 +10,15 @@ package(
 )
 
 heir_opt(
-    name = "generated_bootstrap_setup_emitc",
-    src = "@heir//tests/Pipelines/scheme_to_cheddar:bootstrap.mlir",
+    name = "pipeline_mlp_emitc",
+    src = "@heir//tests/Examples/common:tiny_mlp.mlir",
     externalize_constants = False,
-    generated_filename = "generated_bootstrap_setup_emitc.mlir",
+    generated_filename = "pipeline_mlp_emitc.mlir",
     pass_flags = [
         "--annotate-module=backend=cheddar scheme=ckks",
-        "--mlir-to-ckks=min-slot-count=8192 greedy-level-budget=6 greedy-bootstrap-waterline=3",
-        "--scheme-to-cheddar=entry-function=bootstrap",
+        "--linalg-canonicalizations",
+        "--torch-linalg-to-ckks=min-slot-count=1024",
+        "--scheme-to-cheddar=entry-function=tiny_mlp",
         "--arith-expand",
         "--lower-affine",
         "--cheddar-bufferize",
@@ -27,7 +28,12 @@ heir_opt(
         "--cse",
         "--canonicalize",
         "--drop-equivalent-buffer-results",
+        "--buffer-results-to-out-params=hoist-static-allocs=true modify-public-functions=true add-result-attr=true",
         "--canonicalize",
+        "--ownership-based-buffer-deallocation",
+        "--canonicalize",
+        "--buffer-deallocation-simplification",
+        "--bufferization-lower-deallocations",
         "--convert-to-emitc=filter-dialects=cheddar,arith,scf,memref",
         "--cheddar-emitc-boundary",
         "--reconcile-unrealized-casts",
@@ -35,16 +41,16 @@ heir_opt(
 )
 
 heir_translate(
-    name = "generated_bootstrap_setup_cpp_raw",
-    src = ":generated_bootstrap_setup_emitc.mlir",
-    generated_filename = "generated_bootstrap_setup_raw.cc",
+    name = "pipeline_mlp_cpp_raw",
+    src = ":pipeline_mlp_emitc.mlir",
+    generated_filename = "pipeline_mlp_raw.cc",
     pass_flags = ["--mlir-to-cpp"],
 )
 
 genrule(
-    name = "generated_bootstrap_setup_lib_src",
-    srcs = [":generated_bootstrap_setup_raw.cc"],
-    outs = ["generated_bootstrap_setup_lib.cc"],
+    name = "pipeline_mlp_lib_src",
+    srcs = [":pipeline_mlp_raw.cc"],
+    outs = ["pipeline_mlp_lib.cc"],
     cmd = """cat > $@ <<'PRELUDE_EOF'
 // AUTO-GENERATED: do not edit.
 #include <array>
@@ -57,28 +63,28 @@ genrule(
 #include "UserInterface.h"
 #include "core/Context.h"
 #include "core/Encode.h"
-#include "core/EvkRequest.h"
 #include "core/Parameter.h"
-#include "extension/BootContext.h"
+#include "extension/EvalPoly.h"
+#include "extension/LinearTransform.h"
 using namespace cheddar;
 using word = uint64_t;
 using Complex = std::complex<double>;
 PRELUDE_EOF
-cat $(location :generated_bootstrap_setup_raw.cc) >> $@
+cat $(location :pipeline_mlp_raw.cc) >> $@
 """,
 )
 
 cc_library(
-    name = "generated_bootstrap_setup_lib",
-    srcs = [":generated_bootstrap_setup_lib_src"],
+    name = "pipeline_mlp_lib",
+    srcs = [":pipeline_mlp_lib_src"],
     target_compatible_with = requires_cheddar(),
     deps = ["@cheddar"],
 )
 
 cc_test(
-    name = "generated_bootstrap_setup_test",
+    name = "pipeline_mlp_test",
     timeout = "long",
-    srcs = ["generated_bootstrap_setup_test.cpp"],
+    srcs = ["pipeline_mlp_test.cpp"],
     linkstatic = False,
     tags = [
         "exclusive",
@@ -86,7 +92,7 @@ cc_test(
     ],
     target_compatible_with = requires_cheddar(),
     deps = [
-        ":generated_bootstrap_setup_lib",
+        ":pipeline_mlp_lib",
         "@cheddar",
         "@googletest//:gtest_main",
     ],

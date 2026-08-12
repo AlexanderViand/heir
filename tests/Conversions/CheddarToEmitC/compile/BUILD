@@ -103,6 +103,7 @@ genrule(
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
 #include "extension/EvalPoly.h"
+#include "extension/LinearTransform.h"
 using namespace cheddar;
 using word = uint64_t;
 PRELUDE_EOF
@@ -167,6 +168,7 @@ genrule(
 #include "core/Parameter.h"
 #include "extension/BootContext.h"
 #include "extension/EvalPoly.h"
+#include "extension/LinearTransform.h"
 using namespace cheddar;
 using word = uint64_t;
 PRELUDE_EOF

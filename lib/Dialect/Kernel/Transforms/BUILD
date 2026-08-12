@@ -25,12 +25,14 @@ cc_library(
     deps = [
         ":pass_inc_gen",
         "@heir//lib/Dialect:ModuleAttributes",
+        "@heir//lib/Dialect/CKKS/IR:Dialect",
         "@heir//lib/Dialect/Kernel/IR:Dialect",
         "@heir//lib/Dialect/LWE/IR:Dialect",
         "@heir//lib/Target/CompilationTarget",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TensorDialect",
     ],
 )
 

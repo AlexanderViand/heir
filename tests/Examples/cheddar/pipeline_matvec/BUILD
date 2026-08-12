@@ -24,7 +24,6 @@ heir_opt(
         "--scheme-to-cheddar=entry-function=matvec",
         "--arith-expand",
         "--lower-affine",
-        "--eliminate-empty-tensors",
         "--cheddar-bufferize",
         "--convert-linalg-to-loops",
         "--inline",
@@ -68,6 +67,7 @@ genrule(
 #include "core/Context.h"
 #include "core/Encode.h"
 #include "core/Parameter.h"
+#include "extension/LinearTransform.h"
 using namespace cheddar;
 using word = uint64_t;
 using Complex = std::complex<double>;
