@@ -54,7 +54,11 @@ LogicalResult LinearTransformOp::verify() {
   return success();
 }
 
-LogicalResult EvalPolyOp::verify() { return success(); }
+LogicalResult EvalPolyOp::verify() {
+  if (getLevelConsumption().getInt() < 2)
+    return emitOpError("level consumption must be at least two");
+  return success();
+}
 
 }  // namespace cheddar
 }  // namespace heir

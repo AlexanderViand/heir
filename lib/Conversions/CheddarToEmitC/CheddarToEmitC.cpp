@@ -1,5 +1,7 @@
 #include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 
+#include <cstdio>
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -21,13 +23,14 @@
 #include "mlir/include/mlir/Dialect/Func/Transforms/FuncConversions.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/IR/MemRef.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/Utils/MemRefUtils.h"  // from @llvm-project
-#include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"     // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinAttributes.h"   // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinOps.h"          // from @llvm-project
-#include "mlir/include/mlir/IR/BuiltinTypes.h"        // from @llvm-project
-#include "mlir/include/mlir/IR/PatternMatch.h"        // from @llvm-project
-#include "mlir/include/mlir/IR/SymbolTable.h"         // from @llvm-project
-#include "mlir/include/mlir/IR/Value.h"               // from @llvm-project
+#include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"    // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"         // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinTypes.h"       // from @llvm-project
+#include "mlir/include/mlir/IR/PatternMatch.h"       // from @llvm-project
+#include "mlir/include/mlir/IR/SymbolTable.h"        // from @llvm-project
+#include "mlir/include/mlir/IR/Value.h"              // from @llvm-project
+#include "mlir/include/mlir/Interfaces/DestinationStyleOpInterface.h"  // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"           // from @llvm-project
 #include "mlir/include/mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "mlir/include/mlir/Transforms/DialectConversion.h"  // from @llvm-project
@@ -114,6 +117,25 @@ std::string owningHandleTypeName(Type t) {
   return "";
 }
 
+std::string intLit(IntegerAttr a) { return std::to_string(a.getInt()); }
+
+std::string floatLit(FloatAttr a) {
+  // Full double precision (%.17g round-trips exactly); the default formatv
+  // precision silently corrupts literal scales.
+  char buf[40];
+  std::snprintf(buf, sizeof(buf), "%.17g", a.getValueAsDouble());
+  return std::string(buf);
+}
+
+std::string floatArrayLit(ArrayAttr a) {
+  std::string s = "{";
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (i > 0) s += ", ";
+    s += floatLit(cast<FloatAttr>(a[i]));
+  }
+  return s + "}";
+}
+
 int64_t numElements(ArrayRef<int64_t> shape) {
   int64_t result = 1;
   for (int64_t dim : shape) result *= dim;
@@ -136,6 +158,29 @@ Value addressOfFirstElement(OpBuilder& b, Location loc, Value array) {
       emitc::SubscriptOp::create(b, loc, lvalueTy, array, zeroIdxs);
   return emitc::AddressOfOp::create(
       b, loc, emitc::PointerType::get(arrayTy.getElementType()), firstElement);
+}
+
+// Emit `receiver.method(out, args..., extra)` (or `receiver->method(...)` for a
+// pointer receiver). Trailing literal text (`extra`) is appended as one opaque
+// constant arg.
+void emitOutParamCall(OpBuilder& b, Location loc, Value receiver,
+                      StringRef method, Value out, ValueRange args,
+                      StringRef extra = "") {
+  SmallVector<Value> argOperands{out};
+  argOperands.append(args.begin(), args.end());
+  ArrayAttr argsAttr;
+  if (!extra.empty()) {
+    SmallVector<Attribute> a;
+    for (size_t i = 0; i < argOperands.size(); ++i)
+      a.push_back(b.getIndexAttr(i));
+    a.push_back(emitc::OpaqueAttr::get(b.getContext(), extra));
+    argsAttr = b.getArrayAttr(a);
+  }
+  markDestination(
+      MemberCallOpaqueOp::create(b, loc, /*resultTypes=*/TypeRange{}, receiver,
+                                 b.getStringAttr(method), argsAttr,
+                                 /*template_args=*/ArrayAttr{}, argOperands),
+      1);
 }
 
 //===----------------------------------------------------------------------===//
@@ -262,6 +307,314 @@ bool diagnoseUnsupportedGetters(Operation* root) {
 //===----------------------------------------------------------------------===//
 // Conversion patterns
 //===----------------------------------------------------------------------===//
+
+// Generic destination-passing op -> a single out-parameter method call:
+//   receiver->Method(dest, inputs..., extra)
+template <typename Op>
+struct OutParamDpsPattern : public OpConversionPattern<Op> {
+  OutParamDpsPattern(const TypeConverter& tc, MLIRContext* ctx,
+                     StringRef method,
+                     std::function<std::string(Op)> extra = nullptr)
+      : OpConversionPattern<Op>(tc, ctx),
+        method(method.str()),
+        extra(std::move(extra)) {}
+
+  LogicalResult matchAndRewrite(
+      Op op, typename Op::Adaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto dpsOp = cast<DestinationStyleOpInterface>(op.getOperation());
+    unsigned initIdx = dpsOp.getDpsInitOperand(0)->getOperandNumber();
+    auto operands = adaptor.getOperands();
+    Value receiver = operands[0];
+    Value dest = operands[initIdx];
+    SmallVector<Value> inputs;
+    for (unsigned i = 1; i < operands.size(); ++i)
+      if (i != initIdx) inputs.push_back(operands[i]);
+    std::string extraStr = extra ? extra(op) : "";
+    emitOutParamCall(rewriter, op.getLoc(), receiver, method, dest, inputs,
+                     extraStr);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  std::string method;
+  std::function<std::string(Op)> extra;
+};
+
+// cheddar.encode: fill a std::vector<Complex> from the float message buffer,
+// then encode at the requested logarithmic scale, or CHEDDAR's canonical scale
+// for the level when no explicit scale is present.
+struct ConvertEncode : public OpConversionPattern<cheddar::EncodeOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::EncodeOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Value out = adaptor.getOutput();
+    std::string lvl = std::to_string(op.getLevelAttr().getInt());
+    Value msg = adaptor.getMessage();
+    auto messageType = dyn_cast<ShapedType>(op.getMessage().getType());
+    if (!messageType || !messageType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "encode requires a static message shape");
+    int64_t n = numElements(messageType.getShape());
+    // Flatten both a whole (possibly multidimensional) C array and a subview
+    // pointer to the first scalar element before constructing the vector.
+    Value begin = addressOfFirstElement(rewriter, op.getLoc(), msg);
+    Value vec =
+        VariableOp::create(rewriter, op.getLoc(),
+                           LValueType::get(OpaqueType::get(
+                               rewriter.getContext(), "std::vector<Complex>")),
+                           OpaqueAttr::get(rewriter.getContext(), ""));
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        "{} = std::vector<Complex>({}, {} + " + std::to_string(n) + ");",
+        ValueRange{vec, begin, begin});
+    // TODO(#2364): Use scale from op once HEIR can do precise scale tracking.
+    std::string scale = "{}.GetScale(" + lvl + ")";
+    SmallVector<Value> operands{adaptor.getEncoder(), out,
+                                adaptor.getEncoder()};
+    operands.push_back(vec);
+    markDestination(
+        VerbatimOp::create(rewriter, op.getLoc(),
+                           "{}.Encode({}, " + lvl + ", " + scale + ", {});",
+                           operands),
+        1);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// cheddar.encode_constant: encode at the same canonical per-level scale.
+struct ConvertEncodeConstant
+    : public OpConversionPattern<cheddar::EncodeConstantOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::EncodeConstantOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    std::string lvl = intLit(op.getLevelAttr());
+    std::string fmt =
+        "{}.EncodeConstant({}, " + lvl + ", {}.GetScale(" + lvl + "), {});";
+    markDestination(VerbatimOp::create(
+                        rewriter, op.getLoc(), fmt,
+                        ValueRange{adaptor.getEncoder(), adaptor.getOutput(),
+                                   adaptor.getEncoder(), adaptor.getValue()}),
+                    1);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// cheddar.decode: decode into a temporary complex vector, copy real parts into
+// the float destination buffer.
+struct ConvertDecode : public OpConversionPattern<cheddar::DecodeOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::DecodeOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Value dst = adaptor.getValue();
+    if (!isa<emitc::ArrayType, emitc::LValueType>(dst.getType()))
+      return failure();
+    auto memTy = dyn_cast<MemRefType>(op.getValue().getType());
+    if (!memTy || !memTy.hasStaticShape() ||
+        !isa<FloatType>(memTy.getElementType()))
+      return failure();
+    auto shape = memTy.getShape();
+    std::string idxPrefix;
+    for (size_t i = 0; i + 1 < shape.size(); ++i) {
+      if (shape[i] != 1) return failure();
+      idxPrefix += "[0]";
+    }
+    auto* ctx = rewriter.getContext();
+    Value vec = VariableOp::create(
+        rewriter, op.getLoc(),
+        LValueType::get(OpaqueType::get(ctx, "std::vector<Complex>")),
+        OpaqueAttr::get(ctx, ""));
+    markDestination(
+        VerbatimOp::create(
+            rewriter, op.getLoc(), "{}.Decode({}, {});",
+            ValueRange{adaptor.getEncoder(), vec, adaptor.getPlaintext()}),
+        1);
+    markDestination(
+        VerbatimOp::create(rewriter, op.getLoc(),
+                           "for (size_t _i = 0; _i < " +
+                               std::to_string(shape.back()) + "; ++_i) {}" +
+                               idxPrefix + "[_i] = {}.at(_i).real();",
+                           ValueRange{dst, vec}),
+        0);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// HRot/HRotAdd/HConj/HConjAdd: look up the rotation/conjugation key inline.
+struct ConvertHRot : public OpConversionPattern<cheddar::HRotOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::HRotOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Value ui = adaptor.getUi();
+    Value out = adaptor.getOutput();
+    if (auto sd = op.getStaticDistanceAttr()) {
+      std::string d = intLit(sd);
+      markDestination(
+          VerbatimOp::create(
+              rewriter, op.getLoc(),
+              "{}->HRot({}, {}, {}->GetRotationKey(" + d + "), " + d + ");",
+              ValueRange{adaptor.getCtx(), out, adaptor.getInput(), ui}),
+          1);
+    } else {
+      Value dyn = adaptor.getDynamicDistance();
+      markDestination(
+          VerbatimOp::create(rewriter, op.getLoc(),
+                             "{}->HRot({}, {}, {}->GetRotationKey({}), {});",
+                             ValueRange{adaptor.getCtx(), out,
+                                        adaptor.getInput(), ui, dyn, dyn}),
+          1);
+    }
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertHRotAdd : public OpConversionPattern<cheddar::HRotAddOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::HRotAddOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Value ui = adaptor.getUi();
+    std::string d = intLit(op.getDistanceAttr());
+    markDestination(
+        VerbatimOp::create(
+            rewriter, op.getLoc(),
+            "{}->HRotAdd({}, {}, {}, {}->GetRotationKey(" + d + "), " + d +
+                ");",
+            ValueRange{adaptor.getCtx(), adaptor.getOutput(),
+                       adaptor.getInput(), adaptor.getAddend(), ui}),
+        1);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertHConj : public OpConversionPattern<cheddar::HConjOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::HConjOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Value ui = adaptor.getUi();
+    markDestination(
+        VerbatimOp::create(rewriter, op.getLoc(),
+                           "{}->HConj({}, {}, {}->GetConjugationKey());",
+                           ValueRange{adaptor.getCtx(), adaptor.getOutput(),
+                                      adaptor.getInput(), ui}),
+        1);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertHConjAdd : public OpConversionPattern<cheddar::HConjAddOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::HConjAddOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Value ui = adaptor.getUi();
+    markDestination(
+        VerbatimOp::create(
+            rewriter, op.getLoc(),
+            "{}->HConjAdd({}, {}, {}, {}->GetConjugationKey());",
+            ValueRange{adaptor.getCtx(), adaptor.getOutput(),
+                       adaptor.getInput(), adaptor.getAddend(), ui}),
+        1);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// cheddar.eval_poly -> the real cheddar::EvalPoly<word> class (no free
+// `RunEvalPoly` exists). It is a stateful object: construct, Compile, then
+// Evaluate. Critically, EvalPoly's Chebyshev basis recurrence (T_{2n}=2T_n^2-1)
+// propagates scale as `x_scale*y_scale/param_.GetRescalePrimeProd(level)`, and
+// the constructor's `input_scale`/`target_scale`/`input_level` SEED that
+// recurrence -- cheddar's asserts only check self-consistency with these args,
+// not against the real q-products, so a wrong seed silently squares into a
+// catastrophic blow-up (e.g. a degree-15 sign poly returning ~1e105) while the
+// scale *label* stays canonical. So we must mirror exactly how cheddar's own
+// EvalMod seeds EvalPoly: take the level/scale from the *actual* input
+// ciphertext and derive target_scale by the same square/divide recurrence.
+//
+//   {
+//     ConstContextPtr<word> cp(ConstContextPtr<word>(), ctx);
+//     int lvl = ctx->param_.NPToLevel(in.GetNP());
+//     double is = in.GetScale();
+//     double ts = is;
+//     ts = ts*ts / ctx->param_.GetRescalePrimeProd(lvl - 0);   // x
+//     level_consumption
+//     ...
+//     cheddar::EvalPoly<word> ep({coeffs}, lvl, is, ts, /*chebyshev=*/true);
+//     ep.Compile(cp);
+//     ep.Evaluate(cp, out, in, evk.GetMultiplicationKey());
+//   }
+//
+// This needs `in.GetScale()`/`in.GetNP()` (whose receiver is a move-only lvalue
+// ciphertext that emitc.member_call_opaque rejects), `ctx->param_` (a nested
+// member access), and a per-level recurrence -- so it is emitted as verbatim
+// statements. These are all real cheddar public API (the inline equivalent of
+// EvalMod), not a shim. A `{ }` block scope destroys the EvalPoly (which holds
+// the GPU power basis) right after Evaluate; its locals stay block-local so
+// repeated eval_poly ops in one function do not collide.
+struct ConvertEvalPoly : public OpConversionPattern<cheddar::EvalPolyOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::EvalPolyOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    Location loc = op.getLoc();
+    Value ctxV = adaptor.getCtx();
+    Value in = adaptor.getInput();
+    Value out = adaptor.getOutput();
+    Value evk = adaptor.getEvkMap();
+    int64_t levelConsumption = op.getLevelConsumptionAttr().getInt();
+
+    auto emit = [&](const Twine& fmt, ValueRange operands) {
+      VerbatimOp::create(rewriter, loc, rewriter.getStringAttr(fmt.str()),
+                         operands);
+    };
+
+    emit("{", {});
+    // Compile/Evaluate take a ConstContextPtr (shared_ptr<const Context>); wrap
+    // the raw Context* in a non-owning alias (it does not own the context).
+    emit("ConstContextPtr<word> _ep_cp(ConstContextPtr<word>(), {});", {ctxV});
+    // level + input scale taken from the actual input ciphertext.
+    emit("int _ep_lvl = {}->param_.NPToLevel({}.GetNP());", {ctxV, in});
+    emit("double _ep_is = {}.GetScale();", {in});
+    // target_scale recurrence: ts <- ts*ts / GetRescalePrimeProd(lvl - i).
+    emit("double _ep_ts = _ep_is;", {});
+    for (int64_t i = 0; i < levelConsumption; ++i)
+      emit(
+          "_ep_ts = _ep_ts * _ep_ts / {}->param_.GetRescalePrimeProd(_ep_lvl "
+          "- " +
+              Twine(i) + ");",
+          {ctxV});
+    // Construct (no operands -> the coefficient brace-list is emitted
+    // verbatim).
+    emit("cheddar::EvalPoly<word> _ep(" +
+             floatArrayLit(op.getCoefficientsAttr()) +
+             ", _ep_lvl, _ep_is, _ep_ts, true);",
+         {});
+    emit("_ep.Compile(_ep_cp);", {});
+    markDestination(
+        VerbatimOp::create(
+            rewriter, loc,
+            rewriter.getStringAttr(
+                "_ep.Evaluate(_ep_cp, {}, {}, {}.GetMultiplicationKey());"),
+            ValueRange{out, in, evk}),
+        0);
+    emit("}", {});
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
 
 // A `__heir_debug_*` call (from --lwe-add-debug-port, re-shaped by LWEToCheddar
 // to (Encoder, UserInterface, Ciphertext)) -> a free C++ call to an
@@ -448,7 +801,7 @@ struct RejectMoveOnlyStore : public OpRewritePattern<mlir::memref::StoreOp> {
         !isa<cheddar::UserInterfaceType>(elementType))
       return failure();
     return op.emitOpError(
-        "copying a move-only Cheddar value with memref.store is invalid");
+        "copying a move-only Cheddar payload with memref.store is invalid");
   }
 };
 
@@ -458,15 +811,58 @@ struct HandleMoveOnlyCopy : public OpRewritePattern<mlir::memref::CopyOp> {
                                 PatternRewriter& rewriter) const override {
     auto sourceType = cast<MemRefType>(op.getSource().getType());
     Type elementType = sourceType.getElementType();
+    if (op.getSource() == op.getTarget()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+    if (isa<cheddar::CiphertextType>(elementType)) return failure();
     if (payloadTypeName(elementType).empty() &&
         !isa<cheddar::UserInterfaceType>(elementType))
+      return failure();
+    return op.emitOpError(
+        "copying a move-only Cheddar value with memref.copy is invalid");
+  }
+};
+
+// Copies that survive bufferization's standard alias folding have true copy
+// semantics. Lower ciphertext copies through CHEDDAR's deep-copy API instead
+// of reinterpreting them as C++ assignment or ownership transfer.
+struct ConvertCiphertextCopy
+    : public OpConversionPattern<mlir::memref::CopyOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      mlir::memref::CopyOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto sourceType = cast<MemRefType>(op.getSource().getType());
+    if (!isa<cheddar::CiphertextType>(sourceType.getElementType()))
       return failure();
     if (op.getSource() == op.getTarget()) {
       rewriter.eraseOp(op);
       return success();
     }
-    return op.emitOpError(
-        "copying a move-only Cheddar value with memref.copy is invalid");
+
+    Value context;
+    if (auto function = op->getParentOfType<func::FuncOp>()) {
+      for (BlockArgument argument : function.getArguments()) {
+        auto pointer = dyn_cast<emitc::PointerType>(argument.getType());
+        auto opaque = pointer
+                          ? dyn_cast<emitc::OpaqueType>(pointer.getPointee())
+                          : emitc::OpaqueType();
+        if (opaque && (opaque.getValue() == "Context<word>" ||
+                       opaque.getValue() == "BootContext<word>")) {
+          context = argument;
+          break;
+        }
+      }
+    }
+    if (!context)
+      return op.emitOpError(
+          "cannot deep-copy a Cheddar ciphertext without a context argument");
+
+    emitOutParamCall(rewriter, op.getLoc(), context, "Copy",
+                     adaptor.getTarget(), ValueRange{adaptor.getSource()});
+    rewriter.eraseOp(op);
+    return success();
   }
 };
 
@@ -816,6 +1212,42 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
                                                               /*benefit=*/2);
     patterns.add<RejectMoveOnlyStore, HandleMoveOnlyCopy>(ctx,
                                                           /*benefit=*/3);
+    patterns.add<ConvertCiphertextCopy>(typeConverter, ctx, /*benefit=*/3);
+
+    patterns
+        .add<ConvertEncode, ConvertEncodeConstant, ConvertDecode, ConvertHRot,
+             ConvertHRotAdd, ConvertHConj, ConvertHConjAdd, ConvertEvalPoly>(
+            typeConverter, ctx);
+
+    auto addDps = [&](StringRef name, auto opTag,
+                      std::function<std::string(decltype(opTag))> extra =
+                          nullptr) {
+      using Op = decltype(opTag);
+      patterns.add<OutParamDpsPattern<Op>>(typeConverter, ctx, name, extra);
+    };
+    addDps("Copy", cheddar::CopyOp{});
+    addDps("Add", cheddar::AddOp{});
+    addDps("Sub", cheddar::SubOp{});
+    addDps("Mult", cheddar::MultOp{});
+    addDps("Add", cheddar::AddPlainOp{});
+    addDps("Sub", cheddar::SubPlainOp{});
+    addDps("Mult", cheddar::MultPlainOp{});
+    addDps("Add", cheddar::AddConstOp{});
+    addDps("Mult", cheddar::MultConstOp{});
+    addDps("Neg", cheddar::NegOp{});
+    addDps("Rescale", cheddar::RescaleOp{});
+    addDps("Relinearize", cheddar::RelinearizeOp{});
+    addDps("RelinearizeRescale", cheddar::RelinearizeRescaleOp{});
+    addDps("Encrypt", cheddar::EncryptOp{});
+    addDps("Decrypt", cheddar::DecryptOp{});
+    addDps("MadUnsafe", cheddar::MadUnsafeOp{});
+    addDps("Boot", cheddar::BootOp{});
+    addDps("LevelDown", cheddar::LevelDownOp{}, [](cheddar::LevelDownOp op) {
+      return intLit(op.getTargetLevelAttr());
+    });
+    addDps("HMult", cheddar::HMultOp{}, [](cheddar::HMultOp op) {
+      return op.getRescale() ? std::string("true") : std::string("false");
+    });
   }
 };
 

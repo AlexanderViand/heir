@@ -67,7 +67,7 @@ func.func @test_encode(
     %out: tensor<!cheddar.plaintext>) -> tensor<!cheddar.plaintext> {
   // CHECK: cheddar.encode
   // CHECK-SAME: level = 5
-  %pt = cheddar.encode %enc, %msg, %out {level = 5 : i64} : (!cheddar.encoder, tensor<4xf64>, tensor<!cheddar.plaintext>) -> tensor<!cheddar.plaintext>
+  %pt = cheddar.encode %enc, %msg, %out {level = 5 : i64, logScale = 37 : i64} : (!cheddar.encoder, tensor<4xf64>, tensor<!cheddar.plaintext>) -> tensor<!cheddar.plaintext>
   return %pt : tensor<!cheddar.plaintext>
 }
 
@@ -406,8 +406,7 @@ func.func @test_eval_poly(
     %out: tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext> {
   // CHECK: cheddar.eval_poly
   // CHECK-SAME: coefficients = [1.000000e+00, 2.000000e+00, 3.000000e+00]
-  // CHECK-SAME: level = 5
-  // CHECK-SAME: outputLevel = 4
-  %result = cheddar.eval_poly %ctx, %ct, %evk, %out {coefficients = [1.0 : f64, 2.0 : f64, 3.0 : f64], level = 5 : i64, outputLevel = 4 : i64} : (!cheddar.context, tensor<!cheddar.ciphertext>, !cheddar.evk_map, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
+  // CHECK-SAME: levelConsumption = 2
+  %result = cheddar.eval_poly %ctx, %ct, %evk, %out {coefficients = [1.0 : f64, 2.0 : f64, 3.0 : f64], levelConsumption = 2 : i64} : (!cheddar.context, tensor<!cheddar.ciphertext>, !cheddar.evk_map, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
   return %result : tensor<!cheddar.ciphertext>
 }
