@@ -108,7 +108,7 @@ func.func @hmult(%ctx: !context, %a: tensor<!ciphertext>, %b: tensor<!ciphertext
 // uses CHEDDAR's canonical per-level scale; encrypt is an out-param method
 // call.
 // CHECK: func.func @enc_chain
-// CHECK: emitc.address_of
+// CHECK-SAME: !emitc.ptr<f64>
 // CHECK: emitc.verbatim "{}.Encode({}, 5, {}.GetScale(5), {});"
 // CHECK: emitc.member_call_opaque %arg2 "Encrypt"
 func.func @enc_chain(%enc: !encoder, %msg: tensor<4xf64>, %ui: !user_interface) -> tensor<!ciphertext> {
@@ -122,9 +122,10 @@ func.func @enc_chain(%enc: !encoder, %msg: tensor<4xf64>, %ui: !user_interface) 
 // Decrypt is an out-param method call; decode reads into a temporary
 // std::vector<Complex> then copies the real parts into the float buffer.
 // CHECK: func.func @dec_chain
+// CHECK-SAME: !emitc.ptr<f32>
 // CHECK: emitc.member_call_opaque %arg1 "Decrypt"
 // CHECK: emitc.verbatim "{}.Decode({}, {});"
-// CHECK: emitc.verbatim {{.*}}.at(_i).real();"
+// CHECK: emitc.verbatim "for (size_t _i = 0; _i < 4; ++_i) {}[_i] = {}.at(_i).real();"
 func.func @dec_chain(%enc: !encoder, %ui: !user_interface, %ct: tensor<!ciphertext>, %dst: tensor<1x4xf32>) -> tensor<1x4xf32> {
   %dp = tensor.empty() : tensor<!plaintext>
   %pt = cheddar.decrypt %ui, %ct, %dp : (!user_interface, tensor<!ciphertext>, tensor<!plaintext>) -> tensor<!plaintext>
