@@ -748,13 +748,23 @@ static void emitLinearTransformPreamble(OpBuilder& builder, Location loc,
                      ValueRange{});
   for (int64_t row = 0; row < height; ++row) {
     int32_t index = diagonalIndices.asArrayRef()[row];
-    VerbatimOp::create(builder, loc,
-                       "_lt_matrix[" + std::to_string(index) +
-                           "] = std::vector<Complex>(&{}[" +
-                           std::to_string(row) + "][0], &{}[" +
-                           std::to_string(row) + "][0] + " +
-                           std::to_string(width) + ");",
-                       ValueRange{diagonals, diagonals});
+    if (isa<emitc::PointerType>(diagonals.getType())) {
+      int64_t offset = row * width;
+      VerbatimOp::create(builder, loc,
+                         "_lt_matrix[" + std::to_string(index) +
+                             "] = std::vector<Complex>({} + " +
+                             std::to_string(offset) + ", {} + " +
+                             std::to_string(offset + width) + ");",
+                         ValueRange{diagonals, diagonals});
+    } else {
+      VerbatimOp::create(builder, loc,
+                         "_lt_matrix[" + std::to_string(index) +
+                             "] = std::vector<Complex>(&{}[" +
+                             std::to_string(row) + "][0], &{}[" +
+                             std::to_string(row) + "][0] + " +
+                             std::to_string(width) + ");",
+                         ValueRange{diagonals, diagonals});
+    }
   }
 }
 
