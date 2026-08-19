@@ -161,14 +161,18 @@ static std::vector<int64_t> moduliQGenerationReducedError(int logFirstMod,
 // numScaleMod is L
 SchemeParam SchemeParam::getConcreteSchemeParam(
     int logFirstMod, int logDefaultScale, int numScaleMod, int minSlotCount,
-    bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError) {
+    bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError,
+    int numBootstrapModuli, int logBootstrapMod) {
+  assert(numBootstrapModuli >= 0 && numBootstrapModuli <= numScaleMod);
+  assert(numBootstrapModuli == 0 || logBootstrapMod >= logDefaultScale);
   // CKKS slot number = ringDim / 2
   auto minRingDim = 2 * minSlotCount;
 
   auto dnum = computeDnum(numScaleMod);
 
   // q0 + (q1 + ... + qL) = firstModBits + scalingModBits * L
-  double logQ = logFirstMod + logDefaultScale * numScaleMod;
+  double logQ = logFirstMod + logDefaultScale * numScaleMod +
+                (logBootstrapMod - logDefaultScale) * numBootstrapModuli;
   // pi can be large
   auto sizePi = 60;
 
@@ -198,6 +202,13 @@ SchemeParam SchemeParam::getConcreteSchemeParam(
                                              numScaleMod + 1, ringDim);
     }
     std::vector<int64_t> existingPrimes = qiImpl;
+    // The bootstrap arithmetic needs more precision than the application
+    // rescale moduli. Include these larger primes in both P and ring sizing.
+    for (size_t i = qiImpl.size() - numBootstrapModuli; i < qiImpl.size();
+         ++i) {
+      qiImpl[i] = findPrime(logBootstrapMod, ringDim, existingPrimes);
+      existingPrimes.push_back(qiImpl[i]);
+    }
     for (size_t i = 0; i < numPi; ++i) {
       auto prime = findPrime(sizePi, ringDim, existingPrimes);
       piImpl.push_back(prime);
