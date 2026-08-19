@@ -306,7 +306,7 @@ func.func @test_hrot_static(
     %out: tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext> {
   // CHECK: cheddar.hrot
   // CHECK-SAME: static_distance = 5
-  %result = cheddar.hrot %ctx, %ui, %ct, %out {static_distance = 5 : i64} : (!cheddar.context, !cheddar.user_interface, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
+  %result = cheddar.hrot %ctx, %ui, %ct, %out {level = 8 : i64, static_distance = 5 : i64} : (!cheddar.context, !cheddar.user_interface, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
   return %result : tensor<!cheddar.ciphertext>
 }
 
@@ -318,7 +318,7 @@ func.func @test_hrot_dynamic(
     %out: tensor<!cheddar.ciphertext>,
     %dist: index) -> tensor<!cheddar.ciphertext> {
   // CHECK: cheddar.hrot
-  %result = cheddar.hrot %ctx, %ui, %ct, %out, %dist : (!cheddar.context, !cheddar.user_interface, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, index) -> tensor<!cheddar.ciphertext>
+  %result = cheddar.hrot %ctx, %ui, %ct, %out, %dist {level = 7 : i64} : (!cheddar.context, !cheddar.user_interface, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, index) -> tensor<!cheddar.ciphertext>
   return %result : tensor<!cheddar.ciphertext>
 }
 
@@ -331,7 +331,7 @@ func.func @test_hrot_add(
     %out: tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext> {
   // CHECK: cheddar.hrot_add
   // CHECK-SAME: distance = 3
-  %result = cheddar.hrot_add %ctx, %ui, %ct0, %ct1, %out {distance = 3 : i64} : (!cheddar.context, !cheddar.user_interface, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
+  %result = cheddar.hrot_add %ctx, %ui, %ct0, %ct1, %out {distance = 3 : i64, level = 6 : i64} : (!cheddar.context, !cheddar.user_interface, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
   return %result : tensor<!cheddar.ciphertext>
 }
 

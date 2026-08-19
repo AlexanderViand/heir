@@ -15,10 +15,8 @@
 //     non-const reference.                              (core/Context.h:377)
 //   * UserInterface::Get*Key() / GetEvkMap() return `const&`. (UserInterface.h)
 //
-// Kept deliberately narrow: the "setup/getter" surface (create_context,
-// create_user_interface, get_encoder, encode/decode) is *not* modelled here
-// because that part of the emitter has independent, pre-existing mismatches
-// against the real API and needs its own design pass.
+// Kept deliberately narrow: setup is covered by conversion and opt-in real
+// CHEDDAR compile tests. Getter ops remain unsupported by this lowering.
 
 #ifndef TESTS_CONVERSIONS_CHEDDARTOEMITC_COMPILE_CHEDDAR_STUB_H_
 #define TESTS_CONVERSIONS_CHEDDARTOEMITC_COMPILE_CHEDDAR_STUB_H_

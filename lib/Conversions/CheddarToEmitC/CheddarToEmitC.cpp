@@ -1,5 +1,6 @@
 #include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <functional>
 #include <optional>
@@ -330,6 +331,26 @@ bool diagnoseUnsupportedGetters(Operation* root) {
       found = true;
     }
   });
+  root->walk([&](func::FuncOp func) {
+    unsigned parameters = 0;
+    unsigned bootstraps = 0;
+    func.walk([&](Operation* op) {
+      parameters += isa<cheddar::MakeParameterOp>(op);
+      bootstraps += isa<cheddar::PrepareBootstrapOp>(op);
+    });
+    if (parameters > 1) {
+      func.emitError(
+          "cheddar-to-emitc supports at most one "
+          "cheddar.make_parameter per function");
+      found = true;
+    }
+    if (bootstraps > 1) {
+      func.emitError(
+          "cheddar-to-emitc supports at most one "
+          "cheddar.prepare_bootstrap per function");
+      found = true;
+    }
+  });
   return found;
 }
 
@@ -368,6 +389,143 @@ struct OutParamDpsPattern : public OpConversionPattern<Op> {
 
   std::string method;
   std::function<std::string(Op)> extra;
+};
+
+template <typename Op>
+struct ConvertSetupAssign : public OpConversionPattern<Op> {
+  ConvertSetupAssign(const TypeConverter& tc, MLIRContext* ctx,
+                     StringRef rhsCallee)
+      : OpConversionPattern<Op>(tc, ctx), rhsCallee(rhsCallee.str()) {}
+
+  LogicalResult matchAndRewrite(
+      Op op, typename Op::Adaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto operands = adaptor.getOperands();
+    VerbatimOp::create(rewriter, op.getLoc(), "{} = " + rhsCallee + "({});",
+                       ValueRange{operands[1], operands[0]});
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  std::string rhsCallee;
+};
+
+struct ConvertMakeParameter
+    : public OpConversionPattern<cheddar::MakeParameterOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::MakeParameterOp op, OpAdaptor /*adaptor*/,
+      ConversionPatternRewriter& rewriter) const override {
+    Type resultType = typeConverter->convertType(op.getResult().getType());
+    ArrayRef<int64_t> mainPrimes = op.getMainPrimes();
+    int64_t defaultLevel = op.getDefaultEncryptionLevel()
+                               ? op.getDefaultEncryptionLevelAttr().getInt()
+                               : static_cast<int64_t>(mainPrimes.size()) - 1;
+
+    std::string levels = "std::vector<std::pair<int, int>>{";
+    for (size_t i = 0; i < mainPrimes.size(); ++i) {
+      if (i) levels += ", ";
+      levels += "{" + std::to_string(i + 1) + ", 0}";
+    }
+    levels += "}";
+    auto primes = [](ArrayRef<int64_t> values) {
+      std::string result = "std::vector<word>{";
+      for (size_t i = 0; i < values.size(); ++i) {
+        if (i) result += ", ";
+        result += std::to_string(static_cast<uint64_t>(values[i])) + "ULL";
+      }
+      return result + "}";
+    };
+    std::string scale = "static_cast<double>(static_cast<word>(1) << " +
+                        std::to_string(op.getLogScale().getInt()) + ")";
+    std::string args = std::to_string(op.getLogN().getInt()) + ", " + scale +
+                       ", " + std::to_string(defaultLevel) + ", " + levels +
+                       ", " + primes(mainPrimes) + ", " +
+                       primes(op.getAuxPrimes());
+
+    StringRef name = "cheddar_param";
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        ("static Parameter<word> " + name + "(" + args + ");").str(),
+        ValueRange{});
+    if (auto weight = op.getDenseHammingWeightAttr())
+      VerbatimOp::create(
+          rewriter, op.getLoc(),
+          (name + ".SetDenseHammingWeight(" + intLit(weight) + ");").str(),
+          ValueRange{});
+    if (auto weight = op.getSparseHammingWeightAttr())
+      VerbatimOp::create(
+          rewriter, op.getLoc(),
+          (name + ".SetSparseHammingWeight(" + intLit(weight) + ");").str(),
+          ValueRange{});
+    auto literal =
+        emitc::LiteralOp::create(rewriter, op.getLoc(), resultType, name);
+    rewriter.replaceOp(op, literal.getResult());
+    return success();
+  }
+};
+
+struct ConvertPrepareRotKey
+    : public OpConversionPattern<cheddar::PrepareRotKeyOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::PrepareRotKeyOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    VerbatimOp::create(rewriter, op.getLoc(),
+                       "{}->PrepareRotationKey(" +
+                           intLit(op.getDistanceAttr()) + ", " +
+                           intLit(op.getMaxLevelAttr()) + ");",
+                       ValueRange{adaptor.getUi()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertCreateBootContext
+    : public OpConversionPattern<cheddar::CreateBootContextOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::CreateBootContextOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    std::string ratio;
+    if (auto attr = op.getLogMessageRatioAttr()) ratio = ", " + intLit(attr);
+    VerbatimOp::create(
+        rewriter, op.getLoc(),
+        "{} = BootContext<word>::Create({}, BootParameter({}.max_level_, " +
+            std::to_string(op.getNumCtsLevels().getInt()) + ", " +
+            std::to_string(op.getNumStcLevels().getInt()) + ratio + "));",
+        ValueRange{adaptor.getOutput(), adaptor.getParams(),
+                   adaptor.getParams()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct ConvertPrepareBootstrap
+    : public OpConversionPattern<cheddar::PrepareBootstrapOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      cheddar::PrepareBootstrapOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    std::string slots = std::to_string(op.getNumSlots().getInt());
+    Value context = adaptor.getCtx();
+    VerbatimOp::create(rewriter, op.getLoc(), "{}->PrepareEvalMod();",
+                       ValueRange{context});
+    VerbatimOp::create(rewriter, op.getLoc(),
+                       "{}->PrepareEvalSpecialFFT(" + slots +
+                           ", BootVariant::kImaginaryRemoving);",
+                       ValueRange{context});
+    VerbatimOp::create(rewriter, op.getLoc(), "EvkRequest boot_evk_req;",
+                       ValueRange{});
+    VerbatimOp::create(rewriter, op.getLoc(),
+                       "{}->AddRequiredRotations(boot_evk_req, " + slots + ");",
+                       ValueRange{context});
+    VerbatimOp::create(rewriter, op.getLoc(),
+                       "{}->PrepareRotationKey(boot_evk_req);",
+                       ValueRange{adaptor.getUi()});
+    rewriter.eraseOp(op);
+    return success();
+  }
 };
 
 // cheddar.encode: fill a std::vector<Complex> from the float message buffer,
@@ -1382,9 +1540,15 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
     patterns.add<ConvertCiphertextCopy>(typeConverter, ctx, /*benefit=*/3);
 
     patterns
-        .add<ConvertEncode, ConvertEncodeConstant, ConvertDecode, ConvertHRot,
-             ConvertHRotAdd, ConvertHConj, ConvertHConjAdd, ConvertEvalPoly>(
-            typeConverter, ctx);
+        .add<ConvertMakeParameter, ConvertPrepareRotKey,
+             ConvertCreateBootContext, ConvertPrepareBootstrap, ConvertEncode,
+             ConvertEncodeConstant, ConvertDecode, ConvertHRot, ConvertHRotAdd,
+             ConvertHConj, ConvertHConjAdd, ConvertEvalPoly>(typeConverter,
+                                                             ctx);
+    patterns.add<ConvertSetupAssign<cheddar::CreateContextOp>>(
+        typeConverter, ctx, "Context<word>::Create");
+    patterns.add<ConvertSetupAssign<cheddar::CreateUserInterfaceOp>>(
+        typeConverter, ctx, "std::make_unique<UserInterface<word>>");
 
     auto addDps = [&](StringRef name, auto opTag,
                       std::function<std::string(decltype(opTag))> extra =
