@@ -85,6 +85,10 @@ def Cheddar_FloatLike : TensorOrMemRef<[AnyFloat, AnyComplex]>;
 def Cheddar_CtResult : Variadic<RankedTensorOf<[Cheddar_Ciphertext]>>;
 def Cheddar_PtResult : Variadic<RankedTensorOf<[Cheddar_Plaintext]>>;
 def Cheddar_ConstResult : Variadic<RankedTensorOf<[Cheddar_Constant]>>;
+def Cheddar_LinearTransformLike :
+    TensorOrMemRef<[Cheddar_LinearTransform]>;
+def Cheddar_LinearTransformResult :
+    Variadic<RankedTensorOf<[Cheddar_LinearTransform]>>;
 
 // Owning setup-handle destinations. The `create_*` setup ops are
 // destination-passing like the payload ops: in tensor form they produce an SSA
@@ -251,12 +255,12 @@ def Cheddar_MakeParameterOp : Cheddar_Op<"make_parameter", [Pure]> {
   let description = [{
     Builds a `cheddar::Parameter<word>` from the CKKS modulus chain. The main
     primes are the CKKS `Q` limbs and the aux primes are the `P` limbs; the
-    canonical level config is one-main-prime-per-level (`{{1, 0}, {2, 0}, ...}`)
-    and the default encryption level is `#mainPrimes - 1`, both derived from
-    `mainPrimes` by the emitter. `logScale` is the log2 of the default CKKS
-    scale. This is the single setup op that produces the `!cheddar.parameter`
-    consumed by `cheddar.create_context`, so a generated `__configure` is
-    self-contained.
+    canonical level config is one-main-prime-per-level (`{{1, 0}, {2, 0}, ...}`).
+    The default encryption level is `#mainPrimes - 1` for an ordinary context;
+    a boot context instead uses CHEDDAR's required SlotToCoeff start level.
+    `logScale` is the log2 of the default CKKS scale. This is the single setup
+    op that produces the `!cheddar.parameter` consumed by
+    `cheddar.create_context`, so a generated `__configure` is self-contained.
 
     Bootstrapping programs override the defaults: `defaultEncryptionLevel`
     pins the encryption level below the chain top (the boot-circuit primes sit
@@ -553,12 +557,12 @@ def Cheddar_HRotOp : Cheddar_DpsOp<"hrot", [
   let summary = "Fused key-switch + rotation";
   let description = [{
     Calls context->HRot(res, a, rot_key, distance). The rotation key is looked
-    up from the `$ui` UserInterface operand using `distance`.
+    up from the `$evk` EvkMap operand using `distance`.
     Single fused GPU kernel. Supports both static and dynamic distances.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
-    Cheddar_UserInterface:$ui,
+    Cheddar_EvkMap:$evk,
     Cheddar_CtLike:$input,
     Cheddar_CtLike:$output,
     Optional<AnySignlessIntegerOrIndex>:$dynamic_distance,
@@ -575,11 +579,11 @@ def Cheddar_HRotAddOp : Cheddar_DpsOp<"hrot_add", [
   let description = [{
     Computes res = rotate(a, distance) + b in a single fused GPU kernel.
     Calls context->HRotAdd(res, a, b, rot_key, distance). The rotation key
-    is looked up from the `$ui` UserInterface operand using `distance`.
+    is looked up from the `$evk` EvkMap operand using `distance`.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
-    Cheddar_UserInterface:$ui,
+    Cheddar_EvkMap:$evk,
     Cheddar_CtLike:$input,
     Cheddar_CtLike:$addend,
     Cheddar_CtLike:$output,
@@ -592,11 +596,11 @@ def Cheddar_HConjOp : Cheddar_DpsOp<"hconj"> {
   let summary = "Fused key-switch + conjugation";
   let description = [{
     Calls context->HConj(res, a, conj_key). The conjugation key is looked
-    up from the `$ui` UserInterface operand.
+    up from the `$evk` EvkMap operand.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
-    Cheddar_UserInterface:$ui,
+    Cheddar_EvkMap:$evk,
     Cheddar_CtLike:$input,
     Cheddar_CtLike:$output
   );
@@ -608,11 +612,11 @@ def Cheddar_HConjAddOp : Cheddar_DpsOp<"hconj_add"> {
   let description = [{
     Computes res = conj(a) + b in a single fused GPU kernel.
     Calls context->HConjAdd(res, a, b, conj_key). The conjugation key is
-    looked up from the `$ui` UserInterface operand.
+    looked up from the `$evk` EvkMap operand.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
-    Cheddar_UserInterface:$ui,
+    Cheddar_EvkMap:$evk,
     Cheddar_CtLike:$input,
     Cheddar_CtLike:$addend,
     Cheddar_CtLike:$output
@@ -675,6 +679,8 @@ def Cheddar_LinearTransformOp : Cheddar_DpsOp<"linear_transform", [
     The `diagonals` input is a 2D tensor where each row is a non-zero diagonal.
     The `diagonal_indices` attribute specifies which diagonal each row represents.
     The `level` attribute specifies the modulus level for the operation.
+    `min_ks` selects scale-snu's minimum-key-switch evaluation when the baby-
+    and giant-step rotations are complete arithmetic progressions.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
@@ -685,10 +691,57 @@ def Cheddar_LinearTransformOp : Cheddar_DpsOp<"linear_transform", [
     DenseI32ArrayAttr:$diagonal_indices,
     Builtin_IntegerAttr:$level,
     Builtin_IntegerAttr:$bs,
-    Builtin_IntegerAttr:$gs
+    Builtin_IntegerAttr:$gs,
+    DefaultValuedAttr<BoolAttr, "false">:$min_ks
   );
   let results = (outs Cheddar_CtResult:$result);
   let hasVerifier = 1;
+}
+
+def Cheddar_PrepareLinearTransformOp :
+    Cheddar_DpsOp<"prepare_linear_transform", [
+      DeclareOpInterfaceMethods<RotationOpInterface>
+    ]> {
+  let summary = "Compile and encode a reusable linear transform";
+  let description = [{
+    Packs cleartext diagonals into a StripedMatrix and constructs the scale-snu
+    LinearTransform object. This data-independent work belongs in split
+    preprocessing and is reused by encrypted evaluation.
+    `min_ks` records the key-switch strategy chosen by the source lowering.
+  }];
+  let arguments = (ins
+    Cheddar_AnyContext:$ctx,
+    TensorOrMemRef<[AnyFloat]>:$diagonals,
+    Cheddar_LinearTransformLike:$output,
+    DenseI32ArrayAttr:$diagonal_indices,
+    Builtin_IntegerAttr:$width,
+    Builtin_IntegerAttr:$level,
+    Builtin_IntegerAttr:$bs,
+    Builtin_IntegerAttr:$gs,
+    DefaultValuedAttr<BoolAttr, "false">:$min_ks
+  );
+  let results = (outs Cheddar_LinearTransformResult:$result);
+  let hasVerifier = 1;
+}
+
+def Cheddar_ApplyPreparedLinearTransformOp :
+    Cheddar_DpsOp<"apply_prepared_linear_transform"> {
+  let summary = "Evaluate a precompiled linear transform";
+  let description = [{
+    Applies a LinearTransform prepared by `cheddar.prepare_linear_transform`.
+    No diagonal packing or encoding is performed by this operation.
+    `min_ks` must match the strategy used to plan keys for the prepared
+    transform.
+  }];
+  let arguments = (ins
+    Cheddar_AnyContext:$ctx,
+    Cheddar_CtLike:$input,
+    Cheddar_EvkMap:$evkMap,
+    Cheddar_LinearTransformLike:$transform,
+    Cheddar_CtLike:$output,
+    DefaultValuedAttr<BoolAttr, "false">:$min_ks
+  );
+  let results = (outs Cheddar_CtResult:$result);
 }
 
 def Cheddar_EvalPolyOp : Cheddar_DpsOp<"eval_poly"> {
@@ -696,8 +749,9 @@ def Cheddar_EvalPolyOp : Cheddar_DpsOp<"eval_poly"> {
   let description = [{
     Evaluates a polynomial (e.g., Chebyshev approximation) on an encrypted
     input using CHEDDAR's EvalPoly extension.
-    `level` is the level the input ciphertext enters at; `outputLevel` is the
-    level the result lands at after the polynomial's multiplicative depth.
+    `levelConsumption` is copied from the upstream
+    `kernel.eval_chebyshev` level interface and drives CHEDDAR's target-scale
+    recurrence.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
@@ -705,8 +759,7 @@ def Cheddar_EvalPolyOp : Cheddar_DpsOp<"eval_poly"> {
     Cheddar_EvkMap:$evkMap,
     Cheddar_CtLike:$output,
     F64ArrayAttr:$coefficients,
-    Builtin_IntegerAttr:$level,
-    Builtin_IntegerAttr:$outputLevel
+    Builtin_IntegerAttr:$levelConsumption
   );
   let results = (outs Cheddar_CtResult:$result);
   let hasVerifier = 1;
