@@ -19,6 +19,25 @@
 !parameter = !cheddar.parameter
 !boot_context = !cheddar.boot_context
 
+// CHECK: func.func @configure
+// CHECK-SAME: !emitc.opaque<"std::shared_ptr<Context<word>>&">
+// CHECK-SAME: !emitc.opaque<"std::unique_ptr<UserInterface<word>>&">
+// CHECK: emitc.verbatim "static Parameter<word> cheddar_param
+// CHECK-SAME: std::vector<word>{1ULL, 2ULL, 3ULL}
+// CHECK-SAME: std::vector<word>{4ULL, 5ULL}
+// CHECK: emitc.verbatim "{} = Context<word>::Create({});"
+// CHECK: emitc.verbatim "{} = std::make_unique<UserInterface<word>>({});"
+// CHECK: emitc.verbatim "{}->PrepareRotationKey(3, 2);"
+func.func @configure() -> (tensor<!context>, tensor<!user_interface>) {
+  %p = cheddar.make_parameter {logN = 14 : i64, logScale = 45 : i64, mainPrimes = array<i64: 1, 2, 3>, auxPrimes = array<i64: 4, 5>} : !parameter
+  %context_dest = tensor.empty() : tensor<!context>
+  %context = cheddar.create_context %p, %context_dest : (!parameter, tensor<!context>) -> tensor<!context>
+  %ui_dest = tensor.empty() : tensor<!user_interface>
+  %ui = cheddar.create_user_interface %context, %ui_dest : (tensor<!context>, tensor<!user_interface>) -> tensor<!user_interface>
+  %prepared = cheddar.prepare_rot_key %ui {distance = 3 : i64, maxLevel = 2 : i64} : (tensor<!user_interface>) -> tensor<!user_interface>
+  return %context, %prepared : tensor<!context>, tensor<!user_interface>
+}
+
 // A two-op chain: each op is `ctx->Method(out, a, b)`. The first op's result is
 // an intermediate local (`emitc.variable`); the second writes the function
 // out-param. Inputs are `const Ciphertext<word>&`, the out-param is mutable.
