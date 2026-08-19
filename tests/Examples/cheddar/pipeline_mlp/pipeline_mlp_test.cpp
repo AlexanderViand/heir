@@ -25,13 +25,11 @@ void tiny_mlp__encrypt__arg0(cheddar::Context<word>* ctx,
                              std::array<Ct, 1>& out);
 void tiny_mlp__preprocessing(
     cheddar::Context<word>* ctx,
-    std::shared_ptr<LinearTransform>& input_transform,
-    std::shared_ptr<LinearTransform>& output_transform);
+    std::array<std::shared_ptr<LinearTransform>, 2>& transforms);
 void tiny_mlp__preprocessed(
     cheddar::Context<word>* ctx, const cheddar::Encoder<word>& encoder, UI* ui,
     const Evk& evk, const EvkMap& evk_map, const std::array<Ct, 1>& input,
-    const std::shared_ptr<LinearTransform>& input_transform,
-    const std::shared_ptr<LinearTransform>& output_transform,
+    const std::array<std::shared_ptr<LinearTransform>, 2>& transforms,
     std::array<Ct, 1>& out);
 void tiny_mlp__decrypt__result0(cheddar::Context<word>* ctx,
                                 const cheddar::Encoder<word>& encoder,
@@ -76,20 +74,17 @@ TEST(CheddarPipelineMlpE2E, MatchesPlaintextNetworkAndReusesWeights) {
   std::array<Ct, 1> encrypted;
   tiny_mlp__encrypt__arg0(ctx.get(), ctx->encoder_, evk, input, ui.get(),
                           encrypted);
-  std::shared_ptr<LinearTransform> input_transform;
-  std::shared_ptr<LinearTransform> output_transform;
-  tiny_mlp__preprocessing(ctx.get(), input_transform, output_transform);
-  ASSERT_NE(input_transform, nullptr);
-  ASSERT_NE(output_transform, nullptr);
+  std::array<std::shared_ptr<LinearTransform>, 2> transforms;
+  tiny_mlp__preprocessing(ctx.get(), transforms);
+  ASSERT_NE(transforms[0], nullptr);
+  ASSERT_NE(transforms[1], nullptr);
 
   std::array<Ct, 1> evaluated;
   std::array<Ct, 1> repeated;
   tiny_mlp__preprocessed(ctx.get(), ctx->encoder_, ui.get(), evk, evk_map,
-                         encrypted, input_transform, output_transform,
-                         evaluated);
+                         encrypted, transforms, evaluated);
   tiny_mlp__preprocessed(ctx.get(), ctx->encoder_, ui.get(), evk, evk_map,
-                         encrypted, input_transform, output_transform,
-                         repeated);
+                         encrypted, transforms, repeated);
   EXPECT_EQ(ctx->param_.NPToLevel(encrypted[0].GetNP()), 4);
   EXPECT_EQ(ctx->param_.NPToLevel(evaluated[0].GetNP()), 0);
 

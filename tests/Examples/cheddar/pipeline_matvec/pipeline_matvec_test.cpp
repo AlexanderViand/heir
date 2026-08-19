@@ -28,14 +28,14 @@ void matvec__encrypt__arg0(cheddar::Context<word>* ctx,
 void matvec(cheddar::Context<word>* ctx, const cheddar::Encoder<word>& encoder,
             UI* ui, const Evk& evk, const EvkMap& evk_map,
             const std::array<Ct, 1>& x, std::array<Ct, 1>& out);
-void matvec__preprocessing(cheddar::Context<word>* ctx,
-                           std::shared_ptr<LinearTransform>& transform);
-void matvec__preprocessed(cheddar::Context<word>* ctx,
-                          const cheddar::Encoder<word>& encoder, UI* ui,
-                          const Evk& evk, const EvkMap& evk_map,
-                          const std::array<Ct, 1>& input,
-                          const std::shared_ptr<LinearTransform>& transform,
-                          std::array<Ct, 1>& out);
+void matvec__preprocessing(
+    cheddar::Context<word>* ctx,
+    std::array<std::shared_ptr<LinearTransform>, 1>& transforms);
+void matvec__preprocessed(
+    cheddar::Context<word>* ctx, const cheddar::Encoder<word>& encoder, UI* ui,
+    const Evk& evk, const EvkMap& evk_map, const std::array<Ct, 1>& input,
+    const std::array<std::shared_ptr<LinearTransform>, 1>& transforms,
+    std::array<Ct, 1>& out);
 void matvec__decrypt__result0(cheddar::Context<word>* ctx,
                               const cheddar::Encoder<word>& encoder,
                               const Evk& evk, const std::array<Ct, 1>& in,
@@ -68,9 +68,9 @@ TEST(CheddarPipelineMatvecE2E, GeneratedPipelineAndSetupRun) {
   const EvkMap& evk_map = ui->GetEvkMap();
 
   std::array<Ct, 1> encrypted_input;
-  std::shared_ptr<LinearTransform> transform;
-  matvec__preprocessing(ctx.get(), transform);
-  ASSERT_NE(transform, nullptr);
+  std::array<std::shared_ptr<LinearTransform>, 1> transforms;
+  matvec__preprocessing(ctx.get(), transforms);
+  ASSERT_NE(transforms[0], nullptr);
 
   std::array<Ct, 1> encrypted_output;
   std::array<Ct, 1> repeated_output;
@@ -78,9 +78,9 @@ TEST(CheddarPipelineMatvecE2E, GeneratedPipelineAndSetupRun) {
   matvec__encrypt__arg0(ctx.get(), ctx->encoder_, evk, x, ui.get(),
                         encrypted_input);
   matvec__preprocessed(ctx.get(), ctx->encoder_, ui.get(), evk, evk_map,
-                       encrypted_input, transform, encrypted_output);
+                       encrypted_input, transforms, encrypted_output);
   matvec__preprocessed(ctx.get(), ctx->encoder_, ui.get(), evk, evk_map,
-                       encrypted_input, transform, repeated_output);
+                       encrypted_input, transforms, repeated_output);
   matvec(ctx.get(), ctx->encoder_, ui.get(), evk, evk_map, encrypted_input,
          wrapper_output);
   EXPECT_EQ(ctx->param_.NPToLevel(encrypted_input[0].GetNP()), 1);
