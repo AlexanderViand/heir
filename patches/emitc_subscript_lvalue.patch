@@ -1,0 +1,36 @@
+# HEIR-maintained LLVM patch (NOT auto-generated): support move-only buffers
+# carried as `lvalue<opaque "std::array<...>">`. Allow `emitc.subscript` to
+# take an `!emitc.lvalue` base, and make the stock MemRefToEmitC copy pattern
+# decline non-array operands instead of asserting after a custom pattern does.
+# Upstream candidates; drop these once both changes land in the pinned LLVM.
+diff -ruN --strip-trailing-cr a/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td b/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
+--- a/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
++++ b/mlir/include/mlir/Dialect/EmitC/IR/EmitC.td
+@@ -1623,7 +1623,8 @@
+   let arguments = (ins Arg<AnyTypeOf<[
+       EmitC_ArrayType,
+       EmitC_OpaqueType,
+-      EmitC_PointerType]>,
++      EmitC_PointerType,
++      EmitC_LValueType]>,
+     "the value to subscript">:$value,
+     Variadic<EmitCType>:$indices);
+   let results = (outs EmitC_LValueType:$result);
+diff -ruN --strip-trailing-cr a/mlir/lib/Conversion/MemRefToEmitC/MemRefToEmitC.cpp b/mlir/lib/Conversion/MemRefToEmitC/MemRefToEmitC.cpp
+--- a/mlir/lib/Conversion/MemRefToEmitC/MemRefToEmitC.cpp
++++ b/mlir/lib/Conversion/MemRefToEmitC/MemRefToEmitC.cpp
+@@ -315,9 +315,10 @@
+     auto srcArrayValue =
+-        cast<TypedValue<emitc::ArrayType>>(operands.getSource());
++        dyn_cast<TypedValue<emitc::ArrayType>>(operands.getSource());
++    auto targetArrayValue =
++        dyn_cast<TypedValue<emitc::ArrayType>>(operands.getTarget());
++    if (!srcArrayValue || !targetArrayValue)
++      return rewriter.notifyMatchFailure(loc, "expected array operands");
+     emitc::AddressOfOp srcPtr =
+         createPointerFromEmitcArray(loc, rewriter, srcArrayValue);
+-
+-    auto targetArrayValue =
+-        cast<TypedValue<emitc::ArrayType>>(operands.getTarget());
+     emitc::AddressOfOp targetPtr =
+         createPointerFromEmitcArray(loc, rewriter, targetArrayValue);
