@@ -28,3 +28,14 @@ func.func @get_encoder(%ctx: !cheddar.context) -> !cheddar.encoder {
   %e = cheddar.get_encoder %ctx : (!cheddar.context) -> !cheddar.encoder
   return %e : !cheddar.encoder
 }
+
+// -----
+
+// The lowering uses one function-local static Parameter so the Context can
+// safely retain its reference after the configure function returns.
+// expected-error @below {{cheddar-to-emitc supports at most one cheddar.make_parameter per function}}
+func.func @duplicate_parameter() {
+  %p0 = cheddar.make_parameter {logN = 14 : i64, logScale = 45 : i64, mainPrimes = array<i64: 1, 2>, auxPrimes = array<i64: 3>} : !cheddar.parameter
+  %p1 = cheddar.make_parameter {logN = 14 : i64, logScale = 45 : i64, mainPrimes = array<i64: 1, 2>, auxPrimes = array<i64: 3>} : !cheddar.parameter
+  return
+}
