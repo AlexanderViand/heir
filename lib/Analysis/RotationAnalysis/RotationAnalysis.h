@@ -1,9 +1,11 @@
 #ifndef LIB_ANALYSIS_ROTATIONANALYSIS_ROTATIONANALYSIS_H_
 #define LIB_ANALYSIS_ROTATIONANALYSIS_ROTATIONANALYSIS_H_
 
+#include <cassert>
 #include <cstdint>
 
 #include "lib/Dialect/HEIRInterfaces.h"
+#include "llvm/include/llvm/ADT/DenseMap.h"        // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"        // from @llvm-project
 #include "mlir/include/mlir/Support/LLVM.h"        // from @llvm-project
@@ -20,6 +22,12 @@ class RotationAnalysis {
 
   const DenseSet<int64_t>& getRotationIndices() const {
     return rotationIndices;
+  }
+
+  const DenseSet<int64_t>& getRotationIndices(RotationOpInterface op) const {
+    auto it = rotationIndicesByOp.find(op.getOperation());
+    assert(it != rotationIndicesByOp.end());
+    return it->second;
   }
 
   LogicalResult run(Operation* op);
@@ -40,6 +48,7 @@ class RotationAnalysis {
   void markVisited(Operation* op) { visitedRotationOps.insert(op); }
 
   DenseSet<int64_t> rotationIndices;
+  DenseMap<Operation*, DenseSet<int64_t>> rotationIndicesByOp;
   DenseSet<Operation*> visitedRotationOps;
 };
 

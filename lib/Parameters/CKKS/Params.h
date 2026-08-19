@@ -24,9 +24,12 @@ class SchemeParam : public RLWESchemeParam {
   int64_t getLogDefaultScale() const { return logDefaultScale; }
   void print(llvm::raw_ostream& os) const override;
 
+  // numBootstrapModuli counts the high end of numScaleMod whose primes use
+  // logBootstrapMod bits instead of logDefaultScale bits.
   static SchemeParam getConcreteSchemeParam(
       int logFirstMod, int logDefaultScale, int numScaleMod, int minSlotCount,
-      bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError);
+      bool usePublicKey, bool encryptionTechniqueExtended, bool reducedError,
+      int numBootstrapModuli = 0, int logBootstrapMod = 0);
 };
 
 // Parameter for each SSA ciphertext SSA value.
