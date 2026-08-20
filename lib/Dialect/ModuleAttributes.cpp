@@ -1,6 +1,7 @@
 #include "lib/Dialect/ModuleAttributes.h"
 
 #include <algorithm>
+#include <cstdint>
 
 #include "lib/Dialect/BGV/IR/BGVDialect.h"
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
@@ -67,6 +68,14 @@ void setInterfaceField(Operation* op, StringRef name, Attribute value) {
 /*===----------------------------------------------------------------------===*/
 // Module Attributes for Scheme
 /*===----------------------------------------------------------------------===*/
+
+int64_t getEncodedSlotCount(Operation* moduleOp, int64_t ringCapacity) {
+  if (auto requested = dyn_cast_or_null<IntegerAttr>(
+          moduleOp->getAttr(kRequestedSlotCountAttrName))) {
+    return std::min(ringCapacity, requested.getInt());
+  }
+  return ringCapacity;
+}
 
 bool moduleIsBGV(Operation* moduleOp) {
   return moduleOp->getAttrOfType<mlir::UnitAttr>(kBGVSchemeAttrName) != nullptr;

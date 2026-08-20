@@ -88,14 +88,16 @@ bool emitCompilationTargetRegistration(const llvm::RecordKeeper& records,
     auto requiresMatchingCiphertextPlaintextLevels =
         target->getValueAsInt("requires_matching_ciphertext_plaintext_levels");
     auto canEmitAdjustScale = target->getValueAsInt("can_emit_adjust_scale");
+    auto hasPreparedLinearTransform =
+        target->getValueAsInt("has_prepared_linear_transform");
 
     os << "void registerTarget" << name << "() {\n"
        << "  "
           "CompilationTargetRegistry::registerTarget(CompilationTarget{"
           "BackendName::"
        << name << ", " << bootstrapLevelsConsumed << ", " << hasKernelChebyshev
-       << ", " << hasKernelLinearTransform << ", "
-       << requiresMatchingCiphertextPlaintextLevels << ", "
+       << ", " << hasKernelLinearTransform << ", " << hasPreparedLinearTransform
+       << ", " << requiresMatchingCiphertextPlaintextLevels << ", "
        << canEmitAdjustScale << "});\n"
        << "}\n\n";
   }
