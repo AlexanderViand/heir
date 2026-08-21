@@ -1,0 +1,27 @@
+# Run the complete test suite with BuildBuddy remote execution.
+#
+# Usage: sky launch -y -c heir-test sky/test.yaml
+
+name: heir-test
+
+workdir: .
+
+resources:
+  cpus: 16+
+  memory: 32+
+  disk_size: 200
+  autostop:
+    idle_minutes: 10
+
+setup: |
+  set -ex
+  if ! command -v bazel &> /dev/null; then
+    sudo wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    sudo chmod +x /usr/local/bin/bazel
+  fi
+
+run: |
+  set -ex
+  bazel fetch //... --config=remote
+  bazel build //... --config=remote
+  bazel test //... --config=remote --test_output=errors

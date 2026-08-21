@@ -1,0 +1,34 @@
+# Run the complete Cheddar-enabled test suite. Build actions use BuildBuddy
+# remote execution; test actions run locally so CUDA tests use the Sky GPU.
+#
+# Usage: sky launch -y -c heir-test-cheddar sky/test_cheddar.yaml
+
+name: heir-test-cheddar
+
+workdir: .
+
+resources:
+  accelerators: A10G:1
+  cpus: 16+
+  memory: 64+
+  disk_size: 200
+  cloud: aws
+  image_id: docker:nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+  autostop:
+    idle_minutes: 10
+
+setup: |
+  set -ex
+  apt-get update -qq
+  apt-get install -y -qq git wget
+  if ! command -v bazel &> /dev/null; then
+    wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+    chmod +x /usr/local/bin/bazel
+  fi
+
+run: |
+  set -ex
+  bazel fetch //... --config=cheddar --config=remote
+  bazel build //... --config=cheddar --config=remote
+  bazel test //... --config=cheddar --config=remote \
+    --strategy=TestRunner=local --test_output=errors
