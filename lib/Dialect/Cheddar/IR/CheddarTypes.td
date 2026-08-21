@@ -101,6 +101,15 @@ def Cheddar_Constant : Cheddar_Type<"Constant", "constant"> {
   let asmName = "const";
 }
 
+def Cheddar_LinearTransform :
+    Cheddar_Type<"LinearTransform", "linear_transform"> {
+  let description = [{
+    A reusable scale-snu CHEDDAR LinearTransform object. It owns the encoded
+    diagonal plaintexts and is prepared once before encrypted evaluation.
+  }];
+  let asmName = "lintrans";
+}
+
 // Key types
 
 def Cheddar_EvalKey : Cheddar_Type<"EvalKey", "eval_key"> {

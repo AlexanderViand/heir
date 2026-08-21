@@ -122,11 +122,17 @@ def Kernel_ApplyLinearTransformOp : Kernel_Op<"apply_linear_transform", [
     ciphertext: applying at a level other than the one the diagonals were
     encoded at would silently compute with a wrongly-scaled transform, so a
     mismatch is a compile-time error here rather than a runtime surprise.
+
+    `diagonal_indices` and `diagonal_width` retain planning metadata needed by
+    target lowerings after preparation and application are split across
+    functions.
   }];
 
   let arguments = (ins
     AnyType:$input,
-    Kernel_PreparedLinearTransform:$prepared
+    Kernel_PreparedLinearTransform:$prepared,
+    OptionalAttr<DenseI64ArrayAttr>:$diagonal_indices,
+    OptionalAttr<I64Attr>:$diagonal_width
   );
 
   let results = (outs
