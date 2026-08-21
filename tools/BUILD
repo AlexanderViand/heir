@@ -53,6 +53,7 @@ cc_binary(
         "@heir//lib/Dialect/Cheddar/Transforms",
         "@heir//lib/Dialect/Cheddar/Transforms:BufferizableOpInterfaceImpl",
         "@heir//lib/Dialect/Cheddar/Transforms:ConfigureCryptoContext",
+        "@heir//lib/Dialect/Cheddar/Transforms:FuseOps",
         "@heir//lib/Dialect/Comb/IR:Dialect",
         "@heir//lib/Dialect/Debug/IR:Dialect",
         "@heir//lib/Dialect/Debug/Transforms",
