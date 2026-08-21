@@ -9,17 +9,12 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-# End-to-end: generate the real scale-snu BootContext setup, encrypt at level 0,
-# refresh with cheddar.boot (-> BootContext::Boot), decrypt, and check both the
-# refreshed level and boot(x) ~= x. The MLIR carries CHEDDAR's curated
-# bootparam_40_64bit modulus chain because the bootstrap needs substantially
-# more depth than an ordinary arithmetic program.
 heir_opt(
-    name = "bootstrap_emitc",
-    src = "bootstrap.mlir",
-    generated_filename = "bootstrap_emitc.mlir",
+    name = "configure_smoke_emitc",
+    src = "configure_smoke.mlir",
+    generated_filename = "configure_smoke_emitc.mlir",
     pass_flags = [
-        "--cheddar-configure-crypto-context=entry-function=boot",
+        "--cheddar-configure-crypto-context=entry-function=rotate",
         "--cheddar-bufferize",
         "--fold-memref-alias-ops",
         "--cse",
@@ -34,49 +29,48 @@ heir_opt(
 )
 
 heir_translate(
-    name = "bootstrap_cpp_raw",
-    src = ":bootstrap_emitc.mlir",
-    generated_filename = "bootstrap_raw.cc",
+    name = "configure_smoke_cpp_raw",
+    src = ":configure_smoke_emitc.mlir",
+    generated_filename = "configure_smoke_raw.cc",
     pass_flags = ["--mlir-to-cpp"],
 )
 
 genrule(
-    name = "bootstrap_lib_src",
-    srcs = [":bootstrap_raw.cc"],
-    outs = ["bootstrap_lib.cc"],
+    name = "configure_smoke_lib_src",
+    srcs = [":configure_smoke_raw.cc"],
+    outs = ["configure_smoke_lib.cc"],
     cmd = """cat > $@ <<'PRELUDE_EOF'
-// AUTO-GENERATED: do not edit. See tests/Examples/cheddar/bootstrap/BUILD.
+// AUTO-GENERATED: do not edit. See tests/Examples/cheddar/configure_smoke/BUILD.
 #include <array>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
+#include "UserInterface.h"
 #include "core/Context.h"
 #include "core/Encode.h"
-#include "core/EvkRequest.h"
 #include "core/Parameter.h"
-#include "extension/BootContext.h"
-#include "UserInterface.h"
 using namespace cheddar;
 using word = uint64_t;
 using Complex = std::complex<double>;
 PRELUDE_EOF
-cat $(location :bootstrap_raw.cc) >> $@
+cat $(location :configure_smoke_raw.cc) >> $@
 """,
 )
 
 cc_library(
-    name = "bootstrap_lib",
-    srcs = [":bootstrap_lib_src"],
+    name = "configure_smoke_lib",
+    srcs = [":configure_smoke_lib_src"],
     target_compatible_with = requires_cheddar(),
     deps = ["@cheddar"],
 )
 
 cc_test(
-    name = "bootstrap_test",
+    name = "configure_smoke_test",
     timeout = "long",
-    srcs = ["bootstrap_test.cpp"],
+    srcs = ["configure_smoke_test.cpp"],
     linkstatic = False,
     tags = [
         "exclusive",
@@ -84,7 +78,7 @@ cc_test(
     ],
     target_compatible_with = requires_cheddar(),
     deps = [
-        ":bootstrap_lib",
+        ":configure_smoke_lib",
         "@cheddar",
         "@googletest//:gtest_main",
     ],

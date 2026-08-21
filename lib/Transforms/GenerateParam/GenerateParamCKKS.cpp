@@ -49,6 +49,16 @@ bool containsBootstrap(Operation* op) {
   });
   return result.wasInterrupted();
 }
+
+// scale-snu/cheddar's BootContext uses one explicit chain containing both the
+// compute levels and the bootstrap circuit: CoeffToSlot, eight EvalMod levels,
+// and SlotToCoeff. The bootstrap returns to the original compute maximum, so
+// these levels extend the generated chain without changing HEIR's level model.
+constexpr int kCheddarBootNumCts = 4;
+constexpr int kCheddarBootNumStc = 2;
+constexpr int kCheddarBootEvalModLevels = 8;
+constexpr int kCheddarBootOverhead =
+    kCheddarBootNumCts + kCheddarBootNumStc + kCheddarBootEvalModLevels;
 }  // namespace
 
 struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
@@ -148,32 +158,46 @@ struct GenerateParamCKKS : impl::GenerateParamCKKSBase<GenerateParamCKKS> {
     // below. Widening it would desync the packed layouts from the ciphertexts.
     int64_t requestedSlotCount = minSlotCount;
 
-    // for lattigo, defaults to extended encryption technique
-    if (moduleIsLattigo(getOperation())) {
-      encryptionTechniqueExtended = true;
-      LDBG() << "For lattigo, fixing extended encryption technique";
+    bool cheddarTarget = moduleIsCheddar(getOperation());
+    bool hasBootstrap = containsBootstrap(getOperation());
 
-      // Lattigo bootstrapping requires LogN >= 14, i.e., ringDim >= 16384.
-      // Since ringDim is computed from minSlotCount (minRingDim = 2 *
-      // minSlotCount), we bump minSlotCount to 8192 if bootstrapping is
-      // present.
-      if (containsBootstrap(getOperation())) {
+    // Lattigo and scale-snu/cheddar use the extended-encryption CKKS
+    // parameter path.
+    if (moduleIsLattigo(getOperation()) || cheddarTarget) {
+      encryptionTechniqueExtended = true;
+      LDBG() << "For lattigo/cheddar, fixing extended encryption technique";
+
+      // The supported Lattigo and scale-snu/cheddar bootstrap configurations
+      // require LogN >= 14. Since ringDim is twice minSlotCount, enforce the
+      // corresponding 8192-slot floor.
+      if (hasBootstrap) {
         if (minSlotCount < 8192) {
-          LDBG() << "Lattigo bootstrapping detected, bumping minSlotCount from "
+          LDBG() << "Bootstrapping detected, bumping minSlotCount from "
                  << minSlotCount << " to 8192";
           minSlotCount = 8192;
         }
       }
     }
 
+    int computeMaxLevel = maxLevel.value_or(0);
+    bool cheddarBootstrap = cheddarTarget && hasBootstrap;
+    int generatedMaxLevel =
+        computeMaxLevel + (cheddarBootstrap ? kCheddarBootOverhead : 0);
+
     auto schemeParam = ckks::SchemeParam::getConcreteSchemeParam(
-        firstModBits, scalingModBits, maxLevel.value_or(0), minSlotCount,
+        firstModBits, scalingModBits, generatedMaxLevel, minSlotCount,
         usePublicKey, encryptionTechniqueExtended, reducedError);
 
     LDBG() << "Scheme Param:\n" << schemeParam;
 
     auto* context = &getContext();
     OpBuilder builder(context);
+    if (cheddarBootstrap) {
+      getOperation()->setAttr("cheddar.boot.num_cts",
+                              builder.getI64IntegerAttr(kCheddarBootNumCts));
+      getOperation()->setAttr("cheddar.boot.num_stc",
+                              builder.getI64IntegerAttr(kCheddarBootNumStc));
+    }
     getOperation()->setAttr(kRequestedSlotCountAttrName,
                             builder.getI64IntegerAttr(requestedSlotCount));
     getOperation()->setAttr(

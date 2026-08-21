@@ -3,11 +3,9 @@
 // decrypt -- so the result is (approximately) the input. Full-module e2e input
 // (client encrypt/decrypt helpers + the boot compute).
 //
-// This IR is curated rather than pipeline-generated, mirroring the lattigo
-// bootstrap example (tests/Examples/lattigo/ckks/bootstrapping): HEIR's CKKS
-// param generation produces only a shallow modulus chain, but a real CHEDDAR
-// Boot needs a deep bootstrap parameter set (CoeffToSlot + EvalMod + SlotToCoeff
-// consume many levels). The harness therefore drives CHEDDAR's curated
+// This Cheddar-level IR is curated rather than pipeline-generated, mirroring
+// the lattigo bootstrap example (tests/Examples/lattigo/ckks/bootstrapping).
+// The harness drives CHEDDAR's well-known
 // bootparam_40_64bit param set (logN=16, 26-prime chain, scale 2^40,
 // num_cts_levels=4, num_stc_levels=3) and this IR only carries the runtime-
 // relevant literals: the level-0 encode at scale GetScale(0) = 2^40 (clean at the
