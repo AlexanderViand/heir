@@ -18,6 +18,8 @@
 #include "lib/Dialect/CKKS/IR/CKKSDialect.h"
 #include "lib/Dialect/CKKS/Transforms/Passes.h"
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
+#include "lib/Dialect/Cheddar/Transforms/BufferizableOpInterfaceImpl.h"
+#include "lib/Dialect/Cheddar/Transforms/Passes.h"
 #include "lib/Dialect/Comb/IR/CombDialect.h"
 #include "lib/Dialect/Debug/IR/DebugDialect.h"
 #include "lib/Dialect/Debug/Transforms/Passes.h"
@@ -187,6 +189,7 @@
 #include "mlir/include/mlir/Dialect/Math/IR/Math.h"      // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/IR/MemRef.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/IR/ValueBoundsOpInterfaceImpl.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/MemRef/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/SCF/IR/ValueBoundsOpInterfaceImpl.h"  // from @llvm-project
@@ -361,6 +364,7 @@ int main(int argc, char** argv) {
       registry);
   cf::registerBufferizableOpInterfaceExternalModels(registry);
   mlir::linalg::registerBufferizableOpInterfaceExternalModels(registry);
+  mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
   scf::registerBufferizableOpInterfaceExternalModels(registry);
   tensor::registerBufferizableOpInterfaceExternalModels(registry);
   registry.addExtension(+[](MLIRContext* ctx, LLVM::LLVMDialect* dialect) {
@@ -381,6 +385,7 @@ int main(int argc, char** argv) {
   debug::registerDebugPasses();
   ckks::registerCKKSPasses();
   kernel::registerKernelPasses();
+  cheddar::registerCheddarPasses();
   lattigo::registerLattigoPasses();
   lwe::registerLWEPasses();
   mgmt::registerMgmtPasses();
@@ -514,6 +519,7 @@ int main(int argc, char** argv) {
   // Interfaces in HEIR
   secret::registerBufferizableOpInterfaceExternalModels(registry);
   lattigo::registerBufferizableOpInterfaceExternalModels(registry);
+  cheddar::registerBufferizableOpInterfaceExternalModels(registry);
   preprocessing::registerBufferizableOpInterfaceExternalModels(registry);
   registerIncreasesMulDepthOpInterface(registry);
   registerLayoutConversionHoistableInterface(registry);
