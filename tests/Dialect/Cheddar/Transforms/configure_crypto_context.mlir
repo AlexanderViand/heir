@@ -20,9 +20,12 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [3602879
 // CHECK-SAME: cheddar.logDefaultScale = 45 : i64
 // CHECK-SAME: cheddar.logN = 13 : i64
 // CHECK-NOT: ckks.schemeParam
-// CHECK: func.func @main__configure
+// CHECK: func.func @main__setup
+// CHECK-SAME: client.setup_func = {func_name = "main"}
 // CHECK: cheddar.make_parameter
 // CHECK: cheddar.create_context
+// CHECK: func.func @main__keygen
+// CHECK-SAME: client.keygen_func = {func_name = "main"}
 // CHECK: cheddar.create_user_interface
 // CHECK: cheddar.prepare_rot_key
 // CHECK-SAME: distance = 2
@@ -30,3 +33,7 @@ module attributes {ckks.schemeParam = #ckks.scheme_param<logN = 13, Q = [3602879
 // CHECK: cheddar.prepare_rot_key
 // CHECK-SAME: distance = 7
 // CHECK-SAME: maxLevel = 2
+// CHECK: return %{{.*}}, %{{.*}} : tensor<!context>, tensor<!user_interface>
+// CHECK: func.func @main__configure
+// CHECK: call @main__setup
+// CHECK: call @main__keygen

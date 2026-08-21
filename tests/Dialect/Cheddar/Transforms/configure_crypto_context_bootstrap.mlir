@@ -22,7 +22,7 @@ module attributes {
   }
 }
 
-// CONFIG: func.func @main__configure
+// CONFIG: func.func @main__setup
 // CONFIG: cheddar.make_parameter
 // CONFIG-SAME: defaultEncryptionLevel = 13
 // CONFIG-SAME: denseHammingWeight = 32768
@@ -31,22 +31,31 @@ module attributes {
 // CONFIG-SAME: logMessageRatio = 5
 // CONFIG-SAME: numCtsLevels = 4
 // CONFIG-SAME: numStcLevels = 3
+// CONFIG: func.func @main__keygen
 // CONFIG: cheddar.create_user_interface
 // CONFIG: cheddar.prepare_rot_key
 // CONFIG-SAME: distance = 7
 // CONFIG-SAME: maxLevel = 13
 // CONFIG: cheddar.prepare_bootstrap
 // CONFIG-SAME: numSlots = 1024
+// CONFIG: func.func @main__configure
+// CONFIG: call @main__setup
+// CONFIG: call @main__keygen
 
-// EMITC: func.func @main__configure
+// EMITC: func.func @main__setup
 // EMITC-SAME: !emitc.opaque<"std::shared_ptr<BootContext<word>>&">
-// EMITC-SAME: !emitc.opaque<"std::unique_ptr<UserInterface<word>>&">
 // EMITC: emitc.verbatim "static Parameter<word> cheddar_param
 // EMITC: emitc.verbatim "cheddar_param.SetDenseHammingWeight(32768);"
 // EMITC: emitc.verbatim "cheddar_param.SetSparseHammingWeight(32);"
 // EMITC: emitc.verbatim "{} = BootContext<word>::Create({}, BootParameter({}.max_level_, 4, 3, 5));"
+// EMITC: func.func @main__keygen
+// EMITC-SAME: !emitc.opaque<"const std::shared_ptr<BootContext<word>>&">
+// EMITC-SAME: !emitc.opaque<"std::unique_ptr<UserInterface<word>>&">
 // EMITC: emitc.verbatim "{}->PrepareRotationKey(7, 13);"
 // EMITC: emitc.verbatim "{}->PrepareEvalMod();"
 // EMITC: emitc.verbatim "{}->PrepareEvalSpecialFFT(1024, cheddar::BootVariant::kImaginaryRemoving);"
 // EMITC: emitc.verbatim "EvkRequest boot_evk_req;"
 // EMITC: emitc.verbatim "{}->PrepareRotationKey(boot_evk_req);"
+// EMITC: func.func @main__configure
+// EMITC: emitc.call_opaque "main__setup"
+// EMITC: emitc.call_opaque "main__keygen"

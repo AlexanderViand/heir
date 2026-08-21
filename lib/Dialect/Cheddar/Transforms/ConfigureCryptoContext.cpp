@@ -33,10 +33,11 @@ namespace {
 // resulting SlotToCoeff start level.
 constexpr int64_t kBootstrapEvalModLevels = 8;
 
-// Build a `<entry>__configure() -> (context, user_interface)` function in
-// destination-passing tensor form:
+// Build setup and key-generation functions in destination-passing tensor form:
 //   %p   = cheddar.make_parameter ...
 //   %ctx = cheddar.create_context %p, %ctx_init
+//   return %ctx
+//
 //   %ui0 = cheddar.create_user_interface %ctx, %ui_init
 //   %ui1 = cheddar.prepare_rot_key %ui0 {distance, maxLevel}   // per distance
 //   return %ctx, %uiN
@@ -53,13 +54,13 @@ constexpr int64_t kBootstrapEvalModLevels = 8;
 // `numCtsLevels` / `numStcLevels` are the CtS/StC level budgets (a
 // depth/rotations trade-off, cf. OpenFHE's level-budget-encode/decode),
 // threaded in as pass options.
-void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
-                        int64_t logScale, DenseI64ArrayAttr Q,
-                        DenseI64ArrayAttr P, ArrayRef<int64_t> rotationIndices,
-                        bool bootstraps, int64_t numSlots, int64_t numCtsLevels,
-                        int64_t numStcLevels, int64_t defaultEncLevel,
-                        int64_t denseHammingWeight, int64_t sparseHammingWeight,
-                        int64_t logMessageRatio) {
+void buildConfigureFuncs(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
+                         int64_t logScale, DenseI64ArrayAttr Q,
+                         DenseI64ArrayAttr P, ArrayRef<int64_t> rotationIndices,
+                         bool bootstraps, int64_t numSlots,
+                         int64_t numCtsLevels, int64_t numStcLevels,
+                         int64_t defaultEncLevel, int64_t denseHammingWeight,
+                         int64_t sparseHammingWeight, int64_t logMessageRatio) {
   MLIRContext* ctx = moduleOp.getContext();
   int64_t maxLevel = Q.size() - 1;
   int64_t rotationKeyLevel = bootstraps ? defaultEncLevel : maxLevel;
@@ -73,10 +74,10 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
   // then detonates a downstream Chebyshev eval). The old
   // firstModBits-logScale-2 formula tied the headroom to the chain and gave ~13
   // (log_scaleup_ ~= 2, a 256x under-scale). For the normalized activations
-  // these models bootstrap
+  // these programs bootstrap
   // (|m| ~ O(1), the sign/ReLU inputs), CHEDDAR's default headroom of 5 is the
   // right magnitude (log_scaleup_ ~= 10). Override via the `log-message-ratio`
-  // option for a model with a larger message bound.
+  // option for a program with a larger message bound.
   int64_t effLogMessageRatio = logMessageRatio;
   if (bootstraps && effLogMessageRatio < 0) {
     effLogMessageRatio = 5;
@@ -91,14 +92,16 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
                            : Type(ContextType::get(ctx));
   auto ctxTensor = RankedTensorType::get({}, ctxElt);
   auto uiTensor = RankedTensorType::get({}, UserInterfaceType::get(ctx));
-  auto funcType = FunctionType::get(ctx, {}, {ctxTensor, uiTensor});
-  // Discovered by name convention (`<entry>__configure`), like the lattigo
-  // backend -- no marker attribute needed.
-  std::string name = (entry.getSymName() + "__configure").str();
-  auto configFunc = func::FuncOp::create(builder, loc, name, funcType);
-  configFunc.setPublic();
+  auto roleAttr = builder.getDictionaryAttr({builder.getNamedAttr(
+      kClientHelperFuncName, builder.getStringAttr(entry.getSymName()))});
 
-  Block* bodyBlock = configFunc.addEntryBlock();
+  std::string setupName = (entry.getSymName() + "__setup").str();
+  auto setupType = FunctionType::get(ctx, {}, {ctxTensor});
+  auto setupFunc = func::FuncOp::create(builder, loc, setupName, setupType);
+  setupFunc.setPublic();
+  setupFunc->setAttr(kClientSetupFuncAttrName, roleAttr);
+
+  Block* bodyBlock = setupFunc.addEntryBlock();
   builder.setInsertionPointToStart(bodyBlock);
 
   auto i64 = [&](int64_t v) { return builder.getI64IntegerAttr(v); };
@@ -129,6 +132,17 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
           : CreateContextOp::create(builder, loc, TypeRange{ctxTensor},
                                     ValueRange{params, ctxInit})
                 ->getResult(0);
+  func::ReturnOp::create(builder, loc, context);
+
+  builder.setInsertionPointToEnd(moduleOp.getBody());
+  std::string keygenName = (entry.getSymName() + "__keygen").str();
+  auto keygenType = FunctionType::get(ctx, {ctxTensor}, {ctxTensor, uiTensor});
+  auto keygenFunc = func::FuncOp::create(builder, loc, keygenName, keygenType);
+  keygenFunc.setPublic();
+  keygenFunc->setAttr(kClientKeygenFuncAttrName, roleAttr);
+  bodyBlock = keygenFunc.addEntryBlock();
+  builder.setInsertionPointToStart(bodyBlock);
+  context = keygenFunc.getArgument(0);
   Value uiInit = tensor::EmptyOp::create(builder, loc, uiTensor.getShape(),
                                          uiTensor.getElementType());
   Value ui = CreateUserInterfaceOp::create(builder, loc, TypeRange{uiTensor},
@@ -146,6 +160,20 @@ void buildConfigureFunc(ModuleOp moduleOp, func::FuncOp entry, int64_t logN,
     ui = prepare->getResult(1);
   }
   func::ReturnOp::create(builder, loc, ValueRange{context, ui});
+
+  // Keep the combined setup and key-generation entry point.
+  builder.setInsertionPointToEnd(moduleOp.getBody());
+  auto configureType = FunctionType::get(ctx, {}, {ctxTensor, uiTensor});
+  std::string configureName = (entry.getSymName() + "__configure").str();
+  auto configureFunc =
+      func::FuncOp::create(builder, loc, configureName, configureType);
+  configureFunc.setPublic();
+  bodyBlock = configureFunc.addEntryBlock();
+  builder.setInsertionPointToStart(bodyBlock);
+  auto setupCall = func::CallOp::create(builder, loc, setupFunc, ValueRange{});
+  auto keygenCall =
+      func::CallOp::create(builder, loc, keygenFunc, setupCall.getResult(0));
+  func::ReturnOp::create(builder, loc, keygenCall.getResults());
 }
 
 }  // namespace
@@ -189,12 +217,14 @@ struct CheddarConfigureCryptoContext
       signalPassFailure();
       return;
     }
-    std::string configureName = (entry.getSymName() + "__configure").str();
-    if (moduleOp.lookupSymbol<func::FuncOp>(configureName)) {
-      entry.emitOpError() << "configuration function @" << configureName
-                          << " already exists";
-      signalPassFailure();
-      return;
+    for (StringRef suffix : {"__setup", "__keygen", "__configure"}) {
+      std::string functionName = (entry.getSymName() + suffix).str();
+      if (moduleOp.lookupSymbol<func::FuncOp>(functionName)) {
+        entry.emitOpError()
+            << "configuration function @" << functionName << " already exists";
+        signalPassFailure();
+        return;
+      }
     }
 
     RotationAnalysis rotationAnalysis;
@@ -265,10 +295,10 @@ struct CheddarConfigureCryptoContext
         IntegerAttr::get(IntegerType::get(ctx, 64), logDefaultScale));
     moduleOp->setAttr("cheddar.Q", Q);
     moduleOp->setAttr("cheddar.P", P);
-    buildConfigureFunc(moduleOp, entry, logN, logDefaultScale, Q, P,
-                       rotationIndices, bootstraps, numSlots, bootNumCts,
-                       bootNumStc, defaultEncLevel, denseHammingWeight,
-                       sparseHammingWeight, logMessageRatio);
+    buildConfigureFuncs(moduleOp, entry, logN, logDefaultScale, Q, P,
+                        rotationIndices, bootstraps, numSlots, bootNumCts,
+                        bootNumStc, defaultEncLevel, denseHammingWeight,
+                        sparseHammingWeight, logMessageRatio);
 
     moduleOp->removeAttr(ckks::CKKSDialect::kSchemeParamAttrName);
     moduleOp->removeAttr("scheme.ckks");

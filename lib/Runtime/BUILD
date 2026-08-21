@@ -9,3 +9,8 @@ cc_library(
     name = "CleartextResource",
     hdrs = ["CleartextResource.h"],
 )
+
+cc_library(
+    name = "CheddarRuntime",
+    hdrs = ["CheddarRuntime.h"],
+)

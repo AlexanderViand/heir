@@ -40,47 +40,40 @@ heir_opt(
         "--convert-to-emitc=filter-dialects=cheddar,arith,scf,memref",
         "--cheddar-emitc-boundary",
         "--reconcile-unrealized-casts",
+        "--cheddar-emitc-entry-interface=entry-function=matvec",
     ],
 )
 
 heir_translate(
-    name = "pipeline_matvec_cpp_raw",
+    name = "pipeline_matvec_header",
     src = ":pipeline_matvec_emitc.mlir",
-    generated_filename = "pipeline_matvec_raw.cc",
-    pass_flags = ["--mlir-to-cpp"],
+    generated_filename = "matvec.h",
+    pass_flags = [
+        "--mlir-to-cpp",
+        "--file-id=header",
+    ],
 )
 
-genrule(
-    name = "pipeline_matvec_lib_src",
-    srcs = [":pipeline_matvec_raw.cc"],
-    outs = ["pipeline_matvec_lib.cc"],
-    cmd = """cat > $@ <<'PRELUDE_EOF'
-// AUTO-GENERATED: do not edit. See tests/Examples/cheddar/pipeline_matvec/BUILD.
-#include <array>
-#include <complex>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <utility>
-#include <vector>
-#include "UserInterface.h"
-#include "core/Context.h"
-#include "core/Encode.h"
-#include "core/Parameter.h"
-#include "extension/LinearTransform.h"
-using namespace cheddar;
-using word = uint64_t;
-using Complex = std::complex<double>;
-PRELUDE_EOF
-cat $(location :pipeline_matvec_raw.cc) >> $@
-""",
+heir_translate(
+    name = "pipeline_matvec_source",
+    src = ":pipeline_matvec_emitc.mlir",
+    generated_filename = "matvec.cc",
+    pass_flags = [
+        "--mlir-to-cpp",
+        "--file-id=source",
+    ],
 )
 
 cc_library(
     name = "pipeline_matvec_lib",
-    srcs = [":pipeline_matvec_lib_src"],
+    srcs = [":matvec.cc"],
+    hdrs = [":matvec.h"],
+    strip_include_prefix = ".",
     target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
+    deps = [
+        "//lib/Runtime:CheddarRuntime",
+        "@cheddar",
+    ],
 )
 
 cc_test(

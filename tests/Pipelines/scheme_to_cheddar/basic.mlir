@@ -33,8 +33,12 @@ module attributes {
     return %result : !ct
   }
 
-  // CHECK: func.func @main__configure
+  // CHECK: func.func @main__setup
   // CHECK: cheddar.make_parameter
   // CHECK: cheddar.create_context
+  // CHECK: func.func @main__keygen
   // CHECK: cheddar.create_user_interface
+  // CHECK: func.func @main__configure
+  // CHECK: call @main__setup
+  // CHECK: call @main__keygen
 }

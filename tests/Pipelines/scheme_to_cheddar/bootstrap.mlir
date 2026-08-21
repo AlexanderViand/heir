@@ -11,12 +11,17 @@
 // CHECK-SAME: cheddar.boot.num_stc = 2 : i64
 // CHECK: func.func @bootstrap(
 // CHECK: cheddar.boot
-// CHECK: func.func @bootstrap__configure
+// CHECK: func.func @bootstrap__setup
 // CHECK: cheddar.make_parameter
 // CHECK-SAME: defaultEncryptionLevel =
 // CHECK: cheddar.create_boot_context
 // CHECK-SAME: numCtsLevels = 4
 // CHECK-SAME: numStcLevels = 2
+// CHECK: func.func @bootstrap__keygen
+// CHECK: cheddar.prepare_bootstrap
+// CHECK: func.func @bootstrap__configure
+// CHECK: call @bootstrap__setup
+// CHECK: call @bootstrap__keygen
 func.func @bootstrap(%input: tensor<1024xf32> {secret.secret})
     -> tensor<1024xf32> {
   %0 = arith.mulf %input, %input : tensor<1024xf32>
