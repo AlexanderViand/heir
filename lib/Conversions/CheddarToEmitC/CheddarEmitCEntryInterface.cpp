@@ -1,11 +1,13 @@
 #include <cctype>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
 
 #include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/ModuleAttributes.h"
+#include "llvm/include/llvm/ADT/DenseSet.h"             // from @llvm-project
 #include "llvm/include/llvm/ADT/STLExtras.h"            // from @llvm-project
 #include "llvm/include/llvm/ADT/SmallVector.h"          // from @llvm-project
 #include "llvm/include/llvm/ADT/StringExtras.h"         // from @llvm-project
@@ -126,6 +128,9 @@ FailureOr<EntryFunctions> findEntryFunctions(ModuleOp module,
     if (matches(kServerEvaluateFuncAttrName)) functions.evaluate = function;
     for (StringRef role : {kClientEncFuncAttrName, kClientPackFuncAttrName}) {
       if (!matches(role)) continue;
+      DictionaryAttr roleAttr = getRoleAttr(function, role);
+      if (role == kClientPackFuncAttrName && !roleAttr.get(kClientHelperIndex))
+        continue;
       FailureOr<unsigned> index = getRoleIndex(function, role);
       if (failed(index)) {
         collectionResult = failure();
@@ -271,6 +276,7 @@ bool isSupportArgument(Type type) {
 }
 
 std::string contextTypeName(const EntryFunctions& functions) {
+  bool hasContext = false;
   SmallVector<func::FuncOp> candidates;
   for (const auto& helper : functions.inputHelpers)
     candidates.push_back(helper.second);
@@ -282,10 +288,12 @@ std::string contextTypeName(const EntryFunctions& functions) {
     if (!function) continue;
     for (Type type : function.getArgumentTypes()) {
       if (!isContextPointer(type)) continue;
-      return opaqueName(cast<PointerType>(type).getPointee()).str();
+      StringRef name = opaqueName(cast<PointerType>(type).getPointee());
+      if (name == "BootContext<word>") return name.str();
+      hasContext = true;
     }
   }
-  return {};
+  return hasContext ? "Context<word>" : "";
 }
 
 ArrayAttr getLogicalTypes(func::FuncOp function, StringRef name) {
@@ -448,66 +456,147 @@ LogicalResult validateIndexedHelpers(
   return success();
 }
 
-LogicalResult addResourceDirectoryArgument(func::FuncOp function) {
-  SmallVector<CallOpaqueOp> resourceLoads;
-  function.walk([&](CallOpaqueOp call) {
-    if (call.getCallee() == "heir::loadResource") resourceLoads.push_back(call);
-  });
-  if (resourceLoads.empty()) return success();
+LogicalResult addResourceDirectoryArguments(func::FuncOp root) {
+  ModuleOp module = root->getParentOfType<ModuleOp>();
+  auto lookupCallee = [&](StringRef callee) {
+    return module.lookupSymbol<func::FuncOp>(callee);
+  };
+  llvm::DenseSet<Operation*> reachableSet;
+  SmallVector<func::FuncOp> reachable;
+  std::function<void(func::FuncOp)> visit = [&](func::FuncOp function) {
+    if (!reachableSet.insert(function.getOperation()).second) return;
+    reachable.push_back(function);
+    function.walk([&](func::CallOp call) {
+      if (auto callee = lookupCallee(call.getCallee())) visit(callee);
+    });
+    function.walk([&](CallOpaqueOp call) {
+      if (auto callee = lookupCallee(call.getCallee())) visit(callee);
+    });
+  };
+  visit(root);
 
-  auto* ctx = function.getContext();
-  Type directoryType = OpaqueType::get(ctx, "std::string_view");
-  unsigned directoryIndex = function.getNumArguments();
-  if (failed(function.insertArgument(directoryIndex, directoryType,
-                                     DictionaryAttr{}, function.getLoc())))
-    return function.emitOpError("failed to add resource directory argument");
-  Value directory = function.getArgument(directoryIndex);
+  llvm::DenseSet<Operation*> needsDirectory;
+  for (func::FuncOp function : reachable) {
+    function.walk([&](CallOpaqueOp call) {
+      if (call.getCallee() == "heir::loadResource")
+        needsDirectory.insert(function.getOperation());
+    });
+  }
 
-  for (CallOpaqueOp call : resourceLoads) {
-    OpBuilder builder(call);
-    SmallVector<Value> operands{directory};
-    operands.append(call.getArgOperands().begin(), call.getArgOperands().end());
-    SmallVector<Attribute> args{builder.getIndexAttr(0)};
-    if (ArrayAttr oldArgs = call.getArgsAttr()) {
-      for (Attribute argument : oldArgs) {
-        if (auto index = dyn_cast<IntegerAttr>(argument))
-          args.push_back(builder.getIndexAttr(index.getInt() + 1));
-        else
-          args.push_back(argument);
-      }
-    } else {
-      for (unsigned i = 1; i < operands.size(); ++i)
-        args.push_back(builder.getIndexAttr(i));
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (func::FuncOp function : reachable) {
+      if (needsDirectory.contains(function.getOperation())) continue;
+      function.walk([&](func::CallOp call) {
+        if (auto callee = lookupCallee(call.getCallee());
+            callee && needsDirectory.contains(callee.getOperation())) {
+          changed |= needsDirectory.insert(function.getOperation()).second;
+        }
+      });
+      function.walk([&](CallOpaqueOp call) {
+        if (auto callee = lookupCallee(call.getCallee());
+            callee && needsDirectory.contains(callee.getOperation())) {
+          changed |= needsDirectory.insert(function.getOperation()).second;
+        }
+      });
     }
-    auto replacement = CallOpaqueOp::create(
-        builder, call.getLoc(), call.getResultTypes(), call.getCallee(),
-        operands, builder.getArrayAttr(args), call.getTemplateArgsAttr());
+  }
+  if (!needsDirectory.contains(root.getOperation())) return success();
+
+  auto* ctx = root.getContext();
+  Type directoryType = OpaqueType::get(ctx, "std::string_view");
+  for (func::FuncOp function : reachable) {
+    if (!needsDirectory.contains(function.getOperation())) continue;
+    unsigned directoryIndex = function.getNumArguments();
+    if (failed(function.insertArgument(directoryIndex, directoryType,
+                                       DictionaryAttr{}, function.getLoc())))
+      return function.emitOpError("failed to add resource directory argument");
+
+    SmallVector<CallOpaqueOp> resourceLoads;
+    function.walk([&](CallOpaqueOp call) {
+      if (call.getCallee() == "heir::loadResource")
+        resourceLoads.push_back(call);
+    });
+    for (CallOpaqueOp call : resourceLoads) {
+      OpBuilder builder(call);
+      SmallVector<Value> operands{function.getArgument(directoryIndex)};
+      operands.append(call.getArgOperands().begin(),
+                      call.getArgOperands().end());
+      SmallVector<Attribute> args{builder.getIndexAttr(0)};
+      if (ArrayAttr oldArgs = call.getArgsAttr()) {
+        for (Attribute argument : oldArgs) {
+          if (auto index = dyn_cast<IntegerAttr>(argument))
+            args.push_back(builder.getIndexAttr(index.getInt() + 1));
+          else
+            args.push_back(argument);
+        }
+      } else {
+        for (unsigned i = 1; i < operands.size(); ++i)
+          args.push_back(builder.getIndexAttr(i));
+      }
+      auto replacement = CallOpaqueOp::create(
+          builder, call.getLoc(), call.getResultTypes(), call.getCallee(),
+          operands, builder.getArrayAttr(args), call.getTemplateArgsAttr());
+      call.replaceAllUsesWith(replacement.getResults());
+      call.erase();
+    }
+  }
+
+  SmallVector<func::CallOp> callSites;
+  module.walk([&](func::CallOp call) {
+    if (auto callee = lookupCallee(call.getCallee());
+        callee && needsDirectory.contains(callee.getOperation()))
+      callSites.push_back(call);
+  });
+  for (func::CallOp call : callSites) {
+    OpBuilder builder(call);
+    SmallVector<Value> operands(call.getOperands());
+    func::FuncOp caller = call->getParentOfType<func::FuncOp>();
+    if (caller && needsDirectory.contains(caller.getOperation())) {
+      operands.push_back(caller.getArguments().back());
+    } else {
+      operands.push_back(CallOpaqueOp::create(builder, call.getLoc(),
+                                              TypeRange{directoryType},
+                                              "std::string_view", ValueRange{})
+                             .getResult(0));
+    }
+    auto replacement =
+        func::CallOp::create(builder, call.getLoc(), call.getCallee(),
+                             call.getResultTypes(), operands);
+    replacement->setAttrs(call->getAttrs());
     call.replaceAllUsesWith(replacement.getResults());
     call.erase();
   }
 
-  ModuleOp module = function->getParentOfType<ModuleOp>();
-  SmallVector<CallOpaqueOp> callSites;
+  SmallVector<CallOpaqueOp> opaqueCallSites;
   module.walk([&](CallOpaqueOp call) {
-    if (call.getCallee() == function.getSymName()) callSites.push_back(call);
+    if (auto callee = lookupCallee(call.getCallee());
+        callee && needsDirectory.contains(callee.getOperation()))
+      opaqueCallSites.push_back(call);
   });
-  for (CallOpaqueOp call : callSites) {
+  for (CallOpaqueOp call : opaqueCallSites) {
     OpBuilder builder(call);
-    Value emptyDirectory =
-        CallOpaqueOp::create(builder, call.getLoc(), TypeRange{directoryType},
-                             "std::string_view", ValueRange{})
-            .getResult(0);
     SmallVector<Value> operands(call.getArgOperands());
-    operands.push_back(emptyDirectory);
-    ArrayAttr args = call.getArgsAttr();
-    if (args) {
-      SmallVector<Attribute> updatedArgs(args.begin(), args.end());
-      updatedArgs.push_back(builder.getIndexAttr(operands.size() - 1));
-      args = builder.getArrayAttr(updatedArgs);
+    func::FuncOp caller = call->getParentOfType<func::FuncOp>();
+    if (caller && needsDirectory.contains(caller.getOperation())) {
+      operands.push_back(caller.getArguments().back());
+    } else {
+      operands.push_back(CallOpaqueOp::create(builder, call.getLoc(),
+                                              TypeRange{directoryType},
+                                              "std::string_view", ValueRange{})
+                             .getResult(0));
     }
+    SmallVector<Attribute> args;
+    if (ArrayAttr oldArgs = call.getArgsAttr())
+      args.append(oldArgs.begin(), oldArgs.end());
+    else
+      for (unsigned i = 0; i + 1 < operands.size(); ++i)
+        args.push_back(builder.getIndexAttr(i));
+    args.push_back(builder.getIndexAttr(operands.size() - 1));
     auto replacement = CallOpaqueOp::create(
         builder, call.getLoc(), call.getResultTypes(), call.getCallee(),
-        operands, args, call.getTemplateArgsAttr());
+        operands, builder.getArrayAttr(args), call.getTemplateArgsAttr());
     call.replaceAllUsesWith(replacement.getResults());
     call.erase();
   }
@@ -971,7 +1060,7 @@ LogicalResult buildInterface(ModuleOp module, EntryFunctions& functions) {
   bool takesResourceDirectory = false;
   if (functions.preprocess) {
     unsigned oldPreprocessArguments = functions.preprocess.getNumArguments();
-    if (failed(addResourceDirectoryArgument(functions.preprocess)))
+    if (failed(addResourceDirectoryArguments(functions.preprocess)))
       return failure();
     takesResourceDirectory =
         functions.preprocess.getNumArguments() != oldPreprocessArguments;

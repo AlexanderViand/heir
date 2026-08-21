@@ -10,15 +10,20 @@ namespace heir {
 template <typename T>
 struct CArrayType {
   using type = T;
+  using element_type = T;
 };
 
 template <typename T, std::size_t N>
 struct CArrayType<std::array<T, N>> {
   using type = typename CArrayType<T>::type[N];
+  using element_type = typename CArrayType<T>::element_type;
 };
 
 template <typename T>
 using CArrayTypeT = typename CArrayType<T>::type;
+
+template <typename T>
+using CArrayElementTypeT = typename CArrayType<T>::element_type;
 
 template <typename Context>
 decltype(auto) getEncoder(Context& context) {
@@ -36,8 +41,8 @@ T* data(T& value) {
 }
 
 template <typename T, std::size_t N>
-CArrayTypeT<T>* data(std::array<T, N>& value) {
-  return reinterpret_cast<CArrayTypeT<T>*>(value.data());
+CArrayElementTypeT<T>* data(std::array<T, N>& value) {
+  return reinterpret_cast<CArrayElementTypeT<T>*>(value.data());
 }
 
 }  // namespace heir
