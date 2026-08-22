@@ -132,6 +132,7 @@ class BuildBazelExtension(build_ext.build_ext):
       return
 
     self.copy_yosys_techmaps()
+    self.copy_runtime_headers()
     for ext in self.extensions:
       self.bazel_build(ext)
     # explicitly call `bazel shutdown` for graceful exit
@@ -160,6 +161,15 @@ class BuildBazelExtension(build_ext.build_ext):
         ignore=include_patterns(patterns),
         dirs_exist_ok=True,
     )
+
+  def copy_runtime_headers(self):
+    for header in ("CheddarRuntime.h", "CleartextResource.h"):
+      src = Path("include") / "heir" / "runtime" / header
+      dst = (
+          Path(self.build_lib) / "heir" / "include" / src.relative_to("include")
+      )
+      dst.parent.mkdir(parents=True, exist_ok=True)
+      shutil.copyfile(src, dst)
 
   def bazel_build(self, ext: BazelExtension) -> None:  # noqa: C901
     """Runs the bazel build to create the package."""
@@ -208,6 +218,7 @@ class BuildBazelExtension(build_ext.build_ext):
       bazel_argv.append(
           f"--platforms=@apple_support//platforms:darwin_{target_arch}"
       )
+
 
     with _maybe_patch_toolchains():
       self.spawn(bazel_argv)
@@ -269,6 +280,7 @@ setuptools.setup(
             "py.typed",
             "*.pyi",
             "techmaps/*",
+            "include/heir/runtime/*.h",
         ]
     },
     ext_modules=[

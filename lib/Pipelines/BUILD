@@ -93,6 +93,7 @@ cc_library(
         "@heir//lib/Conversions/CheddarToEmitC",
         "@heir//lib/Dialect/BGV/Conversions/BGVToLWE",
         "@heir//lib/Dialect/CKKS/Transforms:CKKSToLWE",
+        "@heir//lib/Dialect/Cheddar/Transforms:BuildEntryInterface",
         "@heir//lib/Dialect/Cheddar/Transforms:CheddarBufferize",
         "@heir//lib/Dialect/Cheddar/Transforms:ConfigureCryptoContext",
         "@heir//lib/Dialect/Cheddar/Transforms:FuseOps",

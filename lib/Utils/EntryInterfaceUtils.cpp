@@ -132,6 +132,10 @@ FailureOr<EntryFunctions> findEntryFunctions(ModuleOp module,
     if (matches(kClientKeygenRole)) functions.keygen = function;
     if (matches(kServerPreprocessingRole)) functions.preprocess = function;
     if (matches(kServerEvaluateRole)) functions.evaluate = function;
+    if (matches(kFacadeEncryptRole)) functions.facadeEncrypt = function;
+    if (matches(kFacadeDecryptRole)) functions.facadeDecrypt = function;
+    if (matches(kFacadeEvaluateRole)) functions.facadeEvaluate = function;
+    if (matches(kFacadePreprocessRole)) functions.facadePreprocess = function;
     for (StringRef role : {kClientEncRole, kClientPackRole}) {
       if (!matches(role)) continue;
       // An unindexed client.pack is an outlined layout helper.
