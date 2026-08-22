@@ -39,6 +39,24 @@ cc_library(
 )
 
 cc_library(
+    name = "BuildEntryInterface",
+    srcs = ["BuildEntryInterface.cpp"],
+    hdrs = ["BuildEntryInterface.h"],
+    deps = [
+        ":build_entry_interface_inc_gen",
+        "@heir//lib/Dialect:ModuleAttributes",
+        "@heir//lib/Dialect/Cheddar/IR:Dialect",
+        "@heir//lib/Dialect/Preprocessing/IR:Dialect",
+        "@heir//lib/Utils:EntryInterfaceUtils",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+    ],
+)
+
+cc_library(
     name = "ConfigureCryptoContext",
     srcs = ["ConfigureCryptoContext.cpp"],
     hdrs = ["ConfigureCryptoContext.h"],
@@ -72,6 +90,13 @@ cc_library(
         "@llvm-project//mlir:TensorDialect",
         "@llvm-project//mlir:TransformUtils",
     ],
+)
+
+add_heir_transforms(
+    generated_target_name = "build_entry_interface_inc_gen",
+    header_filename = "BuildEntryInterface.h.inc",
+    pass_name = "CheddarBuildEntryInterface",
+    td_file = "BuildEntryInterface.td",
 )
 
 add_heir_transforms(

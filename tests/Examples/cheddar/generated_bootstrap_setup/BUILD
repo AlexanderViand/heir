@@ -60,7 +60,10 @@ cc_library(
     name = "generated_bootstrap_setup_lib",
     srcs = [":generated_bootstrap_setup_lib_src"],
     target_compatible_with = requires_cheddar(),
-    deps = ["@cheddar"],
+    deps = [
+        "//include/heir/runtime:CheddarRuntime",
+        "@cheddar",
+    ],
 )
 
 cc_test(

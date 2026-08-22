@@ -6,6 +6,7 @@
 #include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/Cheddar/Transforms/BuildEntryInterface.h"
 #include "lib/Dialect/Cheddar/Transforms/CheddarBufferize.h"
 #include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
@@ -746,6 +747,9 @@ CheddarBackendPipelineBuilder toCheddarPipelineBuilder() {
     configureOptions.entryFunction = options.entryFunction;
     configureOptions.logMessageRatio = options.logMessageRatio;
     pm.addPass(cheddar::createCheddarConfigureCryptoContext(configureOptions));
+    cheddar::CheddarBuildEntryInterfaceOptions facadeOptions;
+    facadeOptions.entryFunction = options.entryFunction;
+    pm.addPass(cheddar::createCheddarBuildEntryInterface(facadeOptions));
 
     pm.addPass(createRemoveUnusedPureCall());
     pm.addPass(createCSEPass());

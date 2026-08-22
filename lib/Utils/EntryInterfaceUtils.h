@@ -35,6 +35,11 @@ struct EntryFunctions {
   // client.encrypt_zero, by index; each pairs with the entry argument
   // carrying client.enc_zero_arg at the same index.
   SmallVector<std::pair<unsigned, func::FuncOp>> zeroHelpers;
+  // facade.*: the backend-built public functions, when present.
+  func::FuncOp facadeEncrypt;
+  func::FuncOp facadeDecrypt;
+  func::FuncOp facadeEvaluate;
+  func::FuncOp facadePreprocess;
 };
 
 DictionaryAttr getRoleAttr(func::FuncOp function, StringRef name);

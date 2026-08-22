@@ -115,6 +115,19 @@ constexpr const static ::llvm::StringLiteral kEntryResultTypes = "result_types";
 constexpr const static ::llvm::StringLiteral kClientPreprocessedRole =
     "client.preprocessed";
 
+// The public facades a backend builds over the helpers above (see
+// cheddar-build-entry-interface): one function per interface step, taking the
+// values a caller can supply and deriving the rest. A generated language
+// binding wraps these instead of the helpers.
+constexpr const static ::llvm::StringLiteral kFacadeEncryptRole =
+    "facade.encrypt";
+constexpr const static ::llvm::StringLiteral kFacadeDecryptRole =
+    "facade.decrypt";
+constexpr const static ::llvm::StringLiteral kFacadeEvaluateRole =
+    "facade.evaluate";
+constexpr const static ::llvm::StringLiteral kFacadePreprocessRole =
+    "facade.preprocess";
+
 inline bool isClientHelper(Operation* op) {
   return hasInterfaceRole(op, kClientEncRole) ||
          hasInterfaceRole(op, kClientDecRole) ||

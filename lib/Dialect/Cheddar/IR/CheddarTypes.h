@@ -23,6 +23,17 @@ constexpr ::llvm::StringLiteral kSupportArgAttrName = "cheddar.support";
 // The support kind of `type`, or empty when it is not a support type.
 ::llvm::StringRef getSupportKind(::mlir::Type type);
 
+// The support kind of the resource directory a preprocessing function loads
+// from (see preprocessing-thread-resource-dir).
+constexpr ::llvm::StringLiteral kResourceDirSupportKind = "resource_dir";
+
+// Argument attributes on the facades cheddar-build-entry-interface generates:
+// the entry argument a data argument is fed from, and the data arguments that
+// hold preprocessed values. A facade's first argument is the context its
+// caller owns.
+constexpr ::llvm::StringLiteral kEntryInputArgAttrName = "cheddar.entry_input";
+constexpr ::llvm::StringLiteral kPreparedArgAttrName = "cheddar.prepared";
+
 }  // namespace cheddar
 }  // namespace heir
 }  // namespace mlir
