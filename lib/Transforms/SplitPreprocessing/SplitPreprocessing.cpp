@@ -393,7 +393,7 @@ struct SplitPreprocessingPass
     auto funcOp = FuncOp::create(op.getLoc(), funcName, funcType);
     funcOp.setVisibility(op.getVisibility());
     funcOp->setAttr(
-        kClientPackFuncAttrName,
+        kServerPreprocessingFuncAttrName,
         builder.getDictionaryAttr({
             builder.getNamedAttr(kClientHelperFuncName,
                                  builder.getStringAttr(op.getName())),
@@ -533,6 +533,13 @@ struct SplitPreprocessingPass
             builder.getNamedAttr(kClientHelperFuncName,
                                  builder.getStringAttr(op.getName())),
         }));
+    funcOp->setAttr(
+        kServerEvaluateFuncAttrName,
+        builder.getDictionaryAttr({
+            builder.getNamedAttr(kClientHelperFuncName,
+                                 builder.getStringAttr(op.getName())),
+        }));
+    op->removeAttr(kServerEvaluateFuncAttrName);
 
     IRMapping map;
     Block* entryBlock = funcOp.addEntryBlock();
