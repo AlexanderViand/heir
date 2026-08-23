@@ -7,7 +7,10 @@
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
 #include "lib/Dialect/Cheddar/Transforms/CheddarBufferize.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
+#include "lib/Dialect/Cheddar/Transforms/FuseOps.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
+#include "lib/Dialect/LWE/Conversions/LWEToCheddar/LWEToCheddar.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
 #include "lib/Dialect/LWE/Transforms/AddDebugPort.h"
@@ -19,6 +22,7 @@
 #include "lib/Dialect/Openfhe/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Openfhe/Transforms/CountAddAndKeySwitch.h"
 #include "lib/Dialect/Openfhe/Transforms/FastRotationPrecompute.h"
+#include "lib/Dialect/Preprocessing/Conversions/PreprocessingToCheddar/PreprocessingToCheddar.h"
 #include "lib/Dialect/Preprocessing/Conversions/PreprocessingToLattigo/PreprocessingToLattigo.h"
 #include "lib/Dialect/Preprocessing/Conversions/PreprocessingToOpenfhe/PreprocessingToOpenfhe.h"
 #include "lib/Dialect/Preprocessing/Transforms/ValidatePreprocessing.h"
@@ -554,6 +558,13 @@ void mlirToRLWEPipeline(OpPassManager& pm,
 
   pm.addPass(createForwardInsertToExtract());
   pm.addPass(createCanonicalizerPass());
+
+  // Some backends require ciphertext and plaintext levels to match. Annotate
+  // their per-use encodings before CSE can merge encodings needed at different
+  // levels.
+  auto exactPlaintextLevelOptions = lwe::AnnotatePlaintextLevelOptions{};
+  exactPlaintextLevelOptions.exactLevelBackendsOnly = true;
+  pm.addPass(lwe::createAnnotatePlaintextLevel(exactPlaintextLevelOptions));
   pm.addPass(createCSEPass());
   pm.addPass(createSymbolDCEPass());
 
@@ -710,10 +721,43 @@ BackendPipelineBuilder toLattigoPipelineBuilder() {
   };
 }
 
+CheddarBackendPipelineBuilder toCheddarPipelineBuilder() {
+  return [](OpPassManager& pm, const CheddarBackendOptions& options) {
+    pm.addPass(ckks::createCKKSToLWE());
+
+    lwe::AddDebugPortOptions debugOptions{
+        .entryFunction = options.entryFunction,
+        .insertDebugAfterEveryOp = options.debug,
+    };
+    pm.addPass(lwe::createAddDebugPort(debugOptions));
+
+    pm.addPass(lwe::createLWEToCheddar());
+    pm.addPass(preprocessing::createPreprocessingToCheddar());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+
+    // Debug calls deliberately observe every intermediate and therefore break
+    // the single-use adjacency required by the fusion patterns.
+    if (!options.debug) pm.addPass(cheddar::createCheddarFuseOps());
+
+    cheddar::CheddarConfigureCryptoContextOptions configureOptions;
+    configureOptions.entryFunction = options.entryFunction;
+    configureOptions.logMessageRatio = options.logMessageRatio;
+    pm.addPass(cheddar::createCheddarConfigureCryptoContext(configureOptions));
+
+    pm.addPass(createRemoveUnusedPureCall());
+    pm.addPass(createCSEPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createSymbolDCEPass());
+  };
+}
+
 void cheddarToEmitCPipelineBuilder(OpPassManager& pm) {
-  pm.addPass(arith::createArithExpandOpsPass());
   pm.addPass(createLowerAffinePass());
   pm.addNestedPass<func::FuncOp>(createConvertElementwiseToLinalgPass());
+  pm.addPass(createLinalgFoldUnitExtentDimsPass());
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(createCSEPass());
   pm.addPass(cheddar::createCheddarBufferize());
   pm.addNestedPass<func::FuncOp>(createConvertLinalgToLoopsPass());
   pm.addPass(createInlinerPass());
@@ -735,8 +779,13 @@ void cheddarToEmitCPipelineBuilder(OpPassManager& pm) {
   pm.addPass(bufferization::createBufferDeallocationSimplificationPass());
   pm.addPass(bufferization::createLowerDeallocationsPass());
 
+  arith::ArithExpandOpsPassOptions arithExpandOptions;
+  arithExpandOptions.includeMinMaxF = true;
+  arithExpandOptions.includeMinMaxI = true;
+  pm.addPass(arith::createArithExpandOpsPass(arithExpandOptions));
+
   ConvertToEmitCOptions emitCOptions;
-  emitCOptions.filterDialects = {"cheddar", "arith", "scf", "memref"};
+  emitCOptions.filterDialects = {"cheddar", "arith", "math", "scf", "memref"};
   pm.addPass(createConvertToEmitC(emitCOptions));
   pm.addPass(createCheddarToEmitC());
   pm.addPass(createReconcileUnrealizedCastsPass());
