@@ -608,6 +608,11 @@ int main(int argc, char** argv) {
       "Convert code expressed at FHE scheme level to Lattigo Go code.",
       toLattigoPipelineBuilder());
 
+  PassPipelineRegistration<mlir::heir::CheddarBackendOptions>(
+      "scheme-to-cheddar",
+      "Convert CKKS scheme-level code to the Cheddar dialect.",
+      toCheddarPipelineBuilder());
+
   PassPipelineRegistration<>("cheddar-to-emitc",
                              "Bufferize Cheddar code and lower it to EmitC.",
                              cheddarToEmitCPipelineBuilder);
