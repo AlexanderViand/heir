@@ -228,11 +228,30 @@ struct BackendOptions : public PassPipelineOptions<BackendOptions> {
       llvm::cl::init(false)};
 };
 
+struct CheddarBackendOptions
+    : public PassPipelineOptions<CheddarBackendOptions> {
+  PassOptions::Option<std::string> entryFunction{
+      *this, "entry-function", llvm::cl::desc("Entry function"),
+      llvm::cl::init("main")};
+  PassOptions::Option<bool> debug{
+      *this, "insert-debug-handler-calls",
+      llvm::cl::desc("Insert debug calls after secret operations"),
+      llvm::cl::init(false)};
+  PassOptions::Option<int64_t> logMessageRatio{
+      *this, "log-message-ratio",
+      llvm::cl::desc(
+          "Bootstrap message headroom passed to the Cheddar runtime"),
+      llvm::cl::init(-1)};
+};
+
 using RLWEPipelineBuilder =
     std::function<void(OpPassManager&, const MlirToRLWEPipelineOptions&)>;
 
 using BackendPipelineBuilder =
     std::function<void(OpPassManager&, const BackendOptions&)>;
+
+using CheddarBackendPipelineBuilder =
+    std::function<void(OpPassManager&, const CheddarBackendOptions&)>;
 
 void mlirToRLWEPipeline(OpPassManager& pm,
                         const MlirToRLWEPipelineOptions& options,
@@ -249,6 +268,8 @@ RLWEPipelineBuilder mlirToRLWEPipelineBuilder(RLWEScheme scheme);
 BackendPipelineBuilder toOpenFhePipelineBuilder();
 
 BackendPipelineBuilder toLattigoPipelineBuilder();
+
+CheddarBackendPipelineBuilder toCheddarPipelineBuilder();
 
 void cheddarToEmitCPipelineBuilder(OpPassManager& pm);
 
