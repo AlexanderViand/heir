@@ -4,6 +4,7 @@
 #include <string>
 
 #include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
+#include "lib/Conversions/MathToEmitC/MathToEmitC.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGI/ArithToCGGI.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGIQuart/ArithToCGGIQuart.h"
 #include "lib/Dialect/Arith/Conversions/ArithToModArith/ArithToModArith.h"
@@ -320,6 +321,7 @@ int main(int argc, char** argv) {
 
   // Converting to EmitC
   mlir::registerConvertArithToEmitCInterface(registry);
+  mlir::heir::registerConvertMathToEmitCInterface(registry);
   mlir::registerConvertFuncToEmitCInterface(registry);
   mlir::registerConvertMemRefToEmitCInterface(registry);
   mlir::registerConvertSCFToEmitCInterface(registry);

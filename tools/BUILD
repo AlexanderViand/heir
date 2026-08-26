@@ -34,6 +34,7 @@ cc_binary(
         "@heir//lib/Analysis/NoiseAnalysis/BFV:NoiseAnalysis",  # buildcleaner: keep
         "@heir//lib/Analysis/NoiseAnalysis/BGV:NoiseAnalysis",  # buildcleaner: keep
         "@heir//lib/Conversions/CheddarToEmitC",
+        "@heir//lib/Conversions/MathToEmitC",
         "@heir//lib/Dialect:HEIRInterfaces",
         "@heir//lib/Dialect:reduces_level_op_interface_registration",
         "@heir//lib/Dialect/Arith/Conversions/ArithToCGGI",
