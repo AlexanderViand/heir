@@ -8,12 +8,17 @@ package(
 
 cc_library(
     name = "CheddarToEmitC",
-    srcs = ["CheddarToEmitC.cpp"],
+    srcs = [
+        "CheddarEmitCEntryInterface.cpp",
+        "CheddarToEmitC.cpp",
+    ],
     hdrs = ["CheddarToEmitC.h"],
     deps = [
         ":pass_inc_gen",
+        "@heir//lib/Dialect:ModuleAttributes",
         "@heir//lib/Dialect/Cheddar/IR:Dialect",
         "@heir//lib/Dialect/Preprocessing/IR:Dialect",
+        "@heir//lib/Utils:EntryInterfaceUtils",
         "@heir//lib/Utils:TargetUtils",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:ArithDialect",

@@ -87,6 +87,8 @@ bool emitCompilationTargetRegistration(const llvm::RecordKeeper& records,
         target->getValueAsInt("has_kernel_linear_transform");
     auto hasPreparedLinearTransform =
         target->getValueAsInt("has_prepared_linear_transform");
+    auto supportsSingleDiagonalPreparedLinearTransform = target->getValueAsInt(
+        "supports_single_diagonal_prepared_linear_transform");
     auto requiresMatchingCiphertextPlaintextLevels =
         target->getValueAsInt("requires_matching_ciphertext_plaintext_levels");
     auto canEmitAdjustScale = target->getValueAsInt("can_emit_adjust_scale");
@@ -97,7 +99,8 @@ bool emitCompilationTargetRegistration(const llvm::RecordKeeper& records,
           "BackendName::"
        << name << ", " << bootstrapLevelsConsumed << ", " << hasKernelChebyshev
        << ", " << hasKernelLinearTransform << ", " << hasPreparedLinearTransform
-       << ", " << requiresMatchingCiphertextPlaintextLevels << ", "
+       << ", " << supportsSingleDiagonalPreparedLinearTransform << ", "
+       << requiresMatchingCiphertextPlaintextLevels << ", "
        << canEmitAdjustScale << "});\n"
        << "}\n\n";
   }

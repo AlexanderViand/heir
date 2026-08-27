@@ -31,6 +31,9 @@ namespace cheddar {
 
 using Complex = std::complex<double>;
 
+template <typename word>
+class Context;
+
 // Number-of-primes info a ciphertext carries; the EvalPoly emitter maps it back
 // to a level via Parameter::NPToLevel.
 struct NPInfo {
@@ -104,6 +107,29 @@ struct EvkMap {
   const EvaluationKey<word>& GetRotationKey(int) const;
   const EvaluationKey<word>& GetConjugationKey() const;
   const EvaluationKey<word>& GetMultiplicationKey() const;
+};
+
+class StripedMatrix {
+ public:
+  StripedMatrix(int rows, int columns);
+  std::vector<Complex>& operator[](int diagonal);
+};
+
+template <typename word>
+class LinearTransform {
+ public:
+  LinearTransform(std::shared_ptr<const Context<word>> context,
+                  const StripedMatrix& matrix, int level, double scale, int bs,
+                  int gs);
+#ifdef HEIR_CYCLOPS_STUB
+  void Evaluate(std::shared_ptr<const Context<word>> context,
+                Ciphertext<word>& result, const Ciphertext<word>& input,
+                const EvkMap<word>& evk_map) const;
+#else
+  void Evaluate(std::shared_ptr<const Context<word>> context,
+                Ciphertext<word>& result, const Ciphertext<word>& input,
+                const EvkMap<word>& evk_map, bool min_ks = false) const;
+#endif
 };
 
 template <typename word>

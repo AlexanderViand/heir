@@ -158,6 +158,19 @@ func.func @eval_poly(%ctx: !context, %enc: !encoder, %ct: tensor<!ciphertext>,
   return %0 : tensor<!ciphertext>
 }
 
+func.func @linear_transform(%ctx: !context, %ct: tensor<!ciphertext>,
+                            %evk: !cheddar.evk_map,
+                            %diagonals: tensor<2x8xf32>)
+    -> tensor<!ciphertext> {
+  %d0 = tensor.empty() : tensor<!ciphertext>
+  %0 = cheddar.linear_transform %ctx, %ct, %evk, %diagonals, %d0
+      {diagonal_indices = array<i32: 0, 1>, level = 1 : i64,
+       bs = 2 : i64, gs = 1 : i64}
+      : (!context, tensor<!ciphertext>, !cheddar.evk_map, tensor<2x8xf32>,
+         tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %0 : tensor<!ciphertext>
+}
+
 // Encrypt / Decrypt out-param calls on the UserInterface.
 func.func @encrypt_decrypt(%ui: !cheddar.user_interface, %pt: tensor<!plaintext>,
                            %ct: tensor<!ciphertext>)

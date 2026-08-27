@@ -31,7 +31,12 @@ def PrepareLinearTransforms : Pass<"prepare-linear-transforms", "ModuleOp"> {
     not declare support, so `kernel.linear_transform` remains valid sugar for
     backends that lower it directly.
   }];
-  let dependentDialects = ["mlir::heir::kernel::KernelDialect"];
+  let dependentDialects = [
+    "mlir::heir::ckks::CKKSDialect",
+    "mlir::heir::kernel::KernelDialect",
+    "mlir::heir::lwe::LWEDialect",
+    "mlir::tensor::TensorDialect"
+  ];
 }
 
 #endif  // LIB_DIALECT_KERNEL_TRANSFORMS_PASSES_TD_
