@@ -122,3 +122,67 @@ build_test(
     target_compatible_with = requires_cheddar(),
     targets = [":kernels_real_compiled"],
 )
+
+heir_opt(
+    name = "setup_emitc",
+    src = "setup.mlir",
+    generated_filename = "setup_emitc.mlir",
+    pass_flags = [
+        "--cheddar-configure-crypto-context=entry-function=kernel",
+        "--cheddar-bufferize",
+        "--fold-memref-alias-ops",
+        "--cse",
+        "--canonicalize",
+        "--drop-equivalent-buffer-results",
+        "--canonicalize",
+        "--convert-to-emitc=filter-dialects=cheddar,arith,scf",
+        "--cheddar-emitc-boundary",
+        "--reconcile-unrealized-casts",
+    ],
+)
+
+heir_translate(
+    name = "setup_cpp_raw",
+    src = ":setup_emitc.mlir",
+    generated_filename = "setup_raw.cc",
+    pass_flags = ["--mlir-to-cpp"],
+)
+
+genrule(
+    name = "setup_real_lib_src",
+    srcs = [":setup_raw.cc"],
+    outs = ["setup_real_lib.cc"],
+    cmd = """cat > $@ <<'PRELUDE_EOF'
+// AUTO-GENERATED: do not edit. See tests/Conversions/CheddarToEmitC/compile/BUILD.
+#include <array>
+#include <complex>
+#include <cstdint>
+#include <initializer_list>
+#include <memory>
+#include <utility>
+#include <vector>
+#include "UserInterface.h"
+#include "core/Context.h"
+#include "core/Encode.h"
+#include "core/Parameter.h"
+#include "extension/BootContext.h"
+#include "extension/EvalPoly.h"
+using namespace cheddar;
+using word = uint64_t;
+PRELUDE_EOF
+cat $(location :setup_raw.cc) >> $@
+""",
+)
+
+cc_library(
+    name = "setup_real_compiled",
+    srcs = [":setup_real_lib_src"],
+    target_compatible_with = requires_cheddar(),
+    deps = ["@cheddar"],
+)
+
+build_test(
+    name = "real_setup_compile_test",
+    target_compatible_with = requires_cheddar(),
+    targets = [":setup_real_compiled"],
+)

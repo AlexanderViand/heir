@@ -573,6 +573,7 @@ def Cheddar_HRotOp : Cheddar_DpsOp<"hrot", [
   let description = [{
     Calls context->HRot(res, a, rot_key, distance). The rotation key is looked
     up from the `$ui` UserInterface operand using `distance`.
+    `level` is the modulus level at which the rotation executes.
     Single fused GPU kernel. Supports both static and dynamic distances.
   }];
   let arguments = (ins
@@ -581,7 +582,8 @@ def Cheddar_HRotOp : Cheddar_DpsOp<"hrot", [
     Cheddar_CtLike:$input,
     Cheddar_CtLike:$output,
     Optional<AnySignlessIntegerOrIndex>:$dynamic_distance,
-    OptionalAttr<Builtin_IntegerAttr>:$static_distance
+    OptionalAttr<Builtin_IntegerAttr>:$static_distance,
+    Builtin_IntegerAttr:$level
   );
   let results = (outs Cheddar_CtResult:$result);
   let hasVerifier = 1;
@@ -595,6 +597,7 @@ def Cheddar_HRotAddOp : Cheddar_DpsOp<"hrot_add", [
     Computes res = rotate(a, distance) + b in a single fused GPU kernel.
     Calls context->HRotAdd(res, a, b, rot_key, distance). The rotation key
     is looked up from the `$ui` UserInterface operand using `distance`.
+    `level` is the modulus level at which the rotation executes.
   }];
   let arguments = (ins
     Cheddar_AnyContext:$ctx,
@@ -602,7 +605,8 @@ def Cheddar_HRotAddOp : Cheddar_DpsOp<"hrot_add", [
     Cheddar_CtLike:$input,
     Cheddar_CtLike:$addend,
     Cheddar_CtLike:$output,
-    Builtin_IntegerAttr:$distance
+    Builtin_IntegerAttr:$distance,
+    Builtin_IntegerAttr:$level
   );
   let results = (outs Cheddar_CtResult:$result);
 }

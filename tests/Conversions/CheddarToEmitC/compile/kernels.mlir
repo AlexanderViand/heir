@@ -110,10 +110,10 @@ func.func @rotations(%ctx: !context, %ui: !cheddar.user_interface,
                      %a: tensor<!ciphertext>, %b: tensor<!ciphertext>)
     -> tensor<!ciphertext> {
   %d0 = tensor.empty() : tensor<!ciphertext>
-  %0 = cheddar.hrot %ctx, %ui, %a, %d0 {static_distance = 5 : i64}
+  %0 = cheddar.hrot %ctx, %ui, %a, %d0 {level = 4 : i64, static_distance = 5 : i64}
       : (!context, !cheddar.user_interface, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   %d1 = tensor.empty() : tensor<!ciphertext>
-  %1 = cheddar.hrot_add %ctx, %ui, %0, %b, %d1 {distance = 7 : i64}
+  %1 = cheddar.hrot_add %ctx, %ui, %0, %b, %d1 {distance = 7 : i64, level = 4 : i64}
       : (!context, !cheddar.user_interface, tensor<!ciphertext>, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
   %d2 = tensor.empty() : tensor<!ciphertext>
   %2 = cheddar.hconj %ctx, %ui, %1, %d2

@@ -21,6 +21,7 @@
 #include "lib/Dialect/CKKS/Transforms/Passes.h"
 #include "lib/Dialect/Cheddar/IR/CheddarDialect.h"
 #include "lib/Dialect/Cheddar/Transforms/BufferizableOpInterfaceImpl.h"
+#include "lib/Dialect/Cheddar/Transforms/ConfigureCryptoContext.h"
 #include "lib/Dialect/Cheddar/Transforms/Passes.h"
 #include "lib/Dialect/Comb/IR/CombDialect.h"
 #include "lib/Dialect/Debug/IR/DebugDialect.h"
@@ -392,6 +393,7 @@ int main(int argc, char** argv) {
   // Custom passes in HEIR
   registerEmitCInterfacePass();
   registerCheddarToEmitCPasses();
+  cheddar::registerCheddarConfigureCryptoContextPasses();
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
   ckks::registerCKKSPasses();
