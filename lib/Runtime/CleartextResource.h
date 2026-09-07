@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <string_view>
 
 namespace heir {
 
@@ -24,6 +25,19 @@ void loadResource(const std::string& path, T* data, std::size_t size) {
               << '\n';
     std::abort();
   }
+}
+
+template <typename T>
+void loadResource(std::string_view directory, const std::string& path, T* data,
+                  std::size_t size) {
+  if (directory.empty()) {
+    loadResource(path, data, size);
+    return;
+  }
+  std::string fullPath(directory);
+  if (fullPath.back() != '/') fullPath.push_back('/');
+  fullPath.append(path);
+  loadResource(fullPath, data, size);
 }
 
 }  // namespace heir

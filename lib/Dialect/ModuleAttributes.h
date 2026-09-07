@@ -1,6 +1,8 @@
 #ifndef LIB_DIALECT_MODULEATTRIBUTES_H_
 #define LIB_DIALECT_MODULEATTRIBUTES_H_
 
+#include <cstdint>
+
 #include "llvm/include/llvm/ADT/StringRef.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Attributes.h"  // from @llvm-project
 #include "mlir/include/mlir/IR/Operation.h"   // from @llvm-project
@@ -26,6 +28,11 @@ constexpr const static ::llvm::StringLiteral kRequestedSlotCountAttrName =
     "scheme.requested_slot_count";
 constexpr const static ::llvm::StringLiteral kActualSlotCountAttrName =
     "scheme.actual_slot_count";
+
+// Returns the number of slots ciphertexts in this module are encoded for:
+// `ringCapacity`, capped by the module's requested slot count when it asked for
+// a sparser packing.
+int64_t getEncodedSlotCount(Operation* moduleOp, int64_t ringCapacity);
 
 bool moduleIsBGV(Operation* moduleOp);
 bool moduleIsBFV(Operation* moduleOp);
@@ -86,6 +93,19 @@ constexpr const static ::llvm::StringLiteral kClientEncZeroFuncAttrName =
 constexpr const static ::llvm::StringLiteral kClientEncZeroArgAttrName =
     "client.enc_zero_arg";
 
+// Func attributes for the logical entry-point interface. Each attribute
+// contains the original entry function name in `func_name`.
+constexpr const static ::llvm::StringLiteral kEntryFuncAttrName =
+    "heir.entry_func";
+constexpr const static ::llvm::StringLiteral kEntryInputTypesAttrName =
+    "heir.entry_input_types";
+constexpr const static ::llvm::StringLiteral kEntryResultTypesAttrName =
+    "heir.entry_result_types";
+constexpr const static ::llvm::StringLiteral kServerPreprocessingFuncAttrName =
+    "server.preprocessing_func";
+constexpr const static ::llvm::StringLiteral kServerEvaluateFuncAttrName =
+    "server.evaluate_func";
+
 // Corresponds to a named attribute client.preprocessed_func whose value is a
 // dictionary {func_name = "foo"} that references the name of the function that
 // this was derived from. This preprocessed function contains just the
@@ -98,6 +118,7 @@ inline bool isClientHelper(Operation* op) {
   return op->hasAttr(kClientEncFuncAttrName) ||
          op->hasAttr(kClientDecFuncAttrName) ||
          op->hasAttr(kClientPackFuncAttrName) ||
+         op->hasAttr(kServerPreprocessingFuncAttrName) ||
          op->hasAttr(kClientPreprocessedFuncAttrName) ||
          op->hasAttr(kClientEncZeroFuncAttrName);
 }
@@ -107,6 +128,11 @@ constexpr const static ::llvm::StringLiteral kClientHelperFuncName =
     "func_name";
 // The argument or operand index the client helper function is for.
 constexpr const static ::llvm::StringLiteral kClientHelperIndex = "index";
+
+inline bool isPreprocessingHelper(Operation* op) {
+  return op->hasAttr(kClientPackFuncAttrName) ||
+         op->hasAttr(kServerPreprocessingFuncAttrName);
+}
 
 }  // namespace heir
 }  // namespace mlir

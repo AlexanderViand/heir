@@ -16,6 +16,7 @@ dataclass = dataclasses.dataclass
 class HEIRConfig:
   heir_opt_path: str | Path
   heir_translate_path: str | Path
+  runtime_include_dir_path: str | Path
   techmap_dir_path: str | Path  # optional
   abc_path: str | Path  # optional
 
@@ -26,6 +27,7 @@ def development_heir_config() -> HEIRConfig:
     return HEIRConfig(
         heir_opt_path="",
         heir_translate_path="",
+        runtime_include_dir_path="",
         techmap_dir_path="",
         abc_path="",
     )
@@ -67,6 +69,7 @@ def development_heir_config() -> HEIRConfig:
   return HEIRConfig(
       heir_opt_path=repo_root / "bazel-bin" / "tools" / "heir-opt",
       heir_translate_path=repo_root / "bazel-bin" / "tools" / "heir-translate",
+      runtime_include_dir_path=repo_root,
       techmap_dir_path=techmap_dir_path,
       abc_path=abc_path,
   )
@@ -158,6 +161,9 @@ def from_os_env() -> HEIRConfig:
   return HEIRConfig(
       heir_opt_path=resolved_heir_opt_path,
       heir_translate_path=resolved_heir_translate_path,
+      runtime_include_dir_path=os.environ.get(
+          "HEIR_RUNTIME_INCLUDE_DIR", dev_config.runtime_include_dir_path
+      ),
       techmap_dir_path=resolved_techmap_dir_path,
       abc_path=resolved_abc_path,
   )
@@ -174,6 +180,7 @@ def from_pip_installation() -> HEIRConfig:
   return HEIRConfig(
       heir_opt_path=package_path / "heir-opt",
       heir_translate_path=package_path / "heir-translate",
+      runtime_include_dir_path=package_path / "include",
       # These paths are configured in setup.py
       techmap_dir_path=package_path / "techmaps",
       abc_path=package_path / "abc",

@@ -36,4 +36,26 @@ def CheddarToEmitC : Pass<"cheddar-emitc-boundary"> {
   ];
 }
 
+def CheddarEmitCEntryInterface
+    : Pass<"cheddar-emitc-entry-interface", "mlir::ModuleOp"> {
+  let summary = "Generate a C++ entry-point interface and split file output";
+  let description = [{
+    Materializes the logical entry-point roles recorded by
+    `--add-client-interface` as a compact C++ API. The pass creates separate
+    `emitc.file` regions for the generated header and source and keeps the
+    lowered helper functions private to the source file.
+
+    Run after `--cheddar-emitc-boundary` and
+    `--reconcile-unrealized-casts`.
+  }];
+  let dependentDialects = [
+    "::mlir::emitc::EmitCDialect",
+    "::mlir::func::FuncDialect",
+  ];
+  let options = [
+    Option<"entryFunction", "entry-function", "std::string", "\"\"",
+           "Entry function to expose when the module contains more than one">
+  ];
+}
+
 #endif  // LIB_CONVERSIONS_CHEDDARTOEMITC_CHEDDARTOEMITC_TD_
