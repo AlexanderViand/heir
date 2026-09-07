@@ -3,8 +3,10 @@
 #include <cstdlib>
 #include <string>
 
+#include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/BGV/Conversions/BGVToLWE/BGVToLWE.h"
 #include "lib/Dialect/CKKS/Transforms/CKKSToLWE.h"
+#include "lib/Dialect/Cheddar/Transforms/CheddarBufferize.h"
 #include "lib/Dialect/Debug/Transforms/ValidateNames.h"
 #include "lib/Dialect/LWE/Conversions/LWEToLattigo/LWEToLattigo.h"
 #include "lib/Dialect/LWE/Conversions/LWEToOpenfhe/LWEToOpenfhe.h"
@@ -70,11 +72,17 @@
 #include "lib/Transforms/ValidateNoise/ValidateNoise.h"
 #include "llvm/include/llvm/Support/CommandLine.h"  // from @llvm-project
 #include "llvm/include/llvm/Support/raw_ostream.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/AffineToStandard/AffineToStandard.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/ConvertToEmitC/ConvertToEmitCPass.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Affine/Transforms/Passes.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Arith/Transforms/Passes.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Bufferization/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Linalg/Passes.h"  // from @llvm-project
-#include "mlir/include/mlir/Pass/PassManager.h"       // from @llvm-project
-#include "mlir/include/mlir/Pass/PassOptions.h"       // from @llvm-project
-#include "mlir/include/mlir/Transforms/Passes.h"      // from @llvm-project
+#include "mlir/include/mlir/Dialect/MemRef/Transforms/Passes.h"  // from @llvm-project
+#include "mlir/include/mlir/Pass/PassManager.h"   // from @llvm-project
+#include "mlir/include/mlir/Pass/PassOptions.h"   // from @llvm-project
+#include "mlir/include/mlir/Transforms/Passes.h"  // from @llvm-project
 
 namespace mlir::heir {
 
@@ -700,6 +708,38 @@ BackendPipelineBuilder toLattigoPipelineBuilder() {
     // Lower Linalg to loops
     pm.addNestedPass<func::FuncOp>(createConvertLinalgToLoopsPass());
   };
+}
+
+void cheddarToEmitCPipelineBuilder(OpPassManager& pm) {
+  pm.addPass(arith::createArithExpandOpsPass());
+  pm.addPass(createLowerAffinePass());
+  pm.addNestedPass<func::FuncOp>(createConvertElementwiseToLinalgPass());
+  pm.addPass(cheddar::createCheddarBufferize());
+  pm.addNestedPass<func::FuncOp>(createConvertLinalgToLoopsPass());
+  pm.addPass(createInlinerPass());
+  pm.addPass(memref::createFoldMemRefAliasOpsPass());
+  pm.addPass(createCSEPass());
+  pm.addPass(createCanonicalizerPass());
+
+  pm.addPass(bufferization::createDropEquivalentBufferResultsPass());
+  bufferization::BufferResultsToOutParamsPassOptions outParamsOptions;
+  outParamsOptions.hoistStaticAllocs = true;
+  outParamsOptions.modifyPublicFunctions = true;
+  outParamsOptions.addResultAttribute = true;
+  pm.addPass(
+      bufferization::createBufferResultsToOutParamsPass(outParamsOptions));
+  pm.addPass(createCanonicalizerPass());
+
+  pm.addPass(bufferization::createOwnershipBasedBufferDeallocationPass());
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(bufferization::createBufferDeallocationSimplificationPass());
+  pm.addPass(bufferization::createLowerDeallocationsPass());
+
+  ConvertToEmitCOptions emitCOptions;
+  emitCOptions.filterDialects = {"cheddar", "arith", "scf", "memref"};
+  pm.addPass(createConvertToEmitC(emitCOptions));
+  pm.addPass(createCheddarToEmitC());
+  pm.addPass(createReconcileUnrealizedCastsPass());
 }
 
 void linalgPreprocessingBuilder(OpPassManager& manager) {

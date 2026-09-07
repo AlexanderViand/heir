@@ -41,6 +41,21 @@ LinearTransformOp::getRotationIndices() {
   }
   return result;
 }
+
+::llvm::SmallVector<::mlir::OpFoldResult>
+PrepareLinearTransformOp::getRotationIndices() {
+  auto rotations =
+      lintransRotationIndices(getDiagonalIndicesAttr().asArrayRef(),
+                              getWidth().getInt(), getBs().getInt());
+  SmallVector<OpFoldResult> result;
+  result.reserve(rotations.size());
+  auto* mlirCtx = (*this)->getContext();
+  for (int64_t rot : rotations) {
+    result.push_back(IntegerAttr::get(IndexType::get(mlirCtx), rot));
+  }
+  return result;
+}
+
 LogicalResult LinearTransformOp::verify() {
   auto diagonalsType = cast<ShapedType>(getDiagonals().getType());
   if (diagonalsType.getRank() != 2) {
@@ -54,7 +69,27 @@ LogicalResult LinearTransformOp::verify() {
   return success();
 }
 
-LogicalResult EvalPolyOp::verify() { return success(); }
+LogicalResult PrepareLinearTransformOp::verify() {
+  auto diagonalsType = cast<ShapedType>(getDiagonals().getType());
+  if (diagonalsType.getRank() != 2) {
+    return emitOpError("diagonals must be a 2D tensor or memref");
+  }
+  if (diagonalsType.getShape()[0] !=
+      getDiagonalIndicesAttr().asArrayRef().size()) {
+    return emitOpError(
+        "number of diagonals must match number of diagonal indices");
+  }
+  if (diagonalsType.getShape()[1] != getWidth().getInt()) {
+    return emitOpError("width must match the diagonal width");
+  }
+  return success();
+}
+
+LogicalResult EvalPolyOp::verify() {
+  if (getLevelConsumption().getInt() < 2)
+    return emitOpError("level consumption must be at least two");
+  return success();
+}
 
 }  // namespace cheddar
 }  // namespace heir

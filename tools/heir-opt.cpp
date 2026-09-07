@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGI/ArithToCGGI.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGIQuart/ArithToCGGIQuart.h"
 #include "lib/Dialect/Arith/Conversions/ArithToModArith/ArithToModArith.h"
@@ -173,6 +174,7 @@
 #include "mlir/include/mlir/Dialect/Arith/IR/ValueBoundsOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/Transforms/BufferDeallocationOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Arith/Transforms/BufferizableOpInterfaceImpl.h"  // from @llvm-project
+#include "mlir/include/mlir/Dialect/Arith/Transforms/Passes.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/IR/Bufferization.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/Transforms/BufferizableOpInterfaceImpl.h"  // from @llvm-project
 #include "mlir/include/mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"  // from @llvm-project
@@ -321,6 +323,8 @@ int main(int argc, char** argv) {
   mlir::registerConvertFuncToEmitCInterface(registry);
   mlir::registerConvertMemRefToEmitCInterface(registry);
   mlir::registerConvertSCFToEmitCInterface(registry);
+  mlir::heir::registerCheddarToEmitCExternalModels(registry);
+  mlir::heir::registerCheddarConvertToEmitCInterface(registry);
 
   // Misc
   registerTransformsPasses();      // canonicalize, cse, etc.
@@ -349,6 +353,9 @@ int main(int argc, char** argv) {
       []() -> std::unique_ptr<Pass> { return createLowerAffinePass(); });
   registerPass([]() -> std::unique_ptr<Pass> {
     return createReconcileUnrealizedCastsPass();
+  });
+  registerPass([]() -> std::unique_ptr<Pass> {
+    return mlir::arith::createArithExpandOpsPass();
   });
   registerPass(
       []() -> std::unique_ptr<Pass> { return createConvertToLLVMPass(); });
@@ -381,6 +388,7 @@ int main(int argc, char** argv) {
 
   // Custom passes in HEIR
   registerEmitCInterfacePass();
+  registerCheddarToEmitCPasses();
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
   ckks::registerCKKSPasses();
@@ -591,6 +599,10 @@ int main(int argc, char** argv) {
       "scheme-to-lattigo",
       "Convert code expressed at FHE scheme level to Lattigo Go code.",
       toLattigoPipelineBuilder());
+
+  PassPipelineRegistration<>("cheddar-to-emitc",
+                             "Bufferize Cheddar code and lower it to EmitC.",
+                             cheddarToEmitCPipelineBuilder);
 
   // TODO(#1645): Add backend options for tfhe-rs, fpt, jaxite.
   PassPipelineRegistration<>(
