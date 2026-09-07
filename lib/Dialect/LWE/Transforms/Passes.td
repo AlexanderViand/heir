@@ -79,10 +79,10 @@ def AnnotatePlaintextLevel : Pass<"lwe-annotate-plaintext-level", "mlir::ModuleO
     Backends allocate a plaintext at the top of the modulus chain unless told
     otherwise, but encoding cost is dominated by per-RNS-limb work, so a
     plaintext only ever combined with a level 3 ciphertext is cheaper to encode
-    with 4 limbs than with all of them. For a ct-pt op the result is unchanged
-    either way: combining a ciphertext and a plaintext yields the lower of the
-    two levels, so annotating with the *highest* level among such uses is the
-    smallest choice that serves them all.
+    with 4 limbs than with all of them. Backends that combine a ciphertext and
+    plaintext at the lower operand level can share one encoding at the highest
+    level among its uses. Backends that require exact operand levels instead
+    keep separate encodings for different levels.
 
     `lwe.rlwe_encrypt` is not a ct-pt op and does not follow that rule. It has
     no ciphertext operand to be clamped against, so the backend builds the
@@ -94,14 +94,20 @@ def AnnotatePlaintextLevel : Pass<"lwe-annotate-plaintext-level", "mlir::ModuleO
     and is combined with a higher-level ciphertext has no correct level, and is
     left to the fallback.
 
-    Run this after CSE. Identical encode ops that CSE has merged are cheaper as
-    one plaintext at the highest level than as several at their own levels,
-    since each encode pays a fixed cost on top of the per-limb work.
+    For backends that combine at the lower level, run this after CSE. Identical
+    encode ops that CSE has merged are cheaper as one plaintext at the highest
+    level than as several at their own levels, since each encode pays a fixed
+    cost on top of the per-limb work. For exact-level backends, run the pass
+    before CSE so the level attributes preserve distinct encodings.
 
     (* example filepath=tests/Dialect/LWE/Transforms/annotate_plaintext_level.mlir *)
   }];
   let dependentDialects = [
     "mlir::heir::lwe::LWEDialect",
+  ];
+  let options = [
+    Option<"exactLevelBackendsOnly", "exact-level-backends-only", "bool",
+           /*default=*/"false", "Run only for backends that require plaintext and ciphertext levels to match exactly.">
   ];
 }
 
