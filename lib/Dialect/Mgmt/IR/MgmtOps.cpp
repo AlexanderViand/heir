@@ -2,13 +2,32 @@
 
 #include "lib/Dialect/Mgmt/IR/MgmtAttributes.h"
 #include "lib/Dialect/Mgmt/IR/MgmtPatterns.h"
-#include "mlir/include/mlir/IR/MLIRContext.h"   // from @llvm-project
-#include "mlir/include/mlir/IR/Operation.h"     // from @llvm-project
-#include "mlir/include/mlir/IR/PatternMatch.h"  // from @llvm-project
+#include "lib/Target/CompilationTarget/CompilationTarget.h"
+#include "llvm/include/llvm/ADT/STLExtras.h"         // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinAttributes.h"  // from @llvm-project
+#include "mlir/include/mlir/IR/BuiltinOps.h"         // from @llvm-project
+#include "mlir/include/mlir/IR/MLIRContext.h"        // from @llvm-project
+#include "mlir/include/mlir/IR/Operation.h"          // from @llvm-project
+#include "mlir/include/mlir/IR/PatternMatch.h"       // from @llvm-project
 
 namespace mlir {
 namespace heir {
 namespace mgmt {
+
+// Targets without same-level scale adjustment require rescale to remain before
+// level reduction. Moving it after level reduction would apply rescale to the
+// squared scale at the wrong level.
+static bool hasCanonicalScalePerLevel(Operation* op) {
+  auto module = op->getParentOfType<ModuleOp>();
+  if (!module) return false;
+  bool hasBackend = llvm::any_of(module->getAttrs(), [](NamedAttribute attr) {
+    return isa<UnitAttr>(attr.getValue()) &&
+           attr.getName().getValue().starts_with("backend.");
+  });
+  if (!hasBackend) return false;
+  auto target = getTargetConfig(module);
+  return succeeded(target) && !target->can_emit_adjust_scale;
+}
 
 //===----------------------------------------------------------------------===//
 // Canonicalization Patterns
@@ -19,6 +38,7 @@ struct ModReduceAfterLevelReduce : public OpRewritePattern<LevelReduceOp> {
 
   LogicalResult matchAndRewrite(LevelReduceOp op,
                                 PatternRewriter& rewriter) const override {
+    if (hasCanonicalScalePerLevel(op)) return failure();
     auto modReduceOp = op.getInput().getDefiningOp<ModReduceOp>();
     if (!modReduceOp || !modReduceOp->hasOneUse() || !op->hasOneUse())
       return failure();
@@ -170,6 +190,7 @@ struct MergeModReduce : public OpRewritePattern<ModReduceOp> {
 
   LogicalResult matchAndRewrite(ModReduceOp op,
                                 PatternRewriter& rewriter) const override {
+    if (hasCanonicalScalePerLevel(op)) return failure();
     auto innerMr = op.getInput().getDefiningOp<ModReduceOp>();
     if (!innerMr || !innerMr->hasOneUse()) return failure();
 
