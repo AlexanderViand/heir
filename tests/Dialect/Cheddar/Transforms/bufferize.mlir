@@ -106,7 +106,7 @@ func.func @rescale_alias_hint(%ctx: !cheddar.context, %lhs: tensor<!cheddar.ciph
 func.func @hrot_add_in_place(%ctx: !cheddar.context, %evk: !cheddar.evk_map, %lhs: tensor<!cheddar.ciphertext>, %rhs: tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext> {
   %empty = tensor.empty() : tensor<!cheddar.ciphertext>
   %input = cheddar.add %ctx, %lhs, %rhs, %empty : (!cheddar.context, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
-  %output = cheddar.hrot_add %ctx, %evk, %input, %input, %input {distance = 2 : i64} : (!cheddar.context, !cheddar.evk_map, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
+  %output = cheddar.hrot_add %ctx, %evk, %input, %input, %input {distance = 2 : i64, level = 4 : i64} : (!cheddar.context, !cheddar.evk_map, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>, tensor<!cheddar.ciphertext>) -> tensor<!cheddar.ciphertext>
   return %output : tensor<!cheddar.ciphertext>
 }
 
