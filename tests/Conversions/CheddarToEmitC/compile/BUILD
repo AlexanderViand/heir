@@ -52,6 +52,7 @@ genrule(
 #include <complex>
 #include <cstdint>
 #include <initializer_list>
+#include <utility>
 #include <vector>
 #include "tests/Conversions/CheddarToEmitC/compile/cheddar_stub.h"
 using namespace cheddar;

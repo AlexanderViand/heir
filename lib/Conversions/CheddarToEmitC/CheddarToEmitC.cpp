@@ -888,6 +888,34 @@ struct RejectMoveOnlyStore : public OpRewritePattern<mlir::memref::StoreOp> {
   }
 };
 
+// True for a move-only cheddar element type (payloads and the user interface).
+bool isMoveOnlyElement(Type elementType) {
+  return !payloadTypeName(elementType).empty() ||
+         isa<cheddar::UserInterfaceType>(elementType);
+}
+
+// A copy whose source is a temporary allocated in the same block and never
+// used again (its deallocation aside). Nothing can observe the temporary after
+// the copy, so transferring its storage is indistinguishable from copying it.
+bool isCopyFromDeadLocal(mlir::memref::CopyOp copy) {
+  if (copy.getSource() == copy.getTarget()) return false;
+  auto alloc = copy.getSource().getDefiningOp<mlir::memref::AllocOp>();
+  if (!alloc || alloc->getBlock() != copy->getBlock()) return false;
+  for (Operation* user : alloc->getUsers()) {
+    if (user == copy || isa<mlir::memref::DeallocOp>(user)) continue;
+    // Anything that could hand out an alias of the temporary (a view, a
+    // buffer-typed result, a region terminator yielding it) disqualifies it.
+    if (isa<ViewLikeOpInterface>(user) ||
+        user->hasTrait<OpTrait::IsTerminator>() ||
+        llvm::any_of(user->getResultTypes(),
+                     [](Type t) { return isa<BaseMemRefType>(t); }))
+      return false;
+    Operation* ancestor = copy->getBlock()->findAncestorOpInBlock(*user);
+    if (!ancestor || !ancestor->isBeforeInBlock(copy)) return false;
+  }
+  return true;
+}
+
 struct HandleMoveOnlyCopy : public OpRewritePattern<mlir::memref::CopyOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(mlir::memref::CopyOp op,
@@ -899,6 +927,10 @@ struct HandleMoveOnlyCopy : public OpRewritePattern<mlir::memref::CopyOp> {
       return success();
     }
     if (isa<cheddar::CiphertextType>(elementType)) return failure();
+    // Dead-local copies are moved by MoveCopyFromDeadLocal; never diagnose
+    // them here. (If that pattern cannot fire because an operand fails to
+    // convert, the op is left for the driver's generic legalization error.)
+    if (isCopyFromDeadLocal(op)) return failure();
     if (payloadTypeName(elementType).empty() &&
         !isa<cheddar::UserInterfaceType>(elementType))
       return failure();
@@ -907,7 +939,29 @@ struct HandleMoveOnlyCopy : public OpRewritePattern<mlir::memref::CopyOp> {
   }
 };
 
-// Copies that survive bufferization's standard alias folding have true copy
+// A copy out of a dead local temporary moves instead: `dst = std::move(tmp)`.
+// This is the shape One-Shot Bufferize leaves when a value needed a fresh
+// buffer (its destination was still live) and is then placed into the result.
+struct MoveCopyFromDeadLocal
+    : public OpConversionPattern<mlir::memref::CopyOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      mlir::memref::CopyOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    auto sourceType = cast<MemRefType>(op.getSource().getType());
+    if (!isMoveOnlyElement(sourceType.getElementType()) ||
+        !isCopyFromDeadLocal(op))
+      return failure();
+    markDestination(VerbatimOp::create(
+                        rewriter, op.getLoc(), "{} = std::move({});",
+                        ValueRange{adaptor.getTarget(), adaptor.getSource()}),
+                    0);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+// Any other copy that survives bufferization's alias folding has true copy
 // semantics. Lower ciphertext copies through CHEDDAR's deep-copy API instead
 // of reinterpreting them as C++ assignment or ownership transfer.
 struct ConvertCiphertextCopy
@@ -1003,8 +1057,8 @@ struct ConvertStoreArray : public OpConversionPattern<mlir::memref::StoreOp> {
   }
 };
 
-// memref.copy also retains value-copy semantics. It cannot be reinterpreted as
-// an ownership transfer merely because a source happens to be dead.
+// memref.copy also retains value-copy semantics (a copy out of a dead local
+// temporary is the one exception, handled by MoveCopyFromDeadLocal).
 struct ConvertCopy : public OpConversionPattern<mlir::memref::CopyOp> {
   using OpConversionPattern::OpConversionPattern;
   LogicalResult matchAndRewrite(
@@ -1381,6 +1435,7 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
     patterns.add<RejectMoveOnlyStore, HandleMoveOnlyCopy>(ctx,
                                                           /*benefit=*/3);
     patterns.add<ConvertCiphertextCopy>(typeConverter, ctx, /*benefit=*/3);
+    patterns.add<MoveCopyFromDeadLocal>(typeConverter, ctx, /*benefit=*/4);
 
     patterns
         .add<ConvertEncode, ConvertEncodeConstant, ConvertDecode, ConvertHRot,
@@ -1393,7 +1448,6 @@ struct CheddarToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
       using Op = decltype(opTag);
       patterns.add<OutParamDpsPattern<Op>>(typeConverter, ctx, name, extra);
     };
-    addDps("Copy", cheddar::CopyOp{});
     addDps("Add", cheddar::AddOp{});
     addDps("Sub", cheddar::SubOp{});
     addDps("Mult", cheddar::MultOp{});

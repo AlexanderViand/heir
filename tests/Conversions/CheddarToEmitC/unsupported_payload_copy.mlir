@@ -35,12 +35,13 @@ func.func @self_copy(%value: memref<!cheddar.ciphertext>) {
 
 // -----
 
-// Local ownership does not change the copy semantics.
-func.func @local_source(%ctx: !cheddar.context,
-                        %dst: memref<!cheddar.ciphertext>) {
+// A local temporary that is still read after the copy is deep-copied.
+func.func @local_source_used_later(%ctx: !cheddar.context,
+                                   %dst: memref<!cheddar.ciphertext>) {
   %src = memref.alloc() : memref<!cheddar.ciphertext>
   memref.copy %src, %dst
       : memref<!cheddar.ciphertext> to memref<!cheddar.ciphertext>
+  cheddar.neg %ctx, %src, %src : (!cheddar.context, memref<!cheddar.ciphertext>, memref<!cheddar.ciphertext>) -> ()
   return
 }
 

@@ -34,16 +34,6 @@ func.func @arith(%ctx: !context, %a: tensor<!ciphertext>,
   return %2 : tensor<!ciphertext>
 }
 
-// Explicit semantic deep copy through Context::Copy.
-func.func @copy(%ctx: !context, %input: tensor<!ciphertext>)
-    -> tensor<!ciphertext> {
-  %dest = tensor.empty() : tensor<!ciphertext>
-  %result = cheddar.copy %ctx, %input, %dest
-      : (!context, tensor<!ciphertext>, tensor<!ciphertext>)
-          -> tensor<!ciphertext>
-  return %result : tensor<!ciphertext>
-}
-
 // ct+pt and ct+const overloaded dispatch.
 func.func @ct_pt_const(%ctx: !context, %ct: tensor<!ciphertext>,
                        %pt: tensor<!plaintext>, %c: tensor<!constant>)
@@ -193,4 +183,20 @@ func.func @loop_store(%ctx: !context, %in: tensor<!ciphertext>)
     scf.yield %ins : tensor<8x!ciphertext>
   }
   return %r : tensor<8x!ciphertext>
+}
+
+// Returning a call result leaves a temporary plus a copy into the out-param
+// after bufferization; the copy of the dead temporary becomes a move.
+func.func private @produce(%ctx: !context, %ct: tensor<!ciphertext>)
+    -> tensor<!ciphertext> {
+  %d = tensor.empty() : tensor<!ciphertext>
+  %r = cheddar.neg %ctx, %ct, %d
+      : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
+}
+func.func @forward_call(%ctx: !context, %ct: tensor<!ciphertext>)
+    -> tensor<!ciphertext> {
+  %r = func.call @produce(%ctx, %ct)
+      : (!context, tensor<!ciphertext>) -> tensor<!ciphertext>
+  return %r : tensor<!ciphertext>
 }

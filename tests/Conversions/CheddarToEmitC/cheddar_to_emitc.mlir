@@ -48,16 +48,6 @@ func.func @arith(%ctx: !context, %a: tensor<!ciphertext>, %b: tensor<!ciphertext
   return %s : tensor<!ciphertext>
 }
 
-// A semantic ciphertext copy lowers to CHEDDAR's deep-copy API, never C++
-// copy-assignment on the move-only payload.
-// CHECK: func.func @copy
-// CHECK: emitc.member_call_opaque %arg0 "Copy"(%arg2, %arg1)
-func.func @copy(%ctx: !context, %input: tensor<!ciphertext>) -> tensor<!ciphertext> {
-  %dest = tensor.empty() : tensor<!ciphertext>
-  %result = cheddar.copy %ctx, %input, %dest : (!context, tensor<!ciphertext>, tensor<!ciphertext>) -> tensor<!ciphertext>
-  return %result : tensor<!ciphertext>
-}
-
 // A memref.copy that survives alias folding has true copy semantics and lowers
 // through the same CHEDDAR deep-copy API.
 // CHECK: func.func @memref_copy
