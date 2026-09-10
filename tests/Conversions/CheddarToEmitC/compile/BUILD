@@ -1,0 +1,121 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@heir//bazel/cheddar:config.bzl", "requires_cheddar")
+load("@heir//tools:heir-opt.bzl", "heir_opt")
+load("@heir//tools:heir-translate.bzl", "heir_translate")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(
+    default_applicable_licenses = ["@heir//:license"],
+    default_visibility = ["//visibility:public"],
+)
+
+# Compiles the emitted C++ against a header-only stub of the CHEDDAR API, so a
+# move/const violation fails the build without needing CUDA.
+
+heir_opt(
+    name = "kernels_emitc",
+    src = "kernels.mlir",
+    generated_filename = "kernels_emitc.mlir",
+    pass_flags = [
+        "--cheddar-bufferize",
+        "--fold-memref-alias-ops",
+        "--cse",
+        "--canonicalize",
+        "--drop-equivalent-buffer-results",
+        "--buffer-results-to-out-params=hoist-static-allocs=true modify-public-functions=true add-result-attr=true",
+        "--canonicalize",
+        "--convert-to-emitc=filter-dialects=cheddar,arith,scf",
+        "--cheddar-emitc-boundary",
+        "--reconcile-unrealized-casts",
+    ],
+)
+
+heir_translate(
+    name = "kernels_cpp_raw",
+    src = ":kernels_emitc.mlir",
+    generated_filename = "kernels_raw.cc",
+    pass_flags = ["--mlir-to-cpp"],
+)
+
+# Prepend the includes/usings the emitted body relies on.
+genrule(
+    name = "kernels_lib_src",
+    srcs = [":kernels_raw.cc"],
+    outs = ["kernels_lib.cc"],
+    cmd = """cat > $@ <<'PRELUDE_EOF'
+// AUTO-GENERATED: do not edit. See tests/Conversions/CheddarToEmitC/compile/BUILD.
+#include <array>
+#include <complex>
+#include <cstdint>
+#include <initializer_list>
+#include <utility>
+#include <vector>
+#include "tests/Conversions/CheddarToEmitC/compile/cheddar_stub.h"
+using namespace cheddar;
+using word = uint64_t;
+PRELUDE_EOF
+cat $(location :kernels_raw.cc) >> $@
+""",
+)
+
+cc_library(
+    name = "cheddar_stub",
+    hdrs = ["cheddar_stub.h"],
+)
+
+cc_library(
+    name = "kernels_compiled",
+    srcs = [":kernels_lib_src"],
+    deps = [
+        ":cheddar_stub",
+        "//include/heir/runtime:CheddarRuntime",
+    ],
+)
+
+build_test(
+    name = "compile_test",
+    targets = [":kernels_compiled"],
+)
+
+# Opt-in: compile the same kernels against the real CHEDDAR headers.
+genrule(
+    name = "kernels_real_lib_src",
+    srcs = [":kernels_raw.cc"],
+    outs = ["kernels_real_lib.cc"],
+    cmd = """cat > $@ <<'PRELUDE_EOF'
+// AUTO-GENERATED: do not edit. See tests/Conversions/CheddarToEmitC/compile/BUILD.
+#include <array>
+#include <complex>
+#include <cstdint>
+#include <initializer_list>
+#include <memory>
+#include <utility>
+#include <vector>
+#include "UserInterface.h"
+#include "core/Context.h"
+#include "core/Encode.h"
+#include "core/Parameter.h"
+#include "extension/BootContext.h"
+#include "extension/EvalPoly.h"
+using namespace cheddar;
+using word = uint64_t;
+PRELUDE_EOF
+cat $(location :kernels_raw.cc) >> $@
+""",
+)
+
+cc_library(
+    name = "kernels_real_compiled",
+    srcs = [":kernels_real_lib_src"],
+    target_compatible_with = requires_cheddar(),
+    deps = [
+        "//include/heir/runtime:CheddarRuntime",
+        "@cheddar",
+    ],
+)
+
+build_test(
+    name = "real_compile_test",
+    target_compatible_with = requires_cheddar(),
+    targets = [":kernels_real_compiled"],
+)

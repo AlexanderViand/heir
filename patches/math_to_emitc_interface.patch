@@ -1,0 +1,97 @@
+# HEIR-maintained (not auto-generated). Adds a `ConvertToEmitCPatternInterface`
+# for the math dialect, mirroring ArithToEmitC, so `--convert-to-emitc` lowers
+# math ops via the existing MathToEmitC patterns (`std::` names for C++).
+diff --git a/mlir/include/mlir/Conversion/MathToEmitC/MathToEmitC.h b/mlir/include/mlir/Conversion/MathToEmitC/MathToEmitC.h
+index c61773026ca5..f6b91c8d9f41 100644
+--- a/mlir/include/mlir/Conversion/MathToEmitC/MathToEmitC.h
++++ b/mlir/include/mlir/Conversion/MathToEmitC/MathToEmitC.h
+@@ -9,6 +9,7 @@
+ #ifndef MLIR_CONVERSION_MATHTOEMITC_MATHTOEMITC_H
+ #define MLIR_CONVERSION_MATHTOEMITC_MATHTOEMITC_H
+ namespace mlir {
++class DialectRegistry;
+ class RewritePatternSet;
+ namespace emitc {
+ 
+@@ -19,6 +20,8 @@ enum class LanguageTarget { c99, cpp11 };
+ 
+ void populateConvertMathToEmitCPatterns(RewritePatternSet &patterns,
+                                         emitc::LanguageTarget languageTarget);
++
++void registerConvertMathToEmitCInterface(DialectRegistry &registry);
+ } // namespace mlir
+ 
+ #endif // MLIR_CONVERSION_MATHTOEMITC_MATHTOEMITC_H
+diff --git a/mlir/lib/Conversion/MathToEmitC/CMakeLists.txt b/mlir/lib/Conversion/MathToEmitC/CMakeLists.txt
+index 12a99c31e2ba..7f5e7b4a3aa7 100644
+--- a/mlir/lib/Conversion/MathToEmitC/CMakeLists.txt
++++ b/mlir/lib/Conversion/MathToEmitC/CMakeLists.txt
+@@ -12,6 +12,7 @@ add_mlir_conversion_library(MLIRMathToEmitC
+   Core
+ 
+   LINK_LIBS PUBLIC
++  MLIREmitCCommonConversion
+   MLIREmitCDialect
+   MLIRMathDialect
+   MLIRPass
+diff --git a/mlir/lib/Conversion/MathToEmitC/MathToEmitC.cpp b/mlir/lib/Conversion/MathToEmitC/MathToEmitC.cpp
+index 77d7ce236e43..2152abd8e257 100644
+--- a/mlir/lib/Conversion/MathToEmitC/MathToEmitC.cpp
++++ b/mlir/lib/Conversion/MathToEmitC/MathToEmitC.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "mlir/Conversion/MathToEmitC/MathToEmitC.h"
+ 
++#include "mlir/Conversion/ConvertToEmitC/ToEmitCInterface.h"
+ #include "mlir/Dialect/EmitC/IR/EmitC.h"
+ #include "mlir/Dialect/Math/IR/Math.h"
+ #include "mlir/Transforms/DialectConversion.h"
+@@ -15,6 +16,23 @@
+ using namespace mlir;
+ 
+ namespace {
++/// Implement the interface to convert Math to EmitC.
++struct MathToEmitCDialectInterface : public ConvertToEmitCPatternInterface {
++  MathToEmitCDialectInterface(Dialect *dialect)
++      : ConvertToEmitCPatternInterface(dialect) {}
++
++  /// Hook for derived dialect interface to provide conversion patterns
++  /// and mark dialect legal for the conversion target.
++  void populateConvertToEmitCConversionPatterns(
++      ConversionTarget &target, TypeConverter &typeConverter,
++      RewritePatternSet &patterns, std::optional<bool> lowerToCpp) const final {
++    populateConvertMathToEmitCPatterns(patterns,
++                                       lowerToCpp.value_or(true)
++                                           ? emitc::LanguageTarget::cpp11
++                                           : emitc::LanguageTarget::c99);
++  }
++};
++
+ template <typename OpType>
+ class LowerToEmitCCallOpaque : public OpRewritePattern<OpType> {
+   std::string calleeStr;
+@@ -55,6 +73,12 @@ LogicalResult LowerToEmitCCallOpaque<OpType>::matchAndRewrite(
+ 
+ } // namespace
+ 
++void mlir::registerConvertMathToEmitCInterface(DialectRegistry &registry) {
++  registry.addExtension(+[](MLIRContext *ctx, math::MathDialect *dialect) {
++    dialect->addInterfaces<MathToEmitCDialectInterface>();
++  });
++}
++
+ // Populates patterns to replace `math` operations with `emitc.call_opaque`,
+ // using function names consistent with those in <math.h>.
+ void mlir::populateConvertMathToEmitCPatterns(
+diff --git a/utils/bazel/llvm-project-overlay/mlir/BUILD.bazel b/utils/bazel/llvm-project-overlay/mlir/BUILD.bazel
+index c64250f0e032..97e33bc60727 100644
+--- a/utils/bazel/llvm-project-overlay/mlir/BUILD.bazel
++++ b/utils/bazel/llvm-project-overlay/mlir/BUILD.bazel
+@@ -8904,6 +8904,7 @@ cc_library(
+     ],
+     deps = [
+         ":ConversionPassIncGen",
++        ":ConvertToEmitCInterface",
+         ":EmitCCommon",
+         ":EmitCDialect",
+         ":MathDialect",

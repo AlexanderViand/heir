@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "lib/Conversions/CheddarToEmitC/CheddarToEmitC.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGI/ArithToCGGI.h"
 #include "lib/Dialect/Arith/Conversions/ArithToCGGIQuart/ArithToCGGIQuart.h"
 #include "lib/Dialect/Arith/Conversions/ArithToModArith/ArithToModArith.h"
@@ -158,6 +159,7 @@
 #include "mlir/include/mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/IndexToLLVM/IndexToLLVM.h"  // from @llvm-project
+#include "mlir/include/mlir/Conversion/MathToEmitC/MathToEmitC.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MathToLLVM/MathToLLVM.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MemRefToEmitC/MemRefToEmitC.h"  // from @llvm-project
 #include "mlir/include/mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"  // from @llvm-project
@@ -318,9 +320,11 @@ int main(int argc, char** argv) {
 
   // Converting to EmitC
   mlir::registerConvertArithToEmitCInterface(registry);
+  mlir::registerConvertMathToEmitCInterface(registry);
   mlir::registerConvertFuncToEmitCInterface(registry);
   mlir::registerConvertMemRefToEmitCInterface(registry);
   mlir::registerConvertSCFToEmitCInterface(registry);
+  mlir::heir::registerCheddarConvertToEmitCInterface(registry);
 
   // Misc
   registerTransformsPasses();      // canonicalize, cse, etc.
@@ -381,6 +385,7 @@ int main(int argc, char** argv) {
 
   // Custom passes in HEIR
   registerEmitCInterfacePass();
+  registerCheddarEmitCBoundaryPasses();
   cggi::registerCGGIPasses();
   debug::registerDebugPasses();
   ckks::registerCKKSPasses();
@@ -594,6 +599,10 @@ int main(int argc, char** argv) {
       "scheme-to-lattigo",
       "Convert code expressed at FHE scheme level to Lattigo Go code.",
       toLattigoPipelineBuilder());
+
+  PassPipelineRegistration<>("cheddar-to-emitc",
+                             "Bufferize Cheddar code and lower it to EmitC.",
+                             cheddarToEmitCPipelineBuilder);
 
   // TODO(#1645): Add backend options for tfhe-rs, fpt, jaxite.
   PassPipelineRegistration<>(
