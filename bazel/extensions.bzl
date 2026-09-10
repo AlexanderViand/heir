@@ -22,6 +22,8 @@ def _llvm_deps_impl(_):
             # through the automated integration process). The patch file is
             # automatically generated, and should not be removed even if empty.
             "@heir//patches:llvm.patch",
+            # Hand-maintained (NOT auto-generated), an upstream candidate.
+            "@heir//patches:math_to_emitc_interface.patch",
         ],
         patch_args = ["-p1"],
     )
