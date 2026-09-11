@@ -14,9 +14,13 @@ add_heir_transforms(
 
 cc_library(
     name = "Transforms",
-    srcs = ["ValidatePreprocessing.cpp"],
+    srcs = [
+        "ThreadResourceDir.cpp",
+        "ValidatePreprocessing.cpp",
+    ],
     hdrs = [
         "Passes.h",
+        "ThreadResourceDir.h",
         "ValidatePreprocessing.h",
     ],
     deps = [
